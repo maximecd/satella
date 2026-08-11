@@ -25,6 +25,17 @@ Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
   value: vi.fn(() => null),
 });
 
+class ResizeObserverMock implements ResizeObserver {
+  readonly observe = vi.fn();
+  readonly unobserve = vi.fn();
+  readonly disconnect = vi.fn();
+}
+
+Object.defineProperty(globalThis, "ResizeObserver", {
+  configurable: true,
+  value: ResizeObserverMock,
+});
+
 afterEach(() => {
   cleanup();
 });
