@@ -7,8 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { DatabaseConfigFromDirectory, makeDatabaseLive } from "../../src/database/index.js";
-import type { MigrationRegistry } from "../../src/database/index.js";
+import { DatabaseConfigFromDirectory, makeDatabaseLive } from "@engine/database";
+import type { MigrationRegistry } from "@engine/database";
 
 const directories: string[] = [];
 

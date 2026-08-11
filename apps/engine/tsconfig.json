@@ -5,6 +5,9 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",
+    "paths": {
+      "@engine/*": ["./src/*"]
+    },
     "rootDir": "src",
     "types": ["node"]
   },

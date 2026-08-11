@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { DatabaseConfigFromDirectory, makeDatabaseLive } from "../../src/database/index.js";
+import { DatabaseConfigFromDirectory, makeDatabaseLive } from "@engine/database";
 
 describe("SQLite lifecycle", () => {
   it("closes the scoped connection so its temporary directory can be removed", async () => {
