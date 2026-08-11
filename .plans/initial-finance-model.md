@@ -1,0 +1,749 @@
+# Initial Finance Model and CRUD Plan
+
+## Goal
+
+Add the first finance-domain model to the engine and expose a deliberately small UI for managing and inspecting it.
+
+The model must support:
+
+- manually maintained custodians now, with a connector-ready synced model for later;
+- multiple accounts per custodian;
+- current positions and daily historical snapshots;
+- cash, securities, crypto, and custom assets;
+- one shared price per asset across every custodian;
+- automatic market pricing for non-custom assets and manual pricing for custom assets;
+- one private, single-person engine database.
+
+Transactions are not the source of truth in this version. Current positions are authoritative, and snapshots provide history.
+
+## Domain Vocabulary
+
+```text
+Custodian -> Account -> Position -> Asset
+```
+
+### Custodian
+
+A custodian is the top-level place, platform, institution, or setup where assets are held. Examples include a bank, IBKR, Trade Republic, MetaMask, or another wallet application.
+
+Every custodian has an immutable management mode:
+
+- `manual`: its accounts and positions are maintained by the user;
+- `synced`: its accounts and positions are maintained by exactly one connector and are read-only to the user.
+
+The mode is all-or-nothing for the full custodian tree. A custodian cannot switch modes after creation.
+
+A custodian has a normal user-editable `name`. When real custodian connectors are added later, synced custodians will also have editable connector configuration and a manual Sync action. Background custodian synchronization is not part of this version.
+
+### Connector-readiness boundary
+
+This plan does not add or ship any custodian connector. The initial connector registry is empty, so the application initially creates and manages manual custodians only.
+
+The connector-related schema and domain rules exist now to avoid reshaping accounts and positions when the first connector arrives. They establish:
+
+- the immutable `synced` custodian mode;
+- one connector configuration per future synced custodian;
+- stable external account and asset mappings;
+- transactional connector reconciliation;
+- read-only ownership of connector-managed accounts and positions;
+- capability-gated UI behavior.
+
+A synced custodian cannot be created with an arbitrary connector ID. Creation must validate the ID against the compiled connector registry; with the initial empty registry, synced creation is unavailable. Test-only fake connector output may exercise these generic boundaries, but it must not be registered or exposed as a product connector.
+
+Yahoo Finance, CoinGecko, and the FX integration are market-data providers, not custodian connectors. They price shared assets and do not create custodians, accounts, or positions.
+
+### Account
+
+An account is a financial container inside a custodian, such as a PEA, CTO, checking account, savings account, or wallet account.
+
+Accounts have no category, subtype, tax-wrapper enum, or hierarchy in the initial model. Their separate identity and name are sufficient.
+
+Every account belongs to exactly one custodian. When a custodian naturally exposes no account subdivision, create one account named `Default` under the hood. The UI may omit that extra level when it is the only account and showing it would add no useful information.
+
+### Position
+
+A position is the unique relationship between one account and one asset. It stores the current quantity reported by a connector or entered by the user.
+
+There is at most one position for a given `(account_id, asset_id)`. Lots and transactions are not represented in this version.
+
+Quantities:
+
+- use SQLite `REAL` and TypeScript `number`;
+- may be positive, zero, or negative;
+- must be finite;
+- remain at zero instead of being automatically deleted, preserving their history.
+
+### Asset
+
+Assets are global within the engine database. Positions in different custodians reference the same asset when they represent the same economic instrument.
+
+Initial asset classes:
+
+| Stored class | Product label | Pricing                                   |
+| ------------ | ------------- | ----------------------------------------- |
+| `fiat`       | Cash          | Automatic FX market-data provider         |
+| `security`   | Stocks & ETFs | Automatic securities market-data provider |
+| `crypto`     | Crypto        | Automatic crypto market-data provider     |
+| `custom`     | Manual assets | User-entered price                        |
+
+`security` intentionally groups stocks and ETFs. Do not introduce finer classifications initially.
+
+Custodian management and asset pricing are independent. A manual custodian may contain existing fiat, security, or crypto assets and receive automatic prices for them. Only custom assets accept manually entered prices; automatically priced assets do not have a manual price override.
+
+Cash is an asset. A checking balance of 3,200 EUR is a position with asset EUR and quantity 3,200, not a special balance column on the account.
+
+## Currency Model
+
+Currency has three distinct roles.
+
+### Application reporting currency
+
+The engine has one application-wide reporting currency used for total wealth and charts. Initially it is a configurable TypeScript default:
+
+```ts
+export const DEFAULT_REPORTING_CURRENCY = "USD" as const;
+```
+
+All consumers must access it through a small settings/configuration boundary so it can become a persisted user setting later without changing domain code.
+
+The first domain migration seeds the USD fiat asset and its `iso_currency = USD` identifier so the default resolves through normal asset identity rather than a hardcoded database ID. Other fiat assets may be created lazily from connector or market-data results.
+
+### Account base currency
+
+Every account has one required base currency referencing a fiat asset. Synced connectors supply it when available. Manual account creation asks for it and defaults to the application reporting currency.
+
+Base currency is account metadata; it does not constrain holdings. A USD account can contain EUR cash or securities priced in another currency. Custodians do not have a currency.
+
+### Asset price currency
+
+Every price states the fiat asset in which it is quoted:
+
+```text
+Apple price: 198 EUR
+EUR price:   1.16 USD
+```
+
+The stored value is the provider's original price, not a value precomputed into the application reporting currency. The valuation engine converts through available FX prices when producing reporting-currency totals. A reporting currency has an implicit self-price of one.
+
+## Canonical Asset Identity
+
+IBKR Apple and Trade Republic Apple must resolve to one shared Apple asset when they are the same instrument. Different custodians and trading currencies do not create different assets.
+
+Use strong identifiers for automatic matching:
+
+- fiat: ISO currency code;
+- securities: ISIN where available;
+- crypto: chain plus contract address, or a canonical native-coin identifier;
+- custom assets: their unique internal ID.
+
+Ticker symbols and names are display metadata and are not sufficient for automatic merging.
+
+An asset may have several identifiers so connectors and market-data providers can refer to the same record:
+
+```text
+Apple
+  ISIN:          US0378331005
+  Yahoo Finance: AAPL
+  IBKR:          265598
+```
+
+Asset matching follows this order:
+
+1. Reuse an existing connector mapping.
+2. Match a strong global identifier.
+3. Create a new asset when no safe match exists.
+4. Never merge automatically using only a ticker or name.
+
+Uncertain imports may remain separate. A merge/reconciliation UI can be added when real connector data demonstrates the need.
+
+## Pricing Model
+
+Custodian connectors and market-data providers have separate responsibilities:
+
+```text
+Custodian connector -> accounts and position quantities
+Market-data provider -> shared asset prices
+```
+
+Implement market-data providers as Effect services with stable IDs, supported asset classes, lookup/search metadata, and a batch price operation. Keep them in the engine initially rather than introducing another package before reuse requires one.
+
+Initial defaults are selected through replaceable TypeScript configuration:
+
+```ts
+export const DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CLASS = {
+  security: "yahoo-finance",
+  crypto: "coingecko",
+  fiat: "<initial-fx-provider>",
+  custom: "manual",
+} as const;
+```
+
+Choose the first FX implementation during the pricing integration step. Provider selection must flow through a registry/configuration boundary so it can become a user setting later.
+
+Each asset has at most one selected current price. That one price values every position referencing the asset, producing consistent cross-custodian statistics. A connector-reported price may be used as a shared fallback observation, but it is never attached exclusively to one position.
+
+Price priority:
+
+1. The configured market-data provider for the asset class.
+2. A custodian-reported price as a shared fallback.
+3. A user-entered price for custom assets only.
+
+When no price is available:
+
+- importing or editing the position still succeeds;
+- the position is omitted from valued totals rather than treated as zero;
+- the UI places it in a collapsed `Unpriced positions` section;
+- the UI indicates that the visible total is incomplete.
+
+When refresh fails but a last known price exists, retain it with its original observation timestamp and surface that it is stale.
+
+Prices use SQLite `REAL` and TypeScript `number`. They must be finite. User-facing monetary totals are rounded for their display currency, and calculated floating-point values must not be compared for exact equality.
+
+## Proposed SQLite Schema
+
+Use strict SQLite tables, foreign-key enforcement, UTC timestamps, and database-level uniqueness and cascade rules. The exact timestamp representation can follow the persistence layer convention, but it must be consistent across all tables.
+
+### `custodians`
+
+```text
+id                primary key
+name              text, required
+management_mode   text, required, manual | synced
+created_at        timestamp, required
+updated_at        timestamp, required
+```
+
+Rules:
+
+- `management_mode` is immutable.
+- Names need not be globally unique.
+- There is no archive or soft-delete column.
+
+### `custodian_connectors`
+
+```text
+custodian_id      primary key, FK -> custodians, cascade delete
+connector_id      text, required
+config_json       text, required
+last_synced_at    timestamp, optional
+created_at        timestamp, required
+updated_at        timestamp, required
+```
+
+Rules:
+
+- Exactly one row exists for every synced custodian.
+- No row exists for a manual custodian.
+- Connector configuration is runtime-validated by that connector's Effect Schema.
+- Do not store credentials or tokens in plaintext `config_json`. Real sensitive connector use remains blocked on the vault and at-rest encryption design from the SQLite persistence plan.
+
+### `accounts`
+
+```text
+id                        primary key
+custodian_id              FK -> custodians, required, cascade delete
+name                      text, required
+base_currency_asset_id    FK -> assets, required
+connector_account_id      text, optional
+created_at                timestamp, required
+updated_at                timestamp, required
+```
+
+Constraints and domain validation:
+
+- `(custodian_id, connector_account_id)` is unique when a connector ID exists.
+- Manual accounts have no `connector_account_id`.
+- Synced accounts require a `connector_account_id` supplied by their connector.
+- `base_currency_asset_id` must reference a fiat asset.
+- Accounts have no initial type/category column.
+
+The connector account ID is the stable upstream identity used to upsert the same account across syncs even when its name changes.
+
+### `assets`
+
+```text
+id                primary key
+asset_class       text, required, fiat | security | crypto | custom
+name              text, required
+symbol            text, optional
+created_at        timestamp, required
+updated_at        timestamp, required
+```
+
+Symbols and names are not unique.
+
+### `asset_identifiers`
+
+```text
+id                primary key
+asset_id          FK -> assets, required, cascade delete
+identifier_type   text, required
+identifier_value  text, required
+```
+
+`(identifier_type, identifier_value)` is globally unique. Provider-specific namespaces must include enough scope to make values stable, such as an exchange-qualified Yahoo Finance symbol rather than assuming every bare ticker is global.
+
+### `connector_asset_mappings`
+
+```text
+custodian_id       FK -> custodians, required, cascade delete
+external_asset_id  text, required
+asset_id           FK -> assets, required
+```
+
+Use `(custodian_id, external_asset_id)` as the primary or unique key. This preserves the local mapping even when a connector's identifier is meaningful only within that connector or configured custodian.
+
+### `positions`
+
+```text
+id                primary key
+account_id        FK -> accounts, required, cascade delete
+asset_id          FK -> assets, required
+quantity          REAL, required
+created_at        timestamp, required
+updated_at        timestamp, required
+```
+
+Constraints:
+
+- `(account_id, asset_id)` is unique.
+- Quantity must be finite and may be negative, zero, or positive.
+- A normal close/removal updates quantity to zero rather than deleting the row.
+- An explicit permanent delete removes the position and its history.
+
+### `asset_prices`
+
+```text
+asset_id           primary key, FK -> assets, cascade delete
+price              REAL, required
+currency_asset_id  FK -> assets, required
+source              text, required
+observed_at         timestamp, required
+updated_at          timestamp, required
+```
+
+Rules:
+
+- `currency_asset_id` must reference a fiat asset.
+- Price must be finite.
+- One row is the selected current shared price for the asset.
+- `source` is a stable market-data provider ID, connector fallback ID, or `manual` for custom assets.
+
+### `snapshots`
+
+```text
+id                primary key
+captured_at       timestamp, required, unique
+```
+
+This row identifies one complete, successful snapshot run. It provides a reliable due-check timestamp even when the database contains no positions and groups quantities and prices captured in the same transaction.
+
+### `position_snapshots`
+
+```text
+snapshot_id       FK -> snapshots, required, cascade delete
+position_id       FK -> positions, required, cascade delete
+quantity          REAL, required
+```
+
+Use `(snapshot_id, position_id)` as the primary or unique key.
+
+### `asset_price_snapshots`
+
+```text
+snapshot_id        FK -> snapshots, required, cascade delete
+asset_id           FK -> assets, required, cascade delete
+price              REAL, required
+currency_asset_id  FK -> assets, required
+source              text, required
+observed_at         timestamp, required
+```
+
+Use `(snapshot_id, asset_id)` as the primary or unique key.
+
+## Snapshot Workflow
+
+Daily is the initial snapshot interval, expressed as replaceable engine configuration rather than encoded in the schema:
+
+```ts
+export const DEFAULT_SNAPSHOT_INTERVAL = Duration.days(1);
+```
+
+The snapshot job:
+
+1. Checks whether the configured interval has elapsed since the latest successful snapshot.
+2. Refreshes automatic prices for every referenced fiat, security, and crypto asset.
+3. Retains last known prices when an individual provider refresh fails.
+4. Creates one snapshot-run row.
+5. Inserts current quantities for all positions, including zero positions, under that snapshot ID.
+6. Inserts the selected current price for every priced, referenced asset under the same snapshot ID.
+7. Commits the complete snapshot atomically so quantities and prices represent one capture, or rolls all of it back.
+
+Custom prices are not automatically refreshed. The latest manual custom price is included in the snapshot.
+
+The engine may run the due check on startup and periodically while alive. It must not fabricate missed daily snapshots for periods when it had no observations. This job does not synchronize custodian accounts or quantities.
+
+Historical valuation uses the position quantity and shared asset price captured at the relevant snapshot, converting through the captured FX prices into the requested reporting currency.
+
+## Manual Custodian Workflow
+
+1. Create a custodian with `management_mode = manual` and a name.
+2. Create its first account, choosing a base currency defaulted from the application reporting currency. The UI may create a `Default` account automatically for wallet-like custodians.
+3. Add a position by selecting an existing asset or creating a custom asset.
+4. Enter the position quantity.
+5. For fiat, security, or crypto assets, fetch prices from the configured automatic provider.
+6. For a custom asset, require or request a manual price and its fiat currency while still allowing the position to exist unpriced.
+7. Updating a holding changes the current quantity; setting it to zero preserves its snapshots.
+
+## Future Synced Custodian Workflow
+
+This workflow specifies the generic behavior that becomes active when a separately scoped real custodian connector is added. No production connector implements it in the initial version.
+
+1. Create a custodian with `management_mode = synced`, one connector ID, and validated configuration.
+2. Run synchronization only when the user explicitly requests it.
+3. Inside one transaction, upsert accounts by `(custodian_id, connector_account_id)`.
+4. Resolve connector instruments through connector mappings and strong asset identifiers.
+5. Upsert current positions by `(account_id, asset_id)`.
+6. After a successful complete sync, set previously known but now missing positions to zero.
+7. Never reconcile destructive absence from a failed or partial connector result.
+8. Refresh shared automatic prices independently through market-data providers.
+
+Accounts and positions under a synced custodian are read-only in the UI and write-protected in engine domain services. The user may edit the custodian name and connector configuration, manually trigger sync, or permanently delete the custodian.
+
+If a connector explicitly removes an account, or a successful complete reconciliation determines that it is gone, hard-delete the account and its dependent positions and snapshots. There is no archived state.
+
+## Deletion and Privacy Semantics
+
+There are no `archived_at`, `deleted_at`, tombstone, or soft-delete fields.
+
+- Deleting a custodian permanently cascades to its connector configuration, connector mappings, accounts, positions, and position snapshots.
+- Deleting an account permanently cascades to its positions and position snapshots.
+- Explicitly deleting a position permanently deletes its snapshots.
+- Setting a position quantity to zero is a normal historical state and is distinct from permanent deletion.
+- Deleting an asset is allowed only when no account or position still references it; its identifiers and price history then cascade.
+- Global asset records do not cascade from deleting one custodian because another custodian may share them.
+
+Hard deletion is the application-level semantic. Physical erasure from SQLite pages, WAL files, migration backups, exports, and filesystem backups is a separate encryption/secure-storage concern and must be handled by the privacy design before real financial data is persisted.
+
+## Single-Person Boundary
+
+One engine database belongs to one person.
+
+Do not add:
+
+- users;
+- households;
+- organizations;
+- ownership foreign keys on finance tables;
+- an authentication model as part of this schema.
+
+Remote engine access and process authentication are separate concerns outside this plan.
+
+## UI Implementation Plan
+
+Treat the initial frontend as a separate, deliberately simple CRUD workstream. Its purpose is to exercise the domain model and API, not establish an advanced wealth dashboard.
+
+### UI constraints
+
+- Use the Astryx design system already installed in the web application for components, tokens, theme, accessibility, and common layouts.
+- Prefer Astryx `AppShell`, layout, navigation, breadcrumbs, table/list, form, button, collapsible, empty-state, toast, and alert-dialog primitives where they fit.
+- Use StyleX only for small product-specific layout needs such as page width, spacing, and responsive stacking, using Astryx tokens.
+- Do not build a competing component library, custom design system, charting layer, elaborate animations, or highly polished dashboard in this phase.
+- Keep each screen easy to understand: a heading, one primary action, a list or form, and explicit loading, empty, error, and read-only states.
+- Prefer full routes for create/edit/detail workflows instead of coordinating many dialogs or complicated local state. Use an Astryx alert dialog only to confirm destructive deletion.
+
+### Frontend dependencies and setup
+
+Add the planned React integrations to `apps/web`:
+
+- TanStack Router with its Vite plugin and file-based routes;
+- TanStack Query for all engine reads and mutations;
+- TanStack Form for form state and validation.
+
+Keep the existing Astryx reset, theme, `LayerProvider`, and StyleX setup. Add one application `QueryClient` and provide it at the root alongside the generated TanStack Router.
+
+The frontend calls typed, browser-safe engine API operations. It never imports engine repositories, runtime layers, SQL modules, or Node-specific code.
+
+### Initial routes
+
+Use simple file-based routes with typed path parameters:
+
+| Route                                   | Purpose                                                                                               |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `/`                                     | Redirect to or render the custodian list                                                              |
+| `/custodians`                           | List custodians and their management modes                                                            |
+| `/custodians/new`                       | Create a manual custodian; expose synced creation later only when the connector registry is non-empty |
+| `/custodians/$custodianId`              | Show custodian details and accounts                                                                   |
+| `/custodians/$custodianId/edit`         | Rename the custodian and, when synced, edit connector configuration                                   |
+| `/custodians/$custodianId/accounts/new` | Create an account for a manual custodian                                                              |
+| `/accounts/$accountId`                  | Show account details and positions                                                                    |
+| `/accounts/$accountId/edit`             | Rename a manual account and change its base currency                                                  |
+| `/accounts/$accountId/positions/new`    | Add an existing asset or create a custom asset position                                               |
+| `/positions/$positionId/edit`           | Change quantity for a manual position; custom-asset pricing may be included when applicable           |
+| `/assets`                               | Inspect/search the shared asset catalog                                                               |
+| `/assets/custom/new`                    | Create a custom asset and optional initial manual price                                               |
+| `/assets/$assetId/edit`                 | Edit a custom asset and its manual price; automatic assets are read-only                              |
+
+Do not introduce nested overlays, route masking, or route-loader orchestration initially. Route components may compose small feature components, but they remain the obvious owner of their screen.
+
+### TanStack Query conventions
+
+Every engine GET request from a React screen uses `useQuery`. Do not duplicate server data into component state or a second client-side store.
+
+Define query keys and reusable `queryOptions` centrally by resource:
+
+```text
+custodians.all
+custodians.detail(custodianId)
+connectors.capabilities
+accounts.detail(accountId)
+assets.all(search?)
+assets.detail(assetId)
+```
+
+Rules:
+
+- Query functions call the typed engine client and return schema-decoded responses.
+- Route components render explicit pending, error, empty, and success states using Astryx.
+- Avoid polling. Custodian synchronization is a user-triggered mutation.
+- Do not add optimistic updates initially. The local engine should respond quickly, and invalidation is easier to reason about for destructive finance operations.
+- Keep stale-time and retry choices conservative and centralized rather than overriding them on every component.
+
+Use `useMutation` for every available write operation:
+
+- create, update, and delete custodians;
+- when a real connector exists, update connector configuration and run `Sync now`;
+- create, update, and delete manual accounts;
+- create, update, zero, and permanently delete manual positions;
+- create, update, price, and delete custom assets.
+
+After success, await invalidation of the narrow affected keys. For example, creating an account invalidates that custodian detail; changing a position invalidates its account, custodian totals, and any shared portfolio summary. In the future, a successful manual connector sync will invalidate the synced custodian, its accounts/positions, and affected asset/price queries.
+
+Use mutation state for submit-button pending state and duplicate-submit prevention. Display expected API failures near the form or action and use Astryx toasts for concise success/failure feedback. Keep hard-delete confirmations explicit and do not apply optimistic deletion.
+
+### TanStack Form and Effect Schema integration
+
+Use TanStack Form rather than bespoke `useState` form handling. Define form/API input schemas in the engine's browser-safe API contract so the web application and engine share one source of truth.
+
+The installed `effect@3.22.1` provides `Schema.standardSchemaV1`, and TanStack Form accepts Standard Schema validators, including Effect Schema. Use that direct integration rather than introducing Zod or maintaining duplicate client schemas.
+
+The intended type flow is:
+
+```text
+Effect Schema encoded/input type
+  -> TanStack Form values and deeply typed field paths
+  -> Schema.standardSchemaV1(schema) for form validation and field issues
+  -> explicit Effect Schema decode on submit
+  -> decoded API command type
+  -> useMutation
+  -> engine validates the same API schema again
+```
+
+This distinction matters for transformed schemas. For example, a quantity input may be represented by a string in an HTML field and decoded to a number for the API:
+
+```ts
+const UpdatePositionInput = Schema.Struct({
+  quantity: Schema.NumberFromString,
+});
+
+const UpdatePositionFormValidator = Schema.standardSchemaV1(UpdatePositionInput);
+
+type UpdatePositionFormValues = typeof UpdatePositionInput.Encoded;
+type UpdatePositionCommand = typeof UpdatePositionInput.Type;
+```
+
+TanStack Form's Standard Schema validation reports validation issues and paths but does not replace form values with a schema's transformed output. Therefore:
+
+1. Keep TanStack Form default values aligned with the schema's encoded/input type.
+2. Pass the Standard Schema wrapper as the form-level validator so nested issue paths map to fields.
+3. On submit, explicitly decode the form value with the original Effect Schema.
+4. Only pass the decoded output type to `mutation.mutate` or `mutation.mutateAsync`.
+5. Decode and validate again at the engine HTTP boundary; browser validation is user feedback, not a trust boundary.
+
+API input schemas used by forms must be browser-safe and context-free (`R = never`) so Standard Schema validation can execute in the renderer. Keep network/database-dependent checks in the mutation endpoint and return typed domain failures; do not hide remote checks in field schemas.
+
+Create one small application form binding with TanStack Form's `createFormHook` and Astryx-backed field components for the controls actually needed:
+
+- text input;
+- number input while preserving the schema's encoded type;
+- selector;
+- field label/status/errors;
+- submit button.
+
+This binding should remove repetitive wiring while preserving TanStack Form's inferred nested field names. Do not build a generic schema-generated form engine. Forms remain explicit route components composed from a few Astryx-backed fields.
+
+Before converting every form, implement and typecheck one representative vertical slice—create custodian plus a transformed numeric position form—to verify:
+
+- deeply inferred field names;
+- optional field behavior under the repository's `exactOptionalPropertyTypes` setting;
+- Effect issue paths rendering under the corresponding Astryx fields;
+- encoded string to decoded number transformation at submit;
+- decoded values flowing into a typed `useMutation` without casts or `any`.
+
+If that spike exposes a library compatibility problem, keep Effect Schema as the canonical API schema and write a small typed validator adapter. Do not solve it by duplicating schemas in another validation library.
+
+### Custodian screens
+
+The custodian list:
+
+- shows every custodian by `name` and management mode;
+- links each row to its detail route;
+- links to the create route;
+- uses an Astryx empty state when none exist.
+
+Custodian create/edit/detail routes support:
+
+- creating a manual custodian;
+- renaming either kind of custodian;
+- permanently deleting a custodian after confirmation;
+- listing its accounts and their base currencies;
+- creating accounts only when the custodian is manual;
+- visually omitting or collapsing a sole `Default` account when that makes a wallet-like custodian easier to understand.
+
+Also query the engine's connector capabilities. While the registry is empty, do not render synced creation, connector configuration, or `Sync now` controls. When the first real connector is registered later, the same routes may additionally support:
+
+- creating a synced custodian by selecting a registered connector and entering its validated configuration;
+- editing connector configuration;
+- triggering `Sync now` through `useMutation`;
+- rendering connector-owned accounts read-only.
+
+### Account and position screens
+
+Account detail lists positions with asset name, symbol, quantity, selected shared price, price currency, reporting-currency value, and price timestamp.
+
+For manual accounts:
+
+- add an existing asset or create a custom asset;
+- change a position quantity;
+- set quantity to zero while retaining history;
+- permanently delete a position;
+- rename or permanently delete the account;
+- change the account base currency.
+
+For synced accounts, every connector-owned account and position field is visibly read-only.
+
+Use Astryx collapsibles for:
+
+- zero-quantity positions in `Zero positions`;
+- unpriced positions in `Unpriced positions`.
+
+Unpriced positions are excluded from the displayed valued total. Clearly indicate when the visible total is incomplete or relies on stale prices.
+
+### Asset screens
+
+- Search/select existing fiat, security, and crypto assets through the applicable market-data provider.
+- Inspect strong identifiers and selected price-source metadata for diagnosis.
+- Do not make provider-owned identifiers or automatic prices editable.
+- Create, rename, manually price, and permanently delete custom assets.
+- Permit manual price editing only for custom assets.
+
+### UI verification and acceptance
+
+Test route-level behavior with a real Query Client and mocked typed API boundary. Cover:
+
+- every GET screen loading through `useQuery`;
+- every write using `useMutation` and invalidating the expected query keys;
+- manual CRUD controls appearing only where writes are allowed;
+- an empty connector registry hiding all synced setup and sync controls;
+- test-only synced fixtures proving accounts and positions remain read-only;
+- a registered test capability revealing connector configuration and manual Sync controls without shipping a production connector;
+- hard-delete confirmations and the absence of optimistic deletion;
+- zero and unpriced position collapsibles;
+- incomplete and stale valuation states;
+- Effect Schema issue paths appearing on the correct fields;
+- transformed form inputs being explicitly decoded before mutation;
+- route navigation after successful create/delete operations.
+
+The UI work is complete when every initial entity can be reached through a predictable route, manual data can be managed without raw API calls, synced data can be inspected and manually refreshed, and no screen requires a custom design-system primitive.
+
+### UI research references
+
+- [TanStack Router file-based routing](https://tanstack.com/router/latest/docs/routing/file-based-routing)
+- [TanStack Query `useQuery`](https://tanstack.com/query/latest/docs/framework/react/reference/useQuery)
+- [TanStack Query mutations](https://tanstack.com/query/latest/docs/framework/react/guides/mutations)
+- [TanStack Query invalidation from mutations](https://tanstack.com/query/latest/docs/framework/react/guides/invalidations-from-mutations)
+- [TanStack Form quick start and `createFormHook`](https://tanstack.com/form/latest/docs/framework/react/quick-start)
+- [TanStack Form Standard Schema validation](https://tanstack.com/form/latest/docs/framework/react/guides/validation#standard-schema-libraries)
+
+## Engine Service Boundaries
+
+Keep HTTP handlers thin and enforce invariants in domain services/repositories:
+
+- `CustodianService`: create, rename, delete, validate immutable mode and registered connector IDs, update connector config, trigger sync;
+- `AccountService`: manual CRUD, connector upsert, base-currency validation;
+- `AssetService`: canonical matching, identifier management, custom-asset CRUD;
+- `PositionService`: manual quantity updates, connector reconciliation, permanent deletion;
+- `MarketDataService`: provider registry, asset search, price refresh and fallback selection;
+- `SnapshotService`: due check, price refresh, and atomic daily capture.
+
+Connectors never write the database directly. They return normalized data; the engine resolves identities and commits it transactionally.
+
+## Implementation Order
+
+1. Complete the SQLite infrastructure plan and encryption/vault prerequisite needed before real financial data.
+2. Add the first domain migration with custodians, accounts, assets, identifiers, connector mappings, positions, current prices, and snapshot tables; seed the canonical USD fiat asset.
+3. Implement persistence schemas and repositories with foreign keys, uniqueness, `REAL` validation, and cascade tests.
+4. Implement custodian and account domain services, including immutable management mode and hard deletion.
+5. Implement asset identity matching and manual/custom asset handling.
+6. Implement manual position CRUD and shared valuation in the reporting currency.
+7. Add the market-data provider interface and registry, then the initial Yahoo Finance, CoinGecko, manual, and FX implementations.
+8. Implement the configurable daily snapshot job with price refresh and atomic capture.
+9. Define and test the generic connector ingestion/reconciliation boundary with test-only normalized fixture output; keep the production connector registry empty.
+10. Add typed HTTP operations, including an empty connector-capabilities query, then build the route-based Astryx CRUD UI with TanStack Router, Query, Form, and the Effect Schema form-validation spike.
+
+## Verification
+
+Cover at least these cases with engine integration tests against temporary SQLite databases:
+
+1. A manual custodian can contain several accounts and each account requires a fiat base currency.
+2. A synced custodian requires exactly one connector configuration and its mode cannot change.
+3. Manual and synced account write permissions are enforced in the engine, not only the UI.
+4. Connector account IDs are stable and unique within a custodian.
+5. The same strongly identified Apple asset is reused by IBKR and Trade Republic positions.
+6. Names and tickers alone do not automatically merge assets.
+7. An account cannot have duplicate positions for the same asset.
+8. Positive, zero, and negative finite quantities persist; invalid non-finite values are rejected.
+9. Cash is held as a fiat-asset position and accounts can hold currencies other than their base currency.
+10. One shared asset price values positions consistently across multiple custodians.
+11. Automatic assets reject manual price edits; custom assets accept them.
+12. Missing prices do not block imports and are excluded from valued totals with an incomplete-result marker.
+13. Failed refreshes retain stale last-known prices and observation timestamps.
+14. A daily snapshot refreshes prices first and atomically captures quantities and selected prices.
+15. Missing synced positions become zero only after a successful complete sync.
+16. Deleting custodians, accounts, positions, and unreferenced assets performs the documented hard cascades.
+17. Historical quantities and prices produce reporting-currency values using historical FX observations.
+
+Frontend verification is specified separately in the UI implementation section.
+
+## Explicitly Deferred
+
+- Transactions as a ledger or source of truth
+- Cost basis and tax calculations
+- Account categories, account types, and tax-wrapper models
+- Every real custodian connector implementation
+- Activating synced-custodian creation and Sync UI until a real connector is registered
+- Automatic/background custodian synchronization
+- User-configured snapshot interval
+- Persisted reporting-currency and market-data-provider settings
+- User-selected market-data provider overrides
+- Asset merge/reconciliation UI
+- Multi-person, household, or organization ownership
+- Authentication and remote-access design
+- Exact-decimal or fixed-point migration unless accounting-grade precision requires it
+- Advanced dashboards and portfolio visualization beyond the starter CRUD views
+
+## Acceptance Criteria
+
+- Every account belongs to one custodian and every position belongs to one account and one global asset.
+- A custodian is permanently manual or synced, and synced account/position data is read-only.
+- Cash, securities, crypto, and custom assets share the same position model.
+- IBKR and Trade Republic can hold the same canonical Apple asset without receiving position-specific portfolio prices.
+- Every valued asset has one selected shared price with an explicit fiat currency and observation timestamp.
+- Current wealth and daily history can be calculated without transactions.
+- Missing prices never block synchronization and never silently count as zero.
+- Daily snapshots refresh automatic prices before atomically recording quantities and prices.
+- Custodian sync happens only through an explicit user action.
+- Financial records use hard deletion rather than archival.
+- The initial UI can create and manage manual data and expose zero/unpriced positions.
+- The empty connector registry keeps synced creation and sync controls unavailable while the schema, generic ingestion boundary, and read-only UI states remain ready for a future connector.
+- The schema contains no user, household, authentication, account-category, or soft-delete abstractions.
