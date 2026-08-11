@@ -50,7 +50,7 @@ The connector-related schema and domain rules exist now to avoid reshaping accou
 
 A synced custodian cannot be created with an arbitrary connector ID. Creation must validate the ID against the compiled connector registry; with the initial empty registry, synced creation is unavailable. Test-only fake connector output may exercise these generic boundaries, but it must not be registered or exposed as a product connector.
 
-Yahoo Finance, CoinGecko, and the FX integration are market-data providers, not custodian connectors. They price shared assets and do not create custodians, accounts, or positions.
+Yahoo Finance and CoinGecko are market-data providers, not custodian connectors. Yahoo Finance prices securities and fiat FX; CoinGecko prices crypto. They price shared assets and do not create custodians, accounts, or positions.
 
 ### Account
 
@@ -79,12 +79,12 @@ Assets are global within the engine database. Positions in different custodians 
 
 Initial asset classes:
 
-| Stored class | Product label | Pricing                                   |
-| ------------ | ------------- | ----------------------------------------- |
-| `fiat`       | Cash          | Automatic FX market-data provider         |
-| `security`   | Stocks & ETFs | Automatic securities market-data provider |
-| `crypto`     | Crypto        | Automatic crypto market-data provider     |
-| `custom`     | Manual assets | User-entered price                        |
+| Stored class | Product label | Pricing                                |
+| ------------ | ------------- | -------------------------------------- |
+| `fiat`       | Cash          | Yahoo Finance FX quote                 |
+| `security`   | Stocks & ETFs | Yahoo Finance quote                    |
+| `crypto`     | Crypto        | CoinGecko current-price endpoint       |
+| `custom`     | Manual assets | User-entered price; no provider request |
 
 `security` intentionally groups stocks and ETFs. Do not introduce finer classifications initially.
 
@@ -173,12 +173,98 @@ Initial defaults are selected through replaceable TypeScript configuration:
 export const DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CLASS = {
   security: "yahoo-finance",
   crypto: "coingecko",
-  fiat: "<initial-fx-provider>",
+  fiat: "yahoo-finance",
   custom: "manual",
 } as const;
 ```
 
-Choose the first FX implementation during the pricing integration step. Provider selection must flow through a registry/configuration boundary so it can become a user setting later.
+This mapping is required for the initial implementation:
+
+- stocks and ETFs use Yahoo Finance;
+- fiat currencies use Yahoo Finance FX pairs;
+- cryptoassets use CoinGecko;
+- custom/manual assets use only the price entered by the user and never trigger a market-data request.
+
+Provider selection must still flow through a registry/configuration boundary so it can become a user setting later.
+
+### Provider integrations
+
+Keep every provider client server-side in `apps/engine` and wrap it behind the Effect service. Provider package response types must not leak into domain or browser-safe API types. Decode and normalize every provider response into the same internal observation shape:
+
+```ts
+interface PriceObservation {
+  readonly assetId: AssetId;
+  readonly price: number;
+  readonly currencyIso: string;
+  readonly source: "yahoo-finance" | "coingecko";
+  readonly observedAt: Date;
+}
+```
+
+The provider boundary accepts a collection and returns independent successes or typed failures keyed by asset. One bad or unknown symbol must not discard valid observations from the same batch.
+
+#### Yahoo Finance: stocks, ETFs, and fiat
+
+Use the server-only `yahoo-finance2` TypeScript package. Yahoo does not offer an official developer API, so isolate this unofficial dependency in a small adapter and pin the exact tested version. Before adopting or upgrading it, verify Node 22/ESM compatibility, its runtime response validation, multi-symbol `quote` support, timeout/cancellation behavior, and access to status/rate-limit errors. If it stops meeting those requirements, replace only the adapter rather than changing domain code.
+
+- Persist an exchange-qualified Yahoo symbol as an `asset_identifiers` entry for every Yahoo-priced security. ISIN remains the canonical strong identity; the Yahoo symbol is the provider lookup key.
+- Fetch current stock and ETF prices with one multi-symbol `quote([...])` call per chunk. Request only the fields needed to derive symbol, regular-market price, quote currency, quote type, and market timestamp.
+- Accept only the expected security quote types, a finite positive price, a resolvable ISO fiat quote currency, and a provider timestamp. A missing item is an asset-level failure, not a zero price.
+- Price fiat `FROM` in fiat `TO` with Yahoo's `FROMTO=X` symbol convention. For example, `EURUSD=X` stores the number of USD per EUR with `currency_asset_id` pointing to USD. Validate the returned symbol, currency, finite positive rate, and timestamp before storing it.
+- Use the application reporting currency as `TO` for the initial FX refresh. Its self-price is implicitly one and must not cause a network request. Refresh every other fiat required by a held cash position, account base currency, or automatic asset quote currency.
+- Put security symbols and already-known FX symbols into the same Yahoo multi-symbol quote request whenever the client/API supports it. A newly discovered security quote currency may require one follow-up FX batch in that refresh run; never issue one follow-up request per asset.
+- Use Yahoo search only to help the user select a security. Selecting a search result must persist its exact Yahoo symbol and available strong identity; never infer an exchange from a bare ticker.
+
+#### CoinGecko: crypto
+
+Prefer CoinGecko's official server-side TypeScript SDK, `@coingecko/coingecko-typescript`, pinned to an exact tested version. Adopt it only if a short integration spike confirms Node 22/ESM support, typed access to the required batch endpoints, timeout/cancellation, and usable error/rate-limit metadata. If the official SDK fails that quality gate, use the existing Effect HTTP client directly against CoinGecko's documented REST API rather than choosing an unmaintained wrapper.
+
+- Persist the CoinGecko coin ID as a provider-specific `asset_identifiers` entry. It is the lookup key for listed/native coins; name and symbol are never lookup identities.
+- Batch listed/native coins through `/simple/price`, passing all deduplicated CoinGecko IDs for the chunk and the application reporting currency as the requested `vs_currency`. Validate that currency against a cached `/simple/supported_vs_currencies` result; if it is unsupported, request USD once for the batch, store the USD quote, and let the normal Yahoo FX path convert it for reporting.
+- For a contract-address asset that has no CoinGecko coin ID, group requests by CoinGecko asset-platform/chain ID and use `/simple/token_price/{platform}` with all contract addresses for that platform in one call. Persist a returned CoinGecko ID when resolution supplies one.
+- Request only current price and last-updated time. Validate that each returned value is finite and positive and use CoinGecko's last-updated timestamp as `observed_at`; a missing coin remains unpriced.
+- Use CoinGecko search/metadata endpoints when selecting or resolving a cryptoasset, but cache slowly changing provider ID/platform metadata separately from current prices.
+
+#### Request efficiency and resilience
+
+`MarketDataService.refreshPrices` is the only coordinator that performs automatic price fetching. Reads of assets, positions, and totals only read persisted `asset_prices`; rendering a screen must never create provider traffic.
+
+For every refresh run:
+
+1. Load the referenced automatic assets once and deduplicate them by provider lookup key, not by position. Ten positions holding Apple therefore produce one `AAPL` lookup.
+2. Remove assets whose persisted observation is still inside the centrally configured freshness window unless the caller explicitly requires a fresh snapshot observation.
+3. Partition requests by provider and native batch shape: one Yahoo symbol collection, one CoinGecko ID collection, and at most one CoinGecko contract collection per platform.
+4. Split only when a provider's documented/request-size limit requires it. Keep chunk sizes in provider configuration rather than scattering magic constants through callers.
+5. Run the independent Yahoo and CoinGecko batches concurrently with bounded concurrency. Also bound concurrent chunks; do not launch an unbounded `Promise.all` and do not fall back to one request per asset.
+6. Coalesce concurrent refreshes for the same provider/lookup key (single-flight) so startup, a manual refresh, and the snapshot scheduler cannot duplicate the same outbound work.
+7. Upsert all valid observations in one database transaction after normalization. Return per-asset failures and retain each failed asset's last known observation unchanged.
+
+Apply a provider timeout and a small bounded retry policy only to transient network failures, `429`, and `5xx` responses. Honor `Retry-After` when present and otherwise use exponential backoff with jitter. Do not retry invalid symbols or other permanent `4xx` responses. Record structured diagnostics containing provider, batch size, duration, attempt count, and failure category, but never API keys or full credential-bearing URLs.
+
+Search calls use a separate short-lived query cache, request cancellation, a minimum useful query length, and UI debouncing. Current-price calls use the persisted observation timestamp plus the freshness window. Provider API keys and plan-specific base URLs are engine configuration/secrets and are never sent to the web application.
+
+Use these replaceable initial policy defaults rather than embedding timing or concurrency values in adapters:
+
+```ts
+export const DEFAULT_MARKET_DATA_POLICY = {
+  priceFreshness: Duration.minutes(5),
+  requestTimeout: Duration.seconds(10),
+  maxAttempts: 3,
+  maxConcurrentBatchesPerProvider: 2,
+  searchDebounceMs: 300,
+} as const;
+```
+
+Provider-specific batch limits and request budgets remain separate configuration. CoinGecko currently documents at most 515 IDs or contract addresses per simple-price request; use a conservative configured chunk size no larger than the active plan/API limit and request `include_last_updated_at=true`. Verify limits during the package spike instead of assuming that they are permanent. For Yahoo, choose the largest multi-symbol chunk proven reliable by the adapter integration tests and reduce it through configuration if Yahoo starts rejecting request size or rate.
+
+Default automated tests must use injected fake clients and recorded, sanitized response fixtures; they must not consume live provider quotas or depend on the network. Keep optional credential-gated smoke tests separate from the normal test command so the package/API compatibility spike can be repeated deliberately.
+
+Market-data integration references:
+
+- [Yahoo Finance 2 repository and server-side TypeScript usage](https://github.com/gadicc/yahoo-finance2)
+- [CoinGecko official TypeScript SDK](https://docs.coingecko.com/docs/sdk-typescript)
+- [CoinGecko batch price by coin ID](https://docs.coingecko.com/reference/simple-price)
+- [CoinGecko batch price by contract address](https://docs.coingecko.com/reference/simple-token-price)
 
 Each asset has at most one selected current price. That one price values every position referencing the asset, producing consistent cross-custodian statistics. A connector-reported price may be used as a shared fallback observation, but it is never attached exclusively to one position.
 
@@ -372,7 +458,7 @@ export const DEFAULT_SNAPSHOT_INTERVAL = Duration.days(1);
 The snapshot job:
 
 1. Checks whether the configured interval has elapsed since the latest successful snapshot.
-2. Refreshes automatic prices for every referenced fiat, security, and crypto asset.
+2. Gives all referenced fiat, security, and crypto assets to the shared refresh coordinator in one run. The coordinator deduplicates and batches Yahoo securities/FX and CoinGecko crypto requests as specified above; it does not loop over positions and fetch one-by-one.
 3. Retains last known prices when an individual provider refresh fails.
 4. Creates one snapshot-run row.
 5. Inserts current quantities for all positions, including zero positions, under that snapshot ID.
@@ -391,8 +477,8 @@ Historical valuation uses the position quantity and shared asset price captured 
 2. Create its first account, choosing a base currency defaulted from the application reporting currency. The UI may create a `Default` account automatically for wallet-like custodians.
 3. Add a position by selecting an existing asset or creating a custom asset.
 4. Enter the position quantity.
-5. For fiat, security, or crypto assets, fetch prices from the configured automatic provider.
-6. For a custom asset, require or request a manual price and its fiat currency while still allowing the position to exist unpriced.
+5. For fiat and securities, enqueue a Yahoo Finance refresh; for crypto, enqueue a CoinGecko refresh. Coalesce it with any refresh already in flight and use the normal batch/cache policy rather than issuing an unconditional request from the route handler.
+6. For a custom asset, request a user-entered price and its fiat currency while still allowing the position to exist unpriced. Never call Yahoo Finance or CoinGecko for a custom asset.
 7. Updating a holding changes the current quantity; setting it to zero preserves its snapshots.
 
 ## Future Synced Custodian Workflow
@@ -631,7 +717,7 @@ Unpriced positions are excluded from the displayed valued total. Clearly indicat
 
 ### Asset screens
 
-- Search/select existing fiat, security, and crypto assets through the applicable market-data provider.
+- Search/select stocks and ETFs through Yahoo Finance and cryptoassets through CoinGecko. Fiat selection uses ISO currencies supported by the Yahoo FX adapter; custom assets are created locally.
 - Inspect strong identifiers and selected price-source metadata for diagnosis.
 - Do not make provider-owned identifiers or automatic prices editable.
 - Create, rename, manually price, and permanently delete custom assets.
@@ -673,7 +759,7 @@ Keep HTTP handlers thin and enforce invariants in domain services/repositories:
 - `AccountService`: manual CRUD, connector upsert, base-currency validation;
 - `AssetService`: canonical matching, identifier management, custom-asset CRUD;
 - `PositionService`: manual quantity updates, connector reconciliation, permanent deletion;
-- `MarketDataService`: provider registry, asset search, price refresh and fallback selection;
+- `MarketDataService`: provider registry, Yahoo/CoinGecko asset search, deduplication, freshness filtering, batch planning, bounded concurrency, single-flight refresh, retry/rate-limit handling, response normalization, and fallback selection;
 - `SnapshotService`: due check, price refresh, and atomic daily capture.
 
 Connectors never write the database directly. They return normalized data; the engine resolves identities and commits it transactionally.
@@ -686,7 +772,7 @@ Connectors never write the database directly. They return normalized data; the e
 4. Implement custodian and account domain services, including immutable management mode and hard deletion.
 5. Implement asset identity matching and manual/custom asset handling.
 6. Implement manual position CRUD and shared valuation in the reporting currency.
-7. Add the market-data provider interface and registry, then the initial Yahoo Finance, CoinGecko, manual, and FX implementations.
+7. Add the market-data provider interface and registry. Spike and pin `yahoo-finance2` and CoinGecko's official TypeScript SDK against the quality gates above; then implement Yahoo Finance for securities plus fiat FX, CoinGecko for crypto, and the local manual-price path for custom assets. Add the shared batching/cache/single-flight coordinator before wiring refresh entry points.
 8. Implement the configurable daily snapshot job with price refresh and atomic capture.
 9. Define and test the generic connector ingestion/reconciliation boundary with test-only normalized fixture output; keep the production connector registry empty.
 10. Add typed HTTP operations, including an empty connector-capabilities query, then build the route-based Astryx CRUD UI with TanStack Router, Query, Form, and the Effect Schema form-validation spike.
@@ -712,6 +798,14 @@ Cover at least these cases with engine integration tests against temporary SQLit
 15. Missing synced positions become zero only after a successful complete sync.
 16. Deleting custodians, accounts, positions, and unreferenced assets performs the documented hard cascades.
 17. Historical quantities and prices produce reporting-currency values using historical FX observations.
+18. Several positions sharing one Yahoo symbol or CoinGecko ID cause only one provider lookup in a refresh run.
+19. Securities and required fiat pairs share the fewest possible Yahoo batch calls, while CoinGecko IDs and same-platform contract addresses are batched up to configured provider limits.
+20. Yahoo and CoinGecko batches run with bounded concurrency; simultaneous refresh triggers are coalesced and never create an unbounded request fan-out.
+21. Fresh observations are reused for normal refreshes, while a due snapshot can request a fresh provider observation; reading totals or opening UI routes never calls a provider.
+22. Partial batch success persists valid observations, reports failures by asset, and keeps last-known prices for failed assets.
+23. `429` and transient failures honor the bounded retry policy, permanent failures are not retried, and custom assets produce zero outbound provider requests.
+24. Yahoo FX direction is correct: `EURUSD=X` is stored as units of USD per EUR, and the reporting currency causes no self-rate request.
+25. Provider responses with missing timestamps, unknown quote currencies, non-finite/non-positive prices, mismatched symbols, or wrong Yahoo quote types are rejected without corrupting the prior observation.
 
 Frontend verification is specified separately in the UI implementation section.
 
@@ -737,11 +831,13 @@ Frontend verification is specified separately in the UI implementation section.
 - Every account belongs to one custodian and every position belongs to one account and one global asset.
 - A custodian is permanently manual or synced, and synced account/position data is read-only.
 - Cash, securities, crypto, and custom assets share the same position model.
+- Stocks and ETFs are fetched from Yahoo Finance, fiat values are fetched from Yahoo Finance FX pairs, crypto prices are fetched from CoinGecko, and manual assets are priced only by the user.
 - IBKR and Trade Republic can hold the same canonical Apple asset without receiving position-specific portfolio prices.
 - Every valued asset has one selected shared price with an explicit fiat currency and observation timestamp.
 - Current wealth and daily history can be calculated without transactions.
 - Missing prices never block synchronization and never silently count as zero.
 - Daily snapshots refresh automatic prices before atomically recording quantities and prices.
+- Automatic refreshes deduplicate shared assets, use provider-native batch endpoints, cache fresh observations, coalesce overlapping work, and apply bounded concurrency and retry behavior instead of issuing one request per position.
 - Custodian sync happens only through an explicit user action.
 - Financial records use hard deletion rather than archival.
 - The initial UI can create and manage manual data and expose zero/unpriced positions.
