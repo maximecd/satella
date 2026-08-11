@@ -9,6 +9,9 @@
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
     "start": "pnpm build && concurrently --kill-others-on-fail \"pnpm --filter @optimus/engine start\" \"wait-on http://127.0.0.1:3001/api/hello && pnpm --filter @optimus/desktop start\"",
+    "test": "pnpm --filter @optimus/web test",
+    "test:coverage": "pnpm --filter @optimus/web test:coverage",
+    "test:watch": "pnpm --filter @optimus/web test:watch",
     "typecheck": "pnpm --filter @optimus/engine typecheck && pnpm --filter @optimus/web typecheck && pnpm --filter @optimus/desktop typecheck"
   },
   "devDependencies": {
