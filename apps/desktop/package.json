@@ -1,0 +1,19 @@
+{
+  "name": "@optimus/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "pnpm build && cross-env ELECTRON_RUN_AS_NODE= electron .",
+    "start": "cross-env ELECTRON_RUN_AS_NODE= electron .",
+    "typecheck": "tsc -b"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "cross-env": "10.1.0",
+    "electron": "43.3.0",
+    "typescript": "7.0.2"
+  }
+}

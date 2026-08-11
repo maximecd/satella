@@ -1,2 +1,9 @@
 packages:
+  - "apps/*"
   - "packages/*"
+
+allowBuilds:
+  "@astryxdesign/core": true
+  "@parcel/watcher": false
+  esbuild: true
+  msgpackr-extract: false

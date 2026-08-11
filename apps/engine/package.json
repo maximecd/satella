@@ -1,0 +1,26 @@
+{
+  "name": "@optimus/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "exports": {
+    "./api": "./src/api.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@effect/platform": "0.97.1",
+    "@effect/platform-node": "0.108.1",
+    "effect": "3.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "tsx": "4.23.11",
+    "typescript": "7.0.2"
+  }
+}

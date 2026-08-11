@@ -1,11 +1,28 @@
 {
   "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter @optimus/engine build && pnpm --filter @optimus/web build && pnpm --filter @optimus/desktop build",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check",
+    "dev": "concurrently --kill-others-on-fail \"pnpm --filter @optimus/engine dev\" \"pnpm --filter @optimus/web dev\" \"wait-on http://127.0.0.1:3001/api/hello http://127.0.0.1:5173 && pnpm --filter @optimus/desktop dev\"",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "start": "pnpm build && concurrently --kill-others-on-fail \"pnpm --filter @optimus/engine start\" \"wait-on http://127.0.0.1:3001/api/hello && pnpm --filter @optimus/desktop start\"",
+    "typecheck": "pnpm --filter @optimus/engine typecheck && pnpm --filter @optimus/web typecheck && pnpm --filter @optimus/desktop typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "10.0.4",
+    "oxfmt": "0.62.0",
+    "oxlint": "1.77.0",
+    "typescript": "7.0.2",
+    "wait-on": "9.1.0"
+  },
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
       "version": "^11.15.1",
       "onFail": "download"
     }
-  },
-  "type": "module"
+  }
 }
