@@ -62,7 +62,7 @@ const EngineApiLive = HttpApiBuilder.api(EngineApi).pipe(
 const HttpServerLive = HttpApiBuilder.serve(HttpMiddleware.logger).pipe(
   Layer.provide(
     HttpApiBuilder.middlewareCors({
-      allowedOrigins: ["http://127.0.0.1:5173", "null"],
+      allowedOrigins: ["http://127.0.0.1:5173", "http://localhost:5173", "null"],
     }),
   ),
   Layer.provide(EngineApiLive),

@@ -17,7 +17,7 @@ import {
   ResourceCard,
   styles,
 } from "../components";
-import { useAppForm } from "../form";
+import { submitThenChangeValidation, useAppForm } from "../form";
 import {
   accountQuery,
   assetSearchQuery,
@@ -62,7 +62,8 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
     ) ?? [];
   const form = useAppForm({
     defaultValues: { assetId: "", quantity: "" },
-    validators: { onChange: Schema.standardSchemaV1(CreatePositionForm) },
+    validationLogic: submitThenChangeValidation,
+    validators: { onDynamic: Schema.standardSchemaV1(CreatePositionForm) },
     onSubmit: async ({ value }) => {
       const decoded = await Schema.decodeUnknownPromise(CreatePositionForm)(value);
       await mutation.mutateAsync({
@@ -225,7 +226,8 @@ function LoadedEditPosition({
   });
   const form = useAppForm({
     defaultValues: { quantity: String(quantity) },
-    validators: { onChange: Schema.standardSchemaV1(PositionQuantityFormInput) },
+    validationLogic: submitThenChangeValidation,
+    validators: { onDynamic: Schema.standardSchemaV1(PositionQuantityFormInput) },
     onSubmit: async ({ value }) => {
       // Standard Schema reports issues but intentionally preserves encoded HTML values.
       const decoded = await Schema.decodeUnknownPromise(PositionQuantityFormInput)(value);

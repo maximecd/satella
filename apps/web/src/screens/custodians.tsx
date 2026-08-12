@@ -17,7 +17,7 @@ import {
   ResourceCard,
   styles,
 } from "../components";
-import { useAppForm } from "../form";
+import { submitThenChangeValidation, useAppForm } from "../form";
 import { connectorCapabilitiesQuery, custodianQuery, custodiansQuery, queryKeys } from "../queries";
 
 const errorMessage = (error: unknown) =>
@@ -93,7 +93,8 @@ export function CreateCustodianScreen() {
   };
   const form = useAppForm({
     defaultValues,
-    validators: { onChange: Schema.standardSchemaV1(CreateCustodianInput) },
+    validationLogic: submitThenChangeValidation,
+    validators: { onDynamic: Schema.standardSchemaV1(CreateCustodianInput) },
     onSubmit: async ({ value }) => {
       setError(null);
       const decoded = await Schema.decodeUnknownPromise(CreateCustodianInput)(value);
@@ -204,7 +205,8 @@ function LoadedEditCustodian({ id, name }: { readonly id: string; readonly name:
   });
   const form = useAppForm({
     defaultValues: { name },
-    validators: { onChange: Schema.standardSchemaV1(UpdateCustodianInput) },
+    validationLogic: submitThenChangeValidation,
+    validators: { onDynamic: Schema.standardSchemaV1(UpdateCustodianInput) },
     onSubmit: async ({ value }) => {
       const decoded = await Schema.decodeUnknownPromise(UpdateCustodianInput)(value);
       await update.mutateAsync(decoded.name);

@@ -19,13 +19,46 @@ import {
   ResourceCard,
   styles,
 } from "../components";
-import { useAppForm } from "../form";
+import { submitThenChangeValidation, useAppForm } from "../form";
 import { accountQuery, assetsQuery, custodianQuery, queryKeys } from "../queries";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" });
 const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 });
+const marketPrice = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
+const valuedAmount = new Intl.NumberFormat(undefined, {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const fxRate = new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 });
+const quoteTime = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+const sourceName = (source: string) =>
+  source === "yahoo-finance"
+    ? "Yahoo Finance"
+    : source === "coingecko"
+      ? "CoinGecko"
+      : source === "manual"
+        ? "Manual"
+        : source;
+
+const formatValuedAmount = (value: number, currencyIso: string) =>
+  `${valuedAmount.format(value)} ${currencyIso}`;
+
+const conversionDescription = (position: Position, valuationCurrencyIso: string) => {
+  if (
+    position.price === null ||
+    position.reportingValue === null ||
+    position.quantity === 0 ||
+    position.price.currencyIso === valuationCurrencyIso
+  )
+    return undefined;
+  const rate = position.reportingValue / (position.quantity * position.price.price);
+  return `Converted at 1 ${position.price.currencyIso} = ${fxRate.format(rate)} ${valuationCurrencyIso}`;
+};
 
 function PositionTable({
   positions,
@@ -41,8 +74,8 @@ function PositionTable({
         <tr>
           <th {...stylex.props(styles.cell)}>Asset</th>
           <th {...stylex.props(styles.cell, styles.numeric)}>Quantity</th>
-          <th {...stylex.props(styles.cell, styles.numeric)}>Price</th>
-          <th {...stylex.props(styles.cell, styles.numeric)}>Value</th>
+          <th {...stylex.props(styles.cell, styles.numeric)}>Market price</th>
+          <th {...stylex.props(styles.cell, styles.numeric)}>Value ({account.baseCurrencyIso})</th>
           <th {...stylex.props(styles.cell)} />
         </tr>
       </thead>
@@ -59,12 +92,28 @@ function PositionTable({
               {number.format(position.quantity)}
             </td>
             <td {...stylex.props(styles.cell, styles.numeric)}>
-              {position.price === null ? "—" : number.format(position.price.price)}
+              {position.price === null ? (
+                "—"
+              ) : (
+                <>
+                  <span>
+                    {marketPrice.format(position.price.price)} {position.price.currencyIso}
+                  </span>
+                  <div {...stylex.props(styles.muted)}>
+                    {position.price.isStale ? "Delayed · " : ""}
+                    {sourceName(position.price.source)} ·{" "}
+                    {quoteTime.format(new Date(position.price.observedAt))}
+                  </div>
+                </>
+              )}
             </td>
-            <td {...stylex.props(styles.cell, styles.numeric)}>
+            <td
+              title={conversionDescription(position, account.baseCurrencyIso)}
+              {...stylex.props(styles.cell, styles.numeric)}
+            >
               {position.reportingValue === null
                 ? "Unpriced"
-                : money.format(position.reportingValue)}
+                : formatValuedAmount(position.reportingValue, account.baseCurrencyIso)}
             </td>
             <td {...stylex.props(styles.cell)}>
               {account.managementMode === "manual" && (
@@ -107,7 +156,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
     <>
       <PageHeader
         title={account.name}
-        subtitle={`${account.custodianName} · Base currency ${account.baseCurrencyIso}`}
+        subtitle={`${account.custodianName} · Valuation currency ${account.baseCurrencyIso}`}
         action={
           <div {...stylex.props(styles.row)}>
             <Button
@@ -137,17 +186,24 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
           description="Unpriced positions are excluded from this total."
         />
       )}
-      {account.hasStalePrices && (
+      {refresh.isError && (
         <Banner
           status="warning"
-          title="Some prices are stale"
-          description="Last-known observations are retained when refreshes fail."
+          title="Price refresh failed"
+          description={errorMessage(refresh.error)}
+        />
+      )}
+      {refresh.data !== undefined && refresh.data.failures.length > 0 && (
+        <Banner
+          status="warning"
+          title="Some prices could not be refreshed"
+          description={`${refresh.data.failures.length} quote${refresh.data.failures.length === 1 ? "" : "s"} kept their last-known values.`}
         />
       )}
       <ResourceCard>
         <div {...stylex.props(styles.row)}>
           <strong>Valued total</strong>
-          <strong>{money.format(account.total)}</strong>
+          <strong>{formatValuedAmount(account.total, account.baseCurrencyIso)}</strong>
         </div>
       </ResourceCard>
       <div {...stylex.props(styles.row)}>
@@ -202,7 +258,8 @@ export function CreateAccountScreen({ custodianId }: { readonly custodianId: str
   };
   const form = useAppForm({
     defaultValues,
-    validators: { onChange: Schema.standardSchemaV1(CreateAccountInput) },
+    validationLogic: submitThenChangeValidation,
+    validators: { onDynamic: Schema.standardSchemaV1(CreateAccountInput) },
     onSubmit: async ({ value }) =>
       mutation.mutateAsync(await Schema.decodeUnknownPromise(CreateAccountInput)(value)),
   });
@@ -230,7 +287,7 @@ export function CreateAccountScreen({ custodianId }: { readonly custodianId: str
             name="baseCurrencyAssetId"
             children={(field) => (
               <field.SelectField
-                label="Base currency"
+                label="Valuation currency"
                 options={fiat.map((asset) => ({
                   value: asset.id,
                   label: asset.symbol ?? asset.name,
@@ -278,7 +335,8 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
   });
   const form = useAppForm({
     defaultValues: { name: account.name, baseCurrencyAssetId: account.baseCurrencyAssetId },
-    validators: { onChange: Schema.standardSchemaV1(UpdateAccountInput) },
+    validationLogic: submitThenChangeValidation,
+    validators: { onDynamic: Schema.standardSchemaV1(UpdateAccountInput) },
     onSubmit: async ({ value }) =>
       update.mutateAsync(await Schema.decodeUnknownPromise(UpdateAccountInput)(value)),
   });
@@ -304,7 +362,7 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
             name="baseCurrencyAssetId"
             children={(field) => (
               <field.SelectField
-                label="Base currency"
+                label="Valuation currency"
                 options={fiat.map((asset) => ({
                   value: asset.id,
                   label: asset.symbol ?? asset.name,

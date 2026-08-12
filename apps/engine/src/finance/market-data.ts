@@ -64,6 +64,19 @@ export interface MarketDataProvider {
   ) => Effect.Effect<ProviderBatchResult, ProviderBatchError>;
 }
 
+const makeCoinGeckoClient = () => {
+  const demoAPIKey = process.env["COINGECKO_DEMO_API_KEY"]?.trim() || null;
+  return new Coingecko({
+    environment: "demo",
+    demoAPIKey,
+    timeout: Duration.toMillis(DEFAULT_MARKET_DATA_POLICY.requestTimeout),
+    maxRetries: 0,
+    // CoinGecko's public API does not require a key, but the SDK requires an
+    // explicit opt-out when no demo key is configured.
+    ...(demoAPIKey === null ? { defaultHeaders: { "x-cg-demo-api-key": null } } : {}),
+  });
+};
+
 const finitePositive = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value > 0;
 
@@ -170,13 +183,7 @@ export const makeYahooFinanceProvider = (
     }),
 });
 
-export const makeCoinGeckoProvider = (
-  client = new Coingecko({
-    environment: "demo",
-    timeout: Duration.toMillis(DEFAULT_MARKET_DATA_POLICY.requestTimeout),
-    maxRetries: 0,
-  }),
-): MarketDataProvider => ({
+export const makeCoinGeckoProvider = (client = makeCoinGeckoClient()): MarketDataProvider => ({
   id: "coingecko",
   chunkSize: 500,
   fetchPrices: (lookups, reportingCurrency) =>
@@ -270,11 +277,7 @@ export const LiveMarketDataRegistry: MarketDataRegistry = new Map([
 ]);
 
 const yahooSearchClient = new YahooFinance();
-const coinGeckoSearchClient = new Coingecko({
-  environment: "demo",
-  timeout: Duration.toMillis(DEFAULT_MARKET_DATA_POLICY.requestTimeout),
-  maxRetries: 0,
-});
+const coinGeckoSearchClient = makeCoinGeckoClient();
 const searchCache = new Map<
   string,
   { readonly expiresAt: number; readonly results: ReadonlyArray<AssetSearchResult> }
@@ -435,7 +438,7 @@ const ensureFiat = (iso: string) =>
     return id;
   });
 
-export const refreshPrices = (
+const refreshPriceAssets = (
   options: RefreshPricesOptions = {},
 ): Effect.Effect<RefreshPricesResult, FinanceApiError, SqlClient.SqlClient> =>
   Effect.gen(function* () {
@@ -566,6 +569,43 @@ export const refreshPrices = (
       }),
     );
     return { refreshedAssetIds: [...refreshed], failures };
+  }).pipe(
+    Effect.mapError((cause) =>
+      cause instanceof FinanceApiError
+        ? cause
+        : new FinanceApiError({ code: "database", message: "Price refresh failed" }),
+    ),
+  );
+
+export const refreshPrices = (
+  options: RefreshPricesOptions = {},
+): Effect.Effect<RefreshPricesResult, FinanceApiError, SqlClient.SqlClient> =>
+  Effect.gen(function* () {
+    const primary = yield* refreshPriceAssets(options);
+    const sql = yield* SqlClient.SqlClient;
+    const quoteCurrencies = yield* sql<{
+      readonly id: string;
+    }>`SELECT DISTINCT ap.currency_asset_id AS id
+      FROM asset_prices ap
+      JOIN positions position ON position.asset_id = ap.asset_id
+      JOIN assets currency ON currency.id = ap.currency_asset_id
+      WHERE currency.asset_class = 'fiat'
+        AND ap.currency_asset_id <> ${`fiat:${DEFAULT_REPORTING_CURRENCY}`}`;
+
+    if (quoteCurrencies.length === 0) return primary;
+
+    const currencies = yield* refreshPriceAssets({
+      assetIds: quoteCurrencies.map(({ id }) => id),
+      ...(options.registry === undefined ? {} : { registry: options.registry }),
+      ...(options.requireFresh === undefined ? {} : { requireFresh: options.requireFresh }),
+    });
+
+    return {
+      refreshedAssetIds: [
+        ...new Set([...primary.refreshedAssetIds, ...currencies.refreshedAssetIds]),
+      ],
+      failures: [...primary.failures, ...currencies.failures],
+    };
   }).pipe(
     Effect.mapError((cause) =>
       cause instanceof FinanceApiError

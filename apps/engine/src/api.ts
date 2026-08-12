@@ -1,6 +1,7 @@
 import * as HttpApi from "@effect/platform/HttpApi";
 import * as HttpApiEndpoint from "@effect/platform/HttpApiEndpoint";
 import * as HttpApiGroup from "@effect/platform/HttpApiGroup";
+import * as HttpApiSchema from "@effect/platform/HttpApiSchema";
 import * as Schema from "effect/Schema";
 
 export * from "./finance/contracts.js";
@@ -14,7 +15,6 @@ import {
   CreateCustodianInput,
   CreatePositionInput,
   Custodian,
-  EntityIdPath,
   FinanceApiError,
   PriceRefreshResult,
   PortfolioHistoryPoint,
@@ -30,6 +30,8 @@ import {
 export const HelloResponse = Schema.Struct({
   message: Schema.String,
 });
+
+const EntityIdParam = HttpApiSchema.param("id", Schema.String);
 
 const SystemApi = HttpApiGroup.make("system").add(
   HttpApiEndpoint.get("hello")`/api/hello`.addSuccess(HelloResponse),
@@ -47,8 +49,7 @@ export const FinanceApi = HttpApiGroup.make("finance")
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.get("getCustodian")`/api/custodians/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.get("getCustodian")`/api/custodians/${EntityIdParam}`
       .addSuccess(Custodian)
       .addError(FinanceApiError),
   )
@@ -59,21 +60,18 @@ export const FinanceApi = HttpApiGroup.make("finance")
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.patch("updateCustodian")`/api/custodians/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.patch("updateCustodian")`/api/custodians/${EntityIdParam}`
       .setPayload(UpdateCustodianInput)
       .addSuccess(Custodian)
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.del("deleteCustodian")`/api/custodians/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.del("deleteCustodian")`/api/custodians/${EntityIdParam}`
       .addSuccess(Schema.Void)
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.get("getAccount")`/api/accounts/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.get("getAccount")`/api/accounts/${EntityIdParam}`
       .addSuccess(Account)
       .addError(FinanceApiError),
   )
@@ -84,15 +82,13 @@ export const FinanceApi = HttpApiGroup.make("finance")
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.patch("updateAccount")`/api/accounts/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.patch("updateAccount")`/api/accounts/${EntityIdParam}`
       .setPayload(UpdateAccountInput)
       .addSuccess(Account)
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.del("deleteAccount")`/api/accounts/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.del("deleteAccount")`/api/accounts/${EntityIdParam}`
       .addSuccess(Schema.Void)
       .addError(FinanceApiError),
   )
@@ -108,8 +104,7 @@ export const FinanceApi = HttpApiGroup.make("finance")
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.get("getAsset")`/api/assets/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.get("getAsset")`/api/assets/${EntityIdParam}`
       .addSuccess(Asset)
       .addError(FinanceApiError),
   )
@@ -120,28 +115,24 @@ export const FinanceApi = HttpApiGroup.make("finance")
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.patch("updateAsset")`/api/assets/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.patch("updateAsset")`/api/assets/${EntityIdParam}`
       .setPayload(UpdateCustomAssetInput)
       .addSuccess(Asset)
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.post("setManualPrice")`/api/assets/:id/price`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.post("setManualPrice")`/api/assets/${EntityIdParam}/price`
       .setPayload(SetManualPriceInput)
       .addSuccess(Asset)
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.del("deleteAsset")`/api/assets/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.del("deleteAsset")`/api/assets/${EntityIdParam}`
       .addSuccess(Schema.Void)
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.get("getPositionAccount")`/api/positions/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.get("getPositionAccount")`/api/positions/${EntityIdParam}`
       .addSuccess(Account)
       .addError(FinanceApiError),
   )
@@ -152,15 +143,13 @@ export const FinanceApi = HttpApiGroup.make("finance")
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.patch("updatePosition")`/api/positions/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.patch("updatePosition")`/api/positions/${EntityIdParam}`
       .setPayload(UpdatePositionInput)
       .addSuccess(Account)
       .addError(FinanceApiError),
   )
   .add(
-    HttpApiEndpoint.del("deletePosition")`/api/positions/:id`
-      .setPath(EntityIdPath)
+    HttpApiEndpoint.del("deletePosition")`/api/positions/${EntityIdParam}`
       .addSuccess(Schema.Void)
       .addError(FinanceApiError),
   )

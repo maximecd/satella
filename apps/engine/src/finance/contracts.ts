@@ -16,9 +16,11 @@ export type IdentifierInput = typeof IdentifierInput.Type;
 export const Price = Schema.Struct({
   price: Schema.Number,
   currencyAssetId: Schema.String,
+  currencyIso: Schema.String,
   source: Schema.String,
   observedAt: Schema.String,
   updatedAt: Schema.String,
+  isStale: Schema.Boolean,
 });
 export type Price = typeof Price.Type;
 

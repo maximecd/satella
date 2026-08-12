@@ -18,7 +18,7 @@ import {
   ResourceCard,
   styles,
 } from "../components";
-import { useAppForm } from "../form";
+import { submitThenChangeValidation, useAppForm } from "../form";
 import { assetQuery, assetsQuery, queryKeys } from "../queries";
 
 const CustomAssetForm = Schema.Struct({
@@ -86,7 +86,7 @@ export function AssetListScreen() {
                     {asset.symbol ?? "No symbol"} · {asset.assetClass} ·{" "}
                     {asset.price === null
                       ? "Unpriced"
-                      : `${asset.price.price} (${asset.price.source})`}
+                      : `${asset.price.price} ${asset.price.currencyIso} (${asset.price.source})`}
                   </div>
                 </div>
                 <Button
@@ -134,7 +134,8 @@ export function CreateCustomAssetScreen() {
   const fiat = assets.data?.filter((asset) => asset.assetClass === "fiat") ?? [];
   const form = useAppForm({
     defaultValues: { name: "", symbol: "", price: "", currencyAssetId: "fiat:USD" },
-    validators: { onChange: Schema.standardSchemaV1(CustomAssetForm) },
+    validationLogic: submitThenChangeValidation,
+    validators: { onDynamic: Schema.standardSchemaV1(CustomAssetForm) },
     onSubmit: async ({ value }) =>
       mutation.mutateAsync(await Schema.decodeUnknownPromise(CustomAssetForm)(value)),
   });
@@ -230,7 +231,8 @@ function LoadedAssetScreen({
       price: asset.price === null ? "" : String(asset.price.price),
       currencyAssetId: asset.price?.currencyAssetId ?? "fiat:USD",
     },
-    validators: { onChange: Schema.standardSchemaV1(EditAssetForm) },
+    validationLogic: submitThenChangeValidation,
+    validators: { onDynamic: Schema.standardSchemaV1(EditAssetForm) },
     onSubmit: async ({ value }) =>
       save.mutateAsync(await Schema.decodeUnknownPromise(EditAssetForm)(value)),
   });
@@ -257,8 +259,9 @@ function LoadedAssetScreen({
           </dl>
           {asset.price && (
             <p>
-              Latest: {asset.price.price} · {asset.price.source} ·{" "}
+              Latest: {asset.price.price} {asset.price.currencyIso} · {asset.price.source} ·{" "}
               {new Date(asset.price.observedAt).toLocaleString()}
+              {asset.price.isStale ? " · Delayed" : ""}
             </p>
           )}
         </ResourceCard>

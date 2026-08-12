@@ -37,6 +37,57 @@ afterEach(async () => {
 });
 
 describe("market data coordinator", () => {
+  it("fetches a missing quote currency in the same refresh and values the position", async () => {
+    const batches: Array<ReadonlyArray<ProviderLookup>> = [];
+    const yahoo: MarketDataProvider = {
+      id: "yahoo-finance",
+      chunkSize: 50,
+      fetchPrices: (lookups) => {
+        batches.push(lookups);
+        return Effect.succeed({
+          observations: lookups.map(({ lookupKey, kind }) => ({
+            lookupKey,
+            price: kind === "fiat" ? 1.1 : 34,
+            currencyIso: kind === "fiat" ? "USD" : "EUR",
+            observedAt: new Date(),
+          })),
+          failures: [],
+        });
+      },
+    };
+    const registry: MarketDataRegistry = new Map([["yahoo-finance", yahoo]]);
+
+    const result = await run(
+      Effect.gen(function* () {
+        const etf = yield* Finance.createAsset({
+          assetClass: "security",
+          name: "EUR ETF",
+          identifiers: [{ type: "yahoo_symbol", value: "ETF.PA" }],
+        });
+        const custodian = yield* Finance.createCustodian({
+          name: "Broker",
+          managementMode: "manual",
+        });
+        const account = yield* Finance.createAccount({
+          custodianId: custodian.id,
+          name: "Portfolio",
+        });
+        yield* Finance.createPosition({ accountId: account.id, assetId: etf.id, quantity: 2 });
+        const refreshed = yield* refreshPrices({ registry, requireFresh: true });
+        const valued = yield* Finance.getAccount(account.id);
+        return { etf, refreshed, valued };
+      }),
+    );
+
+    expect(batches.map((batch) => batch.map(({ lookupKey }) => lookupKey))).toEqual([
+      ["ETF.PA"],
+      ["EURUSD=X"],
+    ]);
+    expect(result.refreshed.refreshedAssetIds).toEqual([result.etf.id, "fiat:EUR"]);
+    expect(result.valued.positions[0]?.reportingValue).toBeCloseTo(74.8);
+    expect(result.valued.totalIncomplete).toBe(false);
+  });
+
   it("deduplicates provider lookups, persists partial success, and reuses fresh observations", async () => {
     const batches: Array<ReadonlyArray<ProviderLookup>> = [];
     const yahoo: MarketDataProvider = {

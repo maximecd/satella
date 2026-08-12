@@ -49,6 +49,7 @@ interface IdentifierRow {
 interface PriceRow {
   readonly price: number;
   readonly currency_asset_id: string;
+  readonly currency_iso: string;
   readonly source: string;
   readonly observed_at: string;
   readonly updated_at: string;
@@ -94,6 +95,7 @@ interface PositionRow {
   readonly quantity: number;
   readonly price: number | null;
   readonly currency_asset_id: string | null;
+  readonly currency_iso: string | null;
   readonly source: string | null;
   readonly observed_at: string | null;
   readonly price_updated_at: string | null;
@@ -102,6 +104,10 @@ interface PositionRow {
 }
 
 const nowIso = () => new Date().toISOString();
+
+const isStalePrice = (observedAt: string) =>
+  Date.parse(observedAt) <
+  Date.now() - Duration.toMillis(DEFAULT_MARKET_DATA_POLICY.priceFreshness);
 
 const failure = (code: FinanceApiError["code"], message: string) =>
   new FinanceError({ code, message });
@@ -163,18 +169,25 @@ const usdAssetId = Effect.gen(function* () {
 const loadPrice = (assetId: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
-    const rows =
-      yield* db(sql<PriceRow>`SELECT price, currency_asset_id, source, observed_at, updated_at
-      FROM asset_prices WHERE asset_id = ${assetId}`);
+    const rows = yield* db(sql<PriceRow>`SELECT ap.price, ap.currency_asset_id,
+        COALESCE(identifier.identifier_value, currency.symbol, currency.name) AS currency_iso,
+        ap.source, ap.observed_at, ap.updated_at
+      FROM asset_prices ap
+      JOIN assets currency ON currency.id = ap.currency_asset_id
+      LEFT JOIN asset_identifiers identifier ON identifier.asset_id = currency.id
+        AND identifier.identifier_type = 'iso_currency'
+      WHERE ap.asset_id = ${assetId}`);
     const row = rows[0];
     return row === undefined
       ? null
       : {
           price: row.price,
           currencyAssetId: row.currency_asset_id,
+          currencyIso: row.currency_iso,
           source: row.source,
           observedAt: row.observed_at,
           updatedAt: row.updated_at,
+          isStale: isStalePrice(row.observed_at),
         };
   });
 
@@ -402,16 +415,33 @@ const assertManualAccountOwner = (accountId: string) =>
 
 const loadPosition = (
   row: PositionRow,
+  valuationCurrencyId: string,
   reportingCurrencyId: string,
   fx: ReadonlyMap<string, number>,
 ): Position => {
   const implicitFiatPrice =
-    row.asset_class === "fiat" && row.asset_id === reportingCurrencyId ? 1 : null;
+    row.asset_class === "fiat" &&
+    (row.asset_id === valuationCurrencyId || row.asset_id === reportingCurrencyId)
+      ? 1
+      : null;
   const selectedPrice = row.price ?? implicitFiatPrice;
   const currencyId =
-    row.currency_asset_id ?? (implicitFiatPrice === null ? null : reportingCurrencyId);
-  const conversion =
+    row.currency_asset_id ??
+    (implicitFiatPrice === null
+      ? null
+      : row.asset_id === valuationCurrencyId
+        ? valuationCurrencyId
+        : reportingCurrencyId);
+  const currencyRate =
     currencyId === reportingCurrencyId ? 1 : currencyId === null ? undefined : fx.get(currencyId);
+  const valuationRate =
+    valuationCurrencyId === reportingCurrencyId ? 1 : fx.get(valuationCurrencyId);
+  const conversion =
+    currencyId === valuationCurrencyId
+      ? 1
+      : currencyRate === undefined || valuationRate === undefined
+        ? undefined
+        : currencyRate / valuationRate;
   const reportingValue =
     selectedPrice === null || conversion === undefined
       ? null
@@ -427,6 +457,7 @@ const loadPosition = (
     price:
       row.price === null ||
       row.currency_asset_id === null ||
+      row.currency_iso === null ||
       row.source === null ||
       row.observed_at === null ||
       row.price_updated_at === null
@@ -434,9 +465,11 @@ const loadPosition = (
         : {
             price: row.price,
             currencyAssetId: row.currency_asset_id,
+            currencyIso: row.currency_iso,
             source: row.source,
             observedAt: row.observed_at,
             updatedAt: row.price_updated_at,
+            isStale: isStalePrice(row.observed_at),
           },
     reportingValue,
     createdAt: row.created_at,
@@ -460,10 +493,16 @@ export const getAccount = (id: string): FinanceEffect<Account> =>
     );
     const rows = yield* db(sql<PositionRow>`SELECT p.id, p.account_id, p.asset_id,
       a.name AS asset_name, a.symbol AS asset_symbol, a.asset_class, p.quantity,
-      ap.price, ap.currency_asset_id, ap.source, ap.observed_at,
+      ap.price, ap.currency_asset_id,
+      COALESCE(price_identifier.identifier_value, price_currency.symbol, price_currency.name)
+        AS currency_iso,
+      ap.source, ap.observed_at,
       ap.updated_at AS price_updated_at, p.created_at, p.updated_at
       FROM positions p JOIN assets a ON a.id = p.asset_id
       LEFT JOIN asset_prices ap ON ap.asset_id = a.id
+      LEFT JOIN assets price_currency ON price_currency.id = ap.currency_asset_id
+      LEFT JOIN asset_identifiers price_identifier ON price_identifier.asset_id = price_currency.id
+        AND price_identifier.identifier_type = 'iso_currency'
       WHERE p.account_id = ${id} ORDER BY a.name, p.id`);
     const reportingCurrencyId = yield* usdAssetId;
     const fxRows = yield* db(sql<{
@@ -472,8 +511,9 @@ export const getAccount = (id: string): FinanceEffect<Account> =>
     }>`SELECT asset_id, price
       FROM asset_prices WHERE currency_asset_id = ${reportingCurrencyId}`);
     const fx = new Map(fxRows.map(({ asset_id, price }) => [asset_id, price] as const));
-    const positions = rows.map((row) => loadPosition(row, reportingCurrencyId, fx));
-    const cutoff = Date.now() - Duration.toMillis(DEFAULT_MARKET_DATA_POLICY.priceFreshness);
+    const positions = rows.map((row) =>
+      loadPosition(row, account.base_currency_asset_id, reportingCurrencyId, fx),
+    );
     return {
       id: account.id,
       custodianId: account.custodian_id,
@@ -486,9 +526,7 @@ export const getAccount = (id: string): FinanceEffect<Account> =>
       positions,
       total: positions.reduce((sum, position) => sum + (position.reportingValue ?? 0), 0),
       totalIncomplete: positions.some((position) => position.reportingValue === null),
-      hasStalePrices: positions.some(
-        (position) => position.price !== null && Date.parse(position.price.observedAt) < cutoff,
-      ),
+      hasStalePrices: positions.some((position) => position.price?.isStale === true),
       createdAt: account.created_at,
       updatedAt: account.updated_at,
     };

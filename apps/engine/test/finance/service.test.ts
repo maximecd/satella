@@ -171,6 +171,46 @@ describe("finance domain service", () => {
     expect(result.second.positions[0]?.price?.price).toBe(10);
   });
 
+  it("values native prices in the account valuation currency through USD cross-rates", async () => {
+    const result = await run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const timestamp = new Date().toISOString();
+        yield* sql`INSERT INTO asset_prices
+          (asset_id, price, currency_asset_id, source, observed_at, updated_at)
+          VALUES ('fiat:EUR', 1.25, 'fiat:USD', 'test', ${timestamp}, ${timestamp})`;
+        const asset = yield* Finance.createAsset({
+          assetClass: "custom",
+          name: "USD investment",
+          identifiers: [],
+        });
+        yield* Finance.setManualPrice(asset.id, {
+          price: 10,
+          currencyAssetId: "fiat:USD",
+        });
+        const custodian = yield* Finance.createCustodian({
+          name: "Broker",
+          managementMode: "manual",
+        });
+        const account = yield* Finance.createAccount({
+          custodianId: custodian.id,
+          name: "EUR portfolio",
+          baseCurrencyAssetId: "fiat:EUR",
+        });
+        yield* Finance.createPosition({ accountId: account.id, assetId: asset.id, quantity: 2 });
+        return yield* Finance.getAccount(account.id);
+      }),
+    );
+
+    expect(result.baseCurrencyIso).toBe("EUR");
+    expect(result.positions[0]?.price).toEqual(
+      expect.objectContaining({ price: 10, currencyIso: "USD" }),
+    );
+    expect(result.positions[0]?.reportingValue).toBeCloseTo(16);
+    expect(result.total).toBeCloseTo(16);
+    expect(result.totalIncomplete).toBe(false);
+  });
+
   it("rejects synced creation without a registered connector and protects synced writes", async () => {
     await expect(
       run(
