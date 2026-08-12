@@ -1,27 +1,34 @@
+import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Link as AstryxLink } from "@astryxdesign/core/Link";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { Heading } from "@astryxdesign/core/Heading";
+import { Stack } from "@astryxdesign/core/Stack";
 import { useToast } from "@astryxdesign/core/Toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import { CreateCustodianInput, UpdateCustodianInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
-import * as stylex from "@stylexjs/stylex";
 
 import { engineApi } from "../api";
 import {
   DeleteButton,
   FormError,
+  FormFrame,
   PageHeader,
   PageState,
-  ResourceCard,
-  styles,
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
-import { connectorCapabilitiesQuery, custodianQuery, custodiansQuery, queryKeys } from "../queries";
+import { custodianQuery, custodiansQuery, queryKeys } from "../queries";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
+
+const managementBadge = (mode: "manual" | "synced") => (
+  <Badge label={mode === "manual" ? "Manual" : "Synced"} variant={mode === "manual" ? "success" : "neutral"} />
+);
 
 export function CustodianListScreen() {
   const query = useQuery(custodiansQuery);
@@ -32,43 +39,47 @@ export function CustodianListScreen() {
       <PageHeader
         title="Custodians"
         subtitle="Banks, brokers, exchanges, and wallets where assets are held."
-        action={<Button as={Link} href="/custodians/new" label="Add custodian" variant="primary" />}
+        action={<Button as={RouterLink} href="/custodians/new" label="Add custodian" variant="primary" />}
       />
       {query.data.length === 0 ? (
         <EmptyState
           title="No custodians yet"
           description="Add a manual custodian to begin tracking accounts and positions."
           actions={
-            <Button as={Link} href="/custodians/new" label="Add custodian" variant="primary" />
+            <Button as={RouterLink} href="/custodians/new" label="Add custodian" variant="primary" />
           }
         />
       ) : (
-        <div {...stylex.props(styles.stack)}>
+        <List density="balanced" hasDividers>
           {query.data.map((custodian) => (
-            <ResourceCard key={custodian.id}>
-              <div {...stylex.props(styles.row)}>
-                <div>
-                  <Link
-                    to="/custodians/$custodianId"
-                    params={{ custodianId: custodian.id }}
-                    {...stylex.props(styles.link)}
-                  >
-                    <strong>{custodian.name}</strong>
-                  </Link>
-                  <div {...stylex.props(styles.muted)}>
-                    {custodian.managementMode} · {custodian.accounts.length} account(s)
-                  </div>
-                </div>
-                <Button
-                  as={Link}
+            <ListItem
+              key={custodian.id}
+              label={
+                <AstryxLink
+                  as={RouterLink}
                   href={`/custodians/${custodian.id}`}
-                  label="View"
-                  variant="secondary"
-                />
-              </div>
-            </ResourceCard>
+                  isStandalone
+                  weight="semibold"
+                >
+                  {custodian.name}
+                </AstryxLink>
+              }
+              description={`${custodian.accounts.length} account${custodian.accounts.length === 1 ? "" : "s"}`}
+              endContent={
+                <Stack direction="horizontal" align="center" gap={2}>
+                  {managementBadge(custodian.managementMode)}
+                  <Button
+                    as={RouterLink}
+                    href={`/custodians/${custodian.id}`}
+                    label="View"
+                    size="sm"
+                    variant="secondary"
+                  />
+                </Stack>
+              }
+            />
           ))}
-        </div>
+        </List>
       )}
     </>
   );
@@ -77,7 +88,6 @@ export function CustodianListScreen() {
 export function CreateCustodianScreen() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const capabilities = useQuery(connectorCapabilitiesQuery);
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: engineApi.createCustodian,
@@ -107,19 +117,17 @@ export function CreateCustodianScreen() {
         title="Add custodian"
         subtitle="The initial connector registry is empty, so new custodians are manual."
       />
-      {capabilities.data?.connectors.length ? null : null}
       <FormError message={error} />
       <form.AppForm>
-        <form
+        <FormFrame
           onSubmit={(event) => {
             event.preventDefault();
             void form.handleSubmit();
           }}
-          {...stylex.props(styles.form)}
         >
           <form.AppField name="name" children={(field) => <field.TextField label="Name" />} />
           <form.SubmitButton label="Create custodian" />
-        </form>
+        </FormFrame>
       </form.AppForm>
     </>
   );
@@ -135,37 +143,42 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
       <PageHeader
         title={custodian.name}
         subtitle={`${custodian.managementMode} custodian`}
-        action={<Button as={Link} href={`/custodians/${id}/edit`} label="Edit" />}
+        action={<Button as={RouterLink} href={`/custodians/${id}/edit`} label="Edit" />}
       />
-      <div {...stylex.props(styles.row)}>
-        <h2>Accounts</h2>
+      <Stack direction="horizontal" justify="between" align="center" gap={3} wrap="wrap">
+        <Stack direction="horizontal" align="center" gap={2}>
+          <Heading level={2}>Accounts</Heading>
+          {managementBadge(custodian.managementMode)}
+        </Stack>
         {custodian.managementMode === "manual" && (
           <Button
-            as={Link}
+            as={RouterLink}
             href={`/custodians/${id}/accounts/new`}
             label="Add account"
             variant="primary"
           />
         )}
-      </div>
+      </Stack>
       {custodian.accounts.length === 0 ? (
         <EmptyState title="No accounts" description="Create an account to hold positions." />
       ) : (
-        <div {...stylex.props(styles.stack)}>
+        <List density="balanced" hasDividers>
           {custodian.accounts.map((account) => (
-            <ResourceCard key={account.id}>
-              <div {...stylex.props(styles.row)}>
-                <div>
-                  <strong>{account.name}</strong>
-                  <div {...stylex.props(styles.muted)}>
-                    {account.baseCurrencyIso} · {account.positionCount} position(s)
-                  </div>
-                </div>
-                <Button as={Link} href={`/accounts/${account.id}`} label="View account" />
-              </div>
-            </ResourceCard>
+            <ListItem
+              key={account.id}
+              label={<AstryxLink as={RouterLink} href={`/accounts/${account.id}`} isStandalone weight="semibold">{account.name}</AstryxLink>}
+              description={`${account.baseCurrencyIso} · ${account.positionCount} position${account.positionCount === 1 ? "" : "s"}`}
+              endContent={
+                <Button
+                  as={RouterLink}
+                  href={`/accounts/${account.id}`}
+                  label="View account"
+                  size="sm"
+                />
+              }
+            />
           ))}
-        </div>
+        </List>
       )}
     </>
   );
@@ -184,7 +197,7 @@ function LoadedEditCustodian({ id, name }: { readonly id: string; readonly name:
   const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const update = useMutation({
-    mutationFn: (name: string) => engineApi.updateCustodian(id, name),
+    mutationFn: (nextName: string) => engineApi.updateCustodian(id, nextName),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all }),
@@ -220,18 +233,16 @@ function LoadedEditCustodian({ id, name }: { readonly id: string; readonly name:
       />
       <FormError message={error} />
       <form.AppForm>
-        <form
+        <FormFrame
           onSubmit={(event) => {
             event.preventDefault();
             void form.handleSubmit();
           }}
-          {...stylex.props(styles.form)}
         >
           <form.AppField name="name" children={(field) => <field.TextField label="Name" />} />
           <form.SubmitButton label="Save changes" />
-        </form>
+        </FormFrame>
       </form.AppForm>
-      <hr />
       <DeleteButton
         entity="custodian"
         isPending={remove.isPending}

@@ -1,6 +1,6 @@
 import { LayerProvider } from "@astryxdesign/core/Layer";
 import { Theme } from "@astryxdesign/core/theme";
-import { neutralTheme } from "@astryxdesign/theme-neutral/built";
+import { matchaTheme } from "@astryxdesign/theme-matcha/built";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
@@ -94,7 +94,7 @@ const renderRoute = (path: string) => {
     context: { queryClient },
   });
   return render(
-    <Theme theme={neutralTheme}>
+    <Theme theme={matchaTheme}>
       <LayerProvider>
         <QueryClientProvider client={queryClient}>
           <RouterProvider router={router} />

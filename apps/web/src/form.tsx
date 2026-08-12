@@ -31,11 +31,13 @@ function TextField({
   const field = useFieldContext<string>();
   const form = useFormContext();
   const error = message(field.state.meta.errors, label, field.state.value);
+  const isOptional = label.toLocaleLowerCase().includes("optional");
   return (
     <form.Subscribe selector={(state) => state.submissionAttempts}>
       {(submissionAttempts) => (
         <TextInput
           label={label}
+          isOptional={isOptional}
           value={field.state.value}
           onChange={(value) => field.handleChange(value)}
           onBlur={() => {
@@ -44,6 +46,8 @@ function TextField({
             field.handleBlur();
           }}
           htmlName={field.name}
+          size="lg"
+          statusVariant="detached"
           width="100%"
           {...(submissionAttempts === 0 || error === undefined
             ? {}
@@ -73,6 +77,8 @@ function SelectField({
           options={options}
           value={field.state.value}
           onChange={(value) => field.handleChange(value)}
+          size="lg"
+          statusVariant="detached"
           width="100%"
           {...(submissionAttempts === 0 || error === undefined
             ? {}

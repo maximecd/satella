@@ -2,22 +2,26 @@ import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Heading } from "@astryxdesign/core/Heading";
+import { Section } from "@astryxdesign/core/Section";
+import { Stack } from "@astryxdesign/core/Stack";
+import { Table, proportional } from "@astryxdesign/core/Table";
+import { Text } from "@astryxdesign/core/Text";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { Account, Position } from "@optimus/engine/api";
 import { CreateAccountInput, UpdateAccountInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
-import * as stylex from "@stylexjs/stylex";
 
 import { engineApi } from "../api";
 import {
   DeleteButton,
   FormError,
+  FormFrame,
   PageHeader,
   PageState,
   ResourceCard,
-  styles,
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { accountQuery, assetsQuery, custodianQuery, queryKeys } from "../queries";
@@ -60,6 +64,16 @@ const conversionDescription = (position: Position, valuationCurrencyIso: string)
   return `Converted at 1 ${position.price.currencyIso} = ${fxRate.format(rate)} ${valuationCurrencyIso}`;
 };
 
+type PositionTableRow = Record<string, unknown> & {
+  id: string;
+  assetName: string;
+  assetSymbol: string | null;
+  quantity: number;
+  price: Position["price"];
+  reportingValue: number | null;
+  position: Position;
+};
+
 function PositionTable({
   positions,
   account,
@@ -68,68 +82,96 @@ function PositionTable({
   readonly account: Account;
 }) {
   if (positions.length === 0) return <EmptyState title="No positions" isCompact />;
+  const rows: PositionTableRow[] = positions.map((position) => ({
+    ...position,
+    position,
+  }));
   return (
-    <table {...stylex.props(styles.table)}>
-      <thead>
-        <tr>
-          <th {...stylex.props(styles.cell)}>Asset</th>
-          <th {...stylex.props(styles.cell, styles.numeric)}>Quantity</th>
-          <th {...stylex.props(styles.cell, styles.numeric)}>Market price</th>
-          <th {...stylex.props(styles.cell, styles.numeric)}>Value ({account.baseCurrencyIso})</th>
-          <th {...stylex.props(styles.cell)} />
-        </tr>
-      </thead>
-      <tbody>
-        {positions.map((position) => (
-          <tr key={position.id}>
-            <td {...stylex.props(styles.cell)}>
-              <strong>{position.assetName}</strong>
-              {position.assetSymbol && (
-                <div {...stylex.props(styles.muted)}>{position.assetSymbol}</div>
+    <Table
+      data={rows}
+      idKey="id"
+      density="compact"
+      dividers="rows"
+      hasHover
+      columns={[
+        {
+          key: "assetName",
+          header: "Asset",
+          width: proportional(1.5),
+          renderCell: (row) => (
+            <Stack gap={0.5}>
+              <Text weight="semibold">{row.assetName}</Text>
+              {row.assetSymbol && (
+                <Text type="supporting" as="p">
+                  {row.assetSymbol}
+                </Text>
               )}
-            </td>
-            <td {...stylex.props(styles.cell, styles.numeric)}>
-              {number.format(position.quantity)}
-            </td>
-            <td {...stylex.props(styles.cell, styles.numeric)}>
-              {position.price === null ? (
-                "—"
-              ) : (
-                <>
-                  <span>
-                    {marketPrice.format(position.price.price)} {position.price.currencyIso}
-                  </span>
-                  <div {...stylex.props(styles.muted)}>
-                    {position.price.isStale ? "Delayed · " : ""}
-                    {sourceName(position.price.source)} ·{" "}
-                    {quoteTime.format(new Date(position.price.observedAt))}
-                  </div>
-                </>
-              )}
-            </td>
-            <td
-              title={conversionDescription(position, account.baseCurrencyIso)}
-              {...stylex.props(styles.cell, styles.numeric)}
+            </Stack>
+          ),
+        },
+        {
+          key: "quantity",
+          header: "Quantity",
+          width: proportional(0.8),
+          align: "end",
+          renderCell: (row) => (
+            <Text hasTabularNumbers>{number.format(row.quantity)}</Text>
+          ),
+        },
+        {
+          key: "price",
+          header: "Market price",
+          width: proportional(1.3),
+          align: "end",
+          renderCell: (row) =>
+            row.price === null ? (
+              <Text type="supporting">—</Text>
+            ) : (
+              <Stack gap={0.5} align="end">
+                <Text hasTabularNumbers>
+                  {marketPrice.format(row.price.price)} {row.price.currencyIso}
+                </Text>
+                <Text type="supporting" as="p">
+                  {row.price.isStale ? "Delayed · " : ""}
+                  {sourceName(row.price.source)} · {quoteTime.format(new Date(row.price.observedAt))}
+                </Text>
+              </Stack>
+            ),
+        },
+        {
+          key: "reportingValue",
+          header: `Value (${account.baseCurrencyIso})`,
+          width: proportional(1.1),
+          align: "end",
+          renderCell: (row) => (
+            <Text
+              hasTabularNumbers
+              title={conversionDescription(row.position, account.baseCurrencyIso)}
             >
-              {position.reportingValue === null
+              {row.reportingValue === null
                 ? "Unpriced"
-                : formatValuedAmount(position.reportingValue, account.baseCurrencyIso)}
-            </td>
-            <td {...stylex.props(styles.cell)}>
-              {account.managementMode === "manual" && (
-                <Button
-                  as={Link}
-                  href={`/positions/${position.id}/edit`}
-                  label="Edit"
-                  size="sm"
-                  variant="ghost"
-                />
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                : formatValuedAmount(row.reportingValue, account.baseCurrencyIso)}
+            </Text>
+          ),
+        },
+        {
+          key: "actions",
+          header: "",
+          width: proportional(0.5),
+          align: "end",
+          renderCell: (row) =>
+            account.managementMode === "manual" ? (
+              <Button
+                as={RouterLink}
+                href={`/positions/${row.id}/edit`}
+                label="Edit"
+                size="sm"
+                variant="ghost"
+              />
+            ) : null,
+        },
+      ]}
+    />
   );
 }
 
@@ -158,7 +200,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
         title={account.name}
         subtitle={`${account.custodianName} · Valuation currency ${account.baseCurrencyIso}`}
         action={
-          <div {...stylex.props(styles.row)}>
+          <>
             <Button
               label="Refresh prices"
               isLoading={refresh.isPending}
@@ -167,9 +209,9 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
               }}
             />
             {account.managementMode === "manual" && (
-              <Button as={Link} href={`/accounts/${id}/edit`} label="Edit account" />
+              <Button as={RouterLink} href={`/accounts/${id}/edit`} label="Edit account" />
             )}
-          </div>
+          </>
         }
       />
       {account.managementMode === "synced" && (
@@ -201,36 +243,38 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
         />
       )}
       <ResourceCard>
-        <div {...stylex.props(styles.row)}>
-          <strong>Valued total</strong>
-          <strong>{formatValuedAmount(account.total, account.baseCurrencyIso)}</strong>
-        </div>
+        <Stack direction="horizontal" justify="between" align="center" gap={4} wrap="wrap">
+          <Text type="label">Valued total</Text>
+          <Text type="display-2" hasTabularNumbers>
+            {formatValuedAmount(account.total, account.baseCurrencyIso)}
+          </Text>
+        </Stack>
       </ResourceCard>
-      <div {...stylex.props(styles.row)}>
-        <h2>Positions</h2>
+      <Stack direction="horizontal" justify="between" align="center" gap={3} wrap="wrap">
+        <Heading level={2}>Positions</Heading>
         {account.managementMode === "manual" && (
           <Button
-            as={Link}
+            as={RouterLink}
             href={`/accounts/${id}/positions/new`}
             label="Add position"
             variant="primary"
           />
         )}
-      </div>
+      </Stack>
       <PositionTable positions={active} account={account} />
       {zero.length > 0 && (
-        <ResourceCard>
+        <Section variant="muted" padding={3}>
           <Collapsible trigger={`Zero positions (${zero.length})`} defaultIsOpen={false}>
             <PositionTable positions={zero} account={account} />
           </Collapsible>
-        </ResourceCard>
+        </Section>
       )}
       {unpriced.length > 0 && (
-        <ResourceCard>
+        <Section variant="muted" padding={3}>
           <Collapsible trigger={`Unpriced positions (${unpriced.length})`} defaultIsOpen={false}>
             <PositionTable positions={unpriced} account={account} />
           </Collapsible>
-        </ResourceCard>
+        </Section>
       )}
     </>
   );
@@ -272,12 +316,11 @@ export function CreateAccountScreen({ custodianId }: { readonly custodianId: str
       <PageHeader title="Add account" subtitle={`Under ${custodian.data.name}`} />
       <FormError message={error} />
       <form.AppForm>
-        <form
+        <FormFrame
           onSubmit={(event) => {
             event.preventDefault();
             void form.handleSubmit();
           }}
-          {...stylex.props(styles.form)}
         >
           <form.AppField
             name="name"
@@ -296,7 +339,7 @@ export function CreateAccountScreen({ custodianId }: { readonly custodianId: str
             )}
           />
           <form.SubmitButton label="Create account" />
-        </form>
+        </FormFrame>
       </form.AppForm>
     </>
   );
@@ -347,12 +390,11 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
       <PageHeader title={`Edit ${account.name}`} />
       <FormError message={error} />
       <form.AppForm>
-        <form
+        <FormFrame
           onSubmit={(event) => {
             event.preventDefault();
             void form.handleSubmit();
           }}
-          {...stylex.props(styles.form)}
         >
           <form.AppField
             name="name"
@@ -371,9 +413,8 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
             )}
           />
           <form.SubmitButton label="Save changes" />
-        </form>
+        </FormFrame>
       </form.AppForm>
-      <hr />
       <DeleteButton
         entity="account"
         isPending={remove.isPending}

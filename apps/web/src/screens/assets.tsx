@@ -1,22 +1,27 @@
+import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Link as AstryxLink } from "@astryxdesign/core/Link";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList";
+import { Stack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { Asset } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
-import * as stylex from "@stylexjs/stylex";
 
 import { engineApi } from "../api";
 import {
   DeleteButton,
   FormError,
+  FormFrame,
   PageHeader,
   PageState,
   ResourceCard,
-  styles,
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { assetQuery, assetsQuery, queryKeys } from "../queries";
@@ -38,6 +43,13 @@ const EditAssetForm = Schema.Struct({
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
 
+const assetDescription = (asset: Asset) =>
+  `${asset.symbol ?? "No symbol"} · ${
+    asset.price === null
+      ? "Unpriced"
+      : `${asset.price.price} ${asset.price.currencyIso} (${asset.price.source})`
+  }`;
+
 export function AssetListScreen() {
   const query = useQuery(assetsQuery);
   const [search, setSearch] = useState("");
@@ -57,7 +69,7 @@ export function AssetListScreen() {
         subtitle="The shared catalog used by positions in every custodian."
         action={
           <Button
-            as={Link}
+            as={RouterLink}
             href="/assets/custom/new"
             label="Create manual asset"
             variant="primary"
@@ -76,28 +88,35 @@ export function AssetListScreen() {
       {assets.length === 0 ? (
         <EmptyState title="No matching assets" />
       ) : (
-        <div {...stylex.props(styles.stack)}>
+        <List density="balanced" hasDividers>
           {assets.map((asset) => (
-            <ResourceCard key={asset.id}>
-              <div {...stylex.props(styles.row)}>
-                <div>
-                  <strong>{asset.name}</strong>
-                  <div {...stylex.props(styles.muted)}>
-                    {asset.symbol ?? "No symbol"} · {asset.assetClass} ·{" "}
-                    {asset.price === null
-                      ? "Unpriced"
-                      : `${asset.price.price} ${asset.price.currencyIso} (${asset.price.source})`}
-                  </div>
-                </div>
-                <Button
-                  as={Link}
+            <ListItem
+              key={asset.id}
+              label={
+                <AstryxLink
+                  as={RouterLink}
                   href={`/assets/${asset.id}/edit`}
-                  label={asset.assetClass === "custom" ? "Edit" : "Inspect"}
-                />
-              </div>
-            </ResourceCard>
+                  isStandalone
+                  weight="semibold"
+                >
+                  {asset.name}
+                </AstryxLink>
+              }
+              description={assetDescription(asset)}
+              endContent={
+                <Stack direction="horizontal" align="center" gap={2}>
+                  <Badge label={asset.assetClass} />
+                  <Button
+                    as={RouterLink}
+                    href={`/assets/${asset.id}/edit`}
+                    label={asset.assetClass === "custom" ? "Edit" : "Inspect"}
+                    size="sm"
+                  />
+                </Stack>
+              }
+            />
           ))}
-        </div>
+        </List>
       )}
     </>
   );
@@ -148,12 +167,11 @@ export function CreateCustomAssetScreen() {
       />
       <FormError message={error} />
       <form.AppForm>
-        <form
+        <FormFrame
           onSubmit={(event) => {
             event.preventDefault();
             void form.handleSubmit();
           }}
-          {...stylex.props(styles.form)}
         >
           <form.AppField name="name" children={(field) => <field.TextField label="Name" />} />
           <form.AppField
@@ -177,7 +195,7 @@ export function CreateCustomAssetScreen() {
             )}
           />
           <form.SubmitButton label="Create asset" />
-        </form>
+        </FormFrame>
       </form.AppForm>
     </>
   );
@@ -249,20 +267,22 @@ function LoadedAssetScreen({
           description="Provider identifiers and automatic prices cannot be edited manually."
         />
         <ResourceCard>
-          <dl>
+          <MetadataList columns="single" label={{ position: "start" }} title="Provider metadata">
             {asset.identifiers.map((identifier) => (
-              <div key={`${identifier.type}:${identifier.value}`}>
-                <dt>{identifier.type}</dt>
-                <dd>{identifier.value}</dd>
-              </div>
+              <MetadataListItem
+                key={`${identifier.type}:${identifier.value}`}
+                label={identifier.type}
+              >
+                {identifier.value}
+              </MetadataListItem>
             ))}
-          </dl>
+          </MetadataList>
           {asset.price && (
-            <p>
-              Latest: {asset.price.price} {asset.price.currencyIso} · {asset.price.source} ·{" "}
+            <Text type="supporting" as="p">
+              Latest: {asset.price.price} {asset.price.currencyIso} · {asset.price.source} · {" "}
               {new Date(asset.price.observedAt).toLocaleString()}
               {asset.price.isStale ? " · Delayed" : ""}
-            </p>
+            </Text>
           )}
         </ResourceCard>
       </>
@@ -274,12 +294,11 @@ function LoadedAssetScreen({
       <PageHeader title={`Edit ${asset.name}`} />
       <FormError message={error} />
       <form.AppForm>
-        <form
+        <FormFrame
           onSubmit={(event) => {
             event.preventDefault();
             void form.handleSubmit();
           }}
-          {...stylex.props(styles.form)}
         >
           <form.AppField name="name" children={(field) => <field.TextField label="Name" />} />
           <form.AppField
@@ -303,9 +322,8 @@ function LoadedAssetScreen({
             )}
           />
           <form.SubmitButton label="Save asset" />
-        </form>
+        </FormFrame>
       </form.AppForm>
-      <hr />
       <DeleteButton
         entity="asset"
         isPending={remove.isPending}
