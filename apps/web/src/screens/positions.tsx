@@ -1,4 +1,5 @@
 import { Button } from "@astryxdesign/core/Button";
+import { Heading } from "@astryxdesign/core/Heading";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Section } from "@astryxdesign/core/Section";
 import { Selector } from "@astryxdesign/core/Selector";
@@ -96,7 +97,7 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
       <Section variant="muted" padding={4}>
         <Stack gap={4}>
           <Stack gap={1}>
-            <Text type="heading-2">Find an automatic asset</Text>
+            <Heading level={2}>Find an automatic asset</Heading>
             <Text type="supporting" as="p">
               Search a provider and add its identifiers to the shared asset catalog.
             </Text>

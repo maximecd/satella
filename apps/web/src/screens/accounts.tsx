@@ -7,6 +7,7 @@ import { Section } from "@astryxdesign/core/Section";
 import { Stack } from "@astryxdesign/core/Stack";
 import { Table, proportional } from "@astryxdesign/core/Table";
 import { Text } from "@astryxdesign/core/Text";
+import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { Account, Position } from "@optimus/engine/api";
@@ -114,9 +115,7 @@ function PositionTable({
           header: "Quantity",
           width: proportional(0.8),
           align: "end",
-          renderCell: (row) => (
-            <Text hasTabularNumbers>{number.format(row.quantity)}</Text>
-          ),
+          renderCell: (row) => <Text hasTabularNumbers>{number.format(row.quantity)}</Text>,
         },
         {
           key: "price",
@@ -133,7 +132,8 @@ function PositionTable({
                 </Text>
                 <Text type="supporting" as="p">
                   {row.price.isStale ? "Delayed · " : ""}
-                  {sourceName(row.price.source)} · {quoteTime.format(new Date(row.price.observedAt))}
+                  {sourceName(row.price.source)} ·{" "}
+                  {quoteTime.format(new Date(row.price.observedAt))}
                 </Text>
               </Stack>
             ),
@@ -143,16 +143,18 @@ function PositionTable({
           header: `Value (${account.baseCurrencyIso})`,
           width: proportional(1.1),
           align: "end",
-          renderCell: (row) => (
-            <Text
-              hasTabularNumbers
-              title={conversionDescription(row.position, account.baseCurrencyIso)}
-            >
-              {row.reportingValue === null
-                ? "Unpriced"
-                : formatValuedAmount(row.reportingValue, account.baseCurrencyIso)}
-            </Text>
-          ),
+          renderCell: (row) => {
+            const conversion = conversionDescription(row.position, account.baseCurrencyIso);
+            return (
+              <Tooltip content={conversion ?? ""} isEnabled={conversion !== undefined}>
+                <Text hasTabularNumbers>
+                  {row.reportingValue === null
+                    ? "Unpriced"
+                    : formatValuedAmount(row.reportingValue, account.baseCurrencyIso)}
+                </Text>
+              </Tooltip>
+            );
+          },
         },
         {
           key: "actions",
