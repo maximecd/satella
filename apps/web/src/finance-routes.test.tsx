@@ -186,6 +186,7 @@ describe("finance routes", () => {
     expect(screen.getByText("API key")).toBeInTheDocument();
     expect(screen.getByText("Secret key")).toBeInTheDocument();
     expect(screen.getByText("Region")).toBeInTheDocument();
+    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
   });
 
   it("resyncs a connector-managed custodian from its detail page", async () => {

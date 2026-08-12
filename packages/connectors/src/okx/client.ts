@@ -236,7 +236,6 @@ export const makeOkxClient = <R>(options: OkxClientOptions<R>): OkxClient<R> => 
           }),
           "OK-ACCESS-TIMESTAMP": timestamp,
           "OK-ACCESS-PASSPHRASE": input.credentials.passphrase,
-          ...(input.credentials.environment === "demo" ? { "x-simulated-trading": "1" } : {}),
         },
       },
       input.schema,

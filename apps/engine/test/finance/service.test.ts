@@ -45,7 +45,6 @@ describe("finance domain service", () => {
             secretKey: "secret-key",
             passphrase: "passphrase",
             region: "global",
-            environment: "live",
           },
         });
         const rows = yield* sql<{ readonly config_json: string }>`SELECT config_json
@@ -59,7 +58,6 @@ describe("finance domain service", () => {
       secretKey: "secret-key",
       passphrase: "passphrase",
       region: "global",
-      environment: "live",
     });
   });
 

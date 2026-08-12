@@ -22,7 +22,6 @@ const credentials = {
   secretKey: "secret",
   passphrase: "passphrase",
   region: "eea" as const,
-  environment: "demo" as const,
 };
 
 describe("OKX connector", () => {
@@ -170,9 +169,18 @@ describe("OKX connector", () => {
       "/api/v5/asset/balances",
       "/api/v5/finance/savings/balance",
     ]);
-    expect(requests[1]?.headers["x-simulated-trading"]).toBe("1");
+    expect(requests[1]?.headers["x-simulated-trading"]).toBeUndefined();
     expect(requests[1]?.headers["OK-ACCESS-KEY"]).toBe("api-key");
     expect(requests[1]?.headers["OK-ACCESS-SIGN"]).toBeDefined();
+  });
+
+  it("exposes live-only credentials", () => {
+    expect(makeOkxConnector().credentialFields.map(({ key }) => key)).toEqual([
+      "apiKey",
+      "secretKey",
+      "passphrase",
+      "region",
+    ]);
   });
 
   it("fails the complete fetch when one balance endpoint fails", async () => {

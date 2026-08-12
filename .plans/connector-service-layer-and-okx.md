@@ -149,18 +149,16 @@ Define an OKX credential schema containing:
 - API key;
 - secret key;
 - passphrase;
-- region: `global`, `eea`, or `us`;
-- environment: `live` or `demo`.
+- region: `global`, `eea`, or `us`.
 
 Only a read-enabled API key is required. The connector never needs Trade or Withdraw permission.
+The connector supports live OKX accounts only; demo/simulated trading is not exposed by the contract or UI.
 
 Select the REST origin from a fixed region allowlist rather than accepting an arbitrary URL:
 
 - global: `https://openapi.okx.com`;
 - EEA: `https://eea.okx.com`;
 - US/Australia: `https://us.okx.com`.
-
-Demo requests use the same regional REST origin and add `x-simulated-trading: 1`.
 
 The connector contract does not decide how credentials are stored. For the initial implementation, the engine stores them in `custodian_connectors.config_json` and supplies them to `authenticate` for later resyncs. This is deliberately temporary plaintext storage; encryption and a dedicated secret-storage boundary are deferred. Tests use injected credentials and a mocked HTTP client.
 
@@ -236,7 +234,7 @@ Replace the hard-coded empty connector capability list with capabilities derived
 
 ### 2. Build the OKX REST client
 
-- Implement fixed region/environment origin selection.
+- Implement fixed regional origin selection for live accounts.
 - Implement timestamp synchronization and signed private GET requests.
 - Decode OKX's `{ code, msg, data }` envelope before decoding endpoint data.
 - Map HTTP and OKX error codes into the connector error categories.
@@ -262,7 +260,7 @@ Replace the hard-coded empty connector capability list with capabilities derived
 - Flatten and deduplicate embedded connector assets at the engine boundary.
 - Reuse the existing atomic reconciliation behavior.
 - Derive connector capabilities from the registry.
-- Keep credential resolution injectable and out of connector configuration JSON.
+- Persist connector credentials in the temporary plaintext connector configuration boundary.
 
 ## Connector setup UI
 
@@ -279,7 +277,7 @@ Add a `POST /api/custodians/connect` operation that validates the selected conne
 Add deterministic tests using a mocked Effect HTTP client and fixed clock:
 
 1. the signature pre-hash and Base64 HMAC match a known fixture;
-2. live and demo requests select the correct headers and allowed regional origin;
+2. live requests select the correct allowed regional origin and never send simulated-trading headers;
 3. valid read-only credentials authenticate successfully;
 4. invalid key, secret, passphrase, region mismatch, permission failure, clock skew, rate limit, and malformed envelopes map to safe typed errors;
 5. trading `cashBal` and funding `bal` become quantities under the correct accounts;

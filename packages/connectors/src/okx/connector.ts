@@ -354,16 +354,6 @@ export const makeOkxConnector = <R = HttpClient.HttpClient>(
         { value: "us", label: "United States" },
       ],
     },
-    {
-      key: "environment",
-      label: "Environment",
-      kind: "select",
-      required: true,
-      options: [
-        { value: "live", label: "Live" },
-        { value: "demo", label: "Demo" },
-      ],
-    },
   ],
   credentialsSchema: OkxCredentials,
   authenticate: (input) =>
