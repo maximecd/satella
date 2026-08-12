@@ -1,34 +1,7 @@
 import { Button } from "@astryxdesign/core/Button";
+import { Heading } from "@astryxdesign/core/Heading";
+import { Stack } from "@astryxdesign/core/Stack";
 import { useToast } from "@astryxdesign/core/Toast";
-import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
-import * as stylex from "@stylexjs/stylex";
-
-const styles = stylex.create({
-  page: {
-    alignItems: "center",
-    backgroundColor: colorVars["--color-background-body"],
-    color: colorVars["--color-text-primary"],
-    display: "flex",
-    justifyContent: "center",
-    minHeight: "100vh",
-    padding: 24,
-  },
-  content: {
-    alignItems: "center",
-    display: "flex",
-    flexDirection: "column",
-    gap: 28,
-    textAlign: "center",
-  },
-  heading: {
-    fontFamily: "ui-sans-serif, system-ui, sans-serif",
-    fontSize: "clamp(3rem, 10vw, 6rem)",
-    fontWeight: 600,
-    letterSpacing: "-0.065em",
-    lineHeight: 0.95,
-    margin: 0,
-  },
-});
 
 export function App() {
   const toast = useToast();
@@ -48,11 +21,9 @@ export function App() {
   };
 
   return (
-    <main {...stylex.props(styles.page)}>
-      <div {...stylex.props(styles.content)}>
-        <h1 {...stylex.props(styles.heading)}>Hello world</h1>
-        <Button clickAction={handleGetStarted} label="Get started" variant="primary" />
-      </div>
-    </main>
+    <Stack align="center" justify="center" gap={4} height="100vh">
+      <Heading level={1}>Hello world</Heading>
+      <Button clickAction={handleGetStarted} label="Get started" variant="primary" />
+    </Stack>
   );
 }

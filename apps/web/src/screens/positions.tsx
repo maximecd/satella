@@ -1,22 +1,18 @@
 import { Button } from "@astryxdesign/core/Button";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { Section } from "@astryxdesign/core/Section";
 import { Selector } from "@astryxdesign/core/Selector";
+import { Stack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { PositionQuantityFormInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useEffect, useState } from "react";
-import * as stylex from "@stylexjs/stylex";
 
 import { engineApi } from "../api";
-import {
-  DeleteButton,
-  FormError,
-  PageHeader,
-  PageState,
-  ResourceCard,
-  styles,
-} from "../components";
+import { DeleteButton, FormError, FormFrame, PageHeader, PageState } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import {
   accountQuery,
@@ -43,10 +39,12 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchClass, setSearchClass] = useState<"security" | "crypto">("security");
+
   useEffect(() => {
     const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(timeout);
   }, [search]);
+
   const searchResults = useQuery(assetSearchQuery(debouncedSearch, searchClass));
   const mutation = useMutation({
     mutationFn: engineApi.createPosition,
@@ -81,10 +79,12 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
     },
     onError: (cause) => setError(errorMessage(cause)),
   });
+
   if (account.isPending || assets.isPending) return <PageState kind="pending" />;
   if (account.isError || assets.isError) return <PageState kind="error" />;
   if (account.data.managementMode !== "manual")
     return <PageState kind="error" message="Connector-managed positions are read-only." />;
+
   return (
     <>
       <PageHeader
@@ -93,9 +93,14 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
         action={<Button as={Link} href="/assets/custom/new" label="Create custom asset" />}
       />
       <FormError message={error} />
-      <ResourceCard>
-        <div {...stylex.props(styles.stack)}>
-          <h2>Find an automatic asset</h2>
+      <Section variant="muted" padding={4}>
+        <Stack gap={4}>
+          <Stack gap={1}>
+            <Text type="heading-2">Find an automatic asset</Text>
+            <Text type="supporting" as="p">
+              Search a provider and add its identifiers to the shared asset catalog.
+            </Text>
+          </Stack>
           <Selector
             label="Asset class"
             options={[
@@ -113,43 +118,66 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
             placeholder="Search by name or exact symbol"
             width="100%"
           />
-          {searchResults.isFetching && <p role="status">Searching…</p>}
-          {searchResults.isError && <p role="alert">Provider search is temporarily unavailable.</p>}
-          {searchResults.data?.map((result) => (
-            <div
-              key={`${result.provider}:${result.identifiers[0]?.value}`}
-              {...stylex.props(styles.row)}
-            >
-              <span>
-                <strong>{result.name}</strong> · {result.symbol}
-              </span>
-              <Button
-                label="Use asset"
-                size="sm"
-                isLoading={addFromSearch.isPending}
-                clickAction={async () => {
-                  await addFromSearch.mutateAsync({
-                    assetClass: result.assetClass,
-                    name: result.name,
-                    symbol: result.symbol,
-                    identifiers: [...result.identifiers],
-                  });
-                }}
-              />
-            </div>
-          ))}
-        </div>
-      </ResourceCard>
+          {searchResults.isFetching && (
+            <Text type="supporting" as="p" role="status">
+              Searching…
+            </Text>
+          )}
+          {searchResults.isError && (
+            <Text type="supporting" as="p" role="alert">
+              Provider search is temporarily unavailable.
+            </Text>
+          )}
+          {searchResults.data && searchResults.data.length > 0 && (
+            <List density="compact" hasDividers>
+              {searchResults.data.map((result) => (
+                <ListItem
+                  key={`${result.provider}:${result.identifiers[0]?.value}`}
+                  label={
+                    <Text weight="semibold">
+                      {result.name} · {result.symbol}
+                    </Text>
+                  }
+                  description={`${result.provider} · ${result.assetClass}`}
+                  endContent={
+                    <Button
+                      label="Use asset"
+                      size="sm"
+                      isLoading={addFromSearch.isPending}
+                      clickAction={async () => {
+                        await addFromSearch.mutateAsync({
+                          assetClass: result.assetClass,
+                          name: result.name,
+                          symbol: result.symbol,
+                          identifiers: [...result.identifiers],
+                        });
+                      }}
+                    />
+                  }
+                />
+              ))}
+            </List>
+          )}
+          {debouncedSearch.length > 0 &&
+            !searchResults.isFetching &&
+            searchResults.data?.length === 0 && (
+              <Text type="supporting" as="p">
+                No provider matches found.
+              </Text>
+            )}
+        </Stack>
+      </Section>
       {available.length === 0 ? (
-        <p>No unused assets are available. Create a custom asset first.</p>
+        <Text type="supporting" as="p">
+          No unused assets are available. Create a custom asset first.
+        </Text>
       ) : (
         <form.AppForm>
-          <form
+          <FormFrame
             onSubmit={(event) => {
               event.preventDefault();
               void form.handleSubmit();
             }}
-            {...stylex.props(styles.form)}
           >
             <form.AppField
               name="assetId"
@@ -168,7 +196,7 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
               children={(field) => <field.TextField label="Quantity" number />}
             />
             <form.SubmitButton label="Add position" />
-          </form>
+          </FormFrame>
         </form.AppForm>
       )}
     </>
@@ -234,6 +262,7 @@ function LoadedEditPosition({
       await update.mutateAsync(decoded.quantity);
     },
   });
+
   return (
     <>
       <PageHeader
@@ -242,21 +271,19 @@ function LoadedEditPosition({
       />
       <FormError message={error} />
       <form.AppForm>
-        <form
+        <FormFrame
           onSubmit={(event) => {
             event.preventDefault();
             void form.handleSubmit();
           }}
-          {...stylex.props(styles.form)}
         >
           <form.AppField
             name="quantity"
             children={(field) => <field.TextField label="Quantity" number />}
           />
           <form.SubmitButton label="Save quantity" />
-        </form>
+        </FormFrame>
       </form.AppForm>
-      <hr />
       <DeleteButton
         entity="position"
         isPending={remove.isPending}

@@ -1,11 +1,10 @@
 import "@astryxdesign/core/reset.css";
 import "@astryxdesign/core/astryx.css";
-import "@astryxdesign/theme-neutral/theme.css";
-import "virtual:stylex:runtime";
+import "@astryxdesign/theme-matcha/theme.css";
 
 import { LayerProvider } from "@astryxdesign/core/Layer";
 import { Theme } from "@astryxdesign/core/theme";
-import { neutralTheme } from "@astryxdesign/theme-neutral/built";
+import { matchaTheme } from "@astryxdesign/theme-matcha/built";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -33,7 +32,7 @@ if (root === null) {
 
 createRoot(root).render(
   <StrictMode>
-    <Theme theme={neutralTheme}>
+    <Theme theme={matchaTheme}>
       <LayerProvider>
         <QueryClientProvider client={queryClient}>
           <RouterProvider router={router} />

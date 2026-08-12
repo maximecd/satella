@@ -1,6 +1,6 @@
 import { LayerProvider } from "@astryxdesign/core/Layer";
 import { Theme } from "@astryxdesign/core/theme";
-import { neutralTheme } from "@astryxdesign/theme-neutral/built";
+import { matchaTheme } from "@astryxdesign/theme-matcha/built";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,7 +14,7 @@ vi.mock("./api", () => ({
 
 function renderApp() {
   return render(
-    <Theme theme={neutralTheme}>
+    <Theme theme={matchaTheme}>
       <LayerProvider>
         <App />
       </LayerProvider>

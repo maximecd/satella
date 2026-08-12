@@ -3,74 +3,88 @@ import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
-import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
-import * as stylex from "@stylexjs/stylex";
-import { Link, Outlet } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { Divider } from "@astryxdesign/core/Divider";
+import { FormLayout } from "@astryxdesign/core/FormLayout";
+import { Heading } from "@astryxdesign/core/Heading";
+import { Layout } from "@astryxdesign/core/Layout";
+import {
+  SideNav,
+  SideNavHeading,
+  SideNavItem,
+  SideNavSection,
+} from "@astryxdesign/core/SideNav";
+import { Stack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
+import { TopNav, TopNavHeading } from "@astryxdesign/core/TopNav";
+import { Link as RouterLink, Outlet, useLocation } from "@tanstack/react-router";
+import type { FormEvent, ReactNode } from "react";
 import { useState } from "react";
 
-const styles = stylex.create({
-  shell: { backgroundColor: colorVars["--color-background-body"] },
-  navigation: {
-    alignItems: "center",
-    display: "flex",
-    gap: 12,
-    justifyContent: "space-between",
-    padding: "12px 24px",
-  },
-  navLinks: { display: "flex", gap: 8 },
-  main: { margin: "0 auto", maxWidth: 1040, width: "100%" },
-  pageHeader: {
-    alignItems: "center",
-    display: "flex",
-    gap: 16,
-    justifyContent: "space-between",
-    marginBottom: 24,
-  },
-  heading: { color: colorVars["--color-text-primary"], margin: 0 },
-  muted: { color: colorVars["--color-text-secondary"] },
-  stack: { display: "flex", flexDirection: "column", gap: 12 },
-  row: {
-    alignItems: "center",
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 12,
-    justifyContent: "space-between",
-  },
-  form: { display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 },
-  table: { borderCollapse: "collapse", width: "100%" },
-  cell: {
-    borderBottom: `1px solid ${colorVars["--color-border"]}`,
-    padding: "12px 8px",
-    textAlign: "left",
-  },
-  numeric: { fontVariantNumeric: "tabular-nums", textAlign: "right" },
-  link: { color: colorVars["--color-text-accent"], textDecoration: "none" },
-});
-
-export { styles };
-
 export function RootLayout() {
-  const topNav = (
-    <header {...stylex.props(styles.navigation)}>
-      <strong>Optimus</strong>
-      <nav {...stylex.props(styles.navLinks)} aria-label="Primary navigation">
-        <Button as={Link} href="/custodians" label="Custodians" variant="ghost" />
-        <Button as={Link} href="/assets" label="Assets" variant="ghost" />
-      </nav>
-    </header>
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const isSelected = (path: string) =>
+    pathname === path || pathname.startsWith(`${path}/`);
+
+  const navigation = (
+    <SideNav
+      collapsible={{ buttonLabel: "Collapse navigation" }}
+      header={
+        <SideNavHeading
+          heading="Workspace"
+          subheading="Local-first finance"
+        />
+      }
+      footer={
+        <Text type="supporting" as="p">
+          Private by default
+        </Text>
+      }
+    >
+      <SideNavSection title="Workspace">
+        <SideNavItem
+          as={RouterLink}
+          href="/custodians"
+          icon="wrench"
+          selectedIcon="wrench"
+          label="Custodians"
+          isSelected={isSelected("/custodians")}
+        />
+        <SideNavItem
+          as={RouterLink}
+          href="/assets"
+          icon="search"
+          selectedIcon="search"
+          label="Assets"
+          isSelected={isSelected("/assets")}
+        />
+      </SideNavSection>
+    </SideNav>
   );
+
   return (
     <AppShell
-      topNav={topNav}
-      contentPadding={4}
       height="auto"
-      mobileNav={false}
-      xstyle={styles.shell}
+      variant="elevated"
+      contentPadding={4}
+      topNav={
+        <TopNav
+          heading={
+            <TopNavHeading
+              as={RouterLink}
+              heading="Optimus"
+              subheading="Finance workspace"
+              headingHref="/"
+            />
+          }
+        />
+      }
+      sideNav={navigation}
     >
-      <div {...stylex.props(styles.main)}>
-        <Outlet />
-      </div>
+      <Layout height="auto" contentWidth={960} padding={0}>
+        <Stack gap={6}>
+          <Outlet />
+        </Stack>
+      </Layout>
     </AppShell>
   );
 }
@@ -85,13 +99,27 @@ export function PageHeader({
   readonly subtitle?: string;
 }) {
   return (
-    <div {...stylex.props(styles.pageHeader)}>
-      <div>
-        <h1 {...stylex.props(styles.heading)}>{title}</h1>
-        {subtitle && <p {...stylex.props(styles.muted)}>{subtitle}</p>}
-      </div>
-      {action}
-    </div>
+    <Stack
+      direction="horizontal"
+      justify="between"
+      align="start"
+      gap={4}
+      wrap="wrap"
+    >
+      <Stack gap={1}>
+        <Heading level={1}>{title}</Heading>
+        {subtitle && (
+          <Text type="supporting" as="p">
+            {subtitle}
+          </Text>
+        )}
+      </Stack>
+      {action && (
+        <Stack direction="horizontal" gap={2} wrap="wrap" align="center">
+          {action}
+        </Stack>
+      )}
+    </Stack>
   );
 }
 
@@ -102,7 +130,13 @@ export function PageState({
   readonly kind: "pending" | "error";
   readonly message?: string;
 }) {
-  if (kind === "pending") return <p role="status">Loading…</p>;
+  if (kind === "pending") {
+    return (
+      <Text type="supporting" as="p" role="status">
+        Loading…
+      </Text>
+    );
+  }
   return (
     <Banner
       status="error"
@@ -114,6 +148,22 @@ export function PageState({
 
 export function ResourceCard({ children }: { readonly children: ReactNode }) {
   return <Card padding={4}>{children}</Card>;
+}
+
+export function FormFrame({
+  children,
+  onSubmit,
+}: {
+  readonly children: ReactNode;
+  readonly onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form onSubmit={onSubmit}>
+      <Stack maxWidth={640}>
+        <FormLayout>{children}</FormLayout>
+      </Stack>
+    </form>
+  );
 }
 
 export function FormError({ message }: { readonly message: string | null }) {
@@ -133,7 +183,8 @@ export function DeleteButton({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   return (
-    <>
+    <Stack gap={4}>
+      <Divider />
       <Button label={`Delete ${entity}`} variant="destructive" onClick={() => setIsOpen(true)} />
       <AlertDialog
         isOpen={isOpen}
@@ -144,6 +195,6 @@ export function DeleteButton({
         isActionLoading={isPending}
         onAction={onDelete}
       />
-    </>
+    </Stack>
   );
 }
