@@ -91,6 +91,10 @@ export interface AuthenticatedConnector<R = never> {
 export interface Connector<Credentials, R = never> {
   readonly id: string;
   readonly name: string;
+  /** Optional data URI displayed in connector discovery surfaces. */
+  readonly icon?: string;
+  /** Optional Markdown instructions bundled with the connector. */
+  readonly instructions?: string;
   /** Public, non-secret metadata used to render connector setup forms. */
   readonly credentialFields: ReadonlyArray<ConnectorCredentialField>;
   readonly credentialsSchema: Schema.Schema<Credentials, any>;

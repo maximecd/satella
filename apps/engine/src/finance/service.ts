@@ -21,6 +21,7 @@ import type {
   SetManualPriceInput,
   SnapshotResult,
   UpdateAccountInput,
+  UpdateCustodianInput,
   UpdateCustomAssetInput,
 } from "./contracts.js";
 import { FinanceApiError as FinanceError } from "./contracts.js";
@@ -481,11 +482,45 @@ export const resyncCustodian = (
     return yield* getCustodian(id);
   });
 
-export const renameCustodian = (id: string, nameInput: string): FinanceEffect<Custodian> =>
+export const updateCustodian = (
+  id: string,
+  input: UpdateCustodianInput,
+): Effect.Effect<Custodian, FinanceApiError, SqlClient.SqlClient | HttpClient.HttpClient> =>
   Effect.gen(function* () {
-    yield* getCustodian(id);
-    const name = yield* requireNonEmpty(nameInput, "Custodian name");
+    const custodian = yield* getCustodian(id);
+    const name = yield* requireNonEmpty(input.name, "Custodian name");
     const sql = yield* SqlClient.SqlClient;
+
+    if (input.credentials !== undefined && Object.keys(input.credentials).length > 0) {
+      if (custodian.managementMode !== "synced" || custodian.connectorId === null) {
+        return yield* Effect.fail(
+          failure("read_only", "Manual custodians do not have connector credentials"),
+        );
+      }
+      const row = yield* firstOrNotFound(
+        yield* db(
+          sql<{ readonly config_json: string }>`SELECT config_json FROM custodian_connectors
+            WHERE custodian_id = ${id}`,
+        ),
+        "Custodian connector",
+      );
+      const stored = yield* Effect.try({
+        try: () => JSON.parse(row.config_json) as unknown,
+        catch: () => failure("database", "Stored connector credentials are invalid"),
+      });
+      if (stored === null || typeof stored !== "object" || Array.isArray(stored)) {
+        return yield* Effect.fail(failure("database", "Stored connector credentials are invalid"));
+      }
+      const credentials = { ...(stored as Record<string, unknown>), ...input.credentials };
+      yield* syncRegisteredConnector(id, custodian.connectorId, credentials).pipe(
+        Effect.mapError(connectorSyncFailure),
+      );
+      yield* db(
+        sql`UPDATE custodian_connectors SET config_json = ${JSON.stringify(credentials)},
+          updated_at = ${nowIso()} WHERE custodian_id = ${id}`,
+      );
+    }
+
     yield* db(sql`UPDATE custodians SET name = ${name}, updated_at = ${nowIso()} WHERE id = ${id}`);
     return yield* getCustodian(id);
   });

@@ -3,7 +3,7 @@ import { Theme } from "@astryxdesign/core/theme";
 import { matchaTheme } from "@astryxdesign/theme-matcha/built";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Account, Custodian } from "@optimus/engine/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -160,7 +160,63 @@ describe("finance routes", () => {
   });
 
   it("renders connector setup fields from connector metadata", async () => {
+    const user = userEvent.setup();
     vi.mocked(engineApi.connectorCapabilities).mockResolvedValueOnce({
+      connectors: [
+        {
+          id: "okx",
+          name: "OKX",
+          icon: "data:image/svg+xml;base64,PHN2Zy8+",
+          instructions: "# Connect OKX\n\nCreate a read-only API key.",
+          credentialFields: [
+            { key: "apiKey", label: "API key", kind: "text", required: true },
+            { key: "secretKey", label: "Secret key", kind: "password", required: true },
+            {
+              key: "region",
+              label: "Region",
+              kind: "select",
+              required: true,
+              options: [{ value: "global", label: "Global" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    renderRoute("/custodians/new/connector");
+    expect(await screen.findByRole("heading", { name: "Connect a service" })).toBeInTheDocument();
+    const search = screen.getByLabelText("Search connectors");
+    await user.type(search, "missing");
+    expect(screen.getByText("No connectors found")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Connect OKX" })).not.toBeInTheDocument();
+    await user.clear(search);
+    await user.click(screen.getByRole("button", { name: "Connect OKX" }));
+
+    expect(await screen.findByRole("heading", { name: "Connect OKX" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Connect a service" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose another connector" })).toBeInTheDocument();
+    expect(screen.getByText("Create a read-only API key.")).toBeInTheDocument();
+    expect(screen.getByText("Custodian name")).toBeInTheDocument();
+    expect(screen.getByText("API key")).toBeInTheDocument();
+    expect(screen.getAllByText("Secret key").length).toBeGreaterThan(0);
+    expect(screen.getByText("Region")).toBeInTheDocument();
+    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
+
+    const secret = screen.getByLabelText(/Secret key/, { selector: "input" });
+    expect(secret).toHaveAttribute("type", "password");
+    expect(screen.queryByRole("button", { name: /Secret key/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Connect and import" }));
+    expect(screen.getByText("API key is required.")).toBeInTheDocument();
+    expect(screen.getByText("Secret key is required.")).toBeInTheDocument();
+    expect(secret).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByText("Could not save")).not.toBeInTheDocument();
+  });
+
+  it("edits connector credentials while leaving unchanged secrets blank", async () => {
+    const user = userEvent.setup();
+    vi.mocked(engineApi.getCustodian).mockResolvedValue(syncedCustodian);
+    vi.mocked(engineApi.connectorCapabilities).mockResolvedValue({
       connectors: [
         {
           id: "okx",
@@ -179,14 +235,20 @@ describe("finance routes", () => {
         },
       ],
     });
+    vi.mocked(engineApi.updateCustodian).mockResolvedValue(syncedCustodian);
 
-    renderRoute("/custodians/new/connector");
-    expect(await screen.findByRole("heading", { name: "Connect OKX" })).toBeInTheDocument();
-    expect(screen.getByText("Custodian name")).toBeInTheDocument();
-    expect(screen.getByText("API key")).toBeInTheDocument();
-    expect(screen.getByText("Secret key")).toBeInTheDocument();
-    expect(screen.getByText("Region")).toBeInTheDocument();
-    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
+    renderRoute("/custodians/custodian-1/edit");
+    expect(await screen.findByRole("heading", { name: "Edit OKX" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Secret key/, { selector: "input" })).toHaveValue("");
+    await user.type(screen.getByLabelText("API key"), "replacement-key");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() =>
+      expect(engineApi.updateCustodian).toHaveBeenCalledWith("custodian-1", {
+        name: "OKX",
+        credentials: { apiKey: "replacement-key" },
+      }),
+    );
   });
 
   it("resyncs a connector-managed custodian from its detail page", async () => {

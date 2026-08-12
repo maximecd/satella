@@ -35,7 +35,7 @@ const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handlers) =>
     .handle("connectCustodian", ({ payload }) => FinanceService.connectCustodian(payload))
     .handle("resyncCustodian", ({ path }) => FinanceService.resyncCustodian(path.id))
     .handle("updateCustodian", ({ path, payload }) =>
-      FinanceService.renameCustodian(path.id, payload.name),
+      FinanceService.updateCustodian(path.id, payload),
     )
     .handle("deleteCustodian", ({ path }) => FinanceService.deleteCustodian(path.id))
     .handle("getAccount", ({ path }) => FinanceService.getAccount(path.id))
