@@ -10,7 +10,7 @@
     "./okx": "./dist/okx/index.js"
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && cp src/okx/*.md src/okx/*.svg dist/okx/",
     "dev": "tsc -b --watch --preserveWatchOutput",
     "typecheck": "tsc -b",
     "test": "vitest run"

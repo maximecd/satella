@@ -1,6 +1,7 @@
 import * as HttpClient from "@effect/platform/HttpClient";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import { readFileSync } from "node:fs";
 
 import {
   Connector,
@@ -24,6 +25,11 @@ import {
   OkxFundingBalanceResponse,
   OkxTradingBalanceResponse,
 } from "./schemas.js";
+
+const okxIcon = `data:image/svg+xml;base64,${readFileSync(
+  new URL("./icon.svg", import.meta.url),
+).toString("base64")}`;
+const okxInstructions = readFileSync(new URL("./instructions.md", import.meta.url), "utf8");
 
 export interface OkxConnectorOptions<R = HttpClient.HttpClient> {
   readonly transportFactory?: (origin: string) => OkxHttpTransport<R>;
@@ -323,6 +329,8 @@ export const makeOkxConnector = <R = HttpClient.HttpClient>(
 ): Connector<OkxCredentials, R> => ({
   id: "okx",
   name: "OKX",
+  icon: okxIcon,
+  instructions: okxInstructions,
   credentialFields: [
     {
       key: "apiKey",

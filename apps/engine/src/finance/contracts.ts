@@ -92,6 +92,8 @@ export type Custodian = typeof Custodian.Type;
 export const ConnectorCapability = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
+  icon: Schema.optional(Schema.String),
+  instructions: Schema.optional(Schema.String),
   credentialFields: Schema.Array(
     Schema.Struct({
       key: Schema.NonEmptyTrimmedString,
@@ -126,7 +128,7 @@ export const CreateCustodianInput = Schema.Struct({
 });
 export type CreateCustodianInput = typeof CreateCustodianInput.Type;
 
-/** Credentials are accepted only for the connection request and are never persisted. */
+/** Credentials are stored in the connector configuration for future resyncs. */
 export const ConnectCustodianInput = Schema.Struct({
   name: Schema.NonEmptyTrimmedString,
   connectorId: Schema.NonEmptyTrimmedString,
@@ -134,7 +136,10 @@ export const ConnectCustodianInput = Schema.Struct({
 });
 export type ConnectCustodianInput = typeof ConnectCustodianInput.Type;
 
-export const UpdateCustodianInput = Schema.Struct({ name: Schema.NonEmptyTrimmedString });
+export const UpdateCustodianInput = Schema.Struct({
+  name: Schema.NonEmptyTrimmedString,
+  credentials: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+});
 export type UpdateCustodianInput = typeof UpdateCustodianInput.Type;
 
 export const CreateAccountInput = Schema.Struct({

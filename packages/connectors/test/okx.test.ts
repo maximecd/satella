@@ -175,12 +175,15 @@ describe("OKX connector", () => {
   });
 
   it("exposes live-only credentials", () => {
-    expect(makeOkxConnector().credentialFields.map(({ key }) => key)).toEqual([
+    const connector = makeOkxConnector();
+    expect(connector.credentialFields.map(({ key }) => key)).toEqual([
       "apiKey",
       "secretKey",
       "passphrase",
       "region",
     ]);
+    expect(connector.icon).toMatch(/^data:image\/svg\+xml;base64,/);
+    expect(connector.instructions).toContain("Create a read-only API key");
   });
 
   it("fails the complete fetch when one balance endpoint fails", async () => {

@@ -9,6 +9,7 @@ import type {
   CreatePositionInput,
   SetManualPriceInput,
   UpdateAccountInput,
+  UpdateCustodianInput,
   UpdateCustomAssetInput,
 } from "@optimus/engine/api";
 import { EngineApi } from "@optimus/engine/api";
@@ -36,8 +37,8 @@ export const engineApi = {
     request((client) => client.finance.connectCustodian({ payload })),
   resyncCustodian: (id: string) =>
     request((client) => client.finance.resyncCustodian({ path: { id } })),
-  updateCustodian: (id: string, name: string) =>
-    request((client) => client.finance.updateCustodian({ path: { id }, payload: { name } })),
+  updateCustodian: (id: string, payload: UpdateCustodianInput) =>
+    request((client) => client.finance.updateCustodian({ path: { id }, payload })),
   deleteCustodian: (id: string) =>
     request((client) => client.finance.deleteCustodian({ path: { id } })),
   getAccount: (id: string) => request((client) => client.finance.getAccount({ path: { id } })),

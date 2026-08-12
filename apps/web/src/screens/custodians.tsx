@@ -1,11 +1,15 @@
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Grid } from "@astryxdesign/core/Grid";
 import { Heading } from "@astryxdesign/core/Heading";
+import { Icon } from "@astryxdesign/core/Icon";
 import { Link as AstryxLink } from "@astryxdesign/core/Link";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Stack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,10 +18,11 @@ import {
   ConnectCustodianInput,
   ConnectorCapability,
   CreateCustodianInput,
+  Custodian,
   UpdateCustodianInput,
 } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
-import { useState, type FormEvent } from "react";
+import { useState, type CSSProperties, type FormEvent } from "react";
 
 import { engineApi } from "../api";
 import {
@@ -228,20 +233,134 @@ function ConnectorSetupForm({
 }: {
   readonly connectors: ReadonlyArray<ConnectorCapability>;
 }) {
+  const [search, setSearch] = useState("");
+  const [connectorId, setConnectorId] = useState<string | null>(null);
+  const connector = connectors.find(({ id }) => id === connectorId);
+  const filteredConnectors = connectors.filter((candidate) =>
+    `${candidate.name} ${candidate.id} ${candidate.instructions ?? ""}`
+      .toLocaleLowerCase()
+      .includes(search.trim().toLocaleLowerCase()),
+  );
+
+  return (
+    <>
+      <PageBreadcrumbs
+        items={[
+          { label: "Custodians", href: "/custodians" },
+          { label: "Add custodian", href: "/custodians/new" },
+          { label: "Connect a service" },
+        ]}
+      />
+      <PageHeader
+        title="Connect a service"
+        subtitle="Choose a connector, then enter the details needed to import your accounts."
+      />
+      <Card padding={4}>
+        {connector === undefined ? (
+          <Stack gap={4}>
+            <TextInput
+              label="Search connectors"
+              value={search}
+              onChange={setSearch}
+              htmlName="connectorSearch"
+              startIcon="search"
+              hasClear
+              width="100%"
+            />
+            {filteredConnectors.length === 0 ? (
+              <EmptyState
+                title="No connectors found"
+                description="Try a different connector name."
+              />
+            ) : (
+              <section aria-label="Available connectors">
+                <Grid columns={3} gap={3}>
+                  {filteredConnectors.map((candidate) => (
+                    <button
+                      key={candidate.id}
+                      type="button"
+                      aria-label={`Connect ${candidate.name}`}
+                      style={connectorButtonStyle}
+                      onClick={() => setConnectorId(candidate.id)}
+                    >
+                      <Stack align="center" gap={3}>
+                        {candidate.icon === undefined ? (
+                          <Heading level={2}>{candidate.name.slice(0, 1)}</Heading>
+                        ) : (
+                          <img
+                            src={candidate.icon}
+                            alt=""
+                            aria-hidden="true"
+                            style={connectorIconStyle}
+                          />
+                        )}
+                        <Text weight="semibold">{candidate.name}</Text>
+                      </Stack>
+                    </button>
+                  ))}
+                </Grid>
+              </section>
+            )}
+          </Stack>
+        ) : (
+          <ConnectorCredentialsForm connector={connector} />
+        )}
+      </Card>
+      {connector !== undefined && (
+        <Stack align="start">
+          <Button
+            label="Choose another connector"
+            variant="ghost"
+            size="sm"
+            icon={<Icon icon="chevronLeft" />}
+            onClick={() => setConnectorId(null)}
+          />
+        </Stack>
+      )}
+    </>
+  );
+}
+
+const connectorButtonStyle: CSSProperties = {
+  appearance: "none",
+  background: "var(--color-background-muted)",
+  border: "var(--border-width) solid var(--color-border)",
+  borderRadius: "var(--radius-element)",
+  color: "inherit",
+  cursor: "pointer",
+  font: "inherit",
+  padding: "var(--spacing-5)",
+};
+
+const connectorIconStyle: CSSProperties = {
+  aspectRatio: "1 / 1",
+  display: "block",
+  objectFit: "contain",
+  width: "var(--spacing-12)",
+};
+
+function ConnectorCredentialsForm({ connector }: { readonly connector: ConnectorCapability }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [connectorId, setConnectorId] = useState(connectors[0]?.id ?? "");
-  const [name, setName] = useState(connectors[0]?.name ?? "");
+  const [name, setName] = useState(connector.name);
   const [credentials, setCredentials] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      (connectors[0]?.credentialFields ?? []).map((field) => [
+      connector.credentialFields.map((field) => [
         field.key,
         field.kind === "select" ? (field.options?.[0]?.value ?? "") : "",
       ]),
     ),
   );
   const [error, setError] = useState<string | null>(null);
-  const connector = connectors.find(({ id }) => id === connectorId) ?? connectors[0]!;
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const clearFieldError = (key: string) => {
+    setFieldErrors((current) => {
+      if (current[key] === undefined) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
   const connect = useMutation({
     mutationFn: engineApi.connectCustodian,
     onSuccess: async (custodian) => {
@@ -251,31 +370,20 @@ function ConnectorSetupForm({
     onError: (cause) => setError(errorMessage(cause)),
   });
 
-  const selectConnector = (nextId: string) => {
-    setConnectorId(nextId);
-    const next = connectors.find(({ id }) => id === nextId);
-    setCredentials(
-      Object.fromEntries(
-        (next?.credentialFields ?? []).map((field) => [
-          field.key,
-          field.kind === "select" ? (field.options?.[0]?.value ?? "") : "",
-        ]),
-      ),
-    );
-  };
-
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    const nextFieldErrors: Record<string, string> = {};
     if (name.trim() === "") {
-      setError("Custodian name is required.");
-      return;
+      nextFieldErrors.name = "Custodian name is required.";
     }
-    const missing = connector.credentialFields.find(
-      (field) => field.required && (credentials[field.key] ?? "").trim() === "",
-    );
-    if (missing !== undefined) {
-      setError(`${missing.label} is required.`);
+    for (const field of connector.credentialFields) {
+      if (field.required && (credentials[field.key] ?? "").trim() === "") {
+        nextFieldErrors[field.key] = `${field.label} is required.`;
+      }
+    }
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) {
       return;
     }
     const payload = await Schema.decodeUnknownPromise(ConnectCustodianInput)({
@@ -287,68 +395,82 @@ function ConnectorSetupForm({
   };
 
   return (
-    <>
-      <PageBreadcrumbs
-        items={[
-          { label: "Custodians", href: "/custodians" },
-          { label: "Add custodian", href: "/custodians/new" },
-          { label: `Connect ${connector.name}` },
-        ]}
-      />
-      <PageHeader
-        title={`Connect ${connector.name}`}
-        subtitle="Credentials are stored with this connection so Optimus can resync it later."
-      />
+    <Stack gap={4}>
+      <Stack gap={1}>
+        <Heading level={2}>{`Connect ${connector.name}`}</Heading>
+        <Text type="supporting" as="p">
+          Credentials are stored with this connection so Optimus can resync it later.
+        </Text>
+      </Stack>
+      <ConnectorInstructions connector={connector} />
       <FormError message={error} />
       <FormFrame onSubmit={(event) => void submit(event)}>
         <TextInput
           label="Custodian name"
           value={name}
-          onChange={setName}
+          onChange={(value) => {
+            setName(value);
+            clearFieldError("name");
+          }}
           htmlName="name"
           width="100%"
           isRequired
+          statusVariant="detached"
+          {...(fieldErrors.name === undefined
+            ? {}
+            : { status: { type: "error" as const, message: fieldErrors.name } })}
         />
-        {connectors.length > 1 && (
-          <Selector
-            label="Service"
-            options={connectors.map(({ id, name: label }) => ({ value: id, label }))}
-            value={connector.id}
-            onChange={selectConnector}
-            htmlName="connectorId"
-            width="100%"
-          />
-        )}
-        {connector.credentialFields.map((field) =>
-          field.kind === "select" ? (
+        {connector.credentialFields.map((field) => {
+          const fieldError = fieldErrors[field.key];
+          return field.kind === "select" ? (
             <Selector
               key={field.key}
               label={field.label}
               options={[...(field.options ?? [])]}
               value={credentials[field.key] ?? ""}
-              onChange={(value) =>
-                setCredentials((current) => ({ ...current, [field.key]: value }))
-              }
+              onChange={(value) => {
+                setCredentials((current) => ({ ...current, [field.key]: value }));
+                clearFieldError(field.key);
+              }}
               htmlName={field.key}
               {...(field.helpText === undefined ? {} : { description: field.helpText })}
               width="100%"
+              statusVariant="detached"
+              {...(fieldError === undefined
+                ? {}
+                : {
+                    status: {
+                      type: "error" as const,
+                      message: fieldError,
+                    },
+                  })}
             />
           ) : (
             <TextInput
               key={field.key}
               label={field.label}
-              type={field.kind}
+              type={field.kind === "password" ? "password" : "text"}
               value={credentials[field.key] ?? ""}
-              onChange={(value) =>
-                setCredentials((current) => ({ ...current, [field.key]: value }))
-              }
+              onChange={(value) => {
+                setCredentials((current) => ({ ...current, [field.key]: value }));
+                clearFieldError(field.key);
+              }}
               htmlName={field.key}
               {...(field.helpText === undefined ? {} : { description: field.helpText })}
               width="100%"
               isRequired={field.required}
+              statusVariant="detached"
+              {...(fieldError === undefined
+                ? {}
+                : {
+                    status: {
+                      type: "error" as const,
+                      message: fieldError,
+                    },
+                  })}
             />
-          ),
-        )}
+          );
+        })}
         <Button
           label="Connect and import"
           type="submit"
@@ -357,7 +479,30 @@ function ConnectorSetupForm({
           isLoading={connect.isPending}
         />
       </FormFrame>
-    </>
+    </Stack>
+  );
+}
+
+function ConnectorInstructions({ connector }: { readonly connector: ConnectorCapability }) {
+  if (connector.instructions === undefined) return null;
+  const paragraphs = connector.instructions
+    .replace(/^#\s+.*$/m, "")
+    .trim()
+    .split(/\n\s*\n/);
+  return (
+    <Stack gap={2}>
+      <Heading level={3}>Before you connect</Heading>
+      {paragraphs.map((paragraph, index) => (
+        <Text
+          key={`${index}-${paragraph}`}
+          as="p"
+          type="supporting"
+          style={{ whiteSpace: "pre-line" }}
+        >
+          {paragraph}
+        </Text>
+      ))}
+    </Stack>
   );
 }
 
@@ -457,18 +602,43 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
 
 export function EditCustodianScreen({ id }: { readonly id: string }) {
   const query = useQuery(custodianQuery(id));
-  if (query.isPending) return <PageState kind="pending" />;
+  const capabilities = useQuery(connectorCapabilitiesQuery);
+  if (query.isPending || capabilities.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
-  return <LoadedEditCustodian id={id} name={query.data.name} />;
+  if (capabilities.isError)
+    return <PageState kind="error" message={errorMessage(capabilities.error)} />;
+  const connector = capabilities.data.connectors.find(
+    ({ id: connectorId }) => connectorId === query.data.connectorId,
+  );
+  return (
+    <LoadedEditCustodian
+      custodian={query.data}
+      {...(connector === undefined ? {} : { connector })}
+    />
+  );
 }
 
-function LoadedEditCustodian({ id, name }: { readonly id: string; readonly name: string }) {
+function LoadedEditCustodian({
+  custodian,
+  connector,
+}: {
+  readonly custodian: Custodian;
+  readonly connector?: ConnectorCapability;
+}) {
+  if (custodian.managementMode === "synced" && connector !== undefined) {
+    return <LoadedEditConnectorCustodian custodian={custodian} connector={connector} />;
+  }
+  return <LoadedEditManualCustodian custodian={custodian} />;
+}
+
+function LoadedEditManualCustodian({ custodian }: { readonly custodian: Custodian }) {
+  const { id, name } = custodian;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const update = useMutation({
-    mutationFn: (nextName: string) => engineApi.updateCustodian(id, nextName),
+    mutationFn: (payload: UpdateCustodianInput) => engineApi.updateCustodian(id, payload),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all }),
@@ -493,7 +663,7 @@ function LoadedEditCustodian({ id, name }: { readonly id: string; readonly name:
     validators: { onDynamic: Schema.standardSchemaV1(UpdateCustodianInput) },
     onSubmit: async ({ value }) => {
       const decoded = await Schema.decodeUnknownPromise(UpdateCustodianInput)(value);
-      await update.mutateAsync(decoded.name);
+      await update.mutateAsync(decoded);
     },
   });
   return (
@@ -521,6 +691,128 @@ function LoadedEditCustodian({ id, name }: { readonly id: string; readonly name:
           <form.SubmitButton label="Save changes" />
         </FormFrame>
       </form.AppForm>
+      <DeleteButton
+        entity="custodian"
+        isPending={remove.isPending}
+        onDelete={() => remove.mutateAsync()}
+      />
+    </>
+  );
+}
+
+function LoadedEditConnectorCustodian({
+  custodian,
+  connector,
+}: {
+  readonly custodian: Custodian;
+  readonly connector: ConnectorCapability;
+}) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [name, setName] = useState(custodian.name);
+  const [credentials, setCredentials] = useState<Record<string, string>>(() =>
+    Object.fromEntries(connector.credentialFields.map((field) => [field.key, ""])),
+  );
+  const [error, setError] = useState<string | null>(null);
+  const update = useMutation({
+    mutationFn: (payload: UpdateCustodianInput) => engineApi.updateCustodian(custodian.id, payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.custodians.detail(custodian.id) }),
+      ]);
+      toast({ body: "Connection updated." });
+      await navigate({
+        to: "/custodians/$custodianId",
+        params: { custodianId: custodian.id },
+      });
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  });
+  const remove = useMutation({
+    mutationFn: () => engineApi.deleteCustodian(custodian.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all });
+      await navigate({ to: "/custodians" });
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  });
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    const changedCredentials = Object.fromEntries(
+      Object.entries(credentials).filter(([, value]) => value !== ""),
+    );
+    const payload = await Schema.decodeUnknownPromise(UpdateCustodianInput)({
+      name: name.trim(),
+      ...(Object.keys(changedCredentials).length === 0 ? {} : { credentials: changedCredentials }),
+    });
+    await update.mutateAsync(payload);
+  };
+
+  return (
+    <>
+      <PageBreadcrumbs
+        items={[
+          { label: "Custodians", href: "/custodians" },
+          { label: custodian.name, href: `/custodians/${custodian.id}` },
+          { label: "Edit" },
+        ]}
+      />
+      <PageHeader
+        title={`Edit ${custodian.name}`}
+        subtitle={`Update the name or ${connector.name} connection credentials.`}
+      />
+      <ConnectorInstructions connector={connector} />
+      <FormError message={error} />
+      <FormFrame onSubmit={(event) => void submit(event)}>
+        <TextInput
+          label="Name"
+          value={name}
+          onChange={setName}
+          htmlName="name"
+          width="100%"
+          isRequired
+        />
+        {connector.credentialFields.map((field) =>
+          field.kind === "select" ? (
+            <Selector
+              key={field.key}
+              label={field.label}
+              options={[{ value: "", label: "Keep current value" }, ...(field.options ?? [])]}
+              value={credentials[field.key] ?? ""}
+              onChange={(value) =>
+                setCredentials((current) => ({ ...current, [field.key]: value }))
+              }
+              htmlName={field.key}
+              description="Choose a value only if you want to change it."
+              width="100%"
+            />
+          ) : (
+            <TextInput
+              key={field.key}
+              label={field.label}
+              type={field.kind === "password" ? "password" : "text"}
+              value={credentials[field.key] ?? ""}
+              onChange={(value) =>
+                setCredentials((current) => ({ ...current, [field.key]: value }))
+              }
+              htmlName={field.key}
+              description="Leave blank to keep the current value."
+              width="100%"
+            />
+          ),
+        )}
+        <Button
+          label="Save changes"
+          type="submit"
+          variant="primary"
+          isDisabled={update.isPending}
+          isLoading={update.isPending}
+        />
+      </FormFrame>
       <DeleteButton
         entity="custodian"
         isPending={remove.isPending}
