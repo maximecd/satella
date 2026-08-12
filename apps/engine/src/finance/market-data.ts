@@ -510,25 +510,64 @@ const selectAutomaticAssetMatch = (
   return exactName.length === 1 ? exactName[0] : undefined;
 };
 
+const selectIsinAssetMatch = (
+  asset: Pick<RefreshAssetRow, "name" | "symbol" | "asset_class">,
+  results: ReadonlyArray<AssetSearchResult>,
+) => {
+  const candidates = results.filter(({ assetClass }) => assetClass === "security");
+  if (candidates.length === 1) return candidates[0];
+  // Yahoo does not return the ISIN in every search result. If it returns
+  // several listings, only accept one whose displayed identity still agrees
+  // with the imported name and ticker; never guess between exchanges.
+  return selectAutomaticAssetMatch(asset, candidates);
+};
+
+interface DiscoveredAssetIdentifiers {
+  readonly source: "isin" | "fallback" | "error";
+  readonly identifiers: ReadonlyArray<IdentifierRow>;
+}
+
 const discoverAssetIdentifiers = (
   asset: RefreshAssetRow,
+  values: ReadonlyArray<IdentifierRow>,
   search: AssetSearch,
-): Effect.Effect<ReadonlyArray<IdentifierRow>, never> => {
-  if (asset.asset_class === "fiat") return Effect.succeed([]);
+): Effect.Effect<DiscoveredAssetIdentifiers, never> => {
+  if (asset.asset_class === "fiat") return Effect.succeed({ source: "fallback", identifiers: [] });
+  const isin = values.find(({ identifier_type }) => identifier_type === "isin")?.identifier_value;
+  if (asset.asset_class === "security" && isin !== undefined && isin.trim().length > 0) {
+    return search(isin.trim(), "security").pipe(
+      Effect.map((results) => {
+        const match = selectIsinAssetMatch(asset, results);
+        return {
+          source: "isin" as const,
+          identifiers:
+            match?.identifiers.map(({ type, value }) => ({
+              asset_id: asset.id,
+              identifier_type: type,
+              identifier_value: value,
+            })) ?? [],
+        };
+      }),
+      // A provider outage should not erase a previously reviewed lookup.
+      Effect.catchAll(() => Effect.succeed({ source: "error" as const, identifiers: [] })),
+    );
+  }
   const query = asset.symbol?.trim() || asset.name.trim();
-  if (query.length === 0) return Effect.succeed([]);
+  if (query.length === 0) return Effect.succeed({ source: "fallback", identifiers: [] });
   return search(query, asset.asset_class).pipe(
     Effect.map((results) => {
       const match = selectAutomaticAssetMatch(asset, results);
-      return (
-        match?.identifiers.map(({ type, value }) => ({
-          asset_id: asset.id,
-          identifier_type: type,
-          identifier_value: value,
-        })) ?? []
-      );
+      return {
+        source: "fallback" as const,
+        identifiers:
+          match?.identifiers.map(({ type, value }) => ({
+            asset_id: asset.id,
+            identifier_type: type,
+            identifier_value: value,
+          })) ?? [],
+      };
     }),
-    Effect.catchAll(() => Effect.succeed([])),
+    Effect.catchAll(() => Effect.succeed({ source: "error" as const, identifiers: [] })),
   );
 };
 
@@ -593,21 +632,51 @@ const refreshPriceAssets = (
       const providerId = DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CLASS[asset.asset_class];
       const values = byAsset.get(asset.id) ?? [];
       let lookup = lookupForAsset(asset.asset_class, values);
-      if (
+      const hasIsin =
+        asset.asset_class === "security" &&
+        values.some(
+          ({ identifier_type, identifier_value }) =>
+            identifier_type === "isin" && identifier_value.trim().length > 0,
+        );
+      if (options.resolveMissingLookups !== false && asset.asset_class !== "fiat" && hasIsin) {
+        // An imported ISIN is more precise than the broker's bare ticker. Use
+        // it even when a previous sync left a guessed yahoo_symbol behind.
+        const discovered = yield* discoverAssetIdentifiers(asset, values, search);
+        if (discovered.source === "isin") {
+          yield* sql`DELETE FROM asset_identifiers
+            WHERE asset_id = ${asset.id} AND identifier_type = 'yahoo_symbol'`;
+          yield* sql`DELETE FROM asset_prices
+            WHERE asset_id = ${asset.id} AND source = 'yahoo-finance'`;
+          for (const identifier of discovered.identifiers) {
+            yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
+              VALUES (${randomUUID()}, ${asset.id}, ${identifier.identifier_type}, ${identifier.identifier_value})
+              ON CONFLICT(identifier_type, identifier_value) DO NOTHING`;
+          }
+          const yahoo = discovered.identifiers.find(
+            ({ identifier_type }) => identifier_type === "yahoo_symbol",
+          );
+          lookup =
+            yahoo === undefined
+              ? undefined
+              : { lookupKey: yahoo.identifier_value, kind: "security" };
+        }
+      } else if (
         lookup === undefined &&
         options.resolveMissingLookups !== false &&
         asset.asset_class !== "fiat"
       ) {
         const existing = yield* findExistingAssetIdentifiers(asset, sql);
         const discovered =
-          existing.length > 0 ? existing : yield* discoverAssetIdentifiers(asset, search);
-        if (discovered.length > 0) {
-          for (const identifier of discovered) {
+          existing.length > 0
+            ? { source: "fallback" as const, identifiers: existing }
+            : yield* discoverAssetIdentifiers(asset, values, search);
+        if (discovered.identifiers.length > 0) {
+          for (const identifier of discovered.identifiers) {
             yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
               VALUES (${randomUUID()}, ${asset.id}, ${identifier.identifier_type}, ${identifier.identifier_value})
               ON CONFLICT(identifier_type, identifier_value) DO NOTHING`;
           }
-          lookup = lookupForAsset(asset.asset_class, [...values, ...discovered]);
+          lookup = lookupForAsset(asset.asset_class, [...values, ...discovered.identifiers]);
         }
       }
       if (

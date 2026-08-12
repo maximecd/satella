@@ -16,8 +16,12 @@ describe("default currencies", () => {
         Effect.scoped(
           Effect.gen(function* () {
             const sql = yield* SqlClient.SqlClient;
-            return yield* sql<{ readonly symbol: string }>`SELECT symbol FROM assets
+            const currencies = yield* sql<{ readonly symbol: string }>`SELECT symbol FROM assets
               WHERE asset_class = 'fiat' ORDER BY symbol`;
+            const accountColumns = yield* sql<{
+              readonly name: string;
+            }>`PRAGMA table_info(accounts)`;
+            return { currencies, accountColumns };
           }).pipe(
             Effect.provide(
               makeDatabaseLive().pipe(Layer.provide(DatabaseConfigFromDirectory(directory))),
@@ -26,7 +30,7 @@ describe("default currencies", () => {
         ),
       );
 
-      expect(currencies.map(({ symbol }) => symbol)).toEqual([
+      expect(currencies.currencies.map(({ symbol }) => symbol)).toEqual([
         "AUD",
         "CAD",
         "CHF",
@@ -38,6 +42,7 @@ describe("default currencies", () => {
         "NZD",
         "USD",
       ]);
+      expect(currencies.accountColumns.map(({ name }) => name)).not.toContain("source_date");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
