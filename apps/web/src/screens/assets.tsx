@@ -19,6 +19,7 @@ import {
   DeleteButton,
   FormError,
   FormFrame,
+  PageBreadcrumbs,
   PageHeader,
   PageState,
   ResourceCard,
@@ -161,6 +162,9 @@ export function CreateCustomAssetScreen() {
   if (assets.isPending) return <PageState kind="pending" />;
   return (
     <>
+      <PageBreadcrumbs
+        items={[{ label: "Assets", href: "/assets" }, { label: "Create manual asset" }]}
+      />
       <PageHeader
         title="Create manual asset"
         subtitle="Custom assets can be left unpriced and priced later."
@@ -257,6 +261,7 @@ function LoadedAssetScreen({
   if (asset.assetClass !== "custom") {
     return (
       <>
+        <PageBreadcrumbs items={[{ label: "Assets", href: "/assets" }, { label: asset.name }]} />
         <PageHeader
           title={asset.name}
           subtitle={`${asset.assetClass} · read-only provider metadata`}
@@ -279,7 +284,7 @@ function LoadedAssetScreen({
           </MetadataList>
           {asset.price && (
             <Text type="supporting" as="p">
-              Latest: {asset.price.price} {asset.price.currencyIso} · {asset.price.source} · {" "}
+              Latest: {asset.price.price} {asset.price.currencyIso} · {asset.price.source} ·{" "}
               {new Date(asset.price.observedAt).toLocaleString()}
               {asset.price.isStale ? " · Delayed" : ""}
             </Text>
@@ -291,6 +296,9 @@ function LoadedAssetScreen({
   const fiat = allAssets.filter((candidate) => candidate.assetClass === "fiat");
   return (
     <>
+      <PageBreadcrumbs
+        items={[{ label: "Assets", href: "/assets" }, { label: `Edit ${asset.name}` }]}
+      />
       <PageHeader title={`Edit ${asset.name}`} />
       <FormError message={error} />
       <form.AppForm>

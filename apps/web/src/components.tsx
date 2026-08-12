@@ -1,18 +1,14 @@
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { Banner } from "@astryxdesign/core/Banner";
+import { BreadcrumbItem, Breadcrumbs } from "@astryxdesign/core/Breadcrumbs";
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
 import { Divider } from "@astryxdesign/core/Divider";
 import { FormLayout } from "@astryxdesign/core/FormLayout";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Layout } from "@astryxdesign/core/Layout";
-import {
-  SideNav,
-  SideNavHeading,
-  SideNavItem,
-  SideNavSection,
-} from "@astryxdesign/core/SideNav";
+import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { Stack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
 import { Link as RouterLink, Outlet, useLocation } from "@tanstack/react-router";
@@ -21,18 +17,12 @@ import { useState } from "react";
 
 export function RootLayout() {
   const pathname = useLocation({ select: (location) => location.pathname });
-  const isSelected = (path: string) =>
-    pathname === path || pathname.startsWith(`${path}/`);
+  const isSelected = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
 
   const navigation = (
     <SideNav
       collapsible={{ buttonLabel: "Collapse navigation" }}
-      header={
-        <SideNavHeading
-          heading="Optimus"
-          subheading="Finance workspace"
-        />
-      }
+      header={<SideNavHeading heading="Optimus" subheading="Finance workspace" />}
     >
       <SideNavSection title="Workspace">
         <SideNavItem
@@ -56,12 +46,7 @@ export function RootLayout() {
   );
 
   return (
-    <AppShell
-      height="auto"
-      variant="elevated"
-      contentPadding={4}
-      sideNav={navigation}
-    >
+    <AppShell height="auto" variant="elevated" contentPadding={4} sideNav={navigation}>
       <Layout height="auto" contentWidth={960} padding={0}>
         <Stack gap={6} padding={4}>
           <Outlet />
@@ -81,13 +66,7 @@ export function PageHeader({
   readonly subtitle?: string;
 }) {
   return (
-    <Stack
-      direction="horizontal"
-      justify="between"
-      align="start"
-      gap={4}
-      wrap="wrap"
-    >
+    <Stack direction="horizontal" justify="between" align="start" gap={4} wrap="wrap">
       <Stack gap={1}>
         <Heading level={1}>{title}</Heading>
         {subtitle && (
@@ -102,6 +81,29 @@ export function PageHeader({
         </Stack>
       )}
     </Stack>
+  );
+}
+
+export type PageBreadcrumb = {
+  readonly label: string;
+  readonly href?: string;
+};
+
+export function PageBreadcrumbs({ items }: { readonly items: ReadonlyArray<PageBreadcrumb> }) {
+  return (
+    <Breadcrumbs variant="supporting" label="Breadcrumb">
+      {items.map((item) =>
+        item.href ? (
+          <BreadcrumbItem key={item.href} as={RouterLink} href={item.href}>
+            {item.label}
+          </BreadcrumbItem>
+        ) : (
+          <BreadcrumbItem key={item.label} isCurrent>
+            {item.label}
+          </BreadcrumbItem>
+        ),
+      )}
+    </Breadcrumbs>
   );
 }
 

@@ -3,7 +3,7 @@ import { Theme } from "@astryxdesign/core/theme";
 import { matchaTheme } from "@astryxdesign/theme-matcha/built";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Account, Custodian } from "@optimus/engine/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -206,6 +206,21 @@ describe("finance routes", () => {
     expect(screen.getByText("Total is incomplete")).toBeInTheDocument();
     expect(screen.getByText("Zero positions (1)")).toBeInTheDocument();
     expect(screen.getByText("Unpriced positions (1)")).toBeInTheDocument();
+  });
+
+  it("shows the account hierarchy as navigable breadcrumbs", async () => {
+    renderRoute("/accounts/account-1");
+
+    const breadcrumbs = await screen.findByRole("navigation", { name: "Breadcrumb" });
+    expect(within(breadcrumbs).getByRole("link", { name: "Custodians" })).toHaveAttribute(
+      "href",
+      "/custodians",
+    );
+    expect(within(breadcrumbs).getByRole("link", { name: "Broker" })).toHaveAttribute(
+      "href",
+      "/custodians/custodian-1",
+    );
+    expect(within(breadcrumbs).getByText("Portfolio")).toHaveAttribute("aria-current", "page");
   });
 
   it("shows native market prices and values in the account valuation currency", async () => {

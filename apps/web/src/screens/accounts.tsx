@@ -20,6 +20,7 @@ import {
   DeleteButton,
   FormError,
   FormFrame,
+  PageBreadcrumbs,
   PageHeader,
   PageState,
   ResourceCard,
@@ -201,6 +202,13 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
   );
   return (
     <>
+      <PageBreadcrumbs
+        items={[
+          { label: "Custodians", href: "/custodians" },
+          { label: account.custodianName, href: `/custodians/${account.custodianId}` },
+          { label: account.name },
+        ]}
+      />
       <PageHeader
         title={account.name}
         subtitle={`${account.custodianName} · Valuation currency ${account.baseCurrencyIso}`}
@@ -318,6 +326,13 @@ export function CreateAccountScreen({ custodianId }: { readonly custodianId: str
     return <PageState kind="error" message="Connector-managed custodians are read-only." />;
   return (
     <>
+      <PageBreadcrumbs
+        items={[
+          { label: "Custodians", href: "/custodians" },
+          { label: custodian.data.name, href: `/custodians/${custodianId}` },
+          { label: "Add account" },
+        ]}
+      />
       <PageHeader title="Add account" subtitle={`Under ${custodian.data.name}`} />
       <FormError message={error} />
       <form.AppForm>
@@ -392,6 +407,14 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
   const fiat = assets.data?.filter((asset) => asset.assetClass === "fiat") ?? [];
   return (
     <>
+      <PageBreadcrumbs
+        items={[
+          { label: "Custodians", href: "/custodians" },
+          { label: account.custodianName, href: `/custodians/${account.custodianId}` },
+          { label: account.name, href: `/accounts/${account.id}` },
+          { label: "Edit" },
+        ]}
+      />
       <PageHeader title={`Edit ${account.name}`} />
       <FormError message={error} />
       <form.AppForm>
