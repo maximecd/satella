@@ -10,6 +10,7 @@ import {
   DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CLASS,
   DEFAULT_REPORTING_CURRENCY,
 } from "./config.js";
+import { mergeConnectorAssetDuplicates } from "./connector.js";
 import type { AssetSearchResult } from "./contracts.js";
 import { FinanceApiError } from "./contracts.js";
 
@@ -342,6 +343,8 @@ export const searchAssets = (
 interface RefreshAssetRow {
   readonly id: string;
   readonly asset_class: "fiat" | "security" | "crypto";
+  readonly name: string;
+  readonly symbol: string | null;
   readonly observed_at: string | null;
 }
 
@@ -351,10 +354,18 @@ interface IdentifierRow {
   readonly identifier_value: string;
 }
 
+type AssetSearch = (
+  query: string,
+  assetClass: "security" | "crypto",
+) => Effect.Effect<ReadonlyArray<AssetSearchResult>, FinanceApiError>;
+
 export interface RefreshPricesOptions {
   readonly assetIds?: ReadonlyArray<string>;
   readonly requireFresh?: boolean;
   readonly registry?: MarketDataRegistry;
+  /** Automatically resolve an unlinked asset through the provider search index. */
+  readonly resolveMissingLookups?: boolean;
+  readonly searchAssets?: AssetSearch;
 }
 
 export interface RefreshPricesResult {
@@ -438,21 +449,128 @@ const ensureFiat = (iso: string) =>
     return id;
   });
 
+const lookupForAsset = (
+  assetClass: RefreshAssetRow["asset_class"],
+  values: ReadonlyArray<IdentifierRow>,
+): Omit<ProviderLookup, "assetIds"> | undefined => {
+  if (assetClass === "security") {
+    const symbol = values.find(
+      ({ identifier_type }) => identifier_type === "yahoo_symbol",
+    )?.identifier_value;
+    return symbol === undefined ? undefined : { lookupKey: symbol, kind: "security" };
+  }
+  if (assetClass === "fiat") {
+    const iso = values.find(
+      ({ identifier_type }) => identifier_type === "iso_currency",
+    )?.identifier_value;
+    if (iso === undefined || iso === DEFAULT_REPORTING_CURRENCY) return undefined;
+    return { lookupKey: `${iso}${DEFAULT_REPORTING_CURRENCY}=X`, kind: "fiat" };
+  }
+  const coin = values.find(
+    ({ identifier_type }) => identifier_type === "coingecko_coin_id",
+  )?.identifier_value;
+  if (coin !== undefined) return { lookupKey: coin, kind: "coin" };
+  const contract = values.find(
+    ({ identifier_type }) => identifier_type === "contract_address",
+  )?.identifier_value;
+  const platform = values.find(
+    ({ identifier_type }) => identifier_type === "coingecko_platform",
+  )?.identifier_value;
+  return contract !== undefined && platform !== undefined
+    ? { lookupKey: contract, kind: "contract", platform }
+    : undefined;
+};
+
+const normalizeSearchText = (value: string) => value.trim().toLocaleLowerCase();
+
+const selectAutomaticAssetMatch = (
+  asset: Pick<RefreshAssetRow, "name" | "symbol" | "asset_class">,
+  results: ReadonlyArray<AssetSearchResult>,
+) => {
+  const candidates = results.filter(({ assetClass }) => assetClass === asset.asset_class);
+  const symbol = asset.symbol === null ? undefined : normalizeSearchText(asset.symbol);
+  const name = normalizeSearchText(asset.name);
+  const exactNameAndSymbol = candidates.filter(
+    (candidate) =>
+      normalizeSearchText(candidate.name) === name &&
+      symbol !== undefined &&
+      normalizeSearchText(candidate.symbol) === symbol,
+  );
+  if (exactNameAndSymbol.length === 1) return exactNameAndSymbol[0];
+  const exactSymbol =
+    symbol === undefined
+      ? []
+      : candidates.filter(
+          ({ symbol: candidateSymbol }) => normalizeSearchText(candidateSymbol) === symbol,
+        );
+  if (exactSymbol.length === 1) return exactSymbol[0];
+  const exactName = candidates.filter(
+    ({ name: candidateName }) => normalizeSearchText(candidateName) === name,
+  );
+  return exactName.length === 1 ? exactName[0] : undefined;
+};
+
+const discoverAssetIdentifiers = (
+  asset: RefreshAssetRow,
+  search: AssetSearch,
+): Effect.Effect<ReadonlyArray<IdentifierRow>, never> => {
+  if (asset.asset_class === "fiat") return Effect.succeed([]);
+  const query = asset.symbol?.trim() || asset.name.trim();
+  if (query.length === 0) return Effect.succeed([]);
+  return search(query, asset.asset_class).pipe(
+    Effect.map((results) => {
+      const match = selectAutomaticAssetMatch(asset, results);
+      return (
+        match?.identifiers.map(({ type, value }) => ({
+          asset_id: asset.id,
+          identifier_type: type,
+          identifier_value: value,
+        })) ?? []
+      );
+    }),
+    Effect.catchAll(() => Effect.succeed([])),
+  );
+};
+
+const findExistingAssetIdentifiers = (asset: RefreshAssetRow, sql: SqlClient.SqlClient) => {
+  const symbol = asset.symbol?.trim();
+  if (symbol === undefined || symbol.length === 0) return Effect.succeed([]);
+  return Effect.gen(function* () {
+    const rows = yield* sql<IdentifierRow & { readonly source_asset_id: string }>`SELECT
+        ai.asset_id, ai.identifier_type, ai.identifier_value, candidate.id AS source_asset_id
+      FROM assets candidate
+      JOIN asset_identifiers ai ON ai.asset_id = candidate.id
+      WHERE candidate.id <> ${asset.id}
+        AND candidate.asset_class = ${asset.asset_class}
+        AND candidate.symbol IS NOT NULL
+        AND lower(trim(candidate.symbol)) = lower(trim(${symbol}))
+        AND ai.identifier_type IN ('coingecko_coin_id', 'coingecko_platform', 'contract_address', 'yahoo_symbol')`;
+    const sourceAssetIds = [...new Set(rows.map(({ source_asset_id }) => source_asset_id))];
+    if (sourceAssetIds.length !== 1) return [];
+    return rows.map(({ identifier_type, identifier_value }) => ({
+      asset_id: asset.id,
+      identifier_type,
+      identifier_value,
+    }));
+  });
+};
+
 const refreshPriceAssets = (
   options: RefreshPricesOptions = {},
 ): Effect.Effect<RefreshPricesResult, FinanceApiError, SqlClient.SqlClient> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
+    yield* sql.withTransaction(mergeConnectorAssetDuplicates());
     const selected = options.assetIds;
     const assets =
       selected === undefined
-        ? yield* sql<RefreshAssetRow>`SELECT DISTINCT a.id, a.asset_class, ap.observed_at
+        ? yield* sql<RefreshAssetRow>`SELECT DISTINCT a.id, a.asset_class, a.name, a.symbol, ap.observed_at
           FROM assets a LEFT JOIN asset_prices ap ON ap.asset_id = a.id
           WHERE a.asset_class <> 'custom' AND (
             EXISTS (SELECT 1 FROM positions p WHERE p.asset_id = a.id) OR
             EXISTS (SELECT 1 FROM accounts ac WHERE ac.base_currency_asset_id = a.id)
           )`
-        : yield* sql<RefreshAssetRow>`SELECT a.id, a.asset_class, ap.observed_at
+        : yield* sql<RefreshAssetRow>`SELECT a.id, a.asset_class, a.name, a.symbol, ap.observed_at
           FROM assets a LEFT JOIN asset_prices ap ON ap.asset_id = a.id
           WHERE a.asset_class <> 'custom' AND a.id IN ${sql.in(selected)}`;
     const freshnessCutoff =
@@ -468,36 +586,38 @@ const refreshPriceAssets = (
     const identifiers = yield* sql<IdentifierRow>`SELECT asset_id, identifier_type, identifier_value
       FROM asset_identifiers WHERE asset_id IN ${sql.in(ids)}`;
     const byAsset = Map.groupBy(identifiers, ({ asset_id }) => asset_id);
+    const search = options.searchAssets ?? searchAssets;
     const providerLookups = new Map<MarketDataProviderId, Map<string, ProviderLookup>>();
     const skipped: RefreshPricesResult["failures"][number][] = [];
     for (const asset of due) {
       const providerId = DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CLASS[asset.asset_class];
       const values = byAsset.get(asset.id) ?? [];
-      let lookup: Omit<ProviderLookup, "assetIds"> | undefined;
-      if (asset.asset_class === "security") {
-        const symbol = values.find(
-          ({ identifier_type }) => identifier_type === "yahoo_symbol",
-        )?.identifier_value;
-        if (symbol) lookup = { lookupKey: symbol, kind: "security" };
-      } else if (asset.asset_class === "fiat") {
-        const iso = values.find(
-          ({ identifier_type }) => identifier_type === "iso_currency",
-        )?.identifier_value;
-        if (iso === DEFAULT_REPORTING_CURRENCY) continue;
-        if (iso) lookup = { lookupKey: `${iso}${DEFAULT_REPORTING_CURRENCY}=X`, kind: "fiat" };
-      } else {
-        const coin = values.find(
-          ({ identifier_type }) => identifier_type === "coingecko_coin_id",
-        )?.identifier_value;
-        const contract = values.find(
-          ({ identifier_type }) => identifier_type === "contract_address",
-        )?.identifier_value;
-        const platform = values.find(
-          ({ identifier_type }) => identifier_type === "coingecko_platform",
-        )?.identifier_value;
-        if (coin) lookup = { lookupKey: coin, kind: "coin" };
-        else if (contract && platform) lookup = { lookupKey: contract, kind: "contract", platform };
+      let lookup = lookupForAsset(asset.asset_class, values);
+      if (
+        lookup === undefined &&
+        options.resolveMissingLookups !== false &&
+        asset.asset_class !== "fiat"
+      ) {
+        const existing = yield* findExistingAssetIdentifiers(asset, sql);
+        const discovered =
+          existing.length > 0 ? existing : yield* discoverAssetIdentifiers(asset, search);
+        if (discovered.length > 0) {
+          for (const identifier of discovered) {
+            yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
+              VALUES (${randomUUID()}, ${asset.id}, ${identifier.identifier_type}, ${identifier.identifier_value})
+              ON CONFLICT(identifier_type, identifier_value) DO NOTHING`;
+          }
+          lookup = lookupForAsset(asset.asset_class, [...values, ...discovered]);
+        }
       }
+      if (
+        asset.asset_class === "fiat" &&
+        values.some(
+          ({ identifier_type, identifier_value }) =>
+            identifier_type === "iso_currency" && identifier_value === DEFAULT_REPORTING_CURRENCY,
+        )
+      )
+        continue;
       if (lookup === undefined) {
         skipped.push({
           assetId: asset.id,
@@ -598,6 +718,10 @@ export const refreshPrices = (
       assetIds: quoteCurrencies.map(({ id }) => id),
       ...(options.registry === undefined ? {} : { registry: options.registry }),
       ...(options.requireFresh === undefined ? {} : { requireFresh: options.requireFresh }),
+      ...(options.resolveMissingLookups === undefined
+        ? {}
+        : { resolveMissingLookups: options.resolveMissingLookups }),
+      ...(options.searchAssets === undefined ? {} : { searchAssets: options.searchAssets }),
     });
 
     return {

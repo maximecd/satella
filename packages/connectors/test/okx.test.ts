@@ -66,6 +66,18 @@ describe("OKX connector", () => {
             }),
           );
         }
+        if (request.path === "/api/v5/finance/savings/balance") {
+          return Effect.succeed(
+            response({
+              code: "0",
+              msg: "",
+              data: [
+                { ccy: "ETH", amt: "3.75", earnings: "0.1" },
+                { ccy: "USDT", amt: "0" },
+              ],
+            }),
+          );
+        }
         return Effect.succeed(
           response({
             code: "0",
@@ -133,12 +145,30 @@ describe("OKX connector", () => {
           },
         ],
       },
+      {
+        externalId: "earn",
+        name: "Earn",
+        baseCurrencyIso: "USD",
+        positions: [
+          {
+            asset: {
+              externalId: "okx:currency:ETH",
+              assetClass: "crypto",
+              name: "ETH",
+              symbol: "ETH",
+              identifiers: [{ type: "okx_currency", value: "ETH" }],
+            },
+            quantity: 3.75,
+          },
+        ],
+      },
     ]);
     expect(requests.map(({ path }) => path)).toEqual([
       "/api/v5/public/time",
       "/api/v5/account/config",
       "/api/v5/account/balance",
       "/api/v5/asset/balances",
+      "/api/v5/finance/savings/balance",
     ]);
     expect(requests[1]?.headers["x-simulated-trading"]).toBe("1");
     expect(requests[1]?.headers["OK-ACCESS-KEY"]).toBe("api-key");
@@ -158,6 +188,9 @@ describe("OKX connector", () => {
         }
         if (request.path === "/api/v5/asset/balances") {
           return Effect.succeed(response({ code: "50011", msg: "rate limit", data: [] }));
+        }
+        if (request.path === "/api/v5/finance/savings/balance") {
+          return Effect.succeed(response({ code: "0", msg: "", data: [] }));
         }
         return Effect.succeed(
           response({

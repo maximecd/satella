@@ -5,6 +5,7 @@ import { FinanceApi } from "@engine/api";
 describe("finance API routes", () => {
   it.each([
     ["getCustodian", "/api/custodians/:id"],
+    ["resyncCustodian", "/api/custodians/:id/sync"],
     ["updateCustodian", "/api/custodians/:id"],
     ["deleteCustodian", "/api/custodians/:id"],
     ["getAccount", "/api/accounts/:id"],

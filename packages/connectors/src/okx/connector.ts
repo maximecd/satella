@@ -20,6 +20,7 @@ import {
 import {
   OkxConfigResponse,
   OkxCredentials,
+  OkxEarnBalanceResponse,
   OkxFundingBalanceResponse,
   OkxTradingBalanceResponse,
 } from "./schemas.js";
@@ -213,6 +214,7 @@ const ensureFetchSuccess = <A extends { readonly code: string; readonly msg: str
 const buildAccounts = (
   trading: typeof OkxTradingBalanceResponse.Type,
   funding: typeof OkxFundingBalanceResponse.Type,
+  earn: typeof OkxEarnBalanceResponse.Type,
 ): ReadonlyArray<ConnectorAccount> => {
   const tradingPositions = mapBalances(
     trading.data.flatMap(({ details }) =>
@@ -220,6 +222,7 @@ const buildAccounts = (
     ),
   );
   const fundingPositions = mapBalances(funding.data.map(({ ccy, bal }) => ({ ccy, amount: bal })));
+  const earnPositions = mapBalances(earn.data.map(({ ccy, amt }) => ({ ccy, amount: amt })));
   return [
     {
       externalId: "trading",
@@ -232,6 +235,12 @@ const buildAccounts = (
       name: "Funding",
       baseCurrencyIso: "USD",
       positions: fundingPositions,
+    },
+    {
+      externalId: "earn",
+      name: "Earn",
+      baseCurrencyIso: "USD",
+      positions: earnPositions,
     },
   ];
 };
@@ -283,19 +292,26 @@ const authenticateWith = <R>(
                 schema: OkxFundingBalanceResponse,
                 clockOffsetMs,
               }),
+              earn: client.request({
+                credentials,
+                path: "/api/v5/finance/savings/balance",
+                schema: OkxEarnBalanceResponse,
+                clockOffsetMs,
+              }),
             },
-            { concurrency: 2 },
+            { concurrency: 3 },
           ).pipe(
             Effect.mapError((cause) => fetchError(cause)),
-            Effect.flatMap(({ trading, funding }) =>
+            Effect.flatMap(({ trading, funding, earn }) =>
               Effect.all({
                 trading: ensureFetchSuccess(trading),
                 funding: ensureFetchSuccess(funding),
+                earn: ensureFetchSuccess(earn),
               }),
             ),
           );
           return yield* Effect.try({
-            try: () => buildAccounts(responses.trading, responses.funding),
+            try: () => buildAccounts(responses.trading, responses.funding, responses.earn),
             catch: (cause) => fetchError(cause),
           }).pipe(Effect.flatMap(validateConnectorOutput));
         }),
@@ -307,6 +323,48 @@ export const makeOkxConnector = <R = HttpClient.HttpClient>(
 ): Connector<OkxCredentials, R> => ({
   id: "okx",
   name: "OKX",
+  credentialFields: [
+    {
+      key: "apiKey",
+      label: "API key",
+      kind: "text",
+      required: true,
+      helpText: "Create a read-only API key in OKX.",
+    },
+    {
+      key: "secretKey",
+      label: "Secret key",
+      kind: "password",
+      required: true,
+    },
+    {
+      key: "passphrase",
+      label: "Passphrase",
+      kind: "password",
+      required: true,
+    },
+    {
+      key: "region",
+      label: "Region",
+      kind: "select",
+      required: true,
+      options: [
+        { value: "global", label: "Global" },
+        { value: "eea", label: "European Economic Area" },
+        { value: "us", label: "United States" },
+      ],
+    },
+    {
+      key: "environment",
+      label: "Environment",
+      kind: "select",
+      required: true,
+      options: [
+        { value: "live", label: "Live" },
+        { value: "demo", label: "Demo" },
+      ],
+    },
+  ],
   credentialsSchema: OkxCredentials,
   authenticate: (input) =>
     Effect.gen(function* () {

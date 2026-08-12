@@ -8,7 +8,10 @@ export const queryKeys = {
     detail: (id: string) => ["custodians", id] as const,
   },
   connectors: { capabilities: ["connectors", "capabilities"] as const },
-  accounts: { detail: (id: string) => ["accounts", id] as const },
+  accounts: {
+    all: ["accounts"] as const,
+    detail: (id: string) => ["accounts", id] as const,
+  },
   positions: { account: (id: string) => ["positions", id, "account"] as const },
   assets: {
     all: ["assets"] as const,

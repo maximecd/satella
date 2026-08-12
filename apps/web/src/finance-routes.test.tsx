@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Account } from "@optimus/engine/api";
+import type { Account, Custodian } from "@optimus/engine/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { engineApi } from "./api";
@@ -14,6 +14,8 @@ import { routeTree } from "./routeTree.gen";
 vi.mock("./api", () => ({
   engineApi: {
     connectorCapabilities: vi.fn(),
+    connectCustodian: vi.fn(),
+    resyncCustodian: vi.fn(),
     listCustodians: vi.fn(),
     getCustodian: vi.fn(),
     createCustodian: vi.fn(),
@@ -84,6 +86,16 @@ const account: Account = {
   updatedAt: "2026-08-11T00:00:00.000Z",
 };
 
+const syncedCustodian: Custodian = {
+  id: "custodian-1",
+  name: "OKX",
+  managementMode: "synced",
+  connectorId: "okx",
+  accounts: [],
+  createdAt: "2026-08-11T00:00:00.000Z",
+  updatedAt: "2026-08-11T00:00:00.000Z",
+};
+
 const renderRoute = (path: string) => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -130,7 +142,7 @@ describe("finance routes", () => {
 
   it("waits until submit to show friendly errors and trims text fields on blur", async () => {
     const user = userEvent.setup();
-    renderRoute("/custodians/new");
+    renderRoute("/custodians/new/manual");
     const input = await screen.findByLabelText("Name");
 
     expect(screen.queryByText("Name is required.")).not.toBeInTheDocument();
@@ -145,6 +157,46 @@ describe("finance routes", () => {
     expect(input).not.toHaveAttribute("aria-invalid", "true");
     expect(screen.queryByText(/leading or trailing whitespace/)).not.toBeInTheDocument();
     expect(screen.queryByText(/cannot start or end with spaces/)).not.toBeInTheDocument();
+  });
+
+  it("renders connector setup fields from connector metadata", async () => {
+    vi.mocked(engineApi.connectorCapabilities).mockResolvedValueOnce({
+      connectors: [
+        {
+          id: "okx",
+          name: "OKX",
+          credentialFields: [
+            { key: "apiKey", label: "API key", kind: "text", required: true },
+            { key: "secretKey", label: "Secret key", kind: "password", required: true },
+            {
+              key: "region",
+              label: "Region",
+              kind: "select",
+              required: true,
+              options: [{ value: "global", label: "Global" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    renderRoute("/custodians/new/connector");
+    expect(await screen.findByRole("heading", { name: "Connect OKX" })).toBeInTheDocument();
+    expect(screen.getByText("Custodian name")).toBeInTheDocument();
+    expect(screen.getByText("API key")).toBeInTheDocument();
+    expect(screen.getByText("Secret key")).toBeInTheDocument();
+    expect(screen.getByText("Region")).toBeInTheDocument();
+  });
+
+  it("resyncs a connector-managed custodian from its detail page", async () => {
+    const user = userEvent.setup();
+    vi.mocked(engineApi.getCustodian).mockResolvedValue(syncedCustodian);
+    vi.mocked(engineApi.resyncCustodian).mockResolvedValue(syncedCustodian);
+
+    renderRoute("/custodians/custodian-1");
+    await user.click(await screen.findByRole("button", { name: "Resync" }));
+
+    expect(engineApi.resyncCustodian).toHaveBeenCalledWith("custodian-1");
   });
 
   it("shows incomplete, zero, and unpriced account states", async () => {

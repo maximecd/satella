@@ -181,7 +181,10 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
   const refresh = useMutation({
     mutationFn: engineApi.refreshPrices,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts.detail(id) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all }),
+      ]);
     },
   });
   if (query.isPending) return <PageState kind="pending" />;

@@ -110,7 +110,7 @@ The explicit built-in registry initially contains only OKX. The registry exposes
 
 ### Scope
 
-The first OKX connector returns two stable accounts:
+The first OKX connector returns three stable accounts:
 
 ```text
 OKX
@@ -118,19 +118,22 @@ OKX
     positions by currency
   Funding
     positions by currency
+  Earn
+    positions by currency
 ```
 
 Use these stable external IDs:
 
 - `trading` for the trading account;
-- `funding` for the funding account.
+- `funding` for the funding account;
+- `earn` for the Simple Earn Flexible account.
 
-Both accounts use `USD` as their initial base currency, matching the engine's current reporting default. Return the accounts even when they contain no positions so their identities do not appear and disappear between synchronizations.
+All three accounts use `USD` as their initial base currency, matching the engine's current reporting default. Return the accounts even when they contain no positions so their identities do not appear and disappear between synchronizations.
 
-Initial OKX scope includes spot currency balances held in the trading and funding accounts. It deliberately excludes:
+Initial OKX scope includes spot currency balances held in the trading, funding, and Simple Earn Flexible accounts. It deliberately excludes:
 
 - futures, perpetual swaps, options, and margin-contract positions;
-- Earn and other financial-product positions;
+- other financial-product positions such as fixed-term and on-chain Earn products;
 - trading bots;
 - sub-accounts;
 - transactions and orders;
@@ -159,11 +162,11 @@ Select the REST origin from a fixed region allowlist rather than accepting an ar
 
 Demo requests use the same regional REST origin and add `x-simulated-trading: 1`.
 
-The connector contract does not decide how credentials are stored. The engine supplies them to `authenticate`. Do not write the OKX secret key or passphrase into the existing plaintext `custodian_connectors.config_json`; production registration and UI configuration remain gated on the engine's secret-storage boundary. Tests use injected credentials and a mocked HTTP client.
+The connector contract does not decide how credentials are stored. For the initial implementation, the engine stores them in `custodian_connectors.config_json` and supplies them to `authenticate` for later resyncs. This is deliberately temporary plaintext storage; encryption and a dedicated secret-storage boundary are deferred. Tests use injected credentials and a mocked HTTP client.
 
 ### Authentication
 
-Implement the small REST client directly with Effect's HTTP client and Node cryptography; three read-only endpoints do not justify exposing a broad exchange SDK.
+Implement the small REST client directly with Effect's HTTP client and Node cryptography; the small set of read-only endpoints does not justify exposing a broad exchange SDK.
 
 For every private request:
 
@@ -179,17 +182,19 @@ Apply a bounded timeout to every request. Retry only transient GET failures and 
 
 ### Fetching accounts
 
-After authentication, `fetchAccounts` performs both required reads:
+After authentication, `fetchAccounts` performs three required reads:
 
 - `GET /api/v5/account/balance` for the trading account;
-- `GET /api/v5/asset/balances` for the funding account.
+- `GET /api/v5/asset/balances` for the funding account;
+- `GET /api/v5/finance/savings/balance` for the Simple Earn Flexible account.
 
-The calls may run concurrently. Both must succeed and decode before returning anything.
+The calls may run concurrently. All three must succeed and decode before returning anything.
 
 Map them as follows:
 
 - Trading position quantity: the currency's `cashBal`, which represents the held currency balance rather than only its currently available portion.
 - Funding position quantity: the currency's `bal`, which includes available and frozen funds.
+- Earn position quantity: the currency's `amt` in Simple Earn Flexible.
 - Ignore exact zero quantities; never interpret an absent currency as an upstream error because OKX returns only non-zero balances.
 - Preserve negative finite trading balances if OKX reports liabilities through the selected balance field.
 - Reject blank currency codes and non-finite quantities as invalid responses.
@@ -204,7 +209,7 @@ For every currency, return an embedded asset with:
 
 Do not infer fiat from the length or shape of a symbol.
 
-Do not infer a CoinGecko ID from a ticker symbol. Tickers are not globally unique. The existing market-data service may therefore report `missing-lookup` until the asset gains a reviewed CoinGecko coin ID or contract identity. This is preferable to silently pricing the wrong asset and keeps OKX prices out of the connector contract.
+The connector does not own market-data identifiers. During reconciliation, the engine reuses an existing automatic asset only when its symbol match is unambiguous, and preserves the provider identifier already attached to that asset. During an explicit price refresh, an unlinked asset may be resolved through the provider search index only when the result has one unambiguous exact symbol or name match; ambiguous results remain `missing-lookup` rather than being guessed. This keeps OKX prices out of the connector contract.
 
 ## Engine Integration
 
@@ -218,7 +223,7 @@ Keep the connector output nested as accounts containing positions. Add a small e
 
 Do not move SQL into `packages/connectors`. The connector never reads or writes the engine database.
 
-Replace the hard-coded empty connector capability list with capabilities derived from the built-in registry. Register OKX for tests immediately. Enable creation of a production synced OKX custodian only when its credentials can be resolved through the engine's secret-storage boundary without entering `config_json`.
+Replace the hard-coded empty connector capability list with capabilities derived from the built-in registry. Register OKX and persist its credentials in the connector configuration so an existing custodian can be resynced.
 
 ## Implementation Steps
 
@@ -246,11 +251,11 @@ Replace the hard-coded empty connector capability list with capabilities derived
 
 ### 4. Implement OKX account fetching
 
-- Fetch and decode trading balances and funding balances.
-- Map them into the two stable account trees.
+- Fetch and decode trading, funding, and Simple Earn Flexible balances.
+- Map them into the three stable account trees.
 - Normalize currency codes and quantities.
 - Return no OKX prices and no derivative positions.
-- Fail the complete fetch if either required account endpoint fails.
+- Fail the complete fetch if any required account endpoint fails.
 
 ### 5. Bridge the connector into the engine
 
@@ -258,6 +263,16 @@ Replace the hard-coded empty connector capability list with capabilities derived
 - Reuse the existing atomic reconciliation behavior.
 - Derive connector capabilities from the registry.
 - Keep credential resolution injectable and out of connector configuration JSON.
+
+## Connector setup UI
+
+Expose a generic setup flow at `/custodians/new`:
+
+- the index page offers Manual setup or Connect a service;
+- `/custodians/new/manual` retains the existing manual form;
+- `/custodians/new/connector` selects from registered capabilities and renders fields from the selected connector's public `credentialFields` metadata.
+
+Add a `POST /api/custodians/connect` operation that validates the selected connector, stores its credentials, authenticates, imports the first complete account snapshot, and only then leaves a synced custodian in the database. If authentication or fetching fails, remove the provisional custodian. Add `POST /api/custodians/:id/sync` and a Resync action on the custodian page; it reads the stored credentials and atomically reconciles a new complete snapshot. Never return credentials in API responses or errors.
 
 ### 6. Verify behavior
 
@@ -285,11 +300,12 @@ This work is complete when:
 - `fetchAccounts` returns accounts containing positions containing asset definitions and quantities;
 - cash needs no connector-specific representation;
 - connector output contains no prices;
-- the OKX connector authenticates with a read-only API key and returns Trading and Funding account trees;
+- the OKX connector authenticates with a read-only API key and returns Trading, Funding, and Earn account trees;
 - an incomplete OKX read cannot trigger destructive reconciliation;
 - OKX response types and credentials do not leak outside the connector;
 - the engine can reconcile the nested output without giving the connector database access;
-- production credential persistence remains disabled until secrets can be stored outside plaintext connector configuration.
+- connector assets reuse existing automatic assets by unambiguous symbol and price refresh can discover exact provider lookups for previously unlinked assets;
+- connector credentials are temporarily persisted in plaintext connector configuration so manual resync works; harden this storage later.
 
 ## Official OKX References
 

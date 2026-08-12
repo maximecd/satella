@@ -61,3 +61,15 @@ export const OkxFundingBalanceResponse = Schema.Struct({
     }),
   ),
 });
+
+/** Simple Earn Flexible balances returned by the OKX savings API. */
+export const OkxEarnBalanceResponse = Schema.Struct({
+  code: Schema.String,
+  msg: Schema.String,
+  data: Schema.Array(
+    Schema.Struct({
+      ccy: Schema.String,
+      amt: Schema.String,
+    }),
+  ),
+});

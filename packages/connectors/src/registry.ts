@@ -1,9 +1,10 @@
-import type { AnyConnector, Connector } from "./connector.js";
+import type { AnyConnector, Connector, ConnectorCredentialField } from "./connector.js";
 import { OkxConnector } from "./okx/connector.js";
 
 export interface ConnectorCapability {
   readonly id: string;
   readonly name: string;
+  readonly credentialFields: ReadonlyArray<ConnectorCredentialField>;
 }
 
 export type ConnectorRegistry = ReadonlyMap<string, AnyConnector>;
@@ -11,7 +12,11 @@ export type ConnectorRegistry = ReadonlyMap<string, AnyConnector>;
 export const connectorCapabilities = (
   registry: ConnectorRegistry,
 ): ReadonlyArray<ConnectorCapability> =>
-  [...registry.values()].map(({ id, name }) => ({ id, name }));
+  [...registry.values()].map(({ id, name, credentialFields }) => ({
+    id,
+    name,
+    credentialFields,
+  }));
 
 export const connectorRegistryFrom = <Credentials, R>(
   connectors: ReadonlyArray<Connector<Credentials, R>>,

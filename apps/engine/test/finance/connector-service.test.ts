@@ -77,8 +77,13 @@ describe("connector service bridge", () => {
       zeroedPositionCount: 0,
       removedAccountCount: 0,
     });
-    expect(result.custodian.accounts.map(({ name }) => name)).toEqual(["Trading", "Funding"]);
-    expect(result.custodian.accounts[0]?.connectorAccountId).toBe("trading");
+    expect(result.custodian.accounts.map(({ name }) => name).sort()).toEqual([
+      "Funding",
+      "Trading",
+    ]);
+    expect(
+      result.custodian.accounts.map(({ connectorAccountId }) => connectorAccountId).sort(),
+    ).toEqual(["funding", "trading"]);
   });
 
   it("rejects conflicting definitions for one connector asset", async () => {

@@ -37,6 +37,134 @@ afterEach(async () => {
 });
 
 describe("market data coordinator", () => {
+  it("reuses a reviewed provider lookup from an existing asset with the same symbol", async () => {
+    const batches: Array<ReadonlyArray<ProviderLookup>> = [];
+    const coingecko: MarketDataProvider = {
+      id: "coingecko",
+      chunkSize: 500,
+      fetchPrices: (lookups) => {
+        batches.push(lookups);
+        return Effect.succeed({
+          observations: lookups.map(({ lookupKey }) => ({
+            lookupKey,
+            price: 64_021,
+            currencyIso: "USD",
+            observedAt: new Date(),
+          })),
+          failures: [],
+        });
+      },
+    };
+    const registry: MarketDataRegistry = new Map([["coingecko", coingecko]]);
+
+    const result = await run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const canonical = yield* Finance.createAsset({
+          assetClass: "crypto",
+          name: "Bitcoin",
+          symbol: "BTC",
+          identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
+        });
+        const duplicate = yield* Finance.createAsset({
+          assetClass: "crypto",
+          name: "BTC",
+          symbol: "BTC",
+          identifiers: [],
+        });
+        const timestamp = new Date().toISOString();
+        yield* sql`INSERT INTO custodians (id, name, management_mode, created_at, updated_at)
+          VALUES ('okx', 'OKX', 'synced', ${timestamp}, ${timestamp})`;
+        yield* sql`INSERT INTO custodian_connectors
+          (custodian_id, connector_id, config_json, created_at, updated_at)
+          VALUES ('okx', 'okx', '{}', ${timestamp}, ${timestamp})`;
+        yield* sql`INSERT INTO accounts
+          (id, custodian_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
+          VALUES ('trading', 'okx', 'Trading', 'fiat:USD', 'trading', ${timestamp}, ${timestamp})`;
+        yield* sql`INSERT INTO positions (id, account_id, asset_id, quantity, created_at, updated_at)
+          VALUES ('btc-position', 'trading', ${duplicate.id}, 1, ${timestamp}, ${timestamp})`;
+        yield* sql`INSERT INTO connector_asset_mappings (custodian_id, external_asset_id, asset_id)
+          VALUES ('okx', 'okx:currency:BTC', ${duplicate.id})`;
+        const refreshed = yield* refreshPrices({ registry, requireFresh: true });
+        return {
+          canonical,
+          duplicate,
+          refreshed,
+          assets: yield* Finance.listAssets(),
+          valued: yield* Finance.getAccount("trading"),
+        };
+      }),
+    );
+
+    expect(batches[0]?.map(({ lookupKey }) => lookupKey)).toEqual(["bitcoin"]);
+    expect(result.refreshed.refreshedAssetIds).toEqual([result.canonical.id]);
+    expect(result.assets.some(({ id }) => id === result.duplicate.id)).toBe(false);
+    expect(result.valued.positions[0]?.assetId).toBe(result.canonical.id);
+    expect(result.valued.totalIncomplete).toBe(false);
+  });
+
+  it("discovers a provider lookup for an unlinked connector asset", async () => {
+    const batches: Array<ReadonlyArray<ProviderLookup>> = [];
+    const coingecko: MarketDataProvider = {
+      id: "coingecko",
+      chunkSize: 500,
+      fetchPrices: (lookups) => {
+        batches.push(lookups);
+        return Effect.succeed({
+          observations: lookups.map(({ lookupKey }) => ({
+            lookupKey,
+            price: 64_021,
+            currencyIso: "USD",
+            observedAt: new Date(),
+          })),
+          failures: [],
+        });
+      },
+    };
+    const registry: MarketDataRegistry = new Map([["coingecko", coingecko]]);
+
+    const result = await run(
+      Effect.gen(function* () {
+        const bitcoin = yield* Finance.createAsset({
+          assetClass: "crypto",
+          name: "BTC",
+          symbol: "BTC",
+          identifiers: [],
+        });
+        const custodian = yield* Finance.createCustodian({
+          name: "OKX",
+          managementMode: "manual",
+        });
+        const account = yield* Finance.createAccount({
+          custodianId: custodian.id,
+          name: "Trading",
+        });
+        yield* Finance.createPosition({ accountId: account.id, assetId: bitcoin.id, quantity: 1 });
+        const refreshed = yield* refreshPrices({
+          registry,
+          requireFresh: true,
+          searchAssets: () =>
+            Effect.succeed([
+              {
+                provider: "coingecko" as const,
+                assetClass: "crypto" as const,
+                name: "Bitcoin",
+                symbol: "BTC",
+                identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
+              },
+            ]),
+        });
+        const valued = yield* Finance.getAccount(account.id);
+        return { bitcoin, refreshed, valued };
+      }),
+    );
+
+    expect(batches[0]?.map(({ lookupKey }) => lookupKey)).toEqual(["bitcoin"]);
+    expect(result.refreshed.refreshedAssetIds).toEqual([result.bitcoin.id]);
+    expect(result.valued.total).toBe(64_021);
+    expect(result.valued.totalIncomplete).toBe(false);
+  });
+
   it("fetches a missing quote currency in the same refresh and values the position", async () => {
     const batches: Array<ReadonlyArray<ProviderLookup>> = [];
     const yahoo: MarketDataProvider = {

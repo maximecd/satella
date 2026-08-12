@@ -13,6 +13,15 @@ import { DatabaseLive, DatabaseReady } from "./database/index.js";
 import * as FinanceService from "./finance/service.js";
 import * as MarketData from "./finance/market-data.js";
 
+const parsePort = (value: string | undefined, fallback: number): number => {
+  if (value === undefined) return fallback;
+  const port = Number(value);
+  return Number.isInteger(port) && port >= 1 && port <= 65_535 ? port : fallback;
+};
+
+const enginePort = parsePort(process.env["OPTIMUS_ENGINE_PORT"], 3001);
+const webOrigin = process.env["OPTIMUS_WEB_ORIGIN"];
+
 const SystemApiLive = HttpApiBuilder.group(EngineApi, "system", (handlers) =>
   handlers.handle("hello", () => Effect.succeed({ message: "Hello world" })),
 );
@@ -23,6 +32,8 @@ const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handlers) =>
     .handle("listCustodians", () => FinanceService.listCustodians())
     .handle("getCustodian", ({ path }) => FinanceService.getCustodian(path.id))
     .handle("createCustodian", ({ payload }) => FinanceService.createCustodian(payload))
+    .handle("connectCustodian", ({ payload }) => FinanceService.connectCustodian(payload))
+    .handle("resyncCustodian", ({ path }) => FinanceService.resyncCustodian(path.id))
     .handle("updateCustodian", ({ path, payload }) =>
       FinanceService.renameCustodian(path.id, payload.name),
     )
@@ -63,7 +74,12 @@ const EngineApiLive = HttpApiBuilder.api(EngineApi).pipe(
 const HttpServerLive = HttpApiBuilder.serve(HttpMiddleware.logger).pipe(
   Layer.provide(
     HttpApiBuilder.middlewareCors({
-      allowedOrigins: ["http://127.0.0.1:5173", "http://localhost:5173", "null"],
+      allowedOrigins: [
+        ...(webOrigin === undefined ? [] : [webOrigin]),
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "null",
+      ],
     }),
   ),
   Layer.provide(EngineApiLive),
@@ -71,7 +87,7 @@ const HttpServerLive = HttpApiBuilder.serve(HttpMiddleware.logger).pipe(
   Layer.provide(
     NodeHttpServer.layer(createServer, {
       host: "127.0.0.1",
-      port: 3001,
+      port: enginePort,
     }),
   ),
 );

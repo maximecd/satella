@@ -9,6 +9,7 @@ import { createHmac } from "node:crypto";
 import {
   OkxConfigResponse,
   OkxCredentials,
+  OkxEarnBalanceResponse,
   OkxFundingBalanceResponse,
   OkxRegion,
   OkxTimeResponse,
@@ -249,4 +250,5 @@ export type OkxEndpointResponse =
   | typeof OkxTimeResponse.Type
   | typeof OkxConfigResponse.Type
   | typeof OkxTradingBalanceResponse.Type
-  | typeof OkxFundingBalanceResponse.Type;
+  | typeof OkxFundingBalanceResponse.Type
+  | typeof OkxEarnBalanceResponse.Type;

@@ -1,4 +1,5 @@
 import * as SqlClient from "@effect/sql/SqlClient";
+import * as HttpClient from "@effect/platform/HttpClient";
 import * as Effect from "effect/Effect";
 import * as Duration from "effect/Duration";
 import { randomUUID } from "node:crypto";
@@ -10,6 +11,7 @@ import type {
   CreateAccountInput,
   CreateAssetInput,
   CreateCustodianInput,
+  ConnectCustodianInput,
   CreatePositionInput,
   Custodian,
   FinanceApiError,
@@ -29,6 +31,8 @@ import {
 } from "./config.js";
 import { DEFAULT_SNAPSHOT_INTERVAL } from "./config.js";
 import { refreshPrices, type MarketDataRegistry } from "./market-data.js";
+import { syncRegisteredConnector, type ConnectorSyncError } from "./connector-service.js";
+import { ConnectorAuthenticationError, ConnectorFetchAccountsError } from "@optimus/connectors";
 
 type FinanceEffect<A> = Effect.Effect<A, FinanceApiError, SqlClient.SqlClient>;
 
@@ -127,27 +131,6 @@ const db = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     Effect.mapError(databaseFailure),
     Effect.catchAllDefect((cause) => Effect.fail(databaseFailure(cause))),
   );
-
-const connectorSecretKeys = new Set([
-  "apikey",
-  "secret",
-  "secretkey",
-  "passphrase",
-  "password",
-  "token",
-  "accesstoken",
-  "refreshtoken",
-]);
-
-const containsConnectorSecret = (value: unknown, depth = 0): boolean => {
-  if (depth > 8 || value === null || typeof value !== "object") return false;
-  if (Array.isArray(value)) return value.some((item) => containsConnectorSecret(item, depth + 1));
-  return Object.entries(value).some(
-    ([key, nested]) =>
-      connectorSecretKeys.has(key.replaceAll("_", "").replaceAll("-", "").toLowerCase()) ||
-      containsConnectorSecret(nested, depth + 1),
-  );
-};
 
 const requireFinite = (value: number, field: string) =>
   Number.isFinite(value)
@@ -383,14 +366,6 @@ export const createCustodian = (input: CreateCustodianInput): FinanceEffect<Cust
           ),
         );
       }
-      if (containsConnectorSecret(input.connectorConfig)) {
-        return yield* Effect.fail(
-          failure(
-            "validation",
-            "Connector credentials must be stored through the engine secret store, not connector configuration",
-          ),
-        );
-      }
     }
     const sql = yield* SqlClient.SqlClient;
     const id = randomUUID();
@@ -407,6 +382,101 @@ export const createCustodian = (input: CreateCustodianInput): FinanceEffect<Cust
           }
         }),
       ),
+    );
+    return yield* getCustodian(id);
+  });
+
+const connectorSyncFailure = (error: ConnectorSyncError): FinanceApiError => {
+  if (error instanceof FinanceError) return error;
+  const category =
+    typeof error === "object" && error !== null && "category" in error
+      ? String(error.category)
+      : "unknown";
+  if (error instanceof ConnectorAuthenticationError) {
+    return failure("validation", `Connector authentication failed (${category})`);
+  }
+  if (error instanceof ConnectorFetchAccountsError) {
+    return failure("validation", `Connector account fetch failed (${category})`);
+  }
+  return failure("validation", "The connector could not be synchronized");
+};
+
+/**
+ * Connects a custodian and imports its first complete account snapshot.
+ * Credentials are persisted in config_json so the custodian can be resynced.
+ * This is intentionally the temporary, unencrypted storage boundary.
+ */
+export const connectCustodian = (
+  input: ConnectCustodianInput,
+): Effect.Effect<Custodian, FinanceApiError, SqlClient.SqlClient | HttpClient.HttpClient> =>
+  Effect.gen(function* () {
+    const connector = CONNECTOR_CAPABILITIES.find(({ id }) => id === input.connectorId);
+    if (connector === undefined) {
+      return yield* Effect.fail(
+        failure(
+          "connector_unavailable",
+          "No registered custodian connector matches this selection",
+        ),
+      );
+    }
+
+    const custodian = yield* createCustodian({
+      name: input.name,
+      managementMode: "synced",
+      connectorId: input.connectorId,
+      connectorConfig: input.credentials,
+    });
+    const synchronized = syncRegisteredConnector(
+      custodian.id,
+      input.connectorId,
+      input.credentials,
+    ).pipe(Effect.mapError(connectorSyncFailure));
+
+    yield* synchronized.pipe(
+      Effect.catchAll((error) =>
+        deleteCustodian(custodian.id).pipe(Effect.zipRight(Effect.fail(error))),
+      ),
+    );
+    return yield* getCustodian(custodian.id);
+  });
+
+/** Re-authenticates with the stored connector credentials and reconciles a complete snapshot. */
+export const resyncCustodian = (
+  id: string,
+): Effect.Effect<Custodian, FinanceApiError, SqlClient.SqlClient | HttpClient.HttpClient> =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const rows = yield* db(
+      sql<{
+        readonly management_mode: string;
+        readonly connector_id: string | null;
+        readonly config_json: string | null;
+      }>`SELECT c.management_mode, cc.connector_id, cc.config_json
+        FROM custodians c
+        LEFT JOIN custodian_connectors cc ON cc.custodian_id = c.id
+        WHERE c.id = ${id}`,
+    );
+    const row = yield* firstOrNotFound(rows, "Custodian");
+    if (row.management_mode !== "synced" || row.connector_id === null) {
+      return yield* Effect.fail(failure("read_only", "Only connector-managed custodians can sync"));
+    }
+    const credentials = yield* Effect.try({
+      try: () => JSON.parse(row.config_json ?? "{}") as unknown,
+      catch: () => failure("database", "Stored connector credentials are invalid"),
+    });
+    if (
+      credentials === null ||
+      typeof credentials !== "object" ||
+      Array.isArray(credentials) ||
+      Object.keys(credentials).length === 0
+    ) {
+      return yield* Effect.fail(failure("validation", "Stored connector credentials are missing"));
+    }
+    yield* syncRegisteredConnector(id, row.connector_id, credentials).pipe(
+      Effect.mapError(connectorSyncFailure),
+    );
+    yield* db(
+      sql`UPDATE custodian_connectors SET updated_at = ${nowIso()} WHERE custodian_id = ${id}`,
     );
     return yield* getCustodian(id);
   });

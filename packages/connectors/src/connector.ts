@@ -10,6 +10,17 @@ export const ConnectorAssetIdentifier = Schema.Struct({
 });
 export type ConnectorAssetIdentifier = typeof ConnectorAssetIdentifier.Type;
 
+export type ConnectorCredentialFieldKind = "text" | "password" | "select";
+
+export interface ConnectorCredentialField {
+  readonly key: string;
+  readonly label: string;
+  readonly kind: ConnectorCredentialFieldKind;
+  readonly required: boolean;
+  readonly options?: ReadonlyArray<{ readonly value: string; readonly label: string }>;
+  readonly helpText?: string;
+}
+
 export const ConnectorAsset = Schema.Struct({
   externalId: Schema.NonEmptyTrimmedString,
   assetClass: ConnectorAssetClass,
@@ -80,6 +91,8 @@ export interface AuthenticatedConnector<R = never> {
 export interface Connector<Credentials, R = never> {
   readonly id: string;
   readonly name: string;
+  /** Public, non-secret metadata used to render connector setup forms. */
+  readonly credentialFields: ReadonlyArray<ConnectorCredentialField>;
   readonly credentialsSchema: Schema.Schema<Credentials, any>;
   readonly authenticate: (
     credentials: Credentials,

@@ -32,6 +32,37 @@ afterEach(async () => {
 });
 
 describe("finance domain service", () => {
+  it("stores connector credentials for later resync", async () => {
+    const stored = await run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const custodian = yield* Finance.createCustodian({
+          name: "OKX",
+          managementMode: "synced",
+          connectorId: "okx",
+          connectorConfig: {
+            apiKey: "api-key",
+            secretKey: "secret-key",
+            passphrase: "passphrase",
+            region: "global",
+            environment: "live",
+          },
+        });
+        const rows = yield* sql<{ readonly config_json: string }>`SELECT config_json
+          FROM custodian_connectors WHERE custodian_id = ${custodian.id}`;
+        return JSON.parse(rows[0]!.config_json) as Record<string, unknown>;
+      }),
+    );
+
+    expect(stored).toEqual({
+      apiKey: "api-key",
+      secretKey: "secret-key",
+      passphrase: "passphrase",
+      region: "global",
+      environment: "live",
+    });
+  });
+
   it("creates manual custodians with several fiat-based accounts", async () => {
     const result = await run(
       Effect.gen(function* () {

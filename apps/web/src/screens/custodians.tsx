@@ -1,33 +1,37 @@
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Heading } from "@astryxdesign/core/Heading";
 import { Link as AstryxLink } from "@astryxdesign/core/Link";
 import { List, ListItem } from "@astryxdesign/core/List";
-import { Heading } from "@astryxdesign/core/Heading";
+import { Selector } from "@astryxdesign/core/Selector";
 import { Stack } from "@astryxdesign/core/Stack";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
-import { CreateCustodianInput, UpdateCustodianInput } from "@optimus/engine/api";
+import { Link as RouterLink, Outlet, useNavigate } from "@tanstack/react-router";
+import {
+  ConnectCustodianInput,
+  ConnectorCapability,
+  CreateCustodianInput,
+  UpdateCustodianInput,
+} from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 
 import { engineApi } from "../api";
-import {
-  DeleteButton,
-  FormError,
-  FormFrame,
-  PageHeader,
-  PageState,
-} from "../components";
+import { DeleteButton, FormError, FormFrame, PageHeader, PageState } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
-import { custodianQuery, custodiansQuery, queryKeys } from "../queries";
+import { connectorCapabilitiesQuery, custodianQuery, custodiansQuery, queryKeys } from "../queries";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
 
 const managementBadge = (mode: "manual" | "synced") => (
-  <Badge label={mode === "manual" ? "Manual" : "Synced"} variant={mode === "manual" ? "success" : "neutral"} />
+  <Badge
+    label={mode === "manual" ? "Manual" : "Synced"}
+    variant={mode === "manual" ? "success" : "neutral"}
+  />
 );
 
 export function CustodianListScreen() {
@@ -39,14 +43,21 @@ export function CustodianListScreen() {
       <PageHeader
         title="Custodians"
         subtitle="Banks, brokers, exchanges, and wallets where assets are held."
-        action={<Button as={RouterLink} href="/custodians/new" label="Add custodian" variant="primary" />}
+        action={
+          <Button as={RouterLink} href="/custodians/new" label="Add custodian" variant="primary" />
+        }
       />
       {query.data.length === 0 ? (
         <EmptyState
           title="No custodians yet"
-          description="Add a manual custodian to begin tracking accounts and positions."
+          description="Add a manual custodian or connect a supported service to begin tracking accounts and positions."
           actions={
-            <Button as={RouterLink} href="/custodians/new" label="Add custodian" variant="primary" />
+            <Button
+              as={RouterLink}
+              href="/custodians/new"
+              label="Add custodian"
+              variant="primary"
+            />
           }
         />
       ) : (
@@ -86,6 +97,55 @@ export function CustodianListScreen() {
 }
 
 export function CreateCustodianScreen() {
+  const capabilities = useQuery(connectorCapabilitiesQuery);
+  if (capabilities.isPending) return <PageState kind="pending" />;
+  if (capabilities.isError)
+    return <PageState kind="error" message={errorMessage(capabilities.error)} />;
+  return (
+    <>
+      <PageHeader
+        title="Add custodian"
+        subtitle="Choose how Optimus should keep the accounts up to date."
+      />
+      <List density="balanced" hasDividers>
+        <ListItem
+          label="Manual custodian"
+          description="Enter accounts and positions yourself."
+          endContent={
+            <Button
+              as={RouterLink}
+              href="/custodians/new/manual"
+              label="Set up manually"
+              variant="primary"
+            />
+          }
+        />
+        <ListItem
+          label="Connect a service"
+          description="Import accounts and positions from a supported provider."
+          endContent={
+            capabilities.data.connectors.length > 0 ? (
+              <Button
+                as={RouterLink}
+                href="/custodians/new/connector"
+                label="Connect an account"
+                variant="primary"
+              />
+            ) : (
+              <Badge label="No connectors available" variant="neutral" />
+            )
+          }
+        />
+      </List>
+    </>
+  );
+}
+
+export function CustodianCreationLayout() {
+  return <Outlet />;
+}
+
+export function CreateManualCustodianScreen() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -113,14 +173,7 @@ export function CreateCustodianScreen() {
   });
   return (
     <>
-      <PageHeader
-        title="Add custodian"
-        subtitle={
-          capabilities.data?.connectors.length
-            ? "OKX is registered. Secure connector credential setup is not available yet."
-            : "No custodian connectors are configured, so new custodians are manual."
-        }
-      />
+      <PageHeader title="Add manual custodian" subtitle="Create accounts and positions yourself." />
       <FormError message={error} />
       <form.AppForm>
         <FormFrame
@@ -137,8 +190,172 @@ export function CreateCustodianScreen() {
   );
 }
 
+export function CreateConnectorCustodianScreen() {
+  const capabilities = useQuery(connectorCapabilitiesQuery);
+  if (capabilities.isPending) return <PageState kind="pending" />;
+  if (capabilities.isError)
+    return <PageState kind="error" message={errorMessage(capabilities.error)} />;
+  if (capabilities.data.connectors.length === 0) {
+    return (
+      <PageState
+        kind="error"
+        message="No connector is currently available. Choose manual setup instead."
+      />
+    );
+  }
+  return <ConnectorSetupForm connectors={capabilities.data.connectors} />;
+}
+
+function ConnectorSetupForm({
+  connectors,
+}: {
+  readonly connectors: ReadonlyArray<ConnectorCapability>;
+}) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [connectorId, setConnectorId] = useState(connectors[0]?.id ?? "");
+  const [name, setName] = useState(connectors[0]?.name ?? "");
+  const [credentials, setCredentials] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      (connectors[0]?.credentialFields ?? []).map((field) => [
+        field.key,
+        field.kind === "select" ? (field.options?.[0]?.value ?? "") : "",
+      ]),
+    ),
+  );
+  const [error, setError] = useState<string | null>(null);
+  const connector = connectors.find(({ id }) => id === connectorId) ?? connectors[0]!;
+  const connect = useMutation({
+    mutationFn: engineApi.connectCustodian,
+    onSuccess: async (custodian) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all });
+      await navigate({ to: "/custodians/$custodianId", params: { custodianId: custodian.id } });
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  });
+
+  const selectConnector = (nextId: string) => {
+    setConnectorId(nextId);
+    const next = connectors.find(({ id }) => id === nextId);
+    setCredentials(
+      Object.fromEntries(
+        (next?.credentialFields ?? []).map((field) => [
+          field.key,
+          field.kind === "select" ? (field.options?.[0]?.value ?? "") : "",
+        ]),
+      ),
+    );
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    if (name.trim() === "") {
+      setError("Custodian name is required.");
+      return;
+    }
+    const missing = connector.credentialFields.find(
+      (field) => field.required && (credentials[field.key] ?? "").trim() === "",
+    );
+    if (missing !== undefined) {
+      setError(`${missing.label} is required.`);
+      return;
+    }
+    const payload = await Schema.decodeUnknownPromise(ConnectCustodianInput)({
+      name: name.trim(),
+      connectorId: connector.id,
+      credentials,
+    });
+    await connect.mutateAsync(payload);
+  };
+
+  return (
+    <>
+      <PageHeader
+        title={`Connect ${connector.name}`}
+        subtitle="Credentials are stored with this connection so Optimus can resync it later."
+      />
+      <FormError message={error} />
+      <FormFrame onSubmit={(event) => void submit(event)}>
+        <TextInput
+          label="Custodian name"
+          value={name}
+          onChange={setName}
+          htmlName="name"
+          width="100%"
+          isRequired
+        />
+        {connectors.length > 1 && (
+          <Selector
+            label="Service"
+            options={connectors.map(({ id, name: label }) => ({ value: id, label }))}
+            value={connector.id}
+            onChange={selectConnector}
+            htmlName="connectorId"
+            width="100%"
+          />
+        )}
+        {connector.credentialFields.map((field) =>
+          field.kind === "select" ? (
+            <Selector
+              key={field.key}
+              label={field.label}
+              options={[...(field.options ?? [])]}
+              value={credentials[field.key] ?? ""}
+              onChange={(value) =>
+                setCredentials((current) => ({ ...current, [field.key]: value }))
+              }
+              htmlName={field.key}
+              {...(field.helpText === undefined ? {} : { description: field.helpText })}
+              width="100%"
+            />
+          ) : (
+            <TextInput
+              key={field.key}
+              label={field.label}
+              type={field.kind}
+              value={credentials[field.key] ?? ""}
+              onChange={(value) =>
+                setCredentials((current) => ({ ...current, [field.key]: value }))
+              }
+              htmlName={field.key}
+              {...(field.helpText === undefined ? {} : { description: field.helpText })}
+              width="100%"
+              isRequired={field.required}
+            />
+          ),
+        )}
+        <Button
+          label="Connect and import"
+          type="submit"
+          variant="primary"
+          isDisabled={connect.isPending}
+          isLoading={connect.isPending}
+        />
+      </FormFrame>
+    </>
+  );
+}
+
 export function CustodianDetailScreen({ id }: { readonly id: string }) {
   const query = useQuery(custodianQuery(id));
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const resync = useMutation({
+    mutationFn: () => engineApi.resyncCustodian(id),
+    onSuccess: async () => {
+      setSyncError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.custodians.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all }),
+      ]);
+      toast({ body: "Custodian resynced." });
+    },
+    onError: (cause) => setSyncError(errorMessage(cause)),
+  });
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   const custodian = query.data;
@@ -147,8 +364,22 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
       <PageHeader
         title={custodian.name}
         subtitle={`${custodian.managementMode} custodian`}
-        action={<Button as={RouterLink} href={`/custodians/${id}/edit`} label="Edit" />}
+        action={
+          <Stack direction="horizontal" gap={2} align="center">
+            {custodian.managementMode === "synced" && (
+              <Button
+                label="Resync"
+                variant="primary"
+                onClick={() => resync.mutate()}
+                isDisabled={resync.isPending}
+                isLoading={resync.isPending}
+              />
+            )}
+            <Button as={RouterLink} href={`/custodians/${id}/edit`} label="Edit" />
+          </Stack>
+        }
       />
+      <FormError message={syncError} />
       <Stack direction="horizontal" justify="between" align="center" gap={3} wrap="wrap">
         <Stack direction="horizontal" align="center" gap={2}>
           <Heading level={2}>Accounts</Heading>
@@ -170,7 +401,16 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
           {custodian.accounts.map((account) => (
             <ListItem
               key={account.id}
-              label={<AstryxLink as={RouterLink} href={`/accounts/${account.id}`} isStandalone weight="semibold">{account.name}</AstryxLink>}
+              label={
+                <AstryxLink
+                  as={RouterLink}
+                  href={`/accounts/${account.id}`}
+                  isStandalone
+                  weight="semibold"
+                >
+                  {account.name}
+                </AstryxLink>
+              }
               description={`${account.baseCurrencyIso} · ${account.positionCount} position${account.positionCount === 1 ? "" : "s"}`}
               endContent={
                 <Button

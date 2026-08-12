@@ -54,6 +54,18 @@ const nonEmpty = (value: string, label: string) => {
 const finite = (value: number, label: string) =>
   Number.isFinite(value) ? Effect.succeed(value) : fail("validation", `${label} must be finite`);
 
+const marketDataIdentifierTypes = [
+  "coingecko_coin_id",
+  "coingecko_platform",
+  "contract_address",
+  "yahoo_symbol",
+] as const;
+
+const connectorIdentifier = (identifier: IdentifierInput) => ({
+  type: identifier.type.trim(),
+  value: identifier.value.trim(),
+});
+
 const ensureFiat = (isoInput: string) =>
   Effect.gen(function* () {
     const iso = isoInput.trim().toUpperCase();
@@ -74,14 +86,149 @@ const ensureFiat = (isoInput: string) =>
     return id;
   });
 
-const resolveAsset = (custodianId: string, asset: NormalizedConnectorAsset) =>
+const findAssetBySymbol = (asset: NormalizedConnectorAsset) =>
+  Effect.gen(function* () {
+    const symbol = asset.symbol?.trim();
+    if (symbol === undefined || symbol.length === 0) return undefined;
+    const sql = yield* SqlClient.SqlClient;
+    const rows = yield* sql<{
+      readonly asset_id: string;
+      readonly has_market_data_identifier: number;
+    }>`SELECT a.id AS asset_id,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM asset_identifiers ai
+          WHERE ai.asset_id = a.id AND ai.identifier_type IN ${sql.in(marketDataIdentifierTypes)}
+        ) THEN 1 ELSE 0 END AS has_market_data_identifier
+      FROM assets a
+      WHERE a.asset_class = ${asset.assetClass}
+        AND a.symbol IS NOT NULL
+        AND lower(trim(a.symbol)) = lower(trim(${symbol}))
+      ORDER BY has_market_data_identifier DESC, a.created_at, a.id`;
+    const providerMatches = rows.filter(
+      ({ has_market_data_identifier }) => Number(has_market_data_identifier) === 1,
+    );
+    if (providerMatches.length === 1) return providerMatches[0]!.asset_id;
+    if (rows.length === 1) return rows[0]!.asset_id;
+    return undefined;
+  });
+
+const attachConnectorIdentifiers = (assetId: string, identifiers: ReadonlyArray<IdentifierInput>) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    for (const rawIdentifier of identifiers) {
+      const identifier = connectorIdentifier(rawIdentifier);
+      yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
+        VALUES (${randomUUID()}, ${assetId}, ${identifier.type}, ${identifier.value})
+        ON CONFLICT(identifier_type, identifier_value) DO NOTHING`;
+    }
+  });
+
+/**
+ * Moves all current and historical references from a duplicate asset to its
+ * canonical automatic asset, then removes the duplicate row.
+ */
+export const mergeAssets = (sourceAssetId: string, targetAssetId: string) =>
+  Effect.gen(function* () {
+    if (sourceAssetId === targetAssetId) return;
+    const sql = yield* SqlClient.SqlClient;
+    const sourcePositions = yield* sql<{
+      readonly id: string;
+      readonly account_id: string;
+      readonly quantity: number;
+    }>`SELECT id, account_id, quantity FROM positions WHERE asset_id = ${sourceAssetId}`;
+    for (const source of sourcePositions) {
+      const target = yield* sql<{
+        readonly id: string;
+      }>`SELECT id FROM positions
+        WHERE account_id = ${source.account_id} AND asset_id = ${targetAssetId}`;
+      const targetPositionId = target[0]?.id;
+      if (targetPositionId === undefined) {
+        yield* sql`UPDATE positions SET asset_id = ${targetAssetId}, updated_at = ${new Date().toISOString()}
+          WHERE id = ${source.id}`;
+        continue;
+      }
+      yield* sql`INSERT INTO position_snapshots (snapshot_id, position_id, quantity)
+        SELECT snapshot_id, ${targetPositionId}, quantity FROM position_snapshots
+        WHERE position_id = ${source.id}
+        ON CONFLICT(snapshot_id, position_id) DO UPDATE
+          SET quantity = position_snapshots.quantity + excluded.quantity`;
+      yield* sql`UPDATE positions SET quantity = quantity + ${source.quantity},
+        updated_at = ${new Date().toISOString()} WHERE id = ${targetPositionId}`;
+      yield* sql`DELETE FROM positions WHERE id = ${source.id}`;
+    }
+    yield* sql`UPDATE connector_asset_mappings SET asset_id = ${targetAssetId}
+      WHERE asset_id = ${sourceAssetId}`;
+    yield* sql`UPDATE asset_identifiers SET asset_id = ${targetAssetId}
+      WHERE asset_id = ${sourceAssetId}`;
+    yield* sql`INSERT INTO asset_prices
+      (asset_id, price, currency_asset_id, source, observed_at, updated_at)
+      SELECT ${targetAssetId}, price, currency_asset_id, source, observed_at, updated_at
+      FROM asset_prices WHERE asset_id = ${sourceAssetId}
+      ON CONFLICT(asset_id) DO NOTHING`;
+    yield* sql`INSERT INTO asset_price_snapshots
+      (snapshot_id, asset_id, price, currency_asset_id, source, observed_at)
+      SELECT snapshot_id, ${targetAssetId}, price, currency_asset_id, source, observed_at
+      FROM asset_price_snapshots WHERE asset_id = ${sourceAssetId}
+      ON CONFLICT(snapshot_id, asset_id) DO NOTHING`;
+    yield* sql`DELETE FROM asset_price_snapshots WHERE asset_id = ${sourceAssetId}`;
+    yield* sql`DELETE FROM assets WHERE id = ${sourceAssetId}`;
+  });
+
+/** Reconciles legacy connector-created duplicates with one unambiguous automatic asset. */
+export const mergeConnectorAssetDuplicates = () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const candidates = yield* sql<{
+      readonly source_asset_id: string;
+      readonly target_asset_id: string;
+    }>`SELECT mapped.asset_id AS source_asset_id, candidate.id AS target_asset_id
+      FROM connector_asset_mappings mapped
+      JOIN assets source ON source.id = mapped.asset_id
+      JOIN assets candidate ON candidate.id <> source.id
+        AND candidate.asset_class = source.asset_class
+        AND candidate.symbol IS NOT NULL
+        AND source.symbol IS NOT NULL
+        AND lower(trim(candidate.symbol)) = lower(trim(source.symbol))
+      WHERE EXISTS (
+        SELECT 1 FROM asset_identifiers provider_identifier
+        WHERE provider_identifier.asset_id = candidate.id
+          AND provider_identifier.identifier_type IN ${sql.in(marketDataIdentifierTypes)}
+      )`;
+    const bySource = Map.groupBy(candidates, ({ source_asset_id }) => source_asset_id);
+    let merged = 0;
+    for (const [sourceAssetId, matches] of bySource) {
+      const targetAssetIds = [...new Set(matches.map(({ target_asset_id }) => target_asset_id))];
+      if (targetAssetIds.length !== 1) continue;
+      yield* mergeAssets(sourceAssetId, targetAssetIds[0]!);
+      merged += 1;
+    }
+    return merged;
+  });
+
+const resolveAsset = (
+  custodianId: string,
+  asset: NormalizedConnectorAsset,
+  repairMappedAsset: boolean,
+) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const mapped = yield* sql<{
       readonly asset_id: string;
     }>`SELECT asset_id FROM connector_asset_mappings
       WHERE custodian_id = ${custodianId} AND external_asset_id = ${asset.externalAssetId}`;
-    if (mapped[0] !== undefined) return mapped[0].asset_id;
+    if (mapped[0] !== undefined) {
+      // Older connector syncs could create a symbol-only asset before a
+      // matching automatic asset existed. On a complete result, merge it
+      // into the canonical asset while preserving positions and history.
+      const matchingAssetId = repairMappedAsset ? yield* findAssetBySymbol(asset) : undefined;
+      if (matchingAssetId !== undefined && matchingAssetId !== mapped[0].asset_id) {
+        yield* mergeAssets(mapped[0].asset_id, matchingAssetId);
+        yield* attachConnectorIdentifiers(matchingAssetId, asset.identifiers);
+        return matchingAssetId;
+      }
+      yield* attachConnectorIdentifiers(mapped[0].asset_id, asset.identifiers);
+      return mapped[0].asset_id;
+    }
 
     let assetId: string | undefined;
     for (const identifier of asset.identifiers) {
@@ -94,6 +241,7 @@ const resolveAsset = (custodianId: string, asset: NormalizedConnectorAsset) =>
         break;
       }
     }
+    if (assetId === undefined) assetId = yield* findAssetBySymbol(asset);
     if (assetId === undefined) {
       assetId = randomUUID();
       const timestamp = new Date().toISOString();
@@ -104,6 +252,8 @@ const resolveAsset = (custodianId: string, asset: NormalizedConnectorAsset) =>
         yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
           VALUES (${randomUUID()}, ${assetId}, ${identifier.type.trim()}, ${identifier.value.trim()})`;
       }
+    } else {
+      yield* attachConnectorIdentifiers(assetId, asset.identifiers);
     }
     yield* sql`INSERT INTO connector_asset_mappings (custodian_id, external_asset_id, asset_id)
       VALUES (${custodianId}, ${asset.externalAssetId}, ${assetId})`;
@@ -152,7 +302,10 @@ export const reconcileConnector = (
       Effect.gen(function* () {
         const assets = new Map<string, string>();
         for (const asset of output.assets)
-          assets.set(asset.externalAssetId, yield* resolveAsset(custodianId, asset));
+          assets.set(
+            asset.externalAssetId,
+            yield* resolveAsset(custodianId, asset, output.complete),
+          );
         const seenPositionIds: string[] = [];
         const seenAccountIds: string[] = [];
         let positionCount = 0;
