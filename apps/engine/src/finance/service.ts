@@ -128,6 +128,27 @@ const db = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     Effect.catchAllDefect((cause) => Effect.fail(databaseFailure(cause))),
   );
 
+const connectorSecretKeys = new Set([
+  "apikey",
+  "secret",
+  "secretkey",
+  "passphrase",
+  "password",
+  "token",
+  "accesstoken",
+  "refreshtoken",
+]);
+
+const containsConnectorSecret = (value: unknown, depth = 0): boolean => {
+  if (depth > 8 || value === null || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((item) => containsConnectorSecret(item, depth + 1));
+  return Object.entries(value).some(
+    ([key, nested]) =>
+      connectorSecretKeys.has(key.replaceAll("_", "").replaceAll("-", "").toLowerCase()) ||
+      containsConnectorSecret(nested, depth + 1),
+  );
+};
+
 const requireFinite = (value: number, field: string) =>
   Number.isFinite(value)
     ? Effect.succeed(value)
@@ -359,6 +380,14 @@ export const createCustodian = (input: CreateCustodianInput): FinanceEffect<Cust
           failure(
             "connector_unavailable",
             "No registered custodian connector can create a synced custodian",
+          ),
+        );
+      }
+      if (containsConnectorSecret(input.connectorConfig)) {
+        return yield* Effect.fail(
+          failure(
+            "validation",
+            "Connector credentials must be stored through the engine secret store, not connector configuration",
           ),
         );
       }

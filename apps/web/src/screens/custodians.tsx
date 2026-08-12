@@ -115,7 +115,11 @@ export function CreateCustodianScreen() {
     <>
       <PageHeader
         title="Add custodian"
-        subtitle="The initial connector registry is empty, so new custodians are manual."
+        subtitle={
+          capabilities.data?.connectors.length
+            ? "OKX is registered. Secure connector credential setup is not available yet."
+            : "No custodian connectors are configured, so new custodians are manual."
+        }
       />
       <FormError message={error} />
       <form.AppForm>

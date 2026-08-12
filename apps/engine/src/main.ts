@@ -1,4 +1,5 @@
 import * as HttpApiBuilder from "@effect/platform/HttpApiBuilder";
+import * as FetchHttpClient from "@effect/platform/FetchHttpClient";
 import * as HttpMiddleware from "@effect/platform/HttpMiddleware";
 import * as HttpServer from "@effect/platform/HttpServer";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
@@ -88,4 +89,5 @@ const ServerLive = Layer.unwrapEffect(
     return HttpServerLive;
   }),
 ).pipe(Layer.provide(DatabaseLive));
-Layer.launch(ServerLive).pipe(NodeRuntime.runMain);
+const ServerWithConnectorDependencies = ServerLive.pipe(Layer.provide(FetchHttpClient.layer));
+Layer.launch(ServerWithConnectorDependencies).pipe(NodeRuntime.runMain);

@@ -258,6 +258,9 @@ importers:
       '@effect/sql-sqlite-node':
         specifier: 0.53.0
         version: 0.53.0(@effect/experimental@0.61.0(@effect/platform@0.97.1(effect@3.22.1))(effect@3.22.1))(@effect/platform@0.97.1(effect@3.22.1))(@effect/sql@0.52.0(@effect/experimental@0.61.0(@effect/platform@0.97.1(effect@3.22.1))(effect@3.22.1))(@effect/platform@0.97.1(effect@3.22.1))(effect@3.22.1))(effect@3.22.1)
+      '@optimus/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       effect:
         specifier: 3.22.1
         version: 3.22.1
@@ -283,6 +286,25 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      vitest:
+        specifier: 2.1.9
+        version: 2.1.9(@types/node@26.2.0)(jsdom@30.0.1)(lightningcss@1.33.0)(supports-color@10.2.2)
+
+  packages/connectors:
+    dependencies:
+      '@effect/platform':
+        specifier: 0.97.1
+        version: 0.97.1(effect@3.22.1)
+      effect:
+        specifier: 3.22.1
+        version: 3.22.1
+    devDependencies:
+      '@effect/vitest':
+        specifier: 0.17.0
+        version: 0.17.0(effect@3.22.1)(vitest@2.1.9(@types/node@26.2.0)(jsdom@30.0.1)(lightningcss@1.33.0)(supports-color@10.2.2))
+      '@types/node':
+        specifier: 26.2.0
+        version: 26.2.0
       vitest:
         specifier: 2.1.9
         version: 2.1.9(@types/node@26.2.0)(jsdom@30.0.1)(lightningcss@1.33.0)(supports-color@10.2.2)
