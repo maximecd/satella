@@ -13,7 +13,14 @@ import * as Schema from "effect/Schema";
 import { useEffect, useState } from "react";
 
 import { engineApi } from "../api";
-import { DeleteButton, FormError, FormFrame, PageHeader, PageState } from "../components";
+import {
+  DeleteButton,
+  FormError,
+  FormFrame,
+  PageBreadcrumbs,
+  PageHeader,
+  PageState,
+} from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import {
   accountQuery,
@@ -88,6 +95,17 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
 
   return (
     <>
+      <PageBreadcrumbs
+        items={[
+          { label: "Custodians", href: "/custodians" },
+          {
+            label: account.data.custodianName,
+            href: `/custodians/${account.data.custodianId}`,
+          },
+          { label: account.data.name, href: `/accounts/${accountId}` },
+          { label: "Add position" },
+        ]}
+      />
       <PageHeader
         title="Add position"
         subtitle={`To ${account.data.name}`}
@@ -213,6 +231,9 @@ export function EditPositionScreen({ positionId }: { readonly positionId: string
   return (
     <LoadedEditPosition
       accountId={query.data.id}
+      accountName={query.data.name}
+      custodianId={query.data.custodianId}
+      custodianName={query.data.custodianName}
       positionId={positionId}
       assetName={position.assetName}
       quantity={position.quantity}
@@ -222,11 +243,17 @@ export function EditPositionScreen({ positionId }: { readonly positionId: string
 
 function LoadedEditPosition({
   accountId,
+  accountName,
+  custodianId,
+  custodianName,
   positionId,
   assetName,
   quantity,
 }: {
   readonly accountId: string;
+  readonly accountName: string;
+  readonly custodianId: string;
+  readonly custodianName: string;
   readonly positionId: string;
   readonly assetName: string;
   readonly quantity: number;
@@ -266,6 +293,14 @@ function LoadedEditPosition({
 
   return (
     <>
+      <PageBreadcrumbs
+        items={[
+          { label: "Custodians", href: "/custodians" },
+          { label: custodianName, href: `/custodians/${custodianId}` },
+          { label: accountName, href: `/accounts/${accountId}` },
+          { label: `Edit ${assetName}` },
+        ]}
+      />
       <PageHeader
         title={`Edit ${assetName}`}
         subtitle="Set quantity to zero to preserve the position and its history."

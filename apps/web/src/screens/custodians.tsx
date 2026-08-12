@@ -20,7 +20,14 @@ import * as Schema from "effect/Schema";
 import { useState, type FormEvent } from "react";
 
 import { engineApi } from "../api";
-import { DeleteButton, FormError, FormFrame, PageHeader, PageState } from "../components";
+import {
+  DeleteButton,
+  FormError,
+  FormFrame,
+  PageBreadcrumbs,
+  PageHeader,
+  PageState,
+} from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { connectorCapabilitiesQuery, custodianQuery, custodiansQuery, queryKeys } from "../queries";
 
@@ -103,6 +110,9 @@ export function CreateCustodianScreen() {
     return <PageState kind="error" message={errorMessage(capabilities.error)} />;
   return (
     <>
+      <PageBreadcrumbs
+        items={[{ label: "Custodians", href: "/custodians" }, { label: "Add custodian" }]}
+      />
       <PageHeader
         title="Add custodian"
         subtitle="Choose how Optimus should keep the accounts up to date."
@@ -173,6 +183,13 @@ export function CreateManualCustodianScreen() {
   });
   return (
     <>
+      <PageBreadcrumbs
+        items={[
+          { label: "Custodians", href: "/custodians" },
+          { label: "Add custodian", href: "/custodians/new" },
+          { label: "Manual setup" },
+        ]}
+      />
       <PageHeader title="Add manual custodian" subtitle="Create accounts and positions yourself." />
       <FormError message={error} />
       <form.AppForm>
@@ -271,6 +288,13 @@ function ConnectorSetupForm({
 
   return (
     <>
+      <PageBreadcrumbs
+        items={[
+          { label: "Custodians", href: "/custodians" },
+          { label: "Add custodian", href: "/custodians/new" },
+          { label: `Connect ${connector.name}` },
+        ]}
+      />
       <PageHeader
         title={`Connect ${connector.name}`}
         subtitle="Credentials are stored with this connection so Optimus can resync it later."
@@ -361,6 +385,9 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
   const custodian = query.data;
   return (
     <>
+      <PageBreadcrumbs
+        items={[{ label: "Custodians", href: "/custodians" }, { label: custodian.name }]}
+      />
       <PageHeader
         title={custodian.name}
         subtitle={`${custodian.managementMode} custodian`}
@@ -471,6 +498,13 @@ function LoadedEditCustodian({ id, name }: { readonly id: string; readonly name:
   });
   return (
     <>
+      <PageBreadcrumbs
+        items={[
+          { label: "Custodians", href: "/custodians" },
+          { label: name, href: `/custodians/${id}` },
+          { label: "Edit" },
+        ]}
+      />
       <PageHeader
         title={`Edit ${name}`}
         subtitle="Management mode is permanent and cannot be changed."
