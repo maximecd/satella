@@ -12,6 +12,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@astryxdesign/cli": "^0.3.0",
     "@astryxdesign/core": "0.3.0",
     "@astryxdesign/theme-matcha": "0.3.0",
     "@effect/platform": "0.97.1",

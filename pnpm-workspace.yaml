@@ -3,6 +3,7 @@ packages:
   - "packages/*"
 
 allowBuilds:
+  '@astryxdesign/cli': false
   "@astryxdesign/core": true
   "@parcel/watcher": false
   better-sqlite3: true
