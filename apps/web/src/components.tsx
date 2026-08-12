@@ -15,7 +15,6 @@ import {
 } from "@astryxdesign/core/SideNav";
 import { Stack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
-import { TopNav, TopNavHeading } from "@astryxdesign/core/TopNav";
 import { Link as RouterLink, Outlet, useLocation } from "@tanstack/react-router";
 import type { FormEvent, ReactNode } from "react";
 import { useState } from "react";
@@ -30,14 +29,9 @@ export function RootLayout() {
       collapsible={{ buttonLabel: "Collapse navigation" }}
       header={
         <SideNavHeading
-          heading="Workspace"
-          subheading="Local-first finance"
+          heading="Optimus"
+          subheading="Finance workspace"
         />
-      }
-      footer={
-        <Text type="supporting" as="p">
-          Private by default
-        </Text>
       }
     >
       <SideNavSection title="Workspace">
@@ -66,22 +60,10 @@ export function RootLayout() {
       height="auto"
       variant="elevated"
       contentPadding={4}
-      topNav={
-        <TopNav
-          heading={
-            <TopNavHeading
-              as={RouterLink}
-              heading="Optimus"
-              subheading="Finance workspace"
-              headingHref="/"
-            />
-          }
-        />
-      }
       sideNav={navigation}
     >
       <Layout height="auto" contentWidth={960} padding={0}>
-        <Stack gap={6}>
+        <Stack gap={6} padding={4}>
           <Outlet />
         </Stack>
       </Layout>
