@@ -69,6 +69,7 @@ const run = async () => {
     concurrently,
     [
       "--kill-others-on-fail",
+      "pnpm --filter @optimus/connectors dev",
       "pnpm --filter @optimus/engine dev",
       `pnpm --filter @optimus/web dev -- --port ${webPort} --strictPort`,
       `wait-on ${engineUrl}/api/hello ${webUrl} && pnpm --filter @optimus/desktop dev`,

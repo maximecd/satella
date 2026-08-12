@@ -5,6 +5,7 @@
     "build": "pnpm --filter @optimus/connectors build && pnpm --filter @optimus/engine build && pnpm --filter @optimus/web build && pnpm --filter @optimus/desktop build",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check",
     "dev": "node scripts/dev.mjs",
+    "predev": "pnpm --filter @optimus/connectors build",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",

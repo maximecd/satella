@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsx watch --include ../../packages/connectors/dist src/main.ts",
     "prebuild": "pnpm --filter @optimus/connectors build",
     "pretest": "pnpm --filter @optimus/connectors build",
     "pretypecheck": "pnpm --filter @optimus/connectors build",
