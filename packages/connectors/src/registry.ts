@@ -1,5 +1,6 @@
-import type { AnyConnector, Connector, ConnectorCredentialField } from "./connector.js";
+import type { AnyConnector, ConnectorCredentialField } from "./connector.js";
 import { OkxConnector } from "./okx/connector.js";
+import { IbkrConnector } from "./ibkr/connector.js";
 
 export interface ConnectorCapability {
   readonly id: string;
@@ -22,13 +23,14 @@ export const connectorCapabilities = (
     credentialFields,
   }));
 
-export const connectorRegistryFrom = <Credentials, R>(
-  connectors: ReadonlyArray<Connector<Credentials, R>>,
-): ConnectorRegistry =>
+export const connectorRegistryFrom = (connectors: ReadonlyArray<AnyConnector>): ConnectorRegistry =>
   new Map(
     connectors.map((connector) => [connector.id, connector] as const),
   ) as unknown as ConnectorRegistry;
 
-export const BuiltinConnectorRegistry: ConnectorRegistry = connectorRegistryFrom([OkxConnector]);
+export const BuiltinConnectorRegistry: ConnectorRegistry = connectorRegistryFrom([
+  OkxConnector,
+  IbkrConnector,
+]);
 
 export const BUILTIN_CONNECTOR_CAPABILITIES = connectorCapabilities(BuiltinConnectorRegistry);

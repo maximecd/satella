@@ -17,6 +17,7 @@ import {
 } from "./errors.js";
 import { initialFinanceModel } from "./migrations/0001_initial_finance_model.js";
 import { seedDefaultFiatCurrencies } from "./migrations/0002_seed_default_fiat_currencies.js";
+import { addAccountSourceDate } from "./migrations/0003_account_source_date.js";
 
 export const MIGRATIONS_TABLE = "effect_sql_migrations";
 export const PRE_MIGRATION_BACKUP_RETENTION = 5;
@@ -28,6 +29,7 @@ export type MigrationRegistry = Readonly<
 export const ProductionMigrations: MigrationRegistry = {
   "0001_initial_finance_model": initialFinanceModel,
   "0002_seed_default_fiat_currencies": seedDefaultFiatCurrencies,
+  "0003_account_source_date": addAccountSourceDate,
 };
 
 export interface MigrationRunOptions {

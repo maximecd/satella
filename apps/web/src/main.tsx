@@ -1,16 +1,15 @@
 import "@astryxdesign/core/reset.css";
 import "@astryxdesign/core/astryx.css";
-import "@astryxdesign/theme-matcha/theme.css";
 
 import { LayerProvider } from "@astryxdesign/core/Layer";
 import { Theme } from "@astryxdesign/core/theme";
-import { matchaTheme } from "@astryxdesign/theme-matcha/built";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 
 import { routeTree } from "./routeTree.gen";
+import { stoneTheme } from "./themes/stone/stoneTheme";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000 }, mutations: { retry: false } },
@@ -32,7 +31,7 @@ if (root === null) {
 
 createRoot(root).render(
   <StrictMode>
-    <Theme theme={matchaTheme}>
+    <Theme theme={stoneTheme}>
       <LayerProvider>
         <QueryClientProvider client={queryClient}>
           <RouterProvider router={router} />

@@ -7,17 +7,19 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
-    "./okx": "./dist/okx/index.js"
+    "./okx": "./dist/okx/index.js",
+    "./ibkr": "./dist/ibkr/index.js"
   },
   "scripts": {
-    "build": "tsc -b && cp src/okx/*.md src/okx/*.svg dist/okx/",
+    "build": "tsc -b && node scripts/copy-assets.mjs",
     "dev": "tsc -b --watch --preserveWatchOutput",
     "typecheck": "tsc -b",
     "test": "vitest run"
   },
   "dependencies": {
     "@effect/platform": "0.97.1",
-    "effect": "3.22.1"
+    "effect": "3.22.1",
+    "saxes": "6.0.0"
   },
   "devDependencies": {
     "@effect/vitest": "0.17.0",

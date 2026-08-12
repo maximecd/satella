@@ -9,6 +9,7 @@ import * as Layer from "effect/Layer";
 import { createServer } from "node:http";
 
 import { EngineApi } from "./api.js";
+import { ApiErrorLogging } from "./api-logging.js";
 import { DatabaseLive, DatabaseReady } from "./database/index.js";
 import * as FinanceService from "./finance/service.js";
 import * as MarketData from "./finance/market-data.js";
@@ -72,6 +73,7 @@ const EngineApiLive = HttpApiBuilder.api(EngineApi).pipe(
 );
 
 const HttpServerLive = HttpApiBuilder.serve(HttpMiddleware.logger).pipe(
+  Layer.provide(ApiErrorLogging),
   Layer.provide(
     HttpApiBuilder.middlewareCors({
       allowedOrigins: [

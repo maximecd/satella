@@ -1,12 +1,14 @@
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
+import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Grid } from "@astryxdesign/core/Grid";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Icon } from "@astryxdesign/core/Icon";
 import { Link as AstryxLink } from "@astryxdesign/core/Link";
 import { List, ListItem } from "@astryxdesign/core/List";
+import { Markdown } from "@astryxdesign/core/Markdown";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Stack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
@@ -396,12 +398,7 @@ function ConnectorCredentialsForm({ connector }: { readonly connector: Connector
 
   return (
     <Stack gap={4}>
-      <Stack gap={1}>
-        <Heading level={2}>{`Connect ${connector.name}`}</Heading>
-        <Text type="supporting" as="p">
-          Credentials are stored with this connection so Optimus can resync it later.
-        </Text>
-      </Stack>
+      <Heading level={2}>{`Connect ${connector.name}`}</Heading>
       <ConnectorInstructions connector={connector} />
       <FormError message={error} />
       <FormFrame onSubmit={(event) => void submit(event)}>
@@ -485,24 +482,15 @@ function ConnectorCredentialsForm({ connector }: { readonly connector: Connector
 
 function ConnectorInstructions({ connector }: { readonly connector: ConnectorCapability }) {
   if (connector.instructions === undefined) return null;
-  const paragraphs = connector.instructions
-    .replace(/^#\s+.*$/m, "")
-    .trim()
-    .split(/\n\s*\n/);
+  const instructions = connector.instructions.replace(/^#\s+.*$/m, "").trim();
   return (
-    <Stack gap={2}>
-      <Heading level={3}>Before you connect</Heading>
-      {paragraphs.map((paragraph, index) => (
-        <Text
-          key={`${index}-${paragraph}`}
-          as="p"
-          type="supporting"
-          style={{ whiteSpace: "pre-line" }}
-        >
-          {paragraph}
-        </Text>
-      ))}
-    </Stack>
+    <Card padding={3}>
+      <Collapsible trigger="Setup instructions" defaultIsOpen={false}>
+        <Markdown headingLevelStart={3} contentWidth="100%" autolink="gfm">
+          {instructions}
+        </Markdown>
+      </Collapsible>
+    </Card>
   );
 }
 

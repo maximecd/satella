@@ -1,6 +1,5 @@
 import { LayerProvider } from "@astryxdesign/core/Layer";
 import { Theme } from "@astryxdesign/core/theme";
-import { matchaTheme } from "@astryxdesign/theme-matcha/built";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -10,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { engineApi } from "./api";
 import { routeTree } from "./routeTree.gen";
+import { stoneTheme } from "./themes/stone/stoneTheme";
 
 vi.mock("./api", () => ({
   engineApi: {
@@ -106,7 +106,7 @@ const renderRoute = (path: string) => {
     context: { queryClient },
   });
   return render(
-    <Theme theme={matchaTheme}>
+    <Theme theme={stoneTheme}>
       <LayerProvider>
         <QueryClientProvider client={queryClient}>
           <RouterProvider router={router} />
@@ -167,7 +167,8 @@ describe("finance routes", () => {
           id: "okx",
           name: "OKX",
           icon: "data:image/svg+xml;base64,PHN2Zy8+",
-          instructions: "# Connect OKX\n\nCreate a read-only API key.",
+          instructions:
+            "# Connect OKX\n\nCreate a read-only API key.\n\n## Checklist\n\n| Field | Required |\n| --- | --- |\n| API key | Yes |",
           credentialFields: [
             { key: "apiKey", label: "API key", kind: "text", required: true },
             { key: "secretKey", label: "Secret key", kind: "password", required: true },
@@ -194,10 +195,16 @@ describe("finance routes", () => {
 
     expect(await screen.findByRole("heading", { name: "Connect OKX" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Connect a service" })).toBeInTheDocument();
+    const instructionsToggle = screen.getByRole("button", { name: "Setup instructions" });
+    expect(instructionsToggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(instructionsToggle);
+    expect(instructionsToggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("heading", { name: "Checklist" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "API key" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Choose another connector" })).toBeInTheDocument();
     expect(screen.getByText("Create a read-only API key.")).toBeInTheDocument();
     expect(screen.getByText("Custodian name")).toBeInTheDocument();
-    expect(screen.getByText("API key")).toBeInTheDocument();
+    expect(screen.getAllByText("API key").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Secret key").length).toBeGreaterThan(0);
     expect(screen.getByText("Region")).toBeInTheDocument();
     expect(screen.queryByText("Environment")).not.toBeInTheDocument();

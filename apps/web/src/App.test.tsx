@@ -1,12 +1,12 @@
 import { LayerProvider } from "@astryxdesign/core/Layer";
 import { Theme } from "@astryxdesign/core/theme";
-import { matchaTheme } from "@astryxdesign/theme-matcha/built";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getHello } from "./api";
 import { App } from "./App";
+import { stoneTheme } from "./themes/stone/stoneTheme";
 
 vi.mock("./api", () => ({
   getHello: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock("./api", () => ({
 
 function renderApp() {
   return render(
-    <Theme theme={matchaTheme}>
+    <Theme theme={stoneTheme}>
       <LayerProvider>
         <App />
       </LayerProvider>

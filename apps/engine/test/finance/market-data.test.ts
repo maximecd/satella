@@ -216,6 +216,83 @@ describe("market data coordinator", () => {
     expect(result.valued.totalIncomplete).toBe(false);
   });
 
+  it("resolves an imported security by ISIN before trusting its bare ticker", async () => {
+    const searches: string[] = [];
+    const batches: Array<ReadonlyArray<ProviderLookup>> = [];
+    const yahoo: MarketDataProvider = {
+      id: "yahoo-finance",
+      chunkSize: 50,
+      fetchPrices: (lookups) => {
+        batches.push(lookups);
+        return Effect.succeed({
+          observations: lookups.map(({ lookupKey, kind }) => ({
+            lookupKey,
+            price: kind === "fiat" ? 1.1 : 301,
+            currencyIso: kind === "fiat" ? "USD" : "EUR",
+            observedAt: new Date(),
+          })),
+          failures: [],
+        });
+      },
+    };
+    const registry: MarketDataRegistry = new Map([["yahoo-finance", yahoo]]);
+    const isin = "FR0011550185";
+
+    const result = await run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const etf = yield* Finance.createAsset({
+          assetClass: "security",
+          name: "BNP EASY S&P 500 EUR",
+          symbol: "ESE",
+          identifiers: [{ type: "isin", value: isin }],
+        });
+        // This is the stale mapping produced by the old ticker-first flow.
+        yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
+          VALUES ('stale-yahoo', ${etf.id}, 'yahoo_symbol', 'ESE')`;
+        const custodian = yield* Finance.createCustodian({
+          name: "Broker",
+          managementMode: "manual",
+        });
+        const account = yield* Finance.createAccount({
+          custodianId: custodian.id,
+          name: "Portfolio",
+        });
+        yield* Finance.createPosition({ accountId: account.id, assetId: etf.id, quantity: 1 });
+        const refreshed = yield* refreshPrices({
+          registry,
+          requireFresh: true,
+          searchAssets: (query) => {
+            searches.push(query);
+            return Effect.succeed([
+              {
+                provider: "yahoo-finance" as const,
+                assetClass: "security" as const,
+                name: "BNP Paribas Easy S&P 500 UCITS ETF",
+                symbol: "ESE.PA",
+                identifiers: [{ type: "yahoo_symbol", value: "ESE.PA" }],
+              },
+            ]);
+          },
+        });
+        return {
+          refreshed,
+          asset: yield* Finance.getAsset(etf.id),
+          account: yield* Finance.getAccount(account.id),
+        };
+      }),
+    );
+
+    expect(searches).toEqual([isin]);
+    expect(batches[0]?.map(({ lookupKey }) => lookupKey)).toEqual(["ESE.PA"]);
+    expect(result.asset.identifiers).toEqual([
+      { type: "isin", value: isin },
+      { type: "yahoo_symbol", value: "ESE.PA" },
+    ]);
+    expect(result.account.totalIncomplete).toBe(false);
+    expect(result.refreshed.refreshedAssetIds).toContain(result.asset.id);
+  });
+
   it("deduplicates provider lookups, persists partial success, and reuses fresh observations", async () => {
     const batches: Array<ReadonlyArray<ProviderLookup>> = [];
     const yahoo: MarketDataProvider = {
