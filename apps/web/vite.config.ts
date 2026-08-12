@@ -1,8 +1,9 @@
 import stylex from "@stylexjs/unplugin/vite";
 import react from "@vitejs/plugin-react";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
   base: "./",
-  plugins: [react(), stylex()],
+  plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), stylex()],
 });

@@ -15,6 +15,8 @@ import {
   DatabaseMigrationError,
   DatabaseValidationError,
 } from "./errors.js";
+import { initialFinanceModel } from "./migrations/0001_initial_finance_model.js";
+import { seedDefaultFiatCurrencies } from "./migrations/0002_seed_default_fiat_currencies.js";
 
 export const MIGRATIONS_TABLE = "effect_sql_migrations";
 export const PRE_MIGRATION_BACKUP_RETENTION = 5;
@@ -23,7 +25,10 @@ export type MigrationRegistry = Readonly<
   Record<string, Effect.Effect<void, unknown, SqlClient.SqlClient>>
 >;
 
-export const ProductionMigrations: MigrationRegistry = {};
+export const ProductionMigrations: MigrationRegistry = {
+  "0001_initial_finance_model": initialFinanceModel,
+  "0002_seed_default_fiat_currencies": seedDefaultFiatCurrencies,
+};
 
 export interface MigrationRunOptions {
   readonly registry: MigrationRegistry;
