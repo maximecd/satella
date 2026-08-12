@@ -27,6 +27,7 @@ import {
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { accountQuery, assetsQuery, custodianQuery, queryKeys } from "../queries";
+import { AddAssetsButton } from "./add-assets";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
@@ -163,7 +164,7 @@ function PositionTable({
           width: proportional(0.5),
           align: "end",
           renderCell: (row) =>
-            account.managementMode === "manual" ? (
+            account.managementMode === "manual" && account.presentationRole === null ? (
               <Button
                 as={RouterLink}
                 href={`/positions/${row.id}/edit`}
@@ -221,7 +222,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
                 await refresh.mutateAsync();
               }}
             />
-            {account.managementMode === "manual" && (
+            {account.managementMode === "manual" && account.presentationRole === null && (
               <Button as={RouterLink} href={`/accounts/${id}/edit`} label="Edit account" />
             )}
           </>
@@ -265,13 +266,8 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
       </ResourceCard>
       <Stack direction="horizontal" justify="between" align="center" gap={3} wrap="wrap">
         <Heading level={2}>Positions</Heading>
-        {account.managementMode === "manual" && (
-          <Button
-            as={RouterLink}
-            href={`/accounts/${id}/positions/new`}
-            label="Add position"
-            variant="primary"
-          />
+        {account.managementMode === "manual" && account.presentationRole === null && (
+          <AddAssetsButton />
         )}
       </Stack>
       <PositionTable positions={active} account={account} />
@@ -456,7 +452,7 @@ export function EditAccountScreen({ id }: { readonly id: string }) {
   const query = useQuery(accountQuery(id));
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
-  if (query.data.managementMode !== "manual")
+  if (query.data.managementMode !== "manual" || query.data.presentationRole !== null)
     return <PageState kind="error" message="Connector-managed accounts are read-only." />;
   return <LoadedEditAccount account={query.data} />;
 }

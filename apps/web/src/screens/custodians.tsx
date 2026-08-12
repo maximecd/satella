@@ -15,7 +15,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link as RouterLink, Outlet, useNavigate } from "@tanstack/react-router";
+import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import {
   ConnectCustodianInput,
   ConnectorCapability,
@@ -37,6 +37,7 @@ import {
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { connectorCapabilitiesQuery, custodianQuery, custodiansQuery, queryKeys } from "../queries";
+import { AddAssetsButton } from "./add-assets";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
@@ -57,22 +58,13 @@ export function CustodianListScreen() {
       <PageHeader
         title="Custodians"
         subtitle="Banks, brokers, exchanges, and wallets where assets are held."
-        action={
-          <Button as={RouterLink} href="/custodians/new" label="Add custodian" variant="primary" />
-        }
+        action={<AddAssetsButton />}
       />
       {query.data.length === 0 ? (
         <EmptyState
           title="No custodians yet"
           description="Add a manual custodian or connect a supported service to begin tracking accounts and positions."
-          actions={
-            <Button
-              as={RouterLink}
-              href="/custodians/new"
-              label="Add custodian"
-              variant="primary"
-            />
-          }
+          actions={<AddAssetsButton />}
         />
       ) : (
         <List density="balanced" hasDividers>
@@ -156,10 +148,6 @@ export function CreateCustodianScreen() {
       </List>
     </>
   );
-}
-
-export function CustodianCreationLayout() {
-  return <Outlet />;
 }
 
 export function CreateManualCustodianScreen() {
@@ -535,7 +523,9 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
                 isLoading={resync.isPending}
               />
             )}
-            <Button as={RouterLink} href={`/custodians/${id}/edit`} label="Edit" />
+            {custodian.managementMode === "manual" && custodian.presentationRole === null && (
+              <Button as={RouterLink} href={`/custodians/${id}/edit`} label="Edit" />
+            )}
           </Stack>
         }
       />
@@ -545,13 +535,8 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
           <Heading level={2}>Accounts</Heading>
           {managementBadge(custodian.managementMode)}
         </Stack>
-        {custodian.managementMode === "manual" && (
-          <Button
-            as={RouterLink}
-            href={`/custodians/${id}/accounts/new`}
-            label="Add account"
-            variant="primary"
-          />
+        {custodian.managementMode === "manual" && custodian.presentationRole === null && (
+          <AddAssetsButton />
         )}
       </Stack>
       {custodian.accounts.length === 0 ? (

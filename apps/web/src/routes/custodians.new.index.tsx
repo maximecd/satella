@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-
-import { CreateCustodianScreen } from "../screens/custodians";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/custodians/new/")({
-  component: CreateCustodianScreen,
+  beforeLoad: () => {
+    throw redirect({ to: "/" });
+  },
 });

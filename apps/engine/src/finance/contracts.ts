@@ -4,6 +4,12 @@ import * as Schema from "effect/Schema";
 export const AssetClass = Schema.Literal("fiat", "security", "crypto", "custom");
 export type AssetClass = typeof AssetClass.Type;
 
+export const AccountKind = Schema.Literal("current", "savings", "securities", "crypto", "other");
+export type AccountKind = typeof AccountKind.Type;
+
+export const PresentationRole = Schema.Literal("direct_ownership");
+export type PresentationRole = typeof PresentationRole.Type;
+
 export const ManagementMode = Schema.Literal("manual", "synced");
 export type ManagementMode = typeof ManagementMode.Type;
 
@@ -56,7 +62,9 @@ export const Account = Schema.Struct({
   custodianId: Schema.String,
   custodianName: Schema.String,
   managementMode: ManagementMode,
+  presentationRole: Schema.NullOr(PresentationRole),
   name: Schema.String,
+  accountKind: AccountKind,
   baseCurrencyAssetId: Schema.String,
   baseCurrencyIso: Schema.String,
   connectorAccountId: Schema.NullOr(Schema.String),
@@ -72,6 +80,7 @@ export type Account = typeof Account.Type;
 export const AccountSummary = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
+  accountKind: AccountKind,
   baseCurrencyIso: Schema.String,
   connectorAccountId: Schema.NullOr(Schema.String),
   positionCount: Schema.Number,
@@ -82,6 +91,7 @@ export const Custodian = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   managementMode: ManagementMode,
+  presentationRole: Schema.NullOr(PresentationRole),
   connectorId: Schema.NullOr(Schema.String),
   accounts: Schema.Array(AccountSummary),
   createdAt: Schema.String,
@@ -94,6 +104,7 @@ export const ConnectorCapability = Schema.Struct({
   name: Schema.String,
   icon: Schema.optional(Schema.String),
   instructions: Schema.optional(Schema.String),
+  assetClasses: Schema.Array(Schema.Literal("fiat", "security", "crypto")),
   credentialFields: Schema.Array(
     Schema.Struct({
       key: Schema.NonEmptyTrimmedString,
@@ -145,6 +156,7 @@ export type UpdateCustodianInput = typeof UpdateCustodianInput.Type;
 export const CreateAccountInput = Schema.Struct({
   custodianId: Schema.String,
   name: Schema.NonEmptyTrimmedString,
+  accountKind: Schema.optionalWith(AccountKind, { default: () => "other" as const }),
   baseCurrencyAssetId: Schema.optional(Schema.String),
 });
 export type CreateAccountInput = typeof CreateAccountInput.Type;
@@ -234,6 +246,106 @@ export const PortfolioHistoryPoint = Schema.Struct({
   totalIncomplete: Schema.Boolean,
 });
 export type PortfolioHistoryPoint = typeof PortfolioHistoryPoint.Type;
+
+export const ExistingOrNewCustodian = Schema.Union(
+  Schema.Struct({
+    type: Schema.Literal("existing"),
+    id: Schema.String,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("new"),
+    name: Schema.NonEmptyTrimmedString,
+  }),
+);
+export type ExistingOrNewCustodian = typeof ExistingOrNewCustodian.Type;
+
+export const ExistingOrNewAccount = Schema.Union(
+  Schema.Struct({
+    type: Schema.Literal("existing"),
+    id: Schema.String,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("new"),
+    name: Schema.NonEmptyTrimmedString,
+    baseCurrencyAssetId: Schema.optional(Schema.String),
+  }),
+);
+export type ExistingOrNewAccount = typeof ExistingOrNewAccount.Type;
+
+export const ProviderAssetInput = Schema.Struct({
+  assetClass: Schema.Literal("security", "crypto"),
+  name: Schema.NonEmptyTrimmedString,
+  symbol: Schema.NonEmptyTrimmedString,
+  identifiers: Schema.Array(IdentifierInput),
+});
+export type ProviderAssetInput = typeof ProviderAssetInput.Type;
+
+export const AddManualHoldingInput = Schema.Struct({
+  asset: ProviderAssetInput,
+  custodian: ExistingOrNewCustodian,
+  account: ExistingOrNewAccount,
+  quantity: Schema.Number,
+});
+export type AddManualHoldingInput = typeof AddManualHoldingInput.Type;
+
+export const AddCashAccountInput = Schema.Struct({
+  accountKind: Schema.Literal("current", "savings"),
+  custodian: ExistingOrNewCustodian,
+  accountName: Schema.NonEmptyTrimmedString,
+  currencyAssetId: Schema.String,
+  balance: Schema.Number,
+});
+export type AddCashAccountInput = typeof AddCashAccountInput.Type;
+
+export const AddOtherAssetInput = Schema.Struct({
+  name: Schema.NonEmptyTrimmedString,
+  value: Schema.Number,
+  currencyAssetId: Schema.String,
+});
+export type AddOtherAssetInput = typeof AddOtherAssetInput.Type;
+
+export const AddAssetsResult = Schema.Struct({
+  accountId: Schema.String,
+  custodianId: Schema.String,
+  accountName: Schema.String,
+  positionOutcome: Schema.Literal("created", "updated"),
+});
+export type AddAssetsResult = typeof AddAssetsResult.Type;
+
+export const LookupManualHoldingParams = Schema.Struct({
+  accountId: Schema.String,
+  identifierType: Schema.String,
+  identifierValue: Schema.String,
+});
+
+export const ManualHoldingLookup = Schema.Struct({
+  assetId: Schema.NullOr(Schema.String),
+  quantity: Schema.NullOr(Schema.Number),
+});
+export type ManualHoldingLookup = typeof ManualHoldingLookup.Type;
+
+export const DashboardAccountRow = Schema.Struct({
+  accountId: Schema.String,
+  accountName: Schema.String,
+  custodianId: Schema.String,
+  custodianName: Schema.String,
+  accountKind: AccountKind,
+  source: Schema.Literal("manual", "connected"),
+  connectorId: Schema.NullOr(Schema.String),
+  connectorName: Schema.NullOr(Schema.String),
+  baseCurrencyIso: Schema.String,
+  positionCount: Schema.Number,
+  total: Schema.Number,
+  totalIncomplete: Schema.Boolean,
+  hasStalePrices: Schema.Boolean,
+  presentationRole: Schema.NullOr(PresentationRole),
+});
+export type DashboardAccountRow = typeof DashboardAccountRow.Type;
+
+export const Dashboard = Schema.Struct({
+  accounts: Schema.Array(DashboardAccountRow),
+});
+export type Dashboard = typeof Dashboard.Type;
 
 export const SearchAssetsParams = Schema.Struct({
   query: Schema.String,

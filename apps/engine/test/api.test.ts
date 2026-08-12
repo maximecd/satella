@@ -21,4 +21,15 @@ describe("finance API routes", () => {
   ] as const)("declares %s with a dynamic id segment", (name, path) => {
     expect(FinanceApi.endpoints[name].path).toBe(path);
   });
+
+  it.each([
+    ["getDashboard", "/api/dashboard"],
+    ["listManualCustodians", "/api/manual-custodians"],
+    ["lookupManualHolding", "/api/manual-holdings/lookup"],
+    ["addManualHolding", "/api/add-assets/holding"],
+    ["addCashAccount", "/api/add-assets/cash"],
+    ["addOtherAsset", "/api/add-assets/other"],
+  ] as const)("declares %s at %s", (name, path) => {
+    expect(FinanceApi.endpoints[name].path).toBe(path);
+  });
 });

@@ -104,6 +104,7 @@ describe("OKX connector", () => {
         externalId: "trading",
         name: "Trading",
         baseCurrencyIso: "USD",
+        accountKind: "crypto",
         positions: [
           {
             asset: {
@@ -121,6 +122,7 @@ describe("OKX connector", () => {
         externalId: "funding",
         name: "Funding",
         baseCurrencyIso: "USD",
+        accountKind: "crypto",
         positions: [
           {
             asset: {
@@ -148,6 +150,7 @@ describe("OKX connector", () => {
         externalId: "earn",
         name: "Earn",
         baseCurrencyIso: "USD",
+        accountKind: "crypto",
         positions: [
           {
             asset: {
@@ -176,6 +179,7 @@ describe("OKX connector", () => {
 
   it("exposes live-only credentials", () => {
     const connector = makeOkxConnector();
+    expect(connector.assetClasses).toEqual(["crypto"]);
     expect(connector.credentialFields.map(({ key }) => key)).toEqual([
       "apiKey",
       "secretKey",

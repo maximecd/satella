@@ -26,6 +26,7 @@ const accounts = [
     externalId: "trading",
     name: "Trading",
     baseCurrencyIso: "USD",
+    accountKind: "crypto" as const,
     positions: [
       {
         asset: {
@@ -43,6 +44,7 @@ const accounts = [
     externalId: "funding",
     name: "Funding",
     baseCurrencyIso: "USD",
+    accountKind: "crypto" as const,
     positions: [],
   },
 ] as const;
@@ -94,6 +96,7 @@ describe("connector service bridge", () => {
             externalId: "one",
             name: "One",
             baseCurrencyIso: "USD",
+            accountKind: "crypto" as const,
             positions: [
               {
                 asset: {
@@ -110,6 +113,7 @@ describe("connector service bridge", () => {
             externalId: "two",
             name: "Two",
             baseCurrencyIso: "USD",
+            accountKind: "crypto" as const,
             positions: [
               {
                 asset: {

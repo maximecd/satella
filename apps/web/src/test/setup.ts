@@ -25,6 +25,15 @@ Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
   value: vi.fn(() => null),
 });
 
+if (typeof HTMLDialogElement !== "undefined") {
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.setAttribute("open", "");
+  };
+  HTMLDialogElement.prototype.close = function close() {
+    this.removeAttribute("open");
+  };
+}
+
 class ResizeObserverMock implements ResizeObserver {
   readonly observe = vi.fn();
   readonly unobserve = vi.fn();

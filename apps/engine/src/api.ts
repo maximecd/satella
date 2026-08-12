@@ -7,6 +7,10 @@ import * as Schema from "effect/Schema";
 export * from "./finance/contracts.js";
 import {
   Account,
+  AddAssetsResult,
+  AddCashAccountInput,
+  AddManualHoldingInput,
+  AddOtherAssetInput,
   Asset,
   AssetSearchResult,
   ConnectorCapabilities,
@@ -16,7 +20,10 @@ import {
   CreateCustodianInput,
   CreatePositionInput,
   Custodian,
+  Dashboard,
   FinanceApiError,
+  LookupManualHoldingParams,
+  ManualHoldingLookup,
   PriceRefreshResult,
   PortfolioHistoryPoint,
   SetManualPriceInput,
@@ -43,6 +50,40 @@ export const FinanceApi = HttpApiGroup.make("finance")
     HttpApiEndpoint.get("connectorCapabilities")`/api/connectors/capabilities`.addSuccess(
       ConnectorCapabilities,
     ),
+  )
+  .add(
+    HttpApiEndpoint.get("getDashboard")`/api/dashboard`
+      .addSuccess(Dashboard)
+      .addError(FinanceApiError),
+  )
+  .add(
+    HttpApiEndpoint.get("listManualCustodians")`/api/manual-custodians`
+      .addSuccess(Schema.Array(Custodian))
+      .addError(FinanceApiError),
+  )
+  .add(
+    HttpApiEndpoint.get("lookupManualHolding")`/api/manual-holdings/lookup`
+      .setUrlParams(LookupManualHoldingParams)
+      .addSuccess(ManualHoldingLookup)
+      .addError(FinanceApiError),
+  )
+  .add(
+    HttpApiEndpoint.post("addManualHolding")`/api/add-assets/holding`
+      .setPayload(AddManualHoldingInput)
+      .addSuccess(AddAssetsResult, { status: 201 })
+      .addError(FinanceApiError),
+  )
+  .add(
+    HttpApiEndpoint.post("addCashAccount")`/api/add-assets/cash`
+      .setPayload(AddCashAccountInput)
+      .addSuccess(AddAssetsResult, { status: 201 })
+      .addError(FinanceApiError),
+  )
+  .add(
+    HttpApiEndpoint.post("addOtherAsset")`/api/add-assets/other`
+      .setPayload(AddOtherAssetInput)
+      .addSuccess(AddAssetsResult, { status: 201 })
+      .addError(FinanceApiError),
   )
   .add(
     HttpApiEndpoint.get("listCustodians")`/api/custodians`

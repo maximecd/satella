@@ -18,6 +18,7 @@ import {
 import { initialFinanceModel } from "./migrations/0001_initial_finance_model.js";
 import { seedDefaultFiatCurrencies } from "./migrations/0002_seed_default_fiat_currencies.js";
 import { addAccountSourceDate } from "./migrations/0003_account_source_date.js";
+import { addAccountKindAndSystemRoles } from "./migrations/0004_account_kind_and_system_roles.js";
 
 export const MIGRATIONS_TABLE = "effect_sql_migrations";
 export const PRE_MIGRATION_BACKUP_RETENTION = 5;
@@ -30,6 +31,7 @@ export const ProductionMigrations: MigrationRegistry = {
   "0001_initial_finance_model": initialFinanceModel,
   "0002_seed_default_fiat_currencies": seedDefaultFiatCurrencies,
   "0003_account_source_date": addAccountSourceDate,
+  "0004_account_kind_and_system_roles": addAccountKindAndSystemRoles,
 };
 
 export interface MigrationRunOptions {

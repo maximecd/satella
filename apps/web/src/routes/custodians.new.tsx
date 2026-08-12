@@ -1,4 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { CustodianCreationLayout } from "../screens/custodians";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/custodians/new")({ component: CustodianCreationLayout });
+export const Route = createFileRoute("/custodians/new")({
+  beforeLoad: () => {
+    throw redirect({ to: "/" });
+  },
+});

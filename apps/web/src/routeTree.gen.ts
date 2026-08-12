@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CustodiansIndexRouteImport } from './routes/custodians.index'
 import { Route as AssetsIndexRouteImport } from './routes/assets.index'
@@ -26,6 +27,11 @@ import { Route as AccountsAccountIdEditRouteImport } from './routes/accounts.$ac
 import { Route as CustodiansCustodianIdAccountsNewRouteImport } from './routes/custodians.$custodianId.accounts.new'
 import { Route as AccountsAccountIdPositionsNewRouteImport } from './routes/accounts.$accountId.positions.new'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -113,6 +119,7 @@ const AccountsAccountIdPositionsNewRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/custodians/new': typeof CustodiansNewRouteWithChildren
   '/assets': typeof AssetsIndexRoute
   '/custodians': typeof CustodiansIndexRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/assets': typeof AssetsIndexRoute
   '/custodians': typeof CustodiansIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
@@ -149,6 +157,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/custodians/new': typeof CustodiansNewRouteWithChildren
   '/assets/': typeof AssetsIndexRoute
   '/custodians/': typeof CustodiansIndexRoute
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/settings'
     | '/custodians/new'
     | '/assets'
     | '/custodians'
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/settings'
     | '/assets'
     | '/custodians'
     | '/accounts/$accountId/edit'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/settings'
     | '/custodians/new'
     | '/assets/'
     | '/custodians/'
@@ -223,6 +235,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SettingsRoute: typeof SettingsRoute
   CustodiansNewRoute: typeof CustodiansNewRouteWithChildren
   AssetsIndexRoute: typeof AssetsIndexRoute
   CustodiansIndexRoute: typeof CustodiansIndexRoute
@@ -239,6 +252,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -372,6 +392,7 @@ const CustodiansNewRouteWithChildren = CustodiansNewRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SettingsRoute: SettingsRoute,
   CustodiansNewRoute: CustodiansNewRouteWithChildren,
   AssetsIndexRoute: AssetsIndexRoute,
   CustodiansIndexRoute: CustodiansIndexRoute,

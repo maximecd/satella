@@ -30,6 +30,18 @@ const SystemApiLive = HttpApiBuilder.group(EngineApi, "system", (handlers) =>
 const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handlers) =>
   handlers
     .handle("connectorCapabilities", () => Effect.succeed(FinanceService.connectorCapabilities()))
+    .handle("getDashboard", () => FinanceService.getDashboard())
+    .handle("listManualCustodians", () => FinanceService.listManualCustodians())
+    .handle("lookupManualHolding", ({ urlParams }) =>
+      FinanceService.lookupManualHolding(
+        urlParams.accountId,
+        urlParams.identifierType,
+        urlParams.identifierValue,
+      ),
+    )
+    .handle("addManualHolding", ({ payload }) => FinanceService.addManualHolding(payload))
+    .handle("addCashAccount", ({ payload }) => FinanceService.addCashAccount(payload))
+    .handle("addOtherAsset", ({ payload }) => FinanceService.addOtherAsset(payload))
     .handle("listCustodians", () => FinanceService.listCustodians())
     .handle("getCustodian", ({ path }) => FinanceService.getCustodian(path.id))
     .handle("createCustodian", ({ payload }) => FinanceService.createCustodian(payload))
