@@ -92,7 +92,25 @@ export type Custodian = typeof Custodian.Type;
 export const ConnectorCapability = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
+  credentialFields: Schema.Array(
+    Schema.Struct({
+      key: Schema.NonEmptyTrimmedString,
+      label: Schema.NonEmptyTrimmedString,
+      kind: Schema.Literal("text", "password", "select"),
+      required: Schema.Boolean,
+      options: Schema.optional(
+        Schema.Array(
+          Schema.Struct({
+            value: Schema.NonEmptyTrimmedString,
+            label: Schema.NonEmptyTrimmedString,
+          }),
+        ),
+      ),
+      helpText: Schema.optional(Schema.NonEmptyTrimmedString),
+    }),
+  ),
 });
+export type ConnectorCapability = typeof ConnectorCapability.Type;
 
 export const ConnectorCapabilities = Schema.Struct({
   connectors: Schema.Array(ConnectorCapability),
@@ -107,6 +125,14 @@ export const CreateCustodianInput = Schema.Struct({
   connectorConfig: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
 });
 export type CreateCustodianInput = typeof CreateCustodianInput.Type;
+
+/** Credentials are accepted only for the connection request and are never persisted. */
+export const ConnectCustodianInput = Schema.Struct({
+  name: Schema.NonEmptyTrimmedString,
+  connectorId: Schema.NonEmptyTrimmedString,
+  credentials: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+});
+export type ConnectCustodianInput = typeof ConnectCustodianInput.Type;
 
 export const UpdateCustodianInput = Schema.Struct({ name: Schema.NonEmptyTrimmedString });
 export type UpdateCustodianInput = typeof UpdateCustodianInput.Type;

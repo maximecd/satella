@@ -2,6 +2,7 @@ import * as FetchHttpClient from "@effect/platform/FetchHttpClient";
 import * as HttpApiClient from "@effect/platform/HttpApiClient";
 import type {
   AssetSearchResult,
+  ConnectCustodianInput,
   CreateAccountInput,
   CreateAssetInput,
   CreateCustodianInput,
@@ -31,6 +32,10 @@ export const engineApi = {
   getCustodian: (id: string) => request((client) => client.finance.getCustodian({ path: { id } })),
   createCustodian: (payload: CreateCustodianInput) =>
     request((client) => client.finance.createCustodian({ payload })),
+  connectCustodian: (payload: ConnectCustodianInput) =>
+    request((client) => client.finance.connectCustodian({ payload })),
+  resyncCustodian: (id: string) =>
+    request((client) => client.finance.resyncCustodian({ path: { id } })),
   updateCustodian: (id: string, name: string) =>
     request((client) => client.finance.updateCustodian({ path: { id }, payload: { name } })),
   deleteCustodian: (id: string) =>

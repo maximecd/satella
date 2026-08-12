@@ -2,9 +2,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm --filter @optimus/engine build && pnpm --filter @optimus/web build && pnpm --filter @optimus/desktop build",
+    "build": "pnpm --filter @optimus/connectors build && pnpm --filter @optimus/engine build && pnpm --filter @optimus/web build && pnpm --filter @optimus/desktop build",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check",
-    "dev": "concurrently --kill-others-on-fail \"pnpm --filter @optimus/engine dev\" \"pnpm --filter @optimus/web dev\" \"wait-on http://127.0.0.1:3001/api/hello http://127.0.0.1:5173 && pnpm --filter @optimus/desktop dev\"",
+    "dev": "node scripts/dev.mjs",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
@@ -12,7 +12,7 @@
     "test": "pnpm --filter @optimus/web test",
     "test:coverage": "pnpm --filter @optimus/web test:coverage",
     "test:watch": "pnpm --filter @optimus/web test:watch",
-    "typecheck": "pnpm --filter @optimus/engine typecheck && pnpm --filter @optimus/web typecheck && pnpm --filter @optimus/desktop typecheck"
+    "typecheck": "pnpm --filter @optimus/connectors typecheck && pnpm --filter @optimus/engine typecheck && pnpm --filter @optimus/web typecheck && pnpm --filter @optimus/desktop typecheck"
   },
   "devDependencies": {
     "concurrently": "10.0.4",

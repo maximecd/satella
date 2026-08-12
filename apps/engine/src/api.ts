@@ -10,6 +10,7 @@ import {
   Asset,
   AssetSearchResult,
   ConnectorCapabilities,
+  ConnectCustodianInput,
   CreateAccountInput,
   CreateAssetInput,
   CreateCustodianInput,
@@ -57,6 +58,17 @@ export const FinanceApi = HttpApiGroup.make("finance")
     HttpApiEndpoint.post("createCustodian")`/api/custodians`
       .setPayload(CreateCustodianInput)
       .addSuccess(Custodian, { status: 201 })
+      .addError(FinanceApiError),
+  )
+  .add(
+    HttpApiEndpoint.post("connectCustodian")`/api/custodians/connect`
+      .setPayload(ConnectCustodianInput)
+      .addSuccess(Custodian, { status: 201 })
+      .addError(FinanceApiError),
+  )
+  .add(
+    HttpApiEndpoint.post("resyncCustodian")`/api/custodians/${EntityIdParam}/sync`
+      .addSuccess(Custodian)
       .addError(FinanceApiError),
   )
   .add(

@@ -1,0 +1,26 @@
+{
+  "name": "@optimus/connectors",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./okx": "./dist/okx/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@effect/platform": "0.97.1",
+    "effect": "3.22.1"
+  },
+  "devDependencies": {
+    "@effect/vitest": "0.17.0",
+    "@types/node": "26.2.0",
+    "vitest": "2.1.9"
+  }
+}
