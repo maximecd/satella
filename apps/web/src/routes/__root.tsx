@@ -1,5 +1,19 @@
-import { createRootRoute } from "@tanstack/react-router";
+import type { QueryClient } from "@tanstack/react-query";
+import { createRootRouteWithContext } from "@tanstack/react-router";
 
 import { RootLayout } from "../components";
+import { AddAssetsProvider } from "../screens/add-assets";
 
-export const Route = createRootRoute({ component: RootLayout });
+export interface RouterContext {
+  readonly queryClient: QueryClient;
+}
+
+function Root() {
+  return (
+    <AddAssetsProvider>
+      <RootLayout />
+    </AddAssetsProvider>
+  );
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({ component: Root });

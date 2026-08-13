@@ -94,6 +94,7 @@ describe("IBKR Flex connector", () => {
         externalId: "U123456",
         name: "PEA (U123456)",
         baseCurrencyIso: "USD",
+        accountKind: "securities",
         positions: [
           {
             asset: {
@@ -161,6 +162,7 @@ describe("IBKR Flex connector", () => {
         externalId: "UEMPTY",
         name: "UEMPTY",
         baseCurrencyIso: "USD",
+        accountKind: "securities",
         positions: [],
       },
     ]);
@@ -189,6 +191,7 @@ describe("IBKR Flex connector", () => {
         externalId: "UEMPTY",
         name: "UEMPTY",
         baseCurrencyIso: "USD",
+        accountKind: "securities",
         positions: [
           {
             asset: {
@@ -209,6 +212,7 @@ describe("IBKR Flex connector", () => {
     expect(() => parseFlexXml('<!DOCTYPE x [<!ENTITY y "z">]><FlexQueryResponse />')).toThrow(
       "DTD",
     );
+    expect(IbkrConnector.assetClasses).toEqual(["security"]);
     expect(IbkrConnector.credentialFields.map(({ key, kind }) => [key, kind])).toEqual([
       ["token", "password"],
       ["queryId", "text"],

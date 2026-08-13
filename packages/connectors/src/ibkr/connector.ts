@@ -276,6 +276,7 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
     externalId: accountId,
     name,
     baseCurrencyIso: baseCurrency,
+    accountKind: "securities",
     positions,
   };
 };
@@ -513,6 +514,7 @@ export const makeIbkrConnector = <R = HttpClient.HttpClient>(
   name: "Interactive Brokers",
   icon: ibkrIcon,
   instructions: ibkrInstructions,
+  assetClasses: ["security"],
   credentialFields: [
     {
       key: "token",

@@ -36,10 +36,19 @@ export const ConnectorPosition = Schema.Struct({
 });
 export type ConnectorPosition = typeof ConnectorPosition.Type;
 
+export const ConnectorAccountKind = Schema.Literal(
+  "current",
+  "savings",
+  "securities",
+  "crypto",
+);
+export type ConnectorAccountKind = typeof ConnectorAccountKind.Type;
+
 export const ConnectorAccount = Schema.Struct({
   externalId: Schema.NonEmptyTrimmedString,
   name: Schema.NonEmptyTrimmedString,
   baseCurrencyIso: Schema.NonEmptyTrimmedString,
+  accountKind: ConnectorAccountKind,
   positions: Schema.Array(ConnectorPosition),
 });
 export type ConnectorAccount = typeof ConnectorAccount.Type;
@@ -95,6 +104,8 @@ export interface Connector<Credentials, R = never> {
   readonly icon?: string;
   /** Optional Markdown instructions bundled with the connector. */
   readonly instructions?: string;
+  /** Asset classes this connector can be discovered through. Does not filter imported output. */
+  readonly assetClasses: ReadonlyArray<ConnectorAssetClass>;
   /** Public, non-secret metadata used to render connector setup forms. */
   readonly credentialFields: ReadonlyArray<ConnectorCredentialField>;
   readonly credentialsSchema: Schema.Schema<Credentials, any>;

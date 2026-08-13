@@ -26,6 +26,7 @@ import {
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { assetQuery, assetsQuery, queryKeys } from "../queries";
+import { AddAssetsButton } from "./add-assets";
 
 const CustomAssetForm = Schema.Struct({
   name: Schema.NonEmptyTrimmedString,
@@ -68,14 +69,7 @@ export function AssetListScreen() {
       <PageHeader
         title="Assets"
         subtitle="The shared catalog used by positions in every custodian."
-        action={
-          <Button
-            as={RouterLink}
-            href="/assets/custom/new"
-            label="Create manual asset"
-            variant="primary"
-          />
-        }
+        action={<AddAssetsButton label="Create manual asset" start="other" />}
       />
       <TextInput
         label="Search assets"

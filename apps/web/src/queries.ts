@@ -3,8 +3,10 @@ import { queryOptions } from "@tanstack/react-query";
 import { engineApi } from "./api";
 
 export const queryKeys = {
+  dashboard: ["dashboard"] as const,
   custodians: {
     all: ["custodians"] as const,
+    manual: ["custodians", "manual"] as const,
     detail: (id: string) => ["custodians", id] as const,
   },
   connectors: { capabilities: ["connectors", "capabilities"] as const },
@@ -18,8 +20,17 @@ export const queryKeys = {
     detail: (id: string) => ["assets", id] as const,
     search: (query: string, assetClass: "security" | "crypto") =>
       ["assets", "search", assetClass, query] as const,
+    holding: (accountId: string, identifierType: string, identifierValue: string) =>
+      ["assets", "holding", accountId, identifierType, identifierValue] as const,
   },
 };
+
+export const dashboardQuery = queryOptions({
+  queryKey: queryKeys.dashboard,
+  queryFn: engineApi.getDashboard,
+  staleTime: 15_000,
+  retry: 1,
+});
 
 export const custodiansQuery = queryOptions({
   queryKey: queryKeys.custodians.all,
@@ -35,6 +46,13 @@ export const custodianQuery = (id: string) =>
     staleTime: 15_000,
     retry: 1,
   });
+
+export const manualCustodiansQuery = queryOptions({
+  queryKey: queryKeys.custodians.manual,
+  queryFn: engineApi.listManualCustodians,
+  staleTime: 15_000,
+  retry: 1,
+});
 
 export const connectorCapabilitiesQuery = queryOptions({
   queryKey: queryKeys.connectors.capabilities,
@@ -70,6 +88,19 @@ export const assetQuery = (id: string) =>
   queryOptions({
     queryKey: queryKeys.assets.detail(id),
     queryFn: () => engineApi.getAsset(id),
+    staleTime: 15_000,
+    retry: 1,
+  });
+
+export const manualHoldingQuery = (
+  accountId: string,
+  identifierType: string,
+  identifierValue: string,
+) =>
+  queryOptions({
+    queryKey: queryKeys.assets.holding(accountId, identifierType, identifierValue),
+    queryFn: () => engineApi.lookupManualHolding(accountId, identifierType, identifierValue),
+    enabled: accountId.length > 0 && identifierType.length > 0 && identifierValue.length > 0,
     staleTime: 15_000,
     retry: 1,
   });

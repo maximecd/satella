@@ -234,18 +234,21 @@ const buildAccounts = (
       externalId: "trading",
       name: "Trading",
       baseCurrencyIso: "USD",
+      accountKind: "crypto",
       positions: tradingPositions,
     },
     {
       externalId: "funding",
       name: "Funding",
       baseCurrencyIso: "USD",
+      accountKind: "crypto",
       positions: fundingPositions,
     },
     {
       externalId: "earn",
       name: "Earn",
       baseCurrencyIso: "USD",
+      accountKind: "crypto",
       positions: earnPositions,
     },
   ];
@@ -331,6 +334,7 @@ export const makeOkxConnector = <R = HttpClient.HttpClient>(
   name: "OKX",
   icon: okxIcon,
   instructions: okxInstructions,
+  assetClasses: ["crypto"],
   credentialFields: [
     {
       key: "apiKey",

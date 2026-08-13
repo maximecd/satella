@@ -1,3 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { CreateCustomAssetScreen } from "../screens/assets";
-export const Route = createFileRoute("/assets/custom/new")({ component: CreateCustomAssetScreen });
+import { createFileRoute, redirect } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/assets/custom/new")({
+  beforeLoad: () => {
+    throw redirect({ to: "/" });
+  },
+});

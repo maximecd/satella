@@ -104,6 +104,7 @@ export const normalizeConnectorAccounts = (
         externalAccountId,
         name: account.name.trim(),
         baseCurrencyIso,
+        accountKind: account.accountKind,
         positions,
       });
     }

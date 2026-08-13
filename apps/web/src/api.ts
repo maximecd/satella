@@ -1,6 +1,9 @@
 import * as FetchHttpClient from "@effect/platform/FetchHttpClient";
 import * as HttpApiClient from "@effect/platform/HttpApiClient";
 import type {
+  AddCashAccountInput,
+  AddManualHoldingInput,
+  AddOtherAssetInput,
   AssetSearchResult,
   ConnectCustodianInput,
   CreateAccountInput,
@@ -29,6 +32,20 @@ export const getHello = () => request((client) => client.system.hello({}));
 
 export const engineApi = {
   connectorCapabilities: () => request((client) => client.finance.connectorCapabilities({})),
+  getDashboard: () => request((client) => client.finance.getDashboard({})),
+  listManualCustodians: () => request((client) => client.finance.listManualCustodians({})),
+  lookupManualHolding: (accountId: string, identifierType: string, identifierValue: string) =>
+    request((client) =>
+      client.finance.lookupManualHolding({
+        urlParams: { accountId, identifierType, identifierValue },
+      }),
+    ),
+  addManualHolding: (payload: AddManualHoldingInput) =>
+    request((client) => client.finance.addManualHolding({ payload })),
+  addCashAccount: (payload: AddCashAccountInput) =>
+    request((client) => client.finance.addCashAccount({ payload })),
+  addOtherAsset: (payload: AddOtherAssetInput) =>
+    request((client) => client.finance.addOtherAsset({ payload })),
   listCustodians: () => request((client) => client.finance.listCustodians({})),
   getCustodian: (id: string) => request((client) => client.finance.getCustodian({ path: { id } })),
   createCustodian: (payload: CreateCustodianInput) =>

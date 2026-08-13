@@ -16,6 +16,12 @@ vi.mock("./api", () => ({
     connectorCapabilities: vi.fn(),
     connectCustodian: vi.fn(),
     resyncCustodian: vi.fn(),
+    getDashboard: vi.fn(),
+    listManualCustodians: vi.fn(),
+    lookupManualHolding: vi.fn(),
+    addManualHolding: vi.fn(),
+    addCashAccount: vi.fn(),
+    addOtherAsset: vi.fn(),
     listCustodians: vi.fn(),
     getCustodian: vi.fn(),
     createCustodian: vi.fn(),
@@ -47,7 +53,9 @@ const account: Account = {
   custodianId: "custodian-1",
   custodianName: "Broker",
   managementMode: "manual",
+  presentationRole: null,
   name: "Portfolio",
+  accountKind: "securities",
   baseCurrencyAssetId: "fiat:USD",
   baseCurrencyIso: "USD",
   connectorAccountId: null,
@@ -90,6 +98,7 @@ const syncedCustodian: Custodian = {
   id: "custodian-1",
   name: "OKX",
   managementMode: "synced",
+  presentationRole: null,
   connectorId: "okx",
   accounts: [],
   createdAt: "2026-08-11T00:00:00.000Z",
@@ -120,6 +129,8 @@ describe("finance routes", () => {
   beforeEach(() => {
     vi.mocked(engineApi.connectorCapabilities).mockResolvedValue({ connectors: [] });
     vi.mocked(engineApi.listCustodians).mockResolvedValue([]);
+    vi.mocked(engineApi.listManualCustodians).mockResolvedValue([]);
+    vi.mocked(engineApi.getDashboard).mockResolvedValue({ accounts: [] });
     vi.mocked(engineApi.listAssets).mockResolvedValue([]);
     vi.mocked(engineApi.getAccount).mockResolvedValue(account);
     vi.mocked(engineApi.getPositionAccount).mockResolvedValue(account);
@@ -133,35 +144,55 @@ describe("finance routes", () => {
     expect(engineApi.listCustodians).toHaveBeenCalledOnce();
   });
 
-  it("keeps synced setup hidden when the connector registry is empty", async () => {
-    renderRoute("/custodians/new");
-    expect(await screen.findByRole("heading", { name: "Add custodian" })).toBeInTheDocument();
-    expect(screen.queryByText("Sync now")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Connector")).not.toBeInTheDocument();
+  it("renders the dashboard instead of redirecting away from /", async () => {
+    renderRoute("/");
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Add assets" }).length).toBeGreaterThan(0);
+    expect(screen.getByText("No assets yet")).toBeInTheDocument();
+    expect(engineApi.getDashboard).toHaveBeenCalled();
   });
 
-  it("waits until submit to show friendly errors and trims text fields on blur", async () => {
+  it("opens the add assets modal with a searchable category list", async () => {
     const user = userEvent.setup();
-    renderRoute("/custodians/new/manual");
-    const input = await screen.findByLabelText("Name");
+    renderRoute("/");
+    await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
+    expect(await screen.findByRole("heading", { name: "Add assets" })).toBeInTheDocument();
+    expect(screen.queryByText("What do you want to add?")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Form progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "0",
+    );
+    const search = screen.getByLabelText("Search categories");
+    await user.type(search, "crypto");
+    expect(screen.getByText("Crypto")).toBeInTheDocument();
+    expect(screen.queryByText("Current accounts")).not.toBeInTheDocument();
+  });
 
-    expect(screen.queryByText("Name is required.")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Expected a non empty string/)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Create custodian" }));
-    expect(screen.getByText("Name is required.")).toBeInTheDocument();
-
-    await user.type(input, " Broker ");
+  it("skips connectors for other assets and validates the form after submit", async () => {
+    const user = userEvent.setup();
+    renderRoute("/");
+    await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
+    await user.click(await screen.findByRole("button", { name: /Other assets/ }));
+    expect(await screen.findByRole("progressbar", { name: "Form progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "1",
+    );
+    expect(screen.getByRole("progressbar", { name: "Form progress" })).toHaveAttribute(
+      "aria-valuemax",
+      "2",
+    );
+    const name = await screen.findByLabelText("Asset name");
+    expect(screen.queryByText("Asset name is required.")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add asset" }));
+    expect(screen.getByText("Asset name is required.")).toBeInTheDocument();
+    await user.type(name, " Watch ");
     await user.tab();
-    expect(input).toHaveValue("Broker");
-    expect(input).not.toHaveAttribute("aria-invalid", "true");
-    expect(screen.queryByText(/leading or trailing whitespace/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/cannot start or end with spaces/)).not.toBeInTheDocument();
+    expect(name).toHaveValue("Watch");
   });
 
   it("renders connector setup fields from connector metadata", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.connectorCapabilities).mockResolvedValueOnce({
+    vi.mocked(engineApi.connectorCapabilities).mockResolvedValue({
       connectors: [
         {
           id: "okx",
@@ -169,6 +200,7 @@ describe("finance routes", () => {
           icon: "data:image/svg+xml;base64,PHN2Zy8+",
           instructions:
             "# Connect OKX\n\nCreate a read-only API key.\n\n## Checklist\n\n| Field | Required |\n| --- | --- |\n| API key | Yes |",
+          assetClasses: ["crypto"],
           credentialFields: [
             { key: "apiKey", label: "API key", kind: "text", required: true },
             { key: "secretKey", label: "Secret key", kind: "password", required: true },
@@ -184,26 +216,33 @@ describe("finance routes", () => {
       ],
     });
 
-    renderRoute("/custodians/new/connector");
-    expect(await screen.findByRole("heading", { name: "Connect a service" })).toBeInTheDocument();
-    const search = screen.getByLabelText("Search connectors");
+    renderRoute("/");
+    await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
+    await user.click(await screen.findByRole("button", { name: /Crypto/ }));
+    expect(await screen.findByRole("progressbar", { name: "Form progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "1",
+    );
+    expect(screen.getByRole("progressbar", { name: "Form progress" })).toHaveAttribute(
+      "aria-valuemax",
+      "3",
+    );
+    const search = await screen.findByLabelText("Search connectors");
     await user.type(search, "missing");
     expect(screen.getByText("No connectors found")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Connect OKX" })).not.toBeInTheDocument();
     await user.clear(search);
     await user.click(screen.getByRole("button", { name: "Connect OKX" }));
 
-    expect(await screen.findByRole("heading", { name: "Connect OKX" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Connect a service" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Add assets" })).toBeInTheDocument();
     const instructionsToggle = screen.getByRole("button", { name: "Setup instructions" });
     expect(instructionsToggle).toHaveAttribute("aria-expanded", "false");
     await user.click(instructionsToggle);
     expect(instructionsToggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("heading", { name: "Checklist" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "API key" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Choose another connector" })).toBeInTheDocument();
     expect(screen.getByText("Create a read-only API key.")).toBeInTheDocument();
-    expect(screen.getByText("Custodian name")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getAllByText("API key").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Secret key").length).toBeGreaterThan(0);
     expect(screen.getByText("Region")).toBeInTheDocument();
@@ -228,6 +267,7 @@ describe("finance routes", () => {
         {
           id: "okx",
           name: "OKX",
+          assetClasses: ["crypto"],
           credentialFields: [
             { key: "apiKey", label: "API key", kind: "text", required: true },
             { key: "secretKey", label: "Secret key", kind: "password", required: true },
@@ -346,5 +386,127 @@ describe("finance routes", () => {
     await user.click(screen.getByRole("button", { name: "Save quantity" }));
     expect(screen.getByText("Quantity is required.")).toBeInTheDocument();
     expect(screen.queryByText(/Unable to decode/)).not.toBeInTheDocument();
+  });
+
+  it("keeps Settings as the path to raw custodians", async () => {
+    renderRoute("/settings");
+    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Custodians/ })).toHaveAttribute("href", "/custodians");
+    expect(screen.getByRole("link", { name: /^Assets/ })).toHaveAttribute("href", "/assets");
+  });
+
+  it("collects a manual crypto holding on one form", async () => {
+    const user = userEvent.setup();
+    vi.mocked(engineApi.listAssets).mockResolvedValue([
+      {
+        id: "fiat:USD",
+        assetClass: "fiat",
+        name: "US Dollar",
+        symbol: "USD",
+        identifiers: [],
+        price: null,
+        createdAt: "2026-08-11T00:00:00.000Z",
+        updatedAt: "2026-08-11T00:00:00.000Z",
+      },
+    ]);
+    vi.mocked(engineApi.searchAssets).mockResolvedValue([
+      {
+        provider: "coingecko",
+        assetClass: "crypto",
+        name: "Bitcoin",
+        symbol: "BTC",
+        identifiers: [{ type: "coingecko", value: "bitcoin" }],
+      },
+    ]);
+    vi.mocked(engineApi.addManualHolding).mockResolvedValue({
+      accountId: "account-2",
+      custodianId: "custodian-2",
+      accountName: "Spot",
+      positionOutcome: "created",
+    });
+
+    renderRoute("/");
+    await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
+    await user.click(await screen.findByRole("button", { name: /Crypto/ }));
+
+    expect(await screen.findByRole("progressbar", { name: "Form progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "1",
+    );
+    expect(screen.getByRole("progressbar", { name: "Form progress" })).toHaveAttribute(
+      "aria-valuemax",
+      "2",
+    );
+    expect(screen.queryByText("What do you want to add?")).not.toBeInTheDocument();
+    expect(screen.queryByText("Find crypto")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Choose a platform or wallet")).toBeInTheDocument();
+    expect(screen.getByLabelText("Choose an account")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Asset"), "bitcoin");
+    await user.click(await screen.findByRole("button", { name: /Bitcoin · BTC/ }));
+    await user.type(screen.getByLabelText("Choose a platform or wallet"), "Coinbase");
+    await user.type(screen.getByLabelText("Choose an account"), "Spot");
+    await user.type(screen.getByLabelText("Quantity"), "1.5");
+    await user.click(screen.getByRole("button", { name: "Add quantity" }));
+
+    await waitFor(() =>
+      expect(engineApi.addManualHolding).toHaveBeenCalledWith({
+        asset: {
+          assetClass: "crypto",
+          name: "Bitcoin",
+          symbol: "BTC",
+          identifiers: [{ type: "coingecko", value: "bitcoin" }],
+        },
+        custodian: { type: "new", name: "Coinbase" },
+        account: { type: "new", name: "Spot", baseCurrencyAssetId: "fiat:USD" },
+        quantity: 1.5,
+      }),
+    );
+  });
+
+  it("collects a cash account on one form", async () => {
+    const user = userEvent.setup();
+    vi.mocked(engineApi.listAssets).mockResolvedValue([
+      {
+        id: "fiat:USD",
+        assetClass: "fiat",
+        name: "US Dollar",
+        symbol: "USD",
+        identifiers: [],
+        price: null,
+        createdAt: "2026-08-11T00:00:00.000Z",
+        updatedAt: "2026-08-11T00:00:00.000Z",
+      },
+    ]);
+    vi.mocked(engineApi.addCashAccount).mockResolvedValue({
+      accountId: "account-3",
+      custodianId: "custodian-3",
+      accountName: "Checking",
+      positionOutcome: "created",
+    });
+
+    renderRoute("/");
+    await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
+    await user.click(await screen.findByRole("button", { name: /Current accounts/ }));
+
+    expect(await screen.findByLabelText("Choose a bank")).toBeInTheDocument();
+    expect(screen.getByLabelText("Account name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Balance")).toBeInTheDocument();
+    expect(screen.queryByText("New account")).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Choose a bank"), "Chase");
+    await user.type(screen.getByLabelText("Account name"), "Checking");
+    await user.type(screen.getByLabelText("Balance"), "2500");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    await waitFor(() =>
+      expect(engineApi.addCashAccount).toHaveBeenCalledWith({
+        accountKind: "current",
+        custodian: { type: "new", name: "Chase" },
+        accountName: "Checking",
+        currencyAssetId: "fiat:USD",
+        balance: 2500,
+      }),
+    );
   });
 });

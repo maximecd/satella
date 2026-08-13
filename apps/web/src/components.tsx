@@ -17,7 +17,8 @@ import { useState } from "react";
 
 export function RootLayout() {
   const pathname = useLocation({ select: (location) => location.pathname });
-  const isSelected = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+  const isDashboard = pathname === "/";
+  const isSettings = pathname === "/settings" || pathname.startsWith("/settings/");
 
   const navigation = (
     <SideNav
@@ -27,19 +28,19 @@ export function RootLayout() {
       <SideNavSection title="Workspace">
         <SideNavItem
           as={RouterLink}
-          href="/custodians"
-          icon="wrench"
-          selectedIcon="wrench"
-          label="Custodians"
-          isSelected={isSelected("/custodians")}
+          href="/"
+          icon="home"
+          selectedIcon="home"
+          label="Dashboard"
+          isSelected={isDashboard}
         />
         <SideNavItem
           as={RouterLink}
-          href="/assets"
-          icon="search"
-          selectedIcon="search"
-          label="Assets"
-          isSelected={isSelected("/assets")}
+          href="/settings"
+          icon="settings"
+          selectedIcon="settings"
+          label="Settings"
+          isSelected={isSettings}
         />
       </SideNavSection>
     </SideNav>

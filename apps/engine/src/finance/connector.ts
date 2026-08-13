@@ -2,7 +2,7 @@ import * as SqlClient from "@effect/sql/SqlClient";
 import * as Effect from "effect/Effect";
 import { randomUUID } from "node:crypto";
 
-import type { AssetClass, IdentifierInput } from "./contracts.js";
+import type { AccountKind, AssetClass, IdentifierInput } from "./contracts.js";
 import { FinanceApiError } from "./contracts.js";
 
 export interface NormalizedConnectorAsset {
@@ -27,6 +27,7 @@ export interface NormalizedConnectorAccount {
   readonly externalAccountId: string;
   readonly name: string;
   readonly baseCurrencyIso: string;
+  readonly accountKind: Exclude<AccountKind, "other">;
   readonly positions: ReadonlyArray<NormalizedConnectorPosition>;
 }
 
@@ -318,10 +319,11 @@ export const reconcileConnector = (
           const accountId = existing[0]?.id ?? randomUUID();
           if (existing[0] === undefined) {
             yield* sql`INSERT INTO accounts
-              (id, custodian_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
-              VALUES (${accountId}, ${custodianId}, ${name}, ${currencyId}, ${account.externalAccountId}, ${timestamp}, ${timestamp})`;
+              (id, custodian_id, name, account_kind, base_currency_asset_id, connector_account_id, created_at, updated_at)
+              VALUES (${accountId}, ${custodianId}, ${name}, ${account.accountKind}, ${currencyId}, ${account.externalAccountId}, ${timestamp}, ${timestamp})`;
           } else {
-            yield* sql`UPDATE accounts SET name = ${name}, base_currency_asset_id = ${currencyId},
+            yield* sql`UPDATE accounts SET name = ${name}, account_kind = ${account.accountKind},
+              base_currency_asset_id = ${currencyId},
               updated_at = ${timestamp} WHERE id = ${accountId}`;
           }
           seenAccountIds.push(accountId);
