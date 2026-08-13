@@ -2,40 +2,29 @@
 
 ## Goal
 
-Split the current `@optimus/connectors` package so the connector contract is independent and every provider connector is its own npm package. Optimus should explicitly compose the connectors it ships, while a future user or downstream distribution can install, import, and register only the connector packages it wants.
+Replace the monolithic `@optimus/connectors` workspace with one provider-free authoring package and one independently buildable package per provider:
 
-The first target package set is:
+| Package | Responsibility |
+| --- | --- |
+| `@optimus/connector-core` | Connector contracts, schemas, errors, output validation, registry construction, and capability projection |
+| `@optimus/connector-okx` | OKX credentials, client, schemas, connector factory/default instance, instructions, and icon |
+| `@optimus/connector-ibkr` | IBKR Flex credentials, client, parser, schemas, connector factory/default instance, instructions, and icon |
 
-| Package | Responsibility | Provider code included |
-| --- | --- | --- |
-| `@optimus/connector-core` | Public connector contract, schemas, errors, output validation, capability projection, and registry construction | None |
-| `@optimus/connector-okx` | OKX credentials, client, schemas, assets, connector factory, and default connector instance | OKX only |
-| `@optimus/connector-ibkr` | IBKR Flex credentials, client, parser, schemas, assets, connector factory, and default connector instance | IBKR only |
+Do not keep an umbrella package or compatibility facade. The engine is the application composition root and explicitly selects the providers Optimus ships.
 
-Do not retain an umbrella package that depends on and re-exports every provider. Such a package would make installing one connector install all built-ins and would recreate the coupling this change is intended to remove.
+## Current Architecture Standards
 
-## Current-State Findings
+This plan follows the tooling and Effect architecture established by plan 08:
 
-Today `packages/connectors` combines four concerns:
-
-- shared connector types and output validation in `src/connector.ts`;
-- generic registry/capability helpers in `src/registry.ts`;
-- OKX and IBKR implementations, runtime dependencies, tests, instructions, and icons;
-- the concrete built-in registry that imports both providers.
-
-This creates several practical problems:
-
-- consumers cannot depend on the contract without also installing both implementations and their transitive dependencies;
-- provider-only dependencies such as `saxes` are installed for unrelated connectors;
-- the engine imports one package for both the contract and a hard-coded global registry;
-- root build, typecheck, and development scripts name the monolithic package directly;
-- adding another connector requires editing the monolith's exports, asset-copy behavior, tests, and root tooling.
-
-The split should remove those assumptions rather than only move files into more folders.
+- Effect 4 imports come directly from supported `effect/*` and `effect/unstable/*` exports; packages must not add local Effect re-export modules.
+- Every workspace uses Vite+ for pack, test, coverage, formatting, and lint integration.
+- Tests are colocated with their subject and use only `.test.ts`; do not create `test/` trees or suffixes such as `.integration.test.ts`.
+- Each package has one `vite.config.ts` merged with the root config and one package-local `tsconfig.json`.
+- Root recursive commands discover packages from the workspace graph; they must not enumerate connector package names.
+- Do not add CI configuration or general-purpose tooling scripts for this split.
+- Coverage floors are measured package baselines and should be ratcheted upward as tests grow.
 
 ## Package Boundaries
-
-Use sibling workspace packages so pnpm can infer the build graph from package dependencies:
 
 ```text
 packages/
@@ -43,276 +32,115 @@ packages/
     src/
       connector.ts
       registry.ts
-      index.ts
-    test/
-      connector.test.ts
       registry.test.ts
+      index.ts
     package.json
     tsconfig.json
-    vitest.config.mjs
+    vite.config.ts
   connector-okx/
     src/
       client.ts
       connector.ts
+      connector.test.ts
       schemas.ts
-      index.ts
       icon.svg
       instructions.md
-    test/
-      okx.test.ts
+      index.ts
     package.json
     tsconfig.json
-    vitest.config.mjs
+    vite.config.ts
   connector-ibkr/
     src/
       client.ts
       connector.ts
+      connector.test.ts
       parser.ts
       schemas.ts
-      index.ts
       icon.svg
       instructions.md
-    test/
-      ibkr.test.ts
-      fixtures/
-        ...
+      index.ts
     package.json
     tsconfig.json
-    vitest.config.mjs
+    vite.config.ts
 ```
 
-The workspace already includes `packages/*`, so these directories require no workspace-glob change.
+### Core
 
-### `@optimus/connector-core`
+`@optimus/connector-core` is the complete third-party connector authoring surface. It exports connector types, credential metadata, account/asset schemas, connector errors, output validation, the read-only registry API, registry construction, and capability projection.
 
-Move the provider-neutral contents of `connector.ts` here. Keep Effect schemas, connector error types, the `Connector`, `AuthenticatedConnector`, and output data contracts, and `validateConnectorOutput` in this package.
+Core must not import a provider, the engine, Node filesystem APIs, or provider-only dependencies. Registry construction must:
 
-Move only generic registry behavior from `registry.ts`:
+- reject duplicate IDs;
+- reject empty IDs and names;
+- require at least one declared asset class;
+- preserve caller order;
+- expose no mutation methods;
+- derive discovery capabilities from the same registry used for lookup.
 
-- `ConnectorCapability`;
-- `ConnectorRegistry`;
-- validation that IDs are non-empty and asset classes are declared;
-- capability projection;
-- `connectorRegistryFrom`.
+### Providers
 
-Strengthen registry construction while it is being made public:
+Each provider imports the public contract only from `@optimus/connector-core`. Providers never import one another or engine code. Each root export intentionally exposes its credentials/schema types, client/parser surface, connector factory, and provider-named default connector.
 
-- reject duplicate connector IDs instead of silently letting `Map` keep the last entry;
-- reject empty or whitespace-only IDs and names;
-- keep registry iteration order equal to the caller's explicit connector order;
-- return an immutable/read-only registry API to consumers;
-- derive public capability data from the constructed registry so discovery and execution cannot drift.
-
-Do not import OKX, IBKR, Node filesystem APIs, or provider-specific dependencies from core. Do not expose a `BuiltinConnectorRegistry` or `BUILTIN_CONNECTOR_CAPABILITIES` constant from core because built-in selection belongs to the application composition root.
-
-Treat `@optimus/connector-core` as the public authoring surface for future custom connectors. Its root export should be sufficient for a third-party package to implement and type-check a connector without importing engine, database, web, or another provider package.
-
-### Provider packages
-
-Each provider package owns all code and static assets required by that provider and exports:
-
-- its credentials schema and useful public credential type;
-- its connector options and connector factory for testing or customized transports;
-- its default connector instance;
-- provider client/parser/schema exports that are intentionally public today.
-
-Update provider-relative imports such as `../connector.js` to import the public contract from `@optimus/connector-core`. Provider packages must not import each other or the engine.
-
-Keep runtime dependencies narrow:
+Runtime dependencies remain narrow:
 
 | Package | Runtime dependencies |
 | --- | --- |
-| `@optimus/connector-core` | `effect` |
-| `@optimus/connector-okx` | `@optimus/connector-core`, `@effect/platform`, `effect` |
-| `@optimus/connector-ibkr` | `@optimus/connector-core`, `@effect/platform`, `effect`, `saxes` |
+| core | `effect` |
+| OKX | core, `effect` |
+| IBKR | core, `effect`, `saxes` |
 
-Confirm the exact imports after the move and do not copy a dependency into a manifest merely because it existed in the old package. Declare `@optimus/connector-core` with a workspace range that pnpm can rewrite to a normal semver range when packed or published; avoid publishing a manifest with an unusable workspace-only reference.
+Provider Markdown and SVG source use the Vite+ pack text loader and are embedded in the built JavaScript. This keeps runtime asset loading reliable without filesystem reads, copied asset directories, or new scripts. Package tests assert that the exported default connector contains usable instructions and a data-URI icon.
 
-## Application Composition
+## Package Shape
 
-Create one engine-owned composition module, for example `apps/engine/src/finance/connectors.ts`, that explicitly imports `OkxConnector` and `IbkrConnector`, constructs the default registry with `connectorRegistryFrom`, and derives its capabilities.
+Each package is private during this migration but independently packable:
 
-```ts
-import { connectorCapabilities, connectorRegistryFrom } from "@optimus/connector-core";
-import { IbkrConnector } from "@optimus/connector-ibkr";
-import { OkxConnector } from "@optimus/connector-okx";
+- ESM package with `main`, `types`, and an explicit root `exports` map pointing to `dist`;
+- `files: ["dist"]` and no source/tests in the tarball;
+- package-local `build`, `dev`, `test`, `test:watch`, `test:coverage`, and `typecheck` commands;
+- dependency imports externalized from the bundle while provider-owned code and raw assets are bundled;
+- workspace dependencies declared with `workspace:*`, which pnpm rewrites in packed manifests;
+- no deep imports into another package's `src` or `dist`.
 
-export const CONNECTOR_REGISTRY = connectorRegistryFrom([OkxConnector, IbkrConnector]);
-export const CONNECTOR_CAPABILITIES = connectorCapabilities(CONNECTOR_REGISTRY);
-```
+## Engine Composition
 
-This is static, trusted composition. Dynamic loading of arbitrary package names, downloading packages at runtime, user-supplied JavaScript execution, sandboxing, and a connector marketplace are explicitly out of scope. The structure should make a later custom build straightforward: install a connector package, import its connector in this one module, and add it to the ordered list.
+`apps/engine/src/finance/connectors/registry.ts` is the only built-in selection point. It imports OKX and IBKR, constructs the ordered registry, and derives public capabilities from that registry.
 
-Update the engine so:
+Contract-only engine code imports from core. Discovery and synchronization share the composed registry. Registry-dependent helpers accept a registry so tests and custom distributions can supply a synthetic selection without editing core or a provider.
 
-- contract-only code imports types and errors from `@optimus/connector-core`;
-- the engine package declares direct workspace dependencies on core, OKX, and IBKR;
-- connector discovery and sync use the same engine-owned registry instance;
-- `config.ts` no longer reaches into a connector package for a global built-in list;
-- no web or desktop package imports provider implementations directly.
+No web or desktop source imports provider packages. Runtime package discovery, downloading packages, arbitrary package names, untrusted code execution, marketplaces, and plugin sandboxing remain out of scope.
 
-Prefer passing the registry into registry-dependent functions or exposing it through a small engine-owned catalog abstraction rather than hiding another hard-coded provider global inside `connector-service.ts`. Keep a default composed catalog for the normal app, while making the sync logic testable with a registry containing a synthetic connector. This is the seam a future custom distribution will use.
+## Build and Development
 
-## npm Package Shape and Exports
+Root `vp run -r` commands use workspace dependencies to build and verify packages in topological order.
 
-Give every new package a complete, independently valid manifest:
+Package exports point at `dist`, so development establishes one complete connector-package build before applications start. The existing development supervisor then starts one generalized `packages/connector-*` watch command with cleaning disabled, the engine, web, and desktop. This prevents each watcher's initial compilation from deleting the ready output. Engine `tsx watch` includes connector package output so changes to core or either provider restart it. Adding a future `connector-*` workspace requires no root-script enumeration.
 
-- unique scoped `name` and package-local `version`;
-- ESM `type`, `main`, `types`, and an explicit `exports` map;
-- `files` restricted to `dist` plus any deliberately shipped metadata;
-- package-local `build`, `dev`, `typecheck`, and `test` scripts;
-- accurate `dependencies` and `devDependencies`;
-- `sideEffects: false` only after confirming module initialization has no required side effects;
-- the repository's license/repository metadata when it exists or is introduced.
+The old `packages/connectors` directory, package name, copy-assets script, build output, and watch paths must be removed completely.
 
-Keep packages private during the structural migration if the repository is not ready to publish. “npm package” here means a real independently packable package boundary; publishing to a registry, choosing public versions, release automation, provenance, and npm access configuration are a separate release decision.
+## Verification
 
-Use a narrow root export for each package. Avoid deep-import contracts into `dist` or `src`; consumers must import only documented export-map paths. Make the default instance and factory names provider-specific so several connector packages can be imported together without aliases.
+Required checks:
 
-## Static Assets
+1. Core builds and tests without provider dependencies.
+2. Each provider builds and tests with only core and its own dependencies.
+3. Duplicate IDs and incomplete registry metadata fail deterministically.
+4. Engine composition order remains OKX then IBKR.
+5. Discovery and execution reference the same registry.
+6. A synthetic connector registry can be composed without changing core.
+7. Provider tests verify embedded Markdown and icon exports without network access.
+8. Packed tarballs contain only package metadata and `dist`, import successfully, and contain no other provider, tests, fixtures, secrets, or source.
+9. No non-generated repository file refers to `@optimus/connectors` or `packages/connectors`.
+10. Root check, test, coverage, build, test-watch, and dev workflows pass under Node 26.7.0.
+11. Dev mode starts engine, web, connector watchers, and Electron; connector output changes cause an engine restart.
 
-Each provider package must ship its own `instructions.md` and `icon.svg` beside the compiled module path expected by `import.meta.url` and `readFileSync`.
+## Non-Goals
 
-Replace the monolith-specific copy script with a reusable workspace script, such as `scripts/copy-package-assets.mjs`, that:
-
-- operates on the calling package's explicit source and destination directories;
-- copies only an allowlist of `.md` and `.svg` assets while retaining relative paths;
-- fails clearly when its source directory is missing;
-- never scans or writes outside the invoking package;
-- is used by both provider build scripts after TypeScript compilation.
-
-Alternatively, keep a tiny copy script in each package if sharing it makes invocation or publishing less reliable. Do not publish references back to repository files outside the package.
-
-Add post-build/package tests that import each connector from its built package entry and assert that its data-URI icon and Markdown instructions load. Unit tests that import `src` alone are insufficient because they do not catch missing assets in `dist` or the packed tarball.
-
-## Build and Development Tooling
-
-Remove hard-coded knowledge of `@optimus/connectors` from root and engine scripts. Let pnpm's workspace dependency graph determine ordering.
-
-### Root scripts
-
-Change root orchestration so normal commands cover all packages and applications, including future connectors, without adding every new package name:
-
-- `build`: run workspace builds recursively in topological order;
-- `typecheck`: run every workspace's typecheck in dependency order;
-- `test`: run every workspace's tests, not only the web tests;
-- `test:coverage`: either run coverage in every workspace that defines it or clearly retain an app-specific command under a specific name;
-- `format`, `format:check`, and `lint`: continue operating from the repository root;
-- use `--if-present` only where a workspace legitimately may not define a script; do not let it conceal a missing required script on one of the connector packages.
-
-Remove engine `prebuild`, `pretypecheck`, and `pretest` hooks that rebuild connector packages redundantly when the root recursive command already follows the dependency graph. Package-local direct commands should use an explicit pnpm dependency selector or documented prerequisite rather than recursively invoking the same lifecycle and building dependencies twice.
-
-### Development watch mode
-
-Update `scripts/dev.mjs` to start watch builds for all workspace packages needed by the engine rather than naming one monolith. Build the dependency closure once before watchers and applications start so the engine never boots against missing `dist` files. Then run package watchers in parallel with engine, web, and desktop processes under the existing fail-fast process supervisor.
-
-Update the engine's `tsx watch --include` paths to cover all connector package output directories, including core. Verify changes in core and either provider trigger an engine restart, and that adding a future `packages/connector-*` workspace does not require another hard-coded watch process.
-
-Avoid an ordering race in which engine starts while a provider's first compile or asset copy is incomplete. The initial topological build is the readiness barrier; watch processes only handle subsequent edits.
-
-### TypeScript project behavior
-
-Give every package its own `rootDir`, `outDir`, declarations, NodeNext module settings, and include list. Rely on package imports and built declarations across package boundaries rather than TypeScript path aliases that bypass package exports.
-
-Use clean builds in verification so stale files from the old monolith cannot make imports appear to work. Ensure the old `packages/connectors/dist` directory is not required by any command after migration.
-
-## Tests and Verification
-
-Redistribute existing tests by ownership:
-
-- generic output validation and registry tests move to `connector-core`;
-- OKX tests move unchanged in behavior to `connector-okx`;
-- IBKR tests and fixtures move unchanged in behavior to `connector-ibkr`;
-- engine tests cover the explicit default composition, public capabilities, unknown connector handling, and injection of a synthetic registry.
-
-Add coverage for the new boundaries:
-
-1. Core can build and test without either provider installed in its dependency graph.
-2. Each provider can build and test with only core plus its own declared dependencies.
-3. Duplicate connector IDs cause registry construction to fail deterministically.
-4. Default engine registry order and capabilities remain OKX then IBKR, preserving current UI behavior.
-5. Sync lookup and capability discovery are derived from the same registry.
-6. A synthetic/custom connector can be composed into a test registry without modifying core.
-7. Built provider entry points load successfully from `dist` with their Markdown and SVG assets present.
-8. `pnpm pack --dry-run` (or `pnpm pack` into a temporary directory) for each package contains declarations, JavaScript, instructions, and icon, and does not contain another provider's files, tests, source, secrets, or fixtures.
-9. Import smoke tests run against the packed package shape or built export map, not relative source paths.
-10. Full root `build`, `typecheck`, `lint`, `format:check`, and `test` commands succeed from a clean checkout.
-11. `pnpm dev` starts from clean build output and restarts the engine after edits to core, OKX, and IBKR.
-
-Keep network calls mocked in connector tests. Packaging verification must not authenticate against real providers and must never include real credentials or account data.
-
-## Migration Sequence
-
-### 1. Extract core
-
-- Create `packages/connector-core` and its manifest/configuration.
-- Move the connector contract, shared errors/schemas, output validation, and generic registry helpers.
-- Add the stronger registry invariants and core-owned tests.
-- Confirm core has no provider or Node asset-loading dependency.
-
-### 2. Extract OKX
-
-- Create `packages/connector-okx` with only OKX code, tests, instructions, and icon.
-- Replace relative shared-contract imports with `@optimus/connector-core`.
-- Declare only OKX's runtime dependencies.
-- Build and run OKX tests independently, including asset loading from output.
-
-### 3. Extract IBKR
-
-- Create `packages/connector-ibkr` with only IBKR code, tests, fixtures, instructions, and icon.
-- Replace relative shared-contract imports with `@optimus/connector-core`.
-- Keep `saxes` scoped to this package.
-- Build and run IBKR tests independently, including asset loading from output.
-
-### 4. Move composition into the engine
-
-- Add the engine connector composition/catalog module.
-- Replace all `@optimus/connectors` imports with core or the appropriate provider package.
-- Make discovery and execution share the composed registry.
-- Update engine manifest dependencies and add composition/injection tests.
-
-### 5. Generalize tooling
-
-- Introduce reliable per-package asset copying.
-- Replace hard-coded root build/typecheck/test scripts with dependency-aware workspace commands.
-- Update clean-start and watch-mode orchestration for every connector package.
-- Update the lockfile after manifests are final.
-
-### 6. Remove the monolith
-
-- Delete `packages/connectors` only after imports, tests, scripts, and lockfile references have moved.
-- Search the repository, generated output excluded, for `@optimus/connectors`, `packages/connectors`, old subpath exports, and old build/watch paths; none should remain.
-- Run verification from clean output so the deleted package cannot be resolved accidentally.
-
-### 7. Verify package artifacts and the full application
-
-- Inspect each package's packed file list and metadata.
-- Run the full root quality suite.
-- Start development mode and exercise connector discovery plus mocked/manual sync flows for both providers.
-- Confirm the web still receives the same capabilities and the engine still rejects unknown connector IDs safely.
-
-## Compatibility and Non-Goals
-
-This repository is currently internal/private, so perform the package rename as one atomic workspace migration rather than maintaining a deprecated `@optimus/connectors` compatibility facade. If external consumers are discovered before implementation, add a separately time-boxed deprecation release; do not silently preserve the umbrella forever.
-
-This phase does not:
-
-- change connector IDs, credential fields, authentication, reconciliation, or UI behavior;
-- add runtime connector discovery or accept arbitrary package names through the API;
-- execute untrusted third-party code;
-- define a remote registry, marketplace, signing model, or plugin sandbox;
-- publish packages or establish a public versioning/release policy;
-- combine provider packages through a convenience dependency that installs all connectors.
+- No connector behavior, IDs, credential fields, authentication, reconciliation, or UI changes.
+- No compatibility umbrella.
+- No publishing, release automation, provenance, npm access policy, CI, or marketplace work.
+- No runtime installation or execution of arbitrary connector packages.
 
 ## Completion Criteria
 
-The work is complete when:
-
-- there is one implementation package per connector and one provider-free core package;
-- installing either provider package does not install the other provider package;
-- the engine explicitly owns and can replace its connector composition;
-- connector discovery and sync use one registry;
-- a new connector package can be added without editing core or enumerating it in root build/test scripts;
-- each provider's built and packed output is independently usable and contains its required assets;
-- no source, manifest, script, test, or lockfile entry refers to the old monolithic package;
-- clean build, typecheck, lint, format check, full tests, pack smoke tests, and development watch verification all pass.
+The split is complete when there is one provider-free core package and one package per provider; the engine explicitly owns replaceable composition; package artifacts are independently usable; root orchestration discovers current and future connector packages; the monolith has no remaining references; and all verification above passes.

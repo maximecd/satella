@@ -39,7 +39,7 @@ export default defineConfig({
       "AGENTS.md",
       "apps/web/src/routeTree.gen.ts",
       "apps/web/src/themes/stone/**",
-      "packages/connectors/src/ibkr/instructions.md",
+      "packages/connector-ibkr/src/instructions.md",
       "dist",
       "coverage",
       "node_modules",

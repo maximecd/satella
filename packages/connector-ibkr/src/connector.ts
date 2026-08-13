@@ -2,7 +2,8 @@ import { HttpClient } from "effect/unstable/http";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { readFileSync } from "node:fs";
+import iconSvg from "./icon.svg";
+import instructions from "./instructions.md";
 
 import {
   Connector,
@@ -10,7 +11,7 @@ import {
   ConnectorAuthenticationError,
   ConnectorFetchAccountsError,
   validateConnectorOutput,
-} from "../connector.js";
+} from "@optimus/connector-core";
 import {
   IBKR_FLEX_ORIGIN,
   IbkrTransportError,
@@ -28,10 +29,8 @@ import {
   type IbkrFlexCredentials as IbkrCredentials,
 } from "./schemas.js";
 
-const ibkrInstructions = readFileSync(new URL("./instructions.md", import.meta.url), "utf8");
-const ibkrIcon = `data:image/svg+xml;base64,${readFileSync(
-  new URL("./icon.svg", import.meta.url),
-).toString("base64")}`;
+const ibkrInstructions = instructions;
+const ibkrIcon = `data:image/svg+xml;base64,${Buffer.from(iconSvg).toString("base64")}`;
 
 export interface IbkrConnectorOptions<R = HttpClient.HttpClient> {
   readonly transportFactory?: (origin: string) => IbkrHttpTransport<R>;

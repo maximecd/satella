@@ -48,6 +48,17 @@ const choosePort = async (envName, fallback) => {
   throw new Error(`No available port found starting at ${preferred}`);
 };
 
+const runToCompletion = (command, args, env) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(command, args, { env, stdio: "inherit" });
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      if (signal !== null) reject(new Error(`${command} exited from ${signal}`));
+      else if (code === 0) resolve();
+      else reject(new Error(`${command} exited with code ${code ?? 1}`));
+    });
+  });
+
 const run = async () => {
   const enginePort = await choosePort("OPTIMUS_ENGINE_PORT", defaults.engine);
   const webPort = await choosePort("OPTIMUS_WEB_PORT", defaults.web);
@@ -60,6 +71,11 @@ const run = async () => {
     OPTIMUS_WEB_URL: webUrl,
     VITE_ENGINE_URL: engineUrl,
   };
+  const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
+  // Package exports point at dist. Establish a complete, topologically ordered
+  // baseline before starting applications and incremental package watchers.
+  await runToCompletion(pnpm, ["--filter", "./packages/connector-*", "build"], env);
 
   console.log(`Engine: ${engineUrl}`);
   console.log(`Web:    ${webUrl}`);
@@ -69,7 +85,7 @@ const run = async () => {
     concurrently,
     [
       "--kill-others-on-fail",
-      "pnpm --filter @optimus/connectors dev",
+      "pnpm --filter './packages/connector-*' --parallel dev",
       "pnpm --filter @optimus/engine dev",
       `pnpm --filter @optimus/web dev -- --port ${webPort} --strictPort`,
       `wait-on ${engineUrl}/api/hello ${webUrl} && pnpm --filter @optimus/desktop dev`,

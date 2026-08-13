@@ -7,7 +7,7 @@ import {
   type OkxHttpRequest,
   type OkxHttpResponse,
   type OkxHttpTransport,
-} from "../index.js";
+} from "./index.js";
 
 const now = new Date("2020-12-08T09:21:46.894Z");
 

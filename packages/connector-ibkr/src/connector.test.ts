@@ -8,7 +8,7 @@ import {
   type IbkrHttpResponse,
   type IbkrHttpTransport,
   parseFlexXml,
-} from "../index.js";
+} from "./index.js";
 
 const credentials = { token: "synthetic-token", queryId: "987654" };
 

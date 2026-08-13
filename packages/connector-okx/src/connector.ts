@@ -1,7 +1,8 @@
 import { HttpClient } from "effect/unstable/http";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { readFileSync } from "node:fs";
+import iconSvg from "./icon.svg";
+import instructions from "./instructions.md";
 
 import {
   Connector,
@@ -9,7 +10,7 @@ import {
   ConnectorAuthenticationError,
   ConnectorFetchAccountsError,
   validateConnectorOutput,
-} from "../connector.js";
+} from "@optimus/connector-core";
 import {
   makeEffectHttpTransport,
   makeOkxClient,
@@ -26,10 +27,8 @@ import {
   OkxTradingBalanceResponse,
 } from "./schemas.js";
 
-const okxIcon = `data:image/svg+xml;base64,${readFileSync(
-  new URL("./icon.svg", import.meta.url),
-).toString("base64")}`;
-const okxInstructions = readFileSync(new URL("./instructions.md", import.meta.url), "utf8");
+const okxIcon = `data:image/svg+xml;base64,${Buffer.from(iconSvg).toString("base64")}`;
+const okxInstructions = instructions;
 
 export interface OkxConnectorOptions<R = HttpClient.HttpClient> {
   readonly transportFactory?: (origin: string) => OkxHttpTransport<R>;

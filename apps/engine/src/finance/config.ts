@@ -1,5 +1,5 @@
 import * as Duration from "effect/Duration";
-import { BUILTIN_CONNECTOR_CAPABILITIES } from "@optimus/connectors";
+import { CONNECTOR_CAPABILITIES as COMPOSED_CONNECTOR_CAPABILITIES } from "./connectors/registry.js";
 
 export const DEFAULT_REPORTING_CURRENCY = "USD" as const;
 
@@ -21,4 +21,4 @@ export const DEFAULT_MARKET_DATA_POLICY = {
 export const DEFAULT_SNAPSHOT_INTERVAL = Duration.days(1);
 
 /** Connector capabilities are derived from the explicitly compiled connector registry. */
-export const CONNECTOR_CAPABILITIES = BUILTIN_CONNECTOR_CAPABILITIES;
+export const CONNECTOR_CAPABILITIES = COMPOSED_CONNECTOR_CAPABILITIES;
