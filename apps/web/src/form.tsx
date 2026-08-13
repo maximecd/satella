@@ -12,22 +12,24 @@ const message = (errors: ReadonlyArray<unknown>, label: string, value: string) =
     typeof first === "object" && first !== null && "message" in first
       ? String(first.message)
       : String(first);
-  if (raw.includes("Expected a non empty string"))
+  if (raw.includes("Expected a non empty string") || raw.includes("a length of at least 1"))
     return value.trim() === "" ? `${label} is required.` : undefined;
-  if (raw.includes('Unable to decode "" into a number'))
+  if (
+    raw.includes('Unable to decode "" into a number') ||
+    (value.trim() === "" && raw.includes("decoded as a number"))
+  )
     return value.trim() === "" ? `${label} is required.` : undefined;
-  if (raw.includes("into a number")) return `Enter a valid ${label.toLocaleLowerCase()}.`;
+  if (
+    raw.includes("into a number") ||
+    raw.includes("decoded as a number") ||
+    raw.includes("Expected a finite number")
+  )
+    return `Enter a valid ${label.toLocaleLowerCase()}.`;
   if (raw.includes("Expected a string with no leading or trailing whitespace")) return undefined;
   return raw;
 };
 
-function TextField({
-  label,
-  number = false,
-}: {
-  readonly label: string;
-  readonly number?: boolean;
-}) {
+function TextField({ label }: { readonly label: string; readonly number?: boolean }) {
   const field = useFieldContext<string>();
   const form = useFormContext();
   const error = message(field.state.meta.errors, label, field.state.value);
@@ -52,7 +54,6 @@ function TextField({
           {...(submissionAttempts === 0 || error === undefined
             ? {}
             : { status: { type: "error" as const, message: error } })}
-          {...(number ? { inputMode: "decimal" } : {})}
         />
       )}
     </form.Subscribe>

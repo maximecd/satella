@@ -1,4 +1,4 @@
-import * as SqlClient from "@effect/sql/SqlClient";
+import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
 import { randomUUID } from "node:crypto";
 
@@ -401,5 +401,5 @@ export const reconcileConnector = (
         ? cause
         : new FinanceApiError({ code: "database", message: "Connector reconciliation failed" }),
     ),
-    Effect.catchAllDefect(() => fail("database", "Connector reconciliation failed")),
+    Effect.catchDefect(() => fail("database", "Connector reconciliation failed")),
   );

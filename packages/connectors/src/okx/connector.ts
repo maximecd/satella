@@ -1,4 +1,4 @@
-import * as HttpClient from "@effect/platform/HttpClient";
+import { HttpClient } from "effect/unstable/http";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { readFileSync } from "node:fs";
@@ -370,7 +370,7 @@ export const makeOkxConnector = <R = HttpClient.HttpClient>(
   credentialsSchema: OkxCredentials,
   authenticate: (input) =>
     Effect.gen(function* () {
-      const credentials = yield* Schema.decodeUnknown(OkxCredentials)(input).pipe(
+      const credentials = yield* Schema.decodeUnknownEffect(OkxCredentials)(input).pipe(
         Effect.mapError(() => authenticationError(undefined, "OKX credentials are invalid")),
       );
       const transport =

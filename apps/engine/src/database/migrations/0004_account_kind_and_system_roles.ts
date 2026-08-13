@@ -1,4 +1,4 @@
-import * as SqlClient from "@effect/sql/SqlClient";
+import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
 
 /**

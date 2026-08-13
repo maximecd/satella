@@ -3,38 +3,37 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "dist/main.js",
+  "main": "dist/main.mjs",
   "exports": {
-    "./api": "./src/api.ts"
+    "./api": {
+      "types": "./src/api/Api.ts",
+      "import": "./src/api/Api.ts",
+      "default": "./src/api/Api.ts"
+    }
   },
   "scripts": {
-    "build": "tsc -b",
-    "dev": "tsx watch --include ../../packages/connectors/dist src/main.ts",
-    "prebuild": "pnpm --filter @optimus/connectors build",
-    "pretest": "pnpm --filter @optimus/connectors build",
-    "pretypecheck": "pnpm --filter @optimus/connectors build",
-    "start": "node dist/main.js",
-    "test": "vitest run",
-    "typecheck": "tsc -b"
+    "build": "vp pack",
+    "dev": "tsx watch --include ../../packages/connectors/src src/main.ts",
+    "start": "node dist/main.mjs",
+    "test": "vp test run",
+    "test:coverage": "vp test run --coverage",
+    "test:watch": "vp test watch",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@coingecko/coingecko-typescript": "7.1.0",
-    "@effect/experimental": "0.61.0",
-    "@effect/platform": "0.97.1",
-    "@effect/platform-node": "0.108.1",
-    "@effect/sql": "0.52.0",
-    "@effect/sql-sqlite-node": "0.53.0",
+    "@effect/platform-node": "catalog:",
+    "@effect/sql-sqlite-node": "catalog:",
     "@optimus/connectors": "workspace:*",
-    "effect": "3.22.1",
+    "effect": "catalog:",
     "yahoo-finance2": "4.0.2"
   },
   "devDependencies": {
-    "@effect/vitest": "0.17.0",
-    "@types/better-sqlite3": "7.6.13",
-    "@types/node": "26.2.0",
-    "better-sqlite3": "12.11.1",
+    "@effect/tsgo": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
     "tsx": "4.23.11",
-    "typescript": "7.0.2",
-    "vitest": "2.1.9"
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

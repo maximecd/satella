@@ -8,7 +8,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { PositionQuantityFormInput } from "@optimus/engine/api";
+import { NumberFromNonEmptyString, PositionQuantityFormInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useEffect, useState } from "react";
 
@@ -31,8 +31,8 @@ import {
 } from "../queries";
 
 const CreatePositionForm = Schema.Struct({
-  assetId: Schema.NonEmptyTrimmedString,
-  quantity: Schema.NumberFromString,
+  assetId: Schema.Trim.check(Schema.isNonEmpty()),
+  quantity: NumberFromNonEmptyString,
 });
 
 const errorMessage = (error: unknown) =>
@@ -69,7 +69,7 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
   const form = useAppForm({
     defaultValues: { assetId: "", quantity: "" },
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.standardSchemaV1(CreatePositionForm) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(CreatePositionForm) },
     onSubmit: async ({ value }) => {
       const decoded = await Schema.decodeUnknownPromise(CreatePositionForm)(value);
       await mutation.mutateAsync({
@@ -283,7 +283,7 @@ function LoadedEditPosition({
   const form = useAppForm({
     defaultValues: { quantity: String(quantity) },
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.standardSchemaV1(PositionQuantityFormInput) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(PositionQuantityFormInput) },
     onSubmit: async ({ value }) => {
       // Standard Schema reports issues but intentionally preserves encoded HTML values.
       const decoded = await Schema.decodeUnknownPromise(PositionQuantityFormInput)(value);

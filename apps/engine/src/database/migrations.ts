@@ -1,7 +1,8 @@
-import * as SqlClient from "@effect/sql/SqlClient";
-import * as Migrator from "@effect/sql/Migrator";
-import * as SqlSchema from "@effect/sql/SqlSchema";
+import { Migrator } from "effect/unstable/sql";
+import { SqlClient } from "effect/unstable/sql";
+import { SqlSchema } from "effect/unstable/sql";
 import * as Sqlite from "@effect/sql-sqlite-node/SqliteClient";
+import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -109,7 +110,7 @@ const parseRegistry = (
 };
 
 const tableExists = (sql: SqlClient.SqlClient) =>
-  SqlSchema.findOne({
+  SqlSchema.findOneOption({
     Request: Schema.Struct({ table: Schema.String }),
     Result: MigrationTableRow,
     execute: ({ table }) =>
@@ -248,7 +249,7 @@ const backupTimestamp = (date: Date) =>
   date.toISOString().replaceAll(":", "-").replaceAll(".", "-");
 
 const createBackup = (
-  config: DatabaseConfig,
+  config: typeof DatabaseConfig.Service,
   sqlite: Sqlite.SqliteClient,
   sql: SqlClient.SqlClient,
   from: number,
@@ -265,14 +266,28 @@ const createBackup = (
     yield* sqlite.backup(path);
     const info = yield* Effect.tryPromise({
       try: () => stat(path),
-      catch: (cause) => cause,
+      catch: (cause) =>
+        new DatabaseBackupError({
+          path,
+          cause,
+          message: `Could not create a consistent pre-migration backup: ${path}`,
+        }),
     });
     if (!info.isFile() || info.size === 0) {
-      return yield* Effect.fail(new Error("SQLite backup was empty or was not a regular file"));
+      return yield* new DatabaseBackupError({
+        path,
+        cause: undefined,
+        message: `Could not create a consistent pre-migration backup: ${path}`,
+      });
     }
     yield* Effect.tryPromise({
       try: () => chmod(path, 0o600),
-      catch: (cause) => cause,
+      catch: (cause) =>
+        new DatabaseBackupError({
+          path,
+          cause,
+          message: `Could not create a consistent pre-migration backup: ${path}`,
+        }),
     });
     return path;
   }).pipe(
@@ -287,6 +302,10 @@ const createBackup = (
   );
 };
 
+class BackupPruneError extends Data.TaggedError("BackupPruneError")<{
+  readonly cause: unknown;
+}> {}
+
 const pruneBackups = (directory: string, retention: number) =>
   Effect.tryPromise({
     try: async () => {
@@ -298,9 +317,9 @@ const pruneBackups = (directory: string, retention: number) =>
         await unlink(join(directory, name));
       }
     },
-    catch: (cause) => cause,
+    catch: (cause) => new BackupPruneError({ cause }),
   }).pipe(
-    Effect.catchAllCause((cause) =>
+    Effect.catchCause((cause) =>
       Effect.logWarning("Could not prune old SQLite migration backups", cause),
     ),
   );
@@ -341,7 +360,7 @@ export const runMigrations = (options: MigrationRunOptions) =>
       loader: Migrator.fromRecord(options.registry),
       table: MIGRATIONS_TABLE,
     }).pipe(
-      Effect.catchAllCause((cause) =>
+      Effect.catchCause((cause) =>
         Effect.fail(
           new DatabaseMigrationError({
             cause,

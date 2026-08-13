@@ -1,8 +1,7 @@
-import * as HttpClient from "@effect/platform/HttpClient";
-import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
+import { HttpClient } from "effect/unstable/http";
+import { HttpClientRequest } from "effect/unstable/http";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import * as ParseResult from "effect/ParseResult";
 import * as Schema from "effect/Schema";
 import { createHmac } from "node:crypto";
 
@@ -73,7 +72,7 @@ const retryAfterMilliseconds = (headers: Readonly<Record<string, string>>): numb
 
 export const makeEffectHttpTransport = (
   origin: string,
-  timeout: Duration.DurationInput = Duration.seconds(10),
+  timeout: Duration.Duration = Duration.seconds(10),
 ): OkxHttpTransport<HttpClient.HttpClient> & { readonly requiresHttpClient: true } => ({
   requiresHttpClient: true,
   request: (request) =>
@@ -87,9 +86,10 @@ export const makeEffectHttpTransport = (
           }),
         )
         .pipe(
-          Effect.timeoutFail({
+          Effect.timeoutOrElse({
             duration: timeout,
-            onTimeout: () => new OkxTransportError("OKX request timed out", { transient: true }),
+            orElse: () =>
+              Effect.fail(new OkxTransportError("OKX request timed out", { transient: true })),
           }),
         )
         .pipe(
@@ -99,7 +99,7 @@ export const makeEffectHttpTransport = (
               : new OkxTransportError("OKX request could not be completed", { transient: true }),
           ),
         );
-      const body = yield* response.json.pipe(Effect.catchAll(() => Effect.succeed(undefined)));
+      const body = yield* response.json.pipe(Effect.catch(() => Effect.succeed(undefined)));
       const headers: Record<string, string> = {};
       for (const key of ["retry-after", "Retry-After"]) {
         const value = response.headers[key];
@@ -133,9 +133,9 @@ export interface OkxClient<R = never> {
   readonly request: <A>(input: {
     readonly credentials: OkxCredentials;
     readonly path: string;
-    readonly schema: Schema.Schema<A, any>;
+    readonly schema: Schema.Codec<A>;
     readonly clockOffsetMs: number;
-  }) => Effect.Effect<A, OkxTransportError | ParseResult.ParseError, R>;
+  }) => Effect.Effect<A, OkxTransportError | Schema.SchemaError, R>;
 }
 
 const transientStatus = (status: number): boolean =>
@@ -143,8 +143,8 @@ const transientStatus = (status: number): boolean =>
 
 const parseResponse = <A>(
   response: OkxHttpResponse,
-  schema: Schema.Schema<A, any>,
-): Effect.Effect<A, OkxTransportError | ParseResult.ParseError> => {
+  schema: Schema.Codec<A>,
+): Effect.Effect<A, OkxTransportError | Schema.SchemaError> => {
   if (response.status < 200 || response.status >= 300) {
     const retryAfterMs = retryAfterMilliseconds(response.headers);
     return Effect.fail(
@@ -155,7 +155,7 @@ const parseResponse = <A>(
       }),
     );
   }
-  return Schema.decodeUnknown(schema)(response.body);
+  return Schema.decodeUnknownEffect(schema)(response.body);
 };
 
 export const makeOkxClient = <R>(options: OkxClientOptions<R>): OkxClient<R> => {
@@ -167,7 +167,7 @@ export const makeOkxClient = <R>(options: OkxClientOptions<R>): OkxClient<R> => 
 
   const requestWithRetry = <A>(
     input: OkxHttpRequest,
-    schema: Schema.Schema<A, any>,
+    schema: Schema.Codec<A>,
   ): Effect.Effect<A, OkxTransportError, R> => {
     const attempt = options.transport.request(input).pipe(
       Effect.flatMap((response) => parseResponse(response, schema)),
@@ -182,7 +182,7 @@ export const makeOkxClient = <R>(options: OkxClientOptions<R>): OkxClient<R> => 
       attemptNumber: number,
     ): Effect.Effect<A, OkxTransportError, R> =>
       attempt.pipe(
-        Effect.catchAll((cause) => {
+        Effect.catch((cause) => {
           if (!cause.transient || remaining === 0) return Effect.fail(cause);
           const delay = cause.retryAfterMs ?? Math.min(100 * 2 ** attemptNumber, 1_000);
           return Effect.sleep(Duration.millis(delay)).pipe(
@@ -217,7 +217,7 @@ export const makeOkxClient = <R>(options: OkxClientOptions<R>): OkxClient<R> => 
   const request = <A>(input: {
     readonly credentials: OkxCredentials;
     readonly path: string;
-    readonly schema: Schema.Schema<A, any>;
+    readonly schema: Schema.Codec<A>;
     readonly clockOffsetMs: number;
   }) => {
     const timestamp = new Date(now().getTime() + input.clockOffsetMs).toISOString();

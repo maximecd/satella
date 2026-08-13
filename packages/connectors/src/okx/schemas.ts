@@ -1,12 +1,12 @@
 import * as Schema from "effect/Schema";
 
-export const OkxRegion = Schema.Literal("global", "eea", "us");
+export const OkxRegion = Schema.Literals(["global", "eea", "us"]);
 export type OkxRegion = typeof OkxRegion.Type;
 
 export const OkxCredentials = Schema.Struct({
-  apiKey: Schema.NonEmptyTrimmedString,
-  secretKey: Schema.NonEmptyTrimmedString,
-  passphrase: Schema.NonEmptyTrimmedString,
+  apiKey: Schema.Trim.check(Schema.isNonEmpty()),
+  secretKey: Schema.Trim.check(Schema.isNonEmpty()),
+  passphrase: Schema.Trim.check(Schema.isNonEmpty()),
   region: OkxRegion,
 });
 export type OkxCredentials = typeof OkxCredentials.Type;

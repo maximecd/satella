@@ -169,7 +169,7 @@ export function CreateManualCustodianScreen() {
   const form = useAppForm({
     defaultValues,
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.standardSchemaV1(CreateCustodianInput) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(CreateCustodianInput) },
     onSubmit: async ({ value }) => {
       setError(null);
       const decoded = await Schema.decodeUnknownPromise(CreateCustodianInput)(value);
@@ -633,7 +633,7 @@ function LoadedEditManualCustodian({ custodian }: { readonly custodian: Custodia
   const form = useAppForm({
     defaultValues: { name },
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.standardSchemaV1(UpdateCustodianInput) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(UpdateCustodianInput) },
     onSubmit: async ({ value }) => {
       const decoded = await Schema.decodeUnknownPromise(UpdateCustodianInput)(value);
       await update.mutateAsync(decoded);

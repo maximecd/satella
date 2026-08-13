@@ -1,8 +1,8 @@
 import * as Schema from "effect/Schema";
 
 export const IbkrFlexCredentials = Schema.Struct({
-  token: Schema.NonEmptyTrimmedString,
-  queryId: Schema.NonEmptyTrimmedString,
+  token: Schema.Trim.check(Schema.isNonEmpty()),
+  queryId: Schema.Trim.check(Schema.isNonEmpty()),
 });
 export type IbkrFlexCredentials = typeof IbkrFlexCredentials.Type;
 

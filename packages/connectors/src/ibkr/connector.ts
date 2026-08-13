@@ -1,4 +1,4 @@
-import * as HttpClient from "@effect/platform/HttpClient";
+import { HttpClient } from "effect/unstable/http";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -535,7 +535,7 @@ export const makeIbkrConnector = <R = HttpClient.HttpClient>(
   credentialsSchema: IbkrFlexCredentials,
   authenticate: (input) =>
     Effect.gen(function* () {
-      const credentials = yield* Schema.decodeUnknown(IbkrFlexCredentials)(input).pipe(
+      const credentials = yield* Schema.decodeUnknownEffect(IbkrFlexCredentials)(input).pipe(
         Effect.mapError(() => authenticationError(undefined, "IBKR Flex credentials are invalid")),
       );
       const transport =

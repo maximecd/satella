@@ -8,7 +8,8 @@ import type {
   ConnectorFetchAccountsError,
 } from "@optimus/connectors";
 import { BuiltinConnectorRegistry } from "@optimus/connectors";
-import * as SqlClient from "@effect/sql/SqlClient";
+import { HttpClient } from "effect/unstable/http";
+import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
 
 import type {
@@ -147,7 +148,11 @@ export const syncRegisteredConnector = (
   custodianId: string,
   connectorId: string,
   credentials: unknown,
-): Effect.Effect<ReconciliationResult, ConnectorSyncError, any> => {
+): Effect.Effect<
+  ReconciliationResult,
+  ConnectorSyncError,
+  SqlClient.SqlClient | HttpClient.HttpClient
+> => {
   const connector = BuiltinConnectorRegistry.get(connectorId);
   if (connector === undefined) {
     return Effect.fail(

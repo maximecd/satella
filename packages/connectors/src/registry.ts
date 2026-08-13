@@ -1,8 +1,4 @@
-import type {
-  AnyConnector,
-  ConnectorAssetClass,
-  ConnectorCredentialField,
-} from "./connector.js";
+import type { AnyConnector, ConnectorAssetClass, ConnectorCredentialField } from "./connector.js";
 import { OkxConnector } from "./okx/connector.js";
 import { IbkrConnector } from "./ibkr/connector.js";
 

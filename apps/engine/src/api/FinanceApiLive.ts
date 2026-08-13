@@ -1,0 +1,191 @@
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+
+import { EngineApi } from "./Api.js";
+import { HttpApiBuilder } from "effect/unstable/httpapi";
+import { AccountService } from "../finance/accounts/AccountService.js";
+import { AddAssetsService } from "../finance/add-assets/AddAssetsService.js";
+import { AssetService } from "../finance/assets/AssetService.js";
+import { ConnectorCatalog } from "../finance/connectors/ConnectorCatalog.js";
+import { CustodianService } from "../finance/custodians/CustodianService.js";
+import { MarketDataService } from "../finance/market-data/MarketDataService.js";
+import { PortfolioService } from "../finance/portfolio/PortfolioService.js";
+import { PositionService } from "../finance/positions/PositionService.js";
+
+export const SystemApiLive = HttpApiBuilder.group(EngineApi, "system", (handlers) =>
+  handlers.handle("hello", () => Effect.succeed({ message: "Hello world" })),
+);
+
+export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handlers) =>
+  handlers
+    .handle("connectorCapabilities", () =>
+      Effect.gen(function* () {
+        const catalog = yield* ConnectorCatalog;
+        return catalog.capabilities();
+      }),
+    )
+    .handle("getDashboard", () =>
+      Effect.gen(function* () {
+        return yield* (yield* PortfolioService).dashboard();
+      }),
+    )
+    .handle("listManualCustodians", () =>
+      Effect.gen(function* () {
+        return yield* (yield* AddAssetsService).listManualCustodians();
+      }),
+    )
+    .handle("lookupManualHolding", ({ query }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AddAssetsService).lookupManualHolding(
+          query.accountId,
+          query.identifierType,
+          query.identifierValue,
+        );
+      }),
+    )
+    .handle("addManualHolding", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AddAssetsService).addManualHolding(payload);
+      }),
+    )
+    .handle("addCashAccount", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AddAssetsService).addCashAccount(payload);
+      }),
+    )
+    .handle("addOtherAsset", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AddAssetsService).addOtherAsset(payload);
+      }),
+    )
+    .handle("listCustodians", () =>
+      Effect.gen(function* () {
+        return yield* (yield* CustodianService).list();
+      }),
+    )
+    .handle("getCustodian", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* CustodianService).get(params.id);
+      }),
+    )
+    .handle("createCustodian", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* CustodianService).create(payload);
+      }),
+    )
+    .handle("connectCustodian", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* CustodianService).connect(payload);
+      }),
+    )
+    .handle("resyncCustodian", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* CustodianService).resync(params.id);
+      }),
+    )
+    .handle("updateCustodian", ({ params, payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* CustodianService).update(params.id, payload);
+      }),
+    )
+    .handle("deleteCustodian", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* CustodianService).delete(params.id);
+      }),
+    )
+    .handle("getAccount", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AccountService).get(params.id);
+      }),
+    )
+    .handle("createAccount", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AccountService).create(payload);
+      }),
+    )
+    .handle("updateAccount", ({ params, payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AccountService).update(params.id, payload);
+      }),
+    )
+    .handle("deleteAccount", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AccountService).delete(params.id);
+      }),
+    )
+    .handle("searchAssets", ({ query }) =>
+      Effect.gen(function* () {
+        return yield* (yield* MarketDataService).search(query.query, query.assetClass);
+      }),
+    )
+    .handle("listAssets", () =>
+      Effect.gen(function* () {
+        return yield* (yield* AssetService).list();
+      }),
+    )
+    .handle("getAsset", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AssetService).get(params.id);
+      }),
+    )
+    .handle("createAsset", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AssetService).create(payload);
+      }),
+    )
+    .handle("updateAsset", ({ params, payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AssetService).updateCustom(params.id, payload);
+      }),
+    )
+    .handle("setManualPrice", ({ params, payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AssetService).setManualPrice(params.id, payload);
+      }),
+    )
+    .handle("deleteAsset", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* AssetService).delete(params.id);
+      }),
+    )
+    .handle("getPositionAccount", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* PositionService).getAccount(params.id);
+      }),
+    )
+    .handle("createPosition", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* PositionService).create(payload);
+      }),
+    )
+    .handle("updatePosition", ({ params, payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* PositionService).update(params.id, payload.quantity);
+      }),
+    )
+    .handle("deletePosition", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* PositionService).delete(params.id);
+      }),
+    )
+    .handle("portfolioHistory", () =>
+      Effect.gen(function* () {
+        return yield* (yield* PortfolioService).history();
+      }),
+    )
+    .handle("refreshPrices", () =>
+      Effect.gen(function* () {
+        return yield* (yield* MarketDataService).refresh({ requireFresh: true });
+      }),
+    )
+    .handle("captureSnapshot", () =>
+      Effect.gen(function* () {
+        return yield* (yield* PortfolioService).captureSnapshot();
+      }),
+    ),
+);
+
+export const EngineApiLive = HttpApiBuilder.layer(EngineApi).pipe(
+  Layer.provide(SystemApiLive),
+  Layer.provide(FinanceApiLive),
+);

@@ -9,14 +9,15 @@ import { DatabaseConfigError } from "./errors.js";
 
 const DATA_DIRECTORY_ENV = "OPTIMUS_DATA_DIR";
 
-export interface DatabaseConfig {
-  readonly dataDirectory: string;
-  readonly databasePath: string;
-  readonly backupDirectory: string;
-  readonly databaseExisted: boolean;
-}
-
-export const DatabaseConfig = Context.GenericTag<DatabaseConfig>("@optimus/engine/DatabaseConfig");
+export class DatabaseConfig extends Context.Service<
+  DatabaseConfig,
+  {
+    readonly dataDirectory: string;
+    readonly databasePath: string;
+    readonly backupDirectory: string;
+    readonly databaseExisted: boolean;
+  }
+>()("@optimus/engine/DatabaseConfig") {}
 
 const defaultDataDirectory = (): string => {
   const home = homedir();
@@ -51,7 +52,13 @@ const pathExists = (path: string) =>
         throw cause;
       }
     },
-    catch: (cause) => cause,
+    catch: (cause) =>
+      new DatabaseConfigError({
+        reason: "filesystem",
+        path,
+        cause,
+        message: `Could not inspect path: ${path}`,
+      }),
   });
 
 const ensurePrivateDirectory = (path: string) =>
@@ -60,7 +67,13 @@ const ensurePrivateDirectory = (path: string) =>
       await mkdir(path, { mode: 0o700, recursive: true });
       await chmod(path, 0o700);
     },
-    catch: (cause) => cause,
+    catch: (cause) =>
+      new DatabaseConfigError({
+        reason: "filesystem",
+        path,
+        cause,
+        message: `Could not create directory: ${path}`,
+      }),
   });
 
 const resolveDataDirectory = (
@@ -141,12 +154,12 @@ const makeConfig = (override: string | undefined) =>
       }),
     );
 
-    return {
+    return DatabaseConfig.of({
       dataDirectory,
       databasePath,
       backupDirectory,
       databaseExisted,
-    } satisfies DatabaseConfig;
+    });
   });
 
 export const resolveDatabaseConfig = Effect.sync(() => process.env[DATA_DIRECTORY_ENV]).pipe(

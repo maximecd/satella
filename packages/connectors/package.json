@@ -3,27 +3,40 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
-    "./okx": "./dist/okx/index.js",
-    "./ibkr": "./dist/ibkr/index.js"
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./okx": {
+      "types": "./src/okx/index.ts",
+      "import": "./src/okx/index.ts",
+      "default": "./src/okx/index.ts"
+    },
+    "./ibkr": {
+      "types": "./src/ibkr/index.ts",
+      "import": "./src/ibkr/index.ts",
+      "default": "./src/ibkr/index.ts"
+    }
   },
   "scripts": {
-    "build": "tsc -b && node scripts/copy-assets.mjs",
-    "dev": "tsc -b --watch --preserveWatchOutput",
-    "typecheck": "tsc -b",
-    "test": "vitest run"
+    "build": "vp pack && node scripts/copy-assets.mjs",
+    "dev": "vp pack --watch",
+    "test": "vp test run",
+    "test:coverage": "vp test run --coverage",
+    "test:watch": "vp test watch",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@effect/platform": "0.97.1",
-    "effect": "3.22.1",
+    "effect": "catalog:",
     "saxes": "6.0.0"
   },
   "devDependencies": {
-    "@effect/vitest": "0.17.0",
-    "@types/node": "26.2.0",
-    "vitest": "2.1.9"
+    "@effect/tsgo": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

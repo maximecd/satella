@@ -1,5 +1,5 @@
-import * as HttpClient from "@effect/platform/HttpClient";
-import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
+import { HttpClient } from "effect/unstable/http";
+import { HttpClientRequest } from "effect/unstable/http";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 
@@ -54,7 +54,7 @@ export class IbkrTransportError extends Error {
 
 export interface IbkrClientOptions<R = never> {
   readonly transport: IbkrHttpTransport<R>;
-  readonly timeout?: Duration.DurationInput;
+  readonly timeout?: Duration.Duration;
 }
 
 export interface IbkrClient<R = never> {
@@ -79,7 +79,7 @@ const transientStatus = (status: number): boolean =>
 
 export const makeIbkrEffectHttpTransport = (
   origin = IBKR_FLEX_ORIGIN,
-  timeout: Duration.DurationInput = Duration.seconds(15),
+  timeout: Duration.Duration = Duration.seconds(15),
   maxResponseBytes = DEFAULT_MAX_FLEX_RESPONSE_BYTES,
 ): IbkrHttpTransport<HttpClient.HttpClient> & { readonly requiresHttpClient: true } => ({
   requiresHttpClient: true,
@@ -99,9 +99,10 @@ export const makeIbkrEffectHttpTransport = (
           }),
         )
         .pipe(
-          Effect.timeoutFail({
+          Effect.timeoutOrElse({
             duration: timeout,
-            onTimeout: () => new IbkrTransportError("IBKR request timed out", { transient: true }),
+            orElse: () =>
+              Effect.fail(new IbkrTransportError("IBKR request timed out", { transient: true })),
           }),
           Effect.mapError((cause) =>
             cause instanceof IbkrTransportError
@@ -126,9 +127,10 @@ export const makeIbkrEffectHttpTransport = (
         );
       }
       const body = yield* response.text.pipe(
-        Effect.timeoutFail({
+        Effect.timeoutOrElse({
           duration: timeout,
-          onTimeout: () => new IbkrTransportError("IBKR response timed out", { transient: true }),
+          orElse: () =>
+            Effect.fail(new IbkrTransportError("IBKR response timed out", { transient: true })),
         }),
         Effect.mapError((cause) =>
           cause instanceof IbkrTransportError

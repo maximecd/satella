@@ -1,12 +1,12 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-export const ConnectorAssetClass = Schema.Literal("fiat", "security", "crypto");
+export const ConnectorAssetClass = Schema.Literals(["fiat", "security", "crypto"]);
 export type ConnectorAssetClass = typeof ConnectorAssetClass.Type;
 
 export const ConnectorAssetIdentifier = Schema.Struct({
-  type: Schema.NonEmptyTrimmedString,
-  value: Schema.NonEmptyTrimmedString,
+  type: Schema.Trim.check(Schema.isNonEmpty()),
+  value: Schema.Trim.check(Schema.isNonEmpty()),
 });
 export type ConnectorAssetIdentifier = typeof ConnectorAssetIdentifier.Type;
 
@@ -22,10 +22,10 @@ export interface ConnectorCredentialField {
 }
 
 export const ConnectorAsset = Schema.Struct({
-  externalId: Schema.NonEmptyTrimmedString,
+  externalId: Schema.Trim.check(Schema.isNonEmpty()),
   assetClass: ConnectorAssetClass,
-  name: Schema.NonEmptyTrimmedString,
-  symbol: Schema.optional(Schema.NonEmptyTrimmedString),
+  name: Schema.Trim.check(Schema.isNonEmpty()),
+  symbol: Schema.optional(Schema.Trim.check(Schema.isNonEmpty())),
   identifiers: Schema.Array(ConnectorAssetIdentifier),
 });
 export type ConnectorAsset = typeof ConnectorAsset.Type;
@@ -36,24 +36,19 @@ export const ConnectorPosition = Schema.Struct({
 });
 export type ConnectorPosition = typeof ConnectorPosition.Type;
 
-export const ConnectorAccountKind = Schema.Literal(
-  "current",
-  "savings",
-  "securities",
-  "crypto",
-);
+export const ConnectorAccountKind = Schema.Literals(["current", "savings", "securities", "crypto"]);
 export type ConnectorAccountKind = typeof ConnectorAccountKind.Type;
 
 export const ConnectorAccount = Schema.Struct({
-  externalId: Schema.NonEmptyTrimmedString,
-  name: Schema.NonEmptyTrimmedString,
-  baseCurrencyIso: Schema.NonEmptyTrimmedString,
+  externalId: Schema.Trim.check(Schema.isNonEmpty()),
+  name: Schema.Trim.check(Schema.isNonEmpty()),
+  baseCurrencyIso: Schema.Trim.check(Schema.isNonEmpty()),
   accountKind: ConnectorAccountKind,
   positions: Schema.Array(ConnectorPosition),
 });
 export type ConnectorAccount = typeof ConnectorAccount.Type;
 
-export const ConnectorAuthenticationCategory = Schema.Literal(
+export const ConnectorAuthenticationCategory = Schema.Literals([
   "invalid_credentials",
   "insufficient_permission",
   "unsupported_region",
@@ -61,16 +56,16 @@ export const ConnectorAuthenticationCategory = Schema.Literal(
   "rate_limit",
   "invalid_response",
   "timeout",
-);
+]);
 export type ConnectorAuthenticationCategory = typeof ConnectorAuthenticationCategory.Type;
 
-export const ConnectorFetchAccountsCategory = Schema.Literal(
+export const ConnectorFetchAccountsCategory = Schema.Literals([
   "authentication_expired",
   "network",
   "rate_limit",
   "invalid_response",
   "timeout",
-);
+]);
 export type ConnectorFetchAccountsCategory = typeof ConnectorFetchAccountsCategory.Type;
 
 export class ConnectorAuthenticationError extends Schema.TaggedError<ConnectorAuthenticationError>()(
@@ -108,7 +103,7 @@ export interface Connector<Credentials, R = never> {
   readonly assetClasses: ReadonlyArray<ConnectorAssetClass>;
   /** Public, non-secret metadata used to render connector setup forms. */
   readonly credentialFields: ReadonlyArray<ConnectorCredentialField>;
-  readonly credentialsSchema: Schema.Schema<Credentials, any>;
+  readonly credentialsSchema: Schema.Top;
   readonly authenticate: (
     credentials: Credentials,
   ) => Effect.Effect<AuthenticatedConnector<R>, ConnectorAuthenticationError, R>;

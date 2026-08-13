@@ -5,8 +5,7 @@
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "noEmit": true,
-    "types": ["vite/client", "@testing-library/jest-dom"]
+    "types": ["vite-plus/client", "@testing-library/jest-dom"]
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vitest.setup.ts"]
 }

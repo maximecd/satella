@@ -39,12 +39,12 @@ const optionalAttribute = (attributes: Readonly<Record<string, string>>, name: s
   return value === undefined ? undefined : value;
 };
 
-const decode = <A>(schema: Schema.Schema<A, any, any>, input: unknown): A =>
-  Schema.decodeUnknownSync(schema as Schema.Schema<A, any, never>)(input);
+const decode = <A>(schema: Schema.Codec<A>, input: unknown): A =>
+  Schema.decodeUnknownSync(schema as Schema.Codec<A>)(input);
 
 const parseAttributeRecord = <A>(
   attributes: Readonly<Record<string, string>>,
-  schema: Schema.Schema<A, any, any>,
+  schema: Schema.Codec<A>,
 ): A => decode(schema, attributes);
 
 const parserError = (message: string): Error => new Error(`IBKR Flex XML ${message}`);
