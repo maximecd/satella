@@ -12,7 +12,9 @@ The finished repository should have one obvious command for each concern, no pac
 - Effect 4 is still prerelease software at the time of planning. Pin one exact verified release across the entire Effect family; if Effect 4 is stable when implementation begins, use the matching stable release. Never track `latest`, `main`, or a range that can silently cross prereleases.
 - Do not run Effect 3 and Effect 4 in different Optimus workspaces. The Effect catalog, platform adapters, SQL driver, Vitest integration, and lockfile move together in one atomic compatibility step.
 - Use T3Code as a reference for root Vite+ configuration, pnpm catalogs, workspace task orchestration, explicit package exports, and the separation of Effect service contracts from live layers. Do not copy its very large test files; Optimus explicitly wants smaller behavioral suites.
-- Interpret “one test per file” as one colocated test module per production responsibility, not literally one `it(...)` call per file. Use `thing.test.ts` beside `thing.ts`; when a responsibility still has several independent scenarios, use focused siblings such as `thing.integration.test.ts` or `thing.concurrency.test.ts` in the same directory.
+- Interpret “one test per file” as one colocated test module per production file, not literally one `it(...)` call per file. Use exactly `thing.test.ts` beside `thing.ts` (or `.test.tsx` beside TSX); integration and concurrency scenarios remain inside that owning test module rather than introducing filename qualifiers.
+- Do not add a CI workflow as part of this refactor. The repository commands must be CI-ready, but adopting a CI provider/workflow is a separate owner decision.
+- Do not turn root development utilities into a new workspace or add repository-policy scripts. Keep the existing `scripts/dev.mjs`; express normal checks through Vite+, package manifests, and configuration.
 - Preserve public behavior and the `@optimus/engine/api` surface while internals move. Schema or API changes require their own product decision.
 - This plan supersedes the test paths and standalone Vitest/tooling recommendations in `07-connector-package-split.md`. If plan 07 lands later, every extracted connector package must use the conventions here: colocated tests, root-managed versions/configuration, and Vite+ commands.
 - The working tree already contains user-owned Node-version changes in `package.json` and `.nvmrc`. Implementation must reconcile and preserve those changes rather than overwriting them.
@@ -56,13 +58,13 @@ optimus-2/
           Api.ts                 # HttpApi schemas and stable public types
           Api.test.ts
           FinanceApiLive.ts      # handlers consume service tags, never SqlClient directly
-          FinanceApiLive.integration.test.ts
+          FinanceApiLive.test.ts
         database/
           DatabaseConfig.ts
           DatabaseLive.ts
-          DatabaseLive.integration.test.ts
+          DatabaseLive.test.ts
           Migrations.ts
-          Migrations.integration.test.ts
+          Migrations.test.ts
           Migrations/
             0001_....ts
             0001_....test.ts
@@ -72,41 +74,40 @@ optimus-2/
             Models.ts
             AssetService.ts      # service contract/tag only
             AssetServiceLive.ts  # SQL implementation layer
-            AssetServiceLive.integration.test.ts
+            AssetServiceLive.test.ts
           custodians/
             CustodianService.ts
             CustodianServiceLive.ts
-            CustodianServiceLive.integration.test.ts
+            CustodianServiceLive.test.ts
           accounts/
             AccountService.ts
             AccountServiceLive.ts
-            AccountServiceLive.integration.test.ts
+            AccountServiceLive.test.ts
           positions/
             PositionService.ts
             PositionServiceLive.ts
-            PositionServiceLive.integration.test.ts
+            PositionServiceLive.test.ts
           portfolio/
             PortfolioService.ts
             PortfolioServiceLive.ts
-            PortfolioServiceLive.integration.test.ts
+            PortfolioServiceLive.test.ts
           add-assets/
             AddAssetsService.ts
             AddAssetsServiceLive.ts
-            AddAssetsServiceLive.integration.test.ts
+            AddAssetsServiceLive.test.ts
           connectors/
             ConnectorCatalog.ts
             ConnectorSync.ts
             ConnectorSyncLive.ts
             Reconciliation.ts
-            Reconciliation.integration.test.ts
+            Reconciliation.test.ts
           market-data/
             MarketDataService.ts
             MarketDataServiceLive.ts
             ProviderCatalog.ts
             Resolution.ts
             Resolution.test.ts
-            Refresh.integration.test.ts
-            Refresh.concurrency.test.ts
+            Refresh.test.ts
           FinanceLive.ts         # composition only
         main.ts                  # configuration and launch only
     web/
@@ -138,7 +139,7 @@ optimus-2/
           client.ts
           client.test.ts
           connector.ts
-          connector.integration.test.ts
+          connector.test.ts
           schemas.ts
           schemas.test.ts
         ibkr/
@@ -147,7 +148,7 @@ optimus-2/
           parser.ts
           parser.test.ts
           connector.ts
-          connector.integration.test.ts
+          connector.test.ts
 ```
 
 If plan 07 splits connector packages first, use the same internal shape inside `connector-core`, `connector-okx`, and `connector-ibkr`; do not recreate package-local Vitest configs or top-level test directories.
@@ -156,9 +157,9 @@ If plan 07 splits connector packages first, use the same internal shape inside `
 
 ### Runtime and package-manager bootstrap
 
-- Choose one exact Node release and keep `.nvmrc`, `engines.node`, Vite+ environment configuration, local development, and CI aligned. The in-progress repository choice is Node 26.7.0 / Node 26 unless the owner changes it before implementation.
+- Choose one exact Node release and keep `.nvmrc`, `engines.node`, Vite+ environment configuration, local development, and any future automation aligned. The in-progress repository choice is Node 26.7.0 / Node 26 unless the owner changes it before implementation.
 - Replace the range-only package-manager declaration with an exact `packageManager` pin. Keep `devEngines` only if it adds enforcement that Vite+ does not already provide.
-- Pin `vite-plus` exactly. Run the same local Vite+ version in scripts and CI; do not use `latest` or a floating setup action tag.
+- Pin `vite-plus` exactly. Run the same local Vite+ version everywhere; do not use `latest` or floating versions.
 - Validate both fresh online installation and commands after the dependency store is warm/offline. A local test run must not silently select a newer pnpm than the repository records.
 
 ### pnpm catalog and workspace dependencies
@@ -176,7 +177,7 @@ If plan 07 splits connector packages first, use the same internal shape inside `
 3. Create root `vite.config.ts` with `import "vite-plus/test/config"` and shared configuration for:
    - Oxfmt options and ignores currently in `.oxfmtrc.json`;
    - Oxlint plugins, correctness rules, ignores, and type-aware/type-check behavior currently absent from `.oxlintrc.json`;
-   - default Node test behavior, isolation, cleanup, timeouts, coverage provider/reporters, and no focused/skipped tests in CI;
+   - default Node test behavior, isolation, cleanup, timeouts, coverage provider/reporters, and no focused/skipped tests;
    - Vite Task definitions and cache policy for deterministic build, typecheck, test, coverage, and packaging tasks.
 4. Move package-specific configuration into package `vite.config.ts` files that merge the root config. Keep only genuine differences:
    - web: React/TanStack/StyleX transforms, jsdom, and `vitest.setup.ts`;
@@ -215,20 +216,20 @@ The exact JSON can follow the installed Vite+ version, but the public command co
 
 - Use `vp run -r` for recursive tasks and let workspace dependencies establish ordering.
 - Do not use `--if-present` for required quality tasks; every source-owning workspace must declare the expected script. Use it only for genuinely optional tasks and document why.
-- Keep the custom development runner only for responsibilities Vite Task does not replace, such as selecting free ports and waiting for HTTP readiness. Convert it to typed code, test its port/process behavior beside the script, and have it invoke Vite+ workspace tasks instead of hard-coded pnpm filters.
+- Keep the existing custom development runner only for selecting free ports and waiting for application readiness. Do not create a `scripts` workspace or ancillary policy/smoke/version scripts in this refactor.
 - Remove engine `prebuild`, `pretest`, and `pretypecheck` rebuild hooks after source exports or dependency-aware Vite+ tasks make them unnecessary.
 
 ## Effect 4 Migration
 
 ### Version and dependency policy
 
-- Choose one exact Effect 4 release only after checking that it publishes matching versions of every required adapter: `effect`, `@effect/platform-node`, `@effect/sql-sqlite-node`, and `@effect/vitest`. Put those packages on one catalog entry/version and add an install-time guard that fails if the resolved versions differ.
+- Choose one exact Effect 4 release only after checking that it publishes matching versions of every required adapter: `effect`, `@effect/platform-node`, `@effect/sql-sqlite-node`, and `@effect/vitest`. Put those packages on one catalog entry/version and verify the resolved graph during migration; do not add a bespoke version-check script.
 - Remove consolidated v3 packages after imports move:
   - `@effect/platform` HTTP and HttpApi modules move under `effect/unstable/http` and `effect/unstable/httpapi`;
   - `@effect/sql` modules move under `effect/unstable/sql`;
   - `@effect/experimental` reactivity moves under `effect/unstable/reactivity`.
 - Keep platform/provider packages that remain external in v4, including `@effect/platform-node` and `@effect/sql-sqlite-node`, but bump them in lockstep with `effect`.
-- Treat every `effect/unstable/*` import as an explicit maintenance boundary. Centralize unstable HTTP, HttpApi, SQL, and reactivity use behind engine/connector adapters so future prerelease renames do not spread through domain services or web code.
+- Treat every `effect/unstable/*` import as an explicit maintenance boundary. Import the named namespace from Effect's supported upstream category export (for example `effect/unstable/sql`) at its use site; do not mirror Effect modules through local `src/effect` facades.
 - Do not copy T3Code's `effect` patch: its current patch changes MCP/RPC behavior unrelated to Optimus. Inspect its `@effect/vitest` patch only as evidence of a Vite+ runner-identity issue.
 - Before patching `@effect/vitest`, run a small compatibility spike using the chosen release: one `it.effect`, one `it.layer`, fake timers/TestClock, mocking, and coverage through `vp test`. Prefer an upstream release or pnpm override/package extension. If a patch is still necessary, keep it minimal, test it, link the upstream issue, pin its exact source version, and add a removal condition.
 
@@ -280,7 +281,7 @@ Create a checked-in migration inventory before changing imports. Classify each c
 The Effect 4 phase is complete only when:
 
 - `pnpm why effect @effect/platform-node @effect/sql-sqlite-node @effect/vitest` shows one matching Effect 4 release family and no Effect 3 runtime;
-- no removed v3 package/import remains and all unstable imports are confined to deliberate adapter/layer modules;
+- no removed v3 package/import remains and no local compatibility facade re-exports Effect packages;
 - the complete colocated test suite, coverage gate, typecheck, lint, build/pack, and built-output smoke tests pass without lowering thresholds;
 - API golden tests, connector compile/contract tests, and SQLite migration tests demonstrate unchanged external/persistent behavior;
 - engine start, signal handling, resource finalization, and clean process exit work under the chosen Node version;
@@ -347,20 +348,16 @@ Do not rewrite the entire finance module in one commit. Assets → custodians �
 
 - Delete `apps/engine/test`, `packages/connectors/test`, and `apps/web/src/test` only after every file/fixture has moved to its owning source directory.
 - Default to `Thing.test.ts` or `Thing.test.tsx` beside `Thing.ts`/`Thing.tsx`.
-- Use suffixes to make scope explicit when helpful:
-  - `.test.ts`: pure/unit or small service behavior;
-  - `.integration.test.ts`: real SQLite, HTTP layer, filesystem, or multiple live services;
-  - `.contract.test.ts`: package/API/connector compatibility;
-  - `.smoke.test.ts`: built output or process startup.
+- Use only `.test.ts` / `.test.tsx` for executable tests. Describe integration, contract, concurrency, or smoke scope in the suite and test names, not in extra filename qualifiers.
 - Keep fixtures beside the parser/provider that owns them, for example `ibkr/fixtures/*.xml`. Fixtures are inert data, not a replacement `tests` tree.
 - Move web setup to `apps/web/vitest.setup.ts`. Keep package-specific helper modules colocated and named `*.test-utils.ts`; exclude those helpers from production exports and coverage.
-- Add a lightweight repository check that fails when `apps/**/{test,tests}` or `packages/**/{test,tests}` reappears or when a test imports another workspace's private `src` path.
+- Keep this convention visible in the plan and normal review; do not add a bespoke repository-policy script solely to police filenames or directories.
 
 ### Split current all-in-one suites
 
 - Replace `apps/web/src/finance-routes.test.tsx` with screen/route-owned tests. Keep only router integration behavior in a small route-level suite; move add-assets, dashboard, custodian, account, settings, form decoding, and valuation scenarios beside the corresponding screen or form module.
 - Split engine `service.test.ts` along the new service boundaries. A service test should build only the layer graph needed by that service.
-- Split `market-data.test.ts` into resolution, refresh/persistence, partial failure, and concurrency suites. Replace the real 20 ms sleep with `Deferred`, latches, or `TestClock` coordination.
+- Keep market-data scenarios in `market-data.test.ts`, grouped by descriptive suites/tests. Replace the real 20 ms sleep with `Deferred`, latches, or `TestClock` coordination.
 - Split connector provider suites by client request/signing, schema/parser behavior, connector mapping, and failure mapping. Keep end-to-end provider-flow tests as contract/integration tests using a fake HTTP transport and static fixtures.
 - Split compound migration assertions into individual behaviors so a failure identifies edited history, removed history, duplicate IDs, newer-than-binary history, rollback, backup, or integrity checking directly.
 - Data-driven `it.each` is acceptable when all rows test one invariant, such as API endpoint presence. It is not an excuse to combine unrelated workflows.
@@ -386,10 +383,10 @@ Do not rewrite the entire finance module in one commit. Assets → custodians �
 1. Configure V8 coverage for every TypeScript/TSX source-owning workspace.
 2. Set `coverage.include` explicitly so never-imported source files count as uncovered. Exclude only generated code, declarations, entry-point launch glue that cannot be imported safely, static theme data where justified, and test/test-helper files. Every exclusion needs a comment in config.
 3. Capture a baseline after colocating the existing 84 tests. Do not lower it during the service refactor.
-4. By completion, target at least 90% lines/statements/functions and 85% branches per workspace, with higher per-glob thresholds for pure domain code, schemas, parsers, migrations, and reconciliation. New pure modules should target 100% unless an explicit unreachable branch is documented.
+4. Set the first enforceable floor to each workspace's measured post-migration baseline rather than an aspirational number that makes the command permanently red. Ratchet those floors upward with meaningful tests; new pure modules should still target 100% unless an explicit unreachable branch is documented.
 5. Enable per-file thresholds for the critical/pure modules so a well-covered large file cannot hide an untested new service.
-6. Ratchet thresholds upward whenever coverage improves. Do not use `autoUpdate` in CI if it mutates tracked config; update thresholds deliberately in the same change that adds tests.
-7. Produce text, JSON, and HTML/LCOV output. CI should retain reports and fail on threshold regression.
+6. Ratchet thresholds upward whenever coverage improves. Do not use `autoUpdate`; update thresholds deliberately in the same change that adds tests.
+7. Produce text, JSON, and HTML/LCOV output so local runs and any future CI can retain and inspect reports.
 8. Treat coverage as evidence, not the only test-quality metric. Assert transaction boundaries, typed failures, resource cleanup, API contracts, and concurrency ordering even when a line is already covered.
 
 ### Required test layers
@@ -403,8 +400,7 @@ The completed suite should cover:
 - connector contract tests with fake transports, including partial/invalid provider output and no credential leakage;
 - web component/route tests using Testing Library and `userEvent`, one screen/workflow per file;
 - one small full vertical integration covering a representative manual asset flow from HTTP request through SQLite and response;
-- build/export smoke tests for engine, desktop, and connector package entry points and static assets;
-- development-runner tests for port selection, child failure propagation, readiness, and shutdown.
+- build verification for engine, desktop, and connector package entry points and static assets.
 
 No normal test may require internet access, real credentials, the user's data directory, a fixed port, or execution order relative to another test file.
 
@@ -415,24 +411,20 @@ No normal test may require internet access, real credentials, the user's data di
 - Keep connector Markdown/SVG asset copying deterministic and package-local. Build and packed-tarball smoke tests must prove assets are present; source tests alone are insufficient.
 - Replace hard-coded root build order with `vp run -r build`. Package dependencies and task `dependsOn` declarations should express ordering.
 - Remove stale-output dependencies: a clean checkout must typecheck and test without pre-existing `dist`; a clean build must not resolve deleted output left by an earlier layout.
-- Refactor `scripts/dev.mjs` after package build/export behavior is stable. Preserve dynamic port selection, then use one Vite+ recursive/filtered task graph for package watches, engine, web, and desktop readiness.
+- Preserve `scripts/dev.mjs` and its dynamic port selection. Adjust it only when package build/export behavior requires a concrete compatibility change.
 - Initial build completion is the readiness barrier before starting consumers that require built artifacts. Subsequent watches must propagate changes without manual package lists.
-- Add a targeted clean task for known generated directories (`dist`, coverage, Vite+ cache, tsbuild info). It must never operate on an unresolved or broad path.
+- Do not add cleanup/policy scripts as part of this work; generated outputs remain covered by ignore rules and normal package commands.
 
-## CI and Reproducibility
+## Reproducibility
 
-- Add a CI workflow using an exact `voidzero-dev/setup-vp` release or commit SHA, the exact repository Node version, dependency caching, and frozen installation.
-- Required CI order:
+- Do not add or select a CI workflow/provider in this plan. Keep the following verification order available through repository commands so a later CI decision can invoke it without new application logic:
   1. install from the frozen lockfile;
-  2. test the repository layout/dependency guards;
-  3. `vp check`;
-  4. full coverage with thresholds;
-  5. dependency-ordered build/pack;
-  6. built-export and package-asset smoke tests.
-- Cache package-manager data and, only after task inputs are understood, Vite Task results. Never cache mutable databases or use cache hits to skip a required artifact smoke test.
-- Add a repeated-suite verification job or release checklist during the migration: run the complete isolated test suite many times with varied worker counts and fail on the first intermittent result. This is temporary evidence for removing the “flaky” label, not a retry mechanism in normal CI.
+  2. `vp check`;
+  3. full coverage with thresholds;
+  4. dependency-ordered build/pack.
+- Use a temporary local/release checklist during the migration to run the complete isolated test suite repeatedly with varied worker counts and fail on the first intermittent result. This is evidence for removing the “flaky” label, not a retry mechanism.
 - Run selected integration suites once with constrained parallelism to expose hidden ordering assumptions and once with normal parallelism to prove isolation.
-- CI must fail on `.only`, unexpected skipped tests, unhandled rejections/errors, leaked handles/resources, coverage regression, formatting drift, duplicate shared tool versions, or a package missing its required quality scripts.
+- Repository commands must fail on `.only`, unexpected skipped tests, unhandled rejections/errors, leaked handles/resources, coverage regression, formatting drift, or a package missing its required quality scripts.
 
 ## Migration Sequence
 
@@ -451,7 +443,7 @@ No normal test may require internet access, real credentials, the user's data di
 ### 3. Consolidate the toolchain
 
 - Run and review Vite+ migration.
-- Add root/package Vite+ configs, shared Oxlint/Oxfmt/typecheck policy, recursive scripts, and CI skeleton.
+- Add root/package Vite+ configs, shared Oxlint/Oxfmt/typecheck policy, and recursive package scripts.
 - Remove standalone configs only after parity checks pass.
 
 ### 4. Colocate and stabilize existing tests
@@ -501,7 +493,7 @@ The work is complete when:
 - no `test` or `tests` directory exists under apps or packages, and every executable test is colocated with its owner;
 - no normal test suite is a cross-resource catch-all; failures identify one service, route, provider concern, migration rule, or integration seam;
 - all Effect tests use `@effect/vitest` where appropriate, scoped resources close deterministically, and there are no arbitrary sleeps/retries or real network calls;
-- every workspace resolves the same exact Effect 4 family, no Effect 3 or removed v3 package remains, and unstable v4 APIs are contained behind explicit adapters/layers;
+- every workspace resolves the same exact Effect 4 family, no Effect 3 or removed v3 package remains, and there is no local facade mirroring Effect exports;
 - root `test` and `test:coverage` cover every workspace, not only web;
 - Vitest, Vite+, TypeScript, Effect, Oxlint/Oxfmt, Node types, and other shared families resolve through one cataloged/pinned policy without incompatible duplicate runtimes;
 - one root Vite+ configuration owns shared lint, format, test, coverage, and task policy; package configs contain only justified differences;
@@ -517,7 +509,7 @@ The work is complete when:
 - maintaining simultaneous Effect 3 and Effect 4 runtimes or a long-lived v3 compatibility facade;
 - application feature, API payload, or database-model redesign;
 - replacing SQLite, React, Electron, TanStack, or Astryx;
-- real provider end-to-end tests in normal CI;
+- real provider end-to-end tests in the normal test suite;
 - chasing 100% coverage through meaningless assertions or broad exclusions;
 - creating a shared testing package before repeated, stable cross-workspace helpers justify one. Start with package-local test layers so private implementation details do not become another shared API.
 

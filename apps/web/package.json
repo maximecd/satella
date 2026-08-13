@@ -4,41 +4,39 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -b && vite build",
-    "dev": "vite --host 127.0.0.1",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest",
-    "typecheck": "tsc -b"
+    "build": "vp build",
+    "dev": "vp dev --host 127.0.0.1",
+    "test": "vp test run",
+    "test:coverage": "vp test run --coverage",
+    "test:watch": "vp test watch",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@astryxdesign/cli": "^0.3.0",
     "@astryxdesign/core": "0.3.0",
     "@astryxdesign/theme-neutral": "0.3.0",
-    "@effect/platform": "0.97.1",
     "@optimus/engine": "workspace:*",
     "@stylexjs/stylex": "0.19.0",
     "@tanstack/react-form": "1.23.5",
     "@tanstack/react-query": "5.85.5",
     "@tanstack/react-router": "1.131.27",
-    "effect": "3.22.1",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "effect": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@effect/tsgo": "catalog:",
     "@stylexjs/unplugin": "0.19.0",
     "@tanstack/router-plugin": "1.131.27",
-    "@testing-library/dom": "10.4.1",
-    "@testing-library/jest-dom": "7.0.0",
-    "@testing-library/react": "16.3.2",
-    "@testing-library/user-event": "14.6.1",
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.4",
-    "@vitejs/plugin-react": "6.0.5",
-    "@vitest/coverage-v8": "4.1.10",
-    "jsdom": "30.0.1",
-    "typescript": "7.0.2",
-    "vite": "8.2.1",
-    "vitest": "4.1.10"
+    "@testing-library/dom": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "jsdom": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

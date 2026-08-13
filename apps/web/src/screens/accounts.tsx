@@ -312,7 +312,7 @@ export function CreateAccountScreen({ custodianId }: { readonly custodianId: str
   const form = useAppForm({
     defaultValues,
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.standardSchemaV1(CreateAccountInput) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(CreateAccountInput) },
     onSubmit: async ({ value }) =>
       mutation.mutateAsync(await Schema.decodeUnknownPromise(CreateAccountInput)(value)),
   });
@@ -395,7 +395,7 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
   const form = useAppForm({
     defaultValues: { name: account.name, baseCurrencyAssetId: account.baseCurrencyAssetId },
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.standardSchemaV1(UpdateAccountInput) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(UpdateAccountInput) },
     onSubmit: async ({ value }) =>
       update.mutateAsync(await Schema.decodeUnknownPromise(UpdateAccountInput)(value)),
   });

@@ -2,13 +2,6 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2024"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "dist",
-    "paths": {
-      "@engine/*": ["./src/*"]
-    },
-    "rootDir": "src",
     "types": ["node"]
   },
   "include": ["src"]

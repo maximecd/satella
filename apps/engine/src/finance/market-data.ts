@@ -1,5 +1,5 @@
 import Coingecko from "@coingecko/coingecko-typescript";
-import * as SqlClient from "@effect/sql/SqlClient";
+import { SqlClient } from "effect/unstable/sql";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { randomUUID } from "node:crypto";
@@ -391,7 +391,7 @@ const retryBatch = (
   attempt = 1,
 ): Effect.Effect<ProviderBatchResult, never> =>
   provider.fetchPrices(batch, DEFAULT_REPORTING_CURRENCY).pipe(
-    Effect.catchAll((error) => {
+    Effect.catch((error) => {
       if (error.transient && attempt < DEFAULT_MARKET_DATA_POLICY.maxAttempts) {
         const baseDelay = Math.min(250 * 2 ** (attempt - 1), 2_000);
         const delay = error.retryAfterMs ?? baseDelay + Math.floor(Math.random() * baseDelay * 0.2);
@@ -549,7 +549,7 @@ const discoverAssetIdentifiers = (
         };
       }),
       // A provider outage should not erase a previously reviewed lookup.
-      Effect.catchAll(() => Effect.succeed({ source: "error" as const, identifiers: [] })),
+      Effect.catch(() => Effect.succeed({ source: "error" as const, identifiers: [] })),
     );
   }
   const query = asset.symbol?.trim() || asset.name.trim();
@@ -567,7 +567,7 @@ const discoverAssetIdentifiers = (
           })) ?? [],
       };
     }),
-    Effect.catchAll(() => Effect.succeed({ source: "error" as const, identifiers: [] })),
+    Effect.catch(() => Effect.succeed({ source: "error" as const, identifiers: [] })),
   );
 };
 

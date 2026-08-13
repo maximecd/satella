@@ -1,5 +1,5 @@
-import * as Reactivity from "@effect/experimental/Reactivity";
-import * as SqlClient from "@effect/sql/SqlClient";
+import { Reactivity } from "effect/unstable/reactivity";
+import { SqlClient } from "effect/unstable/sql";
 import * as Sqlite from "@effect/sql-sqlite-node/SqliteClient";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -17,13 +17,13 @@ const NumericPragmaRow = Schema.Struct({
 
 type NumericPragmaRow = Schema.Schema.Type<typeof NumericPragmaRow>;
 
-const openClient = (config: DatabaseConfig) =>
+const openClient = (config: typeof DatabaseConfig.Service) =>
   Sqlite.make({
     filename: config.databasePath,
     disableWAL: false,
   }).pipe(
     Effect.provide(Reactivity.layer),
-    Effect.catchAllCause((cause) =>
+    Effect.catchCause((cause) =>
       Effect.fail(
         new DatabaseOpenError({
           path: config.databasePath,
@@ -36,7 +36,7 @@ const openClient = (config: DatabaseConfig) =>
 
 const readNumericPragma = (client: Sqlite.SqliteClient, pragma: string, resultKey = pragma) =>
   client<NumericPragmaRow>`PRAGMA ${client.literal(pragma)}`.pipe(
-    Effect.flatMap(Schema.decodeUnknown(Schema.Array(NumericPragmaRow))),
+    Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(NumericPragmaRow))),
     Effect.map((rows) => rows[0]?.[resultKey as keyof NumericPragmaRow]),
     Effect.flatMap((value) =>
       value === undefined
@@ -98,7 +98,7 @@ const configurePragmas = (client: Sqlite.SqliteClient) =>
       );
     }
   }).pipe(
-    Effect.catchAllDefect((cause) =>
+    Effect.catchDefect((cause) =>
       Effect.fail(
         new DatabaseOpenError({
           path: client.config.filename,
@@ -118,7 +118,7 @@ const configurePragmas = (client: Sqlite.SqliteClient) =>
     ),
   );
 
-export const makeSqliteClient = (config: DatabaseConfig) =>
+export const makeSqliteClient = (config: typeof DatabaseConfig.Service) =>
   Effect.gen(function* () {
     const client = yield* openClient(config);
     yield* secureDatabaseFile(config.databasePath);
@@ -126,7 +126,7 @@ export const makeSqliteClient = (config: DatabaseConfig) =>
     return client;
   });
 
-export const SqliteClientLive = Layer.scopedContext(
+export const SqliteClientLive = Layer.effectContext(
   Effect.gen(function* () {
     const config = yield* DatabaseConfig;
     const client = yield* makeSqliteClient(config);

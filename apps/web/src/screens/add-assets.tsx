@@ -18,6 +18,7 @@ import { Toolbar } from "@astryxdesign/core/Toolbar";
 import { useToast } from "@astryxdesign/core/Toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AssetSearchResult, ConnectorCapability } from "@optimus/engine/api";
+import { NumberFromNonEmptyString } from "@optimus/engine/api";
 import { ConnectCustodianInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import {
@@ -720,7 +721,7 @@ function HoldingsForm({
     if (creatingAccount && accountName.trim() === "") {
       nextFieldErrors.accountName = "Account name is required.";
     }
-    const decoded = await Schema.decodeUnknownPromise(Schema.NumberFromString)(quantity).catch(
+    const decoded = await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(quantity).catch(
       () => undefined,
     );
     if (decoded === undefined) {
@@ -892,7 +893,6 @@ function HoldingsForm({
             }}
             htmlName="quantity"
             width="100%"
-            inputMode="decimal"
             statusVariant="detached"
             {...(fieldErrors.quantity === undefined
               ? {}
@@ -979,7 +979,7 @@ function CashForm({
     if (accountName.trim() === "") {
       nextFieldErrors.accountName = "Account name is required.";
     }
-    const decoded = await Schema.decodeUnknownPromise(Schema.NumberFromString)(balance).catch(
+    const decoded = await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(balance).catch(
       () => undefined,
     );
     if (decoded === undefined) {
@@ -1061,7 +1061,6 @@ function CashForm({
             }}
             htmlName="balance"
             width="100%"
-            inputMode="decimal"
             statusVariant="detached"
             {...(fieldErrors.balance === undefined
               ? {}
@@ -1081,9 +1080,9 @@ function CashForm({
 }
 
 const OtherAssetForm = Schema.Struct({
-  name: Schema.NonEmptyTrimmedString,
-  value: Schema.NumberFromString,
-  currencyAssetId: Schema.NonEmptyTrimmedString,
+  name: Schema.Trim.check(Schema.isNonEmpty()),
+  value: NumberFromNonEmptyString,
+  currencyAssetId: Schema.Trim.check(Schema.isNonEmpty()),
 });
 
 function OtherStep({ onComplete }: { readonly onComplete: () => void }) {
@@ -1104,7 +1103,7 @@ function OtherStep({ onComplete }: { readonly onComplete: () => void }) {
   const form = useAppForm({
     defaultValues: { name: "", value: "", currencyAssetId: "fiat:USD" },
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.standardSchemaV1(OtherAssetForm) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(OtherAssetForm) },
     onSubmit: async ({ value }) => {
       const decoded = await Schema.decodeUnknownPromise(OtherAssetForm)(value);
       await mutation.mutateAsync({

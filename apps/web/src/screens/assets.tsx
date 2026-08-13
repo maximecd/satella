@@ -11,6 +11,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { Asset } from "@optimus/engine/api";
+import { NumberFromNonEmptyString } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
 
@@ -29,14 +30,14 @@ import { assetQuery, assetsQuery, queryKeys } from "../queries";
 import { AddAssetsButton } from "./add-assets";
 
 const CustomAssetForm = Schema.Struct({
-  name: Schema.NonEmptyTrimmedString,
+  name: Schema.Trim.check(Schema.isNonEmpty()),
   symbol: Schema.String,
   price: Schema.String,
   currencyAssetId: Schema.String,
 });
 
 const EditAssetForm = Schema.Struct({
-  name: Schema.NonEmptyTrimmedString,
+  name: Schema.Trim.check(Schema.isNonEmpty()),
   symbol: Schema.String,
   price: Schema.String,
   currencyAssetId: Schema.String,
@@ -131,7 +132,7 @@ export function CreateCustomAssetScreen() {
         identifiers: [],
       });
       if (value.price.trim()) {
-        const price = await Schema.decodeUnknownPromise(Schema.NumberFromString)(value.price);
+        const price = await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(value.price);
         return engineApi.setManualPrice(asset.id, {
           price,
           currencyAssetId: value.currencyAssetId,
@@ -149,7 +150,7 @@ export function CreateCustomAssetScreen() {
   const form = useAppForm({
     defaultValues: { name: "", symbol: "", price: "", currencyAssetId: "fiat:USD" },
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.standardSchemaV1(CustomAssetForm) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(CustomAssetForm) },
     onSubmit: async ({ value }) =>
       mutation.mutateAsync(await Schema.decodeUnknownPromise(CustomAssetForm)(value)),
   });
@@ -216,7 +217,7 @@ function LoadedAssetScreen({
         ...(value.symbol.trim() ? { symbol: value.symbol.trim() } : {}),
       });
       if (value.price.trim()) {
-        const price = await Schema.decodeUnknownPromise(Schema.NumberFromString)(value.price);
+        const price = await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(value.price);
         return engineApi.setManualPrice(asset.id, {
           price,
           currencyAssetId: value.currencyAssetId,
@@ -248,7 +249,7 @@ function LoadedAssetScreen({
       currencyAssetId: asset.price?.currencyAssetId ?? "fiat:USD",
     },
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.standardSchemaV1(EditAssetForm) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(EditAssetForm) },
     onSubmit: async ({ value }) =>
       save.mutateAsync(await Schema.decodeUnknownPromise(EditAssetForm)(value)),
   });

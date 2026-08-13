@@ -1,6 +1,6 @@
-import { join } from "node:path";
-
 import { app, BrowserWindow } from "electron";
+
+import { shouldQuitOnLastWindow, windowLoadTarget } from "./window.js";
 
 const developmentUrl = process.env["OPTIMUS_WEB_URL"];
 
@@ -22,10 +22,11 @@ const createWindow = async () => {
 
   window.once("ready-to-show", () => window.show());
 
-  if (developmentUrl !== undefined) {
-    await window.loadURL(developmentUrl);
+  const target = windowLoadTarget(developmentUrl);
+  if (target.type === "url") {
+    await window.loadURL(target.url);
   } else {
-    await window.loadFile(join(__dirname, "../../web/dist/index.html"));
+    await window.loadFile(target.path);
   }
 };
 
@@ -40,7 +41,7 @@ void app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (shouldQuitOnLastWindow(process.platform)) {
     app.quit();
   }
 });

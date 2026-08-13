@@ -6,9 +6,10 @@ import type {
   AuthenticatedConnector,
   ConnectorAuthenticationError,
   ConnectorFetchAccountsError,
-} from "@optimus/connectors";
-import { BuiltinConnectorRegistry } from "@optimus/connectors";
-import * as SqlClient from "@effect/sql/SqlClient";
+  ConnectorRegistry,
+} from "@optimus/connector-core";
+import { HttpClient } from "effect/unstable/http";
+import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
 
 import type {
@@ -19,6 +20,7 @@ import type {
 } from "./connector.js";
 import { reconcileConnector } from "./connector.js";
 import { FinanceApiError } from "./contracts.js";
+import { CONNECTOR_REGISTRY } from "./connectors/registry.js";
 
 const validationFailure = (message: string) =>
   Effect.fail(new FinanceApiError({ code: "validation", message }));
@@ -143,12 +145,17 @@ export const syncConnector = <Credentials, R>(
   );
 
 /** Runs a connector selected from the compiled registry without exposing the registry to callers. */
-export const syncRegisteredConnector = (
+export const syncRegisteredConnectorFrom = (
+  registry: ConnectorRegistry,
   custodianId: string,
   connectorId: string,
   credentials: unknown,
-): Effect.Effect<ReconciliationResult, ConnectorSyncError, any> => {
-  const connector = BuiltinConnectorRegistry.get(connectorId);
+): Effect.Effect<
+  ReconciliationResult,
+  ConnectorSyncError,
+  SqlClient.SqlClient | HttpClient.HttpClient
+> => {
+  const connector = registry.get(connectorId);
   if (connector === undefined) {
     return Effect.fail(
       new FinanceApiError({
@@ -159,3 +166,9 @@ export const syncRegisteredConnector = (
   }
   return syncConnector(custodianId, connector, credentials);
 };
+
+export const syncRegisteredConnector = (
+  custodianId: string,
+  connectorId: string,
+  credentials: unknown,
+) => syncRegisteredConnectorFrom(CONNECTOR_REGISTRY, custodianId, connectorId, credentials);

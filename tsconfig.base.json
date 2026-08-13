@@ -5,6 +5,9 @@
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
@@ -12,6 +15,28 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",
-    "useDefineForClassFields": true
+    "useDefineForClassFields": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnosticSeverity": {
+          "importFromBarrel": "off",
+          "unsafeEffectTypeAssertion": "error",
+          "missingEffectServiceDependency": "error",
+          "leakingRequirements": "error",
+          "unknownInEffectCatch": "error",
+          "globalErrorInEffectCatch": "error",
+          "globalErrorInEffectFailure": "error",
+          "lazyEffect": "off",
+          "schemaNumber": "off",
+          "unnecessaryFailYieldableError": "off",
+          "unnecessaryPipeChain": "off",
+          "effectSucceedWithVoid": "off",
+          "catchToOrElseSucceed": "off",
+          "tryCatchInEffectGen": "off",
+          "preferTypedSchemaDecoder": "off"
+        }
+      }
+    ]
   }
 }
