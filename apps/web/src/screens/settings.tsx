@@ -45,9 +45,9 @@ export function SettingsScreen() {
               value: currency.assetId,
               label: `${currency.iso} · ${currency.name}`,
             }))}
-            value={settings.reportingCurrencyAssetId}
+            value={settings.reportingCurrency.assetId}
             onChange={(value) => {
-              if (value === settings.reportingCurrencyAssetId) return;
+              if (value === settings.reportingCurrency.assetId) return;
               save.mutate({ reportingCurrencyAssetId: value });
             }}
             width="100%"

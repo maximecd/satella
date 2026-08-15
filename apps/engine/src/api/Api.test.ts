@@ -24,6 +24,8 @@ describe("finance API routes", () => {
 
   it.each([
     ["getDashboard", "/api/dashboard"],
+    ["getSettings", "/api/settings"],
+    ["updateSettings", "/api/settings"],
     ["listManualAccounts", "/api/manual-accounts"],
     ["lookupManualHolding", "/api/manual-holdings/lookup"],
     ["addManualHolding", "/api/add-assets/holding"],
@@ -31,8 +33,6 @@ describe("finance API routes", () => {
     ["addOtherAsset", "/api/add-assets/other"],
     ["listConnections", "/api/connections"],
     ["connectConnection", "/api/connections"],
-    ["getSettings", "/api/settings"],
-    ["updateSettings", "/api/settings"],
   ] as const)("declares %s at %s", (name, path) => {
     expect(FinanceApi.endpoints[name].path).toBe(path);
   });

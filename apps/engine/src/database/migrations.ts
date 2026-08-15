@@ -21,7 +21,7 @@ import { seedDefaultFiatCurrencies } from "./migrations/0002_seed_default_fiat_c
 import { addAccountSourceDate } from "./migrations/0003_account_source_date.js";
 import { addAccountKindAndSystemRoles } from "./migrations/0004_account_kind_and_system_roles.js";
 import { unifyPortfolioDomainModel } from "./migrations/0005_unify_portfolio_domain_model.js";
-import { addSettingsAndDailySnapshots } from "./migrations/0006_settings_and_daily_snapshots.js";
+import { addReportingCurrency } from "./migrations/0006_reporting_currency.js";
 
 export const MIGRATIONS_TABLE = "effect_sql_migrations";
 export const PRE_MIGRATION_BACKUP_RETENTION = 5;
@@ -36,7 +36,7 @@ export const ProductionMigrations: MigrationRegistry = {
   "0003_account_source_date": addAccountSourceDate,
   "0004_account_kind_and_system_roles": addAccountKindAndSystemRoles,
   "0005_unify_portfolio_domain_model": unifyPortfolioDomainModel,
-  "0006_settings_and_daily_snapshots": addSettingsAndDailySnapshots,
+  "0006_reporting_currency": addReportingCurrency,
 };
 
 export interface MigrationRunOptions {

@@ -41,7 +41,34 @@ if (typeof HTMLDialogElement !== "undefined") {
 }
 
 class ResizeObserverMock implements ResizeObserver {
-  readonly observe = vi.fn();
+  private readonly callback: ResizeObserverCallback;
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+  }
+  readonly observe = (target: Element) => {
+    this.callback(
+      [
+        {
+          target,
+          contentRect: {
+            width: 400,
+            height: 280,
+            top: 0,
+            left: 0,
+            bottom: 280,
+            right: 400,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+          },
+          borderBoxSize: [],
+          contentBoxSize: [],
+          devicePixelContentBoxSize: [],
+        },
+      ],
+      this,
+    );
+  };
   readonly unobserve = vi.fn();
   readonly disconnect = vi.fn();
 }

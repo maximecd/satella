@@ -3,6 +3,20 @@ import { CONNECTOR_CAPABILITIES as COMPOSED_CONNECTOR_CAPABILITIES } from "./con
 
 export const DEFAULT_REPORTING_CURRENCY = "USD" as const;
 
+export const SUPPORTED_REPORTING_CURRENCIES = [
+  "USD",
+  "EUR",
+  "JPY",
+  "GBP",
+  "AUD",
+  "CAD",
+  "CHF",
+  "CNH",
+  "HKD",
+  "NZD",
+] as const;
+export type SupportedReportingCurrency = (typeof SUPPORTED_REPORTING_CURRENCIES)[number];
+
 export const DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CATEGORY = {
   stocks_etfs: "yahoo-finance",
   bonds: "manual",

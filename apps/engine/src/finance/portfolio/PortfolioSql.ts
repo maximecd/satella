@@ -4,15 +4,24 @@ import * as Duration from "effect/Duration";
 
 import { SqlClient } from "effect/unstable/sql";
 import type {
+  AllocationCell,
   AssetCategory,
   Dashboard,
+  DashboardAccountRow,
   PortfolioHistoryPoint,
   SnapshotResult,
 } from "../contracts.js";
-import { CONNECTOR_CAPABILITIES, DEFAULT_SNAPSHOT_INTERVAL } from "../config.js";
+import { ASSET_CATEGORY_LABELS } from "../contracts.js";
+import { DEFAULT_SNAPSHOT_INTERVAL } from "../config.js";
 import { getAccount } from "../accounts/AccountSql.js";
 import { refreshPrices, type MarketDataRegistry } from "../market-data.js";
-import { db, usdAssetId, type FinanceEffect } from "../internal/sql.js";
+import {
+  convertAmount,
+  db,
+  reportingCurrency,
+  usdAssetId,
+  type FinanceEffect,
+} from "../internal/sql.js";
 
 export interface CaptureSnapshotOptions {
   readonly refresh?: boolean;
@@ -27,6 +36,7 @@ export const captureSnapshot = (
     if (options.refresh !== false) {
       yield* refreshPrices({
         requireFresh: true,
+        includeAllCashFx: true,
         ...(options.registry === undefined ? {} : { registry: options.registry }),
       });
     }
@@ -36,14 +46,21 @@ export const captureSnapshot = (
     const result = yield* db(
       sql.withTransaction(
         Effect.gen(function* () {
-          yield* sql`DELETE FROM snapshots WHERE date(captured_at) = date(${capturedAt})`;
           yield* sql`INSERT INTO snapshots (id, captured_at) VALUES (${id}, ${capturedAt})`;
           yield* sql`INSERT INTO position_snapshots (snapshot_id, position_id, quantity)
             SELECT ${id}, id, quantity FROM positions`;
           yield* sql`INSERT INTO asset_price_snapshots
             (snapshot_id, asset_id, price, currency_asset_id, source, observed_at)
             SELECT ${id}, ap.asset_id, ap.price, ap.currency_asset_id, ap.source, ap.observed_at
-            FROM asset_prices ap WHERE EXISTS (SELECT 1 FROM positions p WHERE p.asset_id = ap.asset_id)`;
+            FROM asset_prices ap
+            WHERE EXISTS (SELECT 1 FROM positions p WHERE p.asset_id = ap.asset_id)
+               OR EXISTS (
+                 SELECT 1 FROM asset_identifiers ai
+                 JOIN assets cash ON cash.id = ai.asset_id
+                 WHERE ai.asset_id = ap.asset_id
+                   AND ai.identifier_type = 'iso_currency'
+                   AND cash.asset_category = 'cash'
+               )`;
           const positions = yield* sql<{
             readonly count: number;
           }>`SELECT count(*) AS count FROM position_snapshots
@@ -90,7 +107,8 @@ interface HistoricalPositionRow {
 export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHistoryPoint>> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
-    const reportingCurrencyId = yield* usdAssetId;
+    const selected = yield* reportingCurrency;
+    const fxPivotId = yield* usdAssetId;
     const rows = yield* db(sql<HistoricalPositionRow>`SELECT s.id AS snapshot_id, s.captured_at,
       p.asset_id, a.asset_category, ps.quantity, aps.price, aps.currency_asset_id
       FROM snapshots s
@@ -104,9 +122,8 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
         readonly snapshot_id: string;
         readonly asset_id: string;
         readonly price: number;
-      }>`SELECT
-        snapshot_id, asset_id, price FROM asset_price_snapshots
-        WHERE currency_asset_id = ${reportingCurrencyId}`,
+      }>`SELECT snapshot_id, asset_id, price FROM asset_price_snapshots
+        WHERE currency_asset_id = ${fxPivotId}`,
     );
     const fx = new Map(
       fxRows.map(
@@ -118,19 +135,28 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
       const first = snapshotRows[0]!;
       let total = 0;
       let totalIncomplete = false;
+      const snapshotFx = new Map(
+        [...fx].flatMap(([key, price]) => {
+          const prefix = `${first.snapshot_id}:`;
+          return key.startsWith(prefix) ? [[key.slice(prefix.length), price] as const] : [];
+        }),
+      );
       for (const row of snapshotRows) {
         if (row.asset_id === null || row.quantity === null) continue;
-        const implicit = row.asset_category === "cash" && row.asset_id === reportingCurrencyId;
-        const price = row.price ?? (implicit ? 1 : null);
-        const currencyId = row.currency_asset_id ?? (implicit ? reportingCurrencyId : null);
-        const conversion =
-          currencyId === reportingCurrencyId
-            ? 1
-            : currencyId === null
+        const converted =
+          row.asset_category === "cash"
+            ? convertAmount(row.quantity, row.asset_id, selected.assetId, fxPivotId, snapshotFx)
+            : row.price === null || row.currency_asset_id === null
               ? undefined
-              : fx.get(`${row.snapshot_id}:${currencyId}`);
-        if (price === null || conversion === undefined) totalIncomplete = true;
-        else total += row.quantity * price * conversion;
+              : convertAmount(
+                  row.quantity * row.price,
+                  row.currency_asset_id,
+                  selected.assetId,
+                  fxPivotId,
+                  snapshotFx,
+                );
+        if (converted === undefined) totalIncomplete = true;
+        else total += converted;
       }
       return {
         snapshotId: first.snapshot_id,
@@ -141,36 +167,109 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
     });
   });
 
+const allocationCells = (
+  values: ReadonlyArray<{
+    readonly key: string;
+    readonly name: string;
+    readonly symbol: string | null;
+    readonly assetCategory: AssetCategory;
+    readonly value: number;
+  }>,
+): ReadonlyArray<AllocationCell> => {
+  const denominator = values.reduce((sum, cell) => sum + cell.value, 0);
+  return values
+    .map((cell) => ({
+      ...cell,
+      percent: denominator === 0 ? 0 : (cell.value / denominator) * 100,
+    }))
+    .sort((left, right) => right.value - left.value || left.name.localeCompare(right.name));
+};
+
 export const getDashboard = (): FinanceEffect<Dashboard> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
-    const rows = yield* db(sql<{
-      readonly id: string;
-      readonly connection_id: string | null;
-      readonly connector_id: string | null;
-    }>`SELECT a.id, a.connection_id, c.connector_id
-      FROM accounts a
-      LEFT JOIN connections c ON c.id = a.connection_id
-      ORDER BY a.created_at, a.id`);
-    const accounts = yield* Effect.forEach(rows, (row) =>
-      getAccount(row.id).pipe(
-        Effect.map((account) => {
-          const connector = CONNECTOR_CAPABILITIES.find(({ id }) => id === row.connector_id);
-          return {
-            accountId: account.id,
-            accountName: account.name,
-            connectionId: account.connectionId,
-            connectionName: account.connectionName,
-            connectorId: row.connector_id,
-            connectorName: connector?.name ?? null,
-            baseCurrencyIso: account.baseCurrencyIso,
-            positionCount: account.positions.filter((position) => position.quantity !== 0).length,
-            total: account.total,
-            totalIncomplete: account.totalIncomplete,
-            hasStalePrices: account.hasStalePrices,
-          };
-        }),
-      ),
+    const selected = yield* reportingCurrency;
+    const history = yield* getPortfolioHistory();
+    const rows = yield* db(
+      sql<{
+        readonly id: string;
+      }>`SELECT id FROM accounts ORDER BY created_at, id`,
     );
-    return { accounts };
+    const valued = yield* Effect.forEach(rows, (row) => getAccount(row.id, selected.assetId));
+    const accounts: DashboardAccountRow[] = valued
+      .map((account) => ({
+        accountId: account.id,
+        accountName: account.name,
+        connectionId: account.connectionId,
+        connectionName: account.connectionName,
+        positionCount: account.positions.filter((position) => position.quantity !== 0).length,
+        total: account.total,
+        totalIncomplete: account.totalIncomplete,
+      }))
+      .sort(
+        (left, right) =>
+          right.total - left.total || left.accountName.localeCompare(right.accountName),
+      );
+    const byAsset = new Map<
+      string,
+      {
+        name: string;
+        symbol: string | null;
+        assetCategory: AssetCategory;
+        value: number;
+        unpriced: boolean;
+        quantity: number;
+      }
+    >();
+    for (const account of valued) {
+      for (const position of account.positions) {
+        const current = byAsset.get(position.assetId) ?? {
+          name: position.assetName,
+          symbol: position.assetSymbol,
+          assetCategory: position.assetCategory,
+          value: 0,
+          unpriced: false,
+          quantity: 0,
+        };
+        current.quantity += position.quantity;
+        if (position.quantity !== 0 && position.reportingValue === null) current.unpriced = true;
+        current.value += position.reportingValue ?? 0;
+        byAsset.set(position.assetId, current);
+      }
+    }
+    const meaningful = [...byAsset.entries()].filter(([, asset]) => asset.quantity !== 0);
+    const unpricedAssetCount = meaningful.filter(([, asset]) => asset.unpriced).length;
+    const negativeHoldingCount = meaningful.filter(([, asset]) => asset.value < 0).length;
+    const positive = meaningful.filter(([, asset]) => !asset.unpriced && asset.value > 0);
+    const assetAllocation = allocationCells(
+      positive.map(([assetId, asset]) => ({
+        key: assetId,
+        name: asset.name,
+        symbol: asset.symbol,
+        assetCategory: asset.assetCategory,
+        value: asset.value,
+      })),
+    );
+    const byCategory = Map.groupBy(positive, ([, asset]) => asset.assetCategory);
+    const categoryAllocation = allocationCells(
+      [...byCategory].map(([assetCategory, assets]) => ({
+        key: assetCategory,
+        name: ASSET_CATEGORY_LABELS[assetCategory],
+        symbol: null,
+        assetCategory,
+        value: assets.reduce((sum, [, asset]) => sum + asset.value, 0),
+      })),
+    );
+    return {
+      reportingCurrency: selected,
+      portfolioValue: accounts.reduce((sum, account) => sum + account.total, 0),
+      totalIncomplete: accounts.some((account) => account.totalIncomplete),
+      unpricedAssetCount,
+      negativeHoldingCount,
+      hasMeaningfulAssets: meaningful.length > 0,
+      accounts,
+      assetAllocation,
+      categoryAllocation,
+      history,
+    };
   });

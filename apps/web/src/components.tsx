@@ -82,7 +82,7 @@ export function RootLayout() {
 
   return (
     <AppShell height="auto" variant="elevated" contentPadding={4} sideNav={navigation}>
-      <Layout height="auto" contentWidth={960} padding={0}>
+      <Layout height="auto" contentWidth={1280} padding={0}>
         <Stack gap={6} padding={4}>
           <Outlet />
         </Stack>
