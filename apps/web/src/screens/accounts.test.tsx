@@ -1,8 +1,13 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { engineApi } from "../api";
-import { account, renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
+import {
+  connectedAccount,
+  renderRoute,
+  resetFinanceMocks,
+} from "../finance.route-harness.test-utils";
 
 vi.mock("../api", async () => import("../engine-api.test-utils"));
 
@@ -11,12 +16,16 @@ describe("accounts screen", () => {
     resetFinanceMocks();
   });
 
-  it("shows incomplete, zero, and unpriced account states", async () => {
+  it("shows incomplete, zero, and unpriced account states without routine metadata", async () => {
     renderRoute("/accounts/account-1");
     expect(await screen.findByRole("heading", { name: "Portfolio" })).toBeInTheDocument();
     expect(screen.getByText("Total is incomplete")).toBeInTheDocument();
     expect(screen.getByText("Zero positions (1)")).toBeInTheDocument();
     expect(screen.getByText("Unpriced positions (1)")).toBeInTheDocument();
+    expect(screen.queryByText("Manual")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connected")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connector-managed account")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
   });
 
   it("shows the account hierarchy as navigable breadcrumbs", async () => {
@@ -30,14 +39,17 @@ describe("accounts screen", () => {
     expect(within(breadcrumbs).getByText("Portfolio")).toHaveAttribute("aria-current", "page");
   });
 
-  it("shows native market prices and values in the account valuation currency", async () => {
+  it("shows native market prices without source or quote-time labels", async () => {
     vi.mocked(engineApi.getAccount).mockResolvedValueOnce({
-      ...account,
+      ...connectedAccount,
+      connectionId: null,
+      connectionName: null,
+      name: "Portfolio",
       total: 68,
       totalIncomplete: false,
       positions: [
         {
-          ...account.positions[0]!,
+          ...connectedAccount.positions[0]!,
           assetName: "EUR ETF",
           quantity: 2,
           price: {
@@ -59,8 +71,16 @@ describe("accounts screen", () => {
     expect(screen.getByRole("columnheader", { name: "Market price" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Value (USD)" })).toBeInTheDocument();
     expect(screen.getByText("34 EUR")).toBeInTheDocument();
-    expect(screen.getByText(/Delayed · Yahoo Finance/)).toBeInTheDocument();
+    expect(screen.queryByText(/Delayed/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Yahoo Finance/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/68[.,]00 USD/)).toHaveLength(2);
-    expect(screen.queryByText("Some prices are stale")).not.toBeInTheDocument();
+  });
+
+  it("refreshes the owning Connection from a connected Account", async () => {
+    const user = userEvent.setup();
+    vi.mocked(engineApi.getAccount).mockResolvedValue(connectedAccount);
+    renderRoute("/accounts/connected-account");
+    await user.click(await screen.findByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(engineApi.refreshConnection).toHaveBeenCalledWith("custodian-1"));
   });
 });

@@ -8,41 +8,76 @@ import { Divider } from "@astryxdesign/core/Divider";
 import { FormLayout } from "@astryxdesign/core/FormLayout";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Layout } from "@astryxdesign/core/Layout";
-import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
+import { SideNav, SideNavCollapseButton, SideNavHeading, SideNavItem } from "@astryxdesign/core/SideNav";
 import { Stack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
 import { Link as RouterLink, Outlet, useLocation } from "@tanstack/react-router";
-import type { FormEvent, ReactNode } from "react";
+import { LayoutDashboard, Settings } from "lucide-react";
+import type { ComponentProps, FormEvent, ReactNode } from "react";
 import { useState } from "react";
+
+const SIDEBAR_COLLAPSED_KEY = "optimus.sidebar.collapsed";
+
+function AppNavLink({
+  href,
+  ...props
+}: { readonly href: string } & Omit<ComponentProps<typeof RouterLink>, "to" | "href">) {
+  return (
+    <RouterLink
+      {...props}
+      to={href}
+      activeOptions={{ exact: href === "/" }}
+    />
+  );
+}
+
+const readSidebarCollapsed = () => {
+  try {
+    return globalThis.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
 
 export function RootLayout() {
   const pathname = useLocation({ select: (location) => location.pathname });
   const isDashboard = pathname === "/";
   const isSettings = pathname === "/settings" || pathname.startsWith("/settings/");
+  const [isCollapsed, setIsCollapsed] = useState(readSidebarCollapsed);
 
   const navigation = (
     <SideNav
-      collapsible={{ buttonLabel: "Collapse navigation" }}
-      header={<SideNavHeading heading="Optimus" subheading="Finance workspace" />}
+      collapsible={{
+        hasButton: false,
+        isCollapsed,
+        onCollapsedChange: (next) => {
+          setIsCollapsed(next);
+          try {
+            globalThis.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+          } catch {
+            // Private mode and quota failures should not block collapse.
+          }
+        },
+      }}
+      header={<SideNavHeading heading="Optimus" />}
+      footerIcons={<SideNavCollapseButton />}
     >
-      <SideNavSection title="Workspace">
-        <SideNavItem
-          as={RouterLink}
-          href="/"
-          icon="home"
-          selectedIcon="home"
-          label="Dashboard"
-          isSelected={isDashboard}
-        />
-        <SideNavItem
-          as={RouterLink}
-          href="/settings"
-          icon="settings"
-          selectedIcon="settings"
-          label="Settings"
-          isSelected={isSettings}
-        />
-      </SideNavSection>
+      <SideNavItem
+        as={AppNavLink}
+        href="/"
+        icon={LayoutDashboard}
+        selectedIcon={LayoutDashboard}
+        label="Dashboard"
+        isSelected={isDashboard}
+      />
+      <SideNavItem
+        as={AppNavLink}
+        href="/settings"
+        icon={Settings}
+        selectedIcon={Settings}
+        label="Settings"
+        isSelected={isSettings}
+      />
     </SideNav>
   );
 

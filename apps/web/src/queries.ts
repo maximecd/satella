@@ -23,6 +23,8 @@ export const queryKeys = {
     holding: (accountId: string, identifierType: string, identifierValue: string) =>
       ["assets", "holding", accountId, identifierType, identifierValue] as const,
   },
+  settings: ["settings"] as const,
+  history: ["history"] as const,
 };
 
 export const dashboardQuery = queryOptions({
@@ -113,3 +115,10 @@ export const assetSearchQuery = (query: string, assetCategory: "stocks_etfs" | "
     staleTime: 60_000,
     retry: 0,
   });
+
+export const settingsQuery = queryOptions({
+  queryKey: queryKeys.settings,
+  queryFn: engineApi.getSettings,
+  staleTime: 15_000,
+  retry: 1,
+});

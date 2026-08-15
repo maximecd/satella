@@ -1,15 +1,5 @@
-import { Badge } from "@astryxdesign/core/Badge";
-import { Banner } from "@astryxdesign/core/Banner";
-import { Button } from "@astryxdesign/core/Button";
-import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { Link as AstryxLink } from "@astryxdesign/core/Link";
-import { List, ListItem } from "@astryxdesign/core/List";
-import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList";
-import { Stack } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
-import { TextInput } from "@astryxdesign/core/TextInput";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import type { Asset } from "@optimus/engine/api";
 import { NumberFromNonEmptyString } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
@@ -23,20 +13,11 @@ import {
   PageBreadcrumbs,
   PageHeader,
   PageState,
-  ResourceCard,
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { assetQuery, assetsQuery, queryKeys } from "../queries";
-import { AddAssetsButton } from "./add-assets";
 
 const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "derivatives", "commodities", "other"]);
-
-const CustomAssetForm = Schema.Struct({
-  name: Schema.Trim.check(Schema.isNonEmpty()),
-  symbol: Schema.String,
-  price: Schema.String,
-  currencyAssetId: Schema.String,
-});
 
 const EditAssetForm = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
@@ -47,160 +28,6 @@ const EditAssetForm = Schema.Struct({
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
-
-const assetDescription = (asset: Asset) =>
-  `${asset.symbol ?? "No symbol"} · ${
-    asset.price === null
-      ? "Unpriced"
-      : `${asset.price.price} ${asset.price.currencyIso} (${asset.price.source})`
-  }`;
-
-export function AssetListScreen() {
-  const query = useQuery(assetsQuery);
-  const [search, setSearch] = useState("");
-  if (query.isPending) return <PageState kind="pending" />;
-  if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
-  const needle = search.trim().toLocaleLowerCase();
-  const assets = query.data.filter(
-    (asset) =>
-      needle.length === 0 ||
-      asset.name.toLocaleLowerCase().includes(needle) ||
-      asset.symbol?.toLocaleLowerCase().includes(needle),
-  );
-  return (
-    <>
-      <PageHeader
-        title="Assets"
-        subtitle="The shared catalog used by positions in every account."
-        action={<AddAssetsButton label="Create manual asset" start="other" />}
-      />
-      <TextInput
-        label="Search assets"
-        isLabelHidden
-        placeholder="Search by name or symbol"
-        value={search}
-        onChange={setSearch}
-        hasClear
-        width="100%"
-      />
-      {assets.length === 0 ? (
-        <EmptyState title="No matching assets" />
-      ) : (
-        <List density="balanced" hasDividers>
-          {assets.map((asset) => (
-            <ListItem
-              key={asset.id}
-              label={
-                <AstryxLink
-                  as={RouterLink}
-                  href={`/assets/${asset.id}/edit`}
-                  isStandalone
-                  weight="semibold"
-                >
-                  {asset.name}
-                </AstryxLink>
-              }
-              description={assetDescription(asset)}
-              endContent={
-                <Stack direction="horizontal" align="center" gap={2}>
-                  <Badge label={asset.assetCategory} />
-                  <Button
-                    as={RouterLink}
-                    href={`/assets/${asset.id}/edit`}
-                    label={MANUAL_ASSET_CATEGORIES.has(asset.assetCategory) ? "Edit" : "Inspect"}
-                    size="sm"
-                  />
-                </Stack>
-              }
-            />
-          ))}
-        </List>
-      )}
-    </>
-  );
-}
-
-export function CreateCustomAssetScreen() {
-  const assets = useQuery(assetsQuery);
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: async (value: typeof CustomAssetForm.Type) => {
-      const asset = await engineApi.createAsset({
-        assetCategory: "other",
-        name: value.name,
-        ...(value.symbol.trim() ? { symbol: value.symbol.trim() } : {}),
-        identifiers: [],
-      });
-      if (value.price.trim()) {
-        const price = await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(value.price);
-        return engineApi.setManualPrice(asset.id, {
-          price,
-          currencyAssetId: value.currencyAssetId,
-        });
-      }
-      return asset;
-    },
-    onSuccess: async (asset) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
-      await navigate({ to: "/assets/$assetId/edit", params: { assetId: asset.id } });
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
-  const fiat = assets.data?.filter((asset) => asset.assetCategory === "cash") ?? [];
-  const form = useAppForm({
-    defaultValues: { name: "", symbol: "", price: "", currencyAssetId: "fiat:USD" },
-    validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.toStandardSchemaV1(CustomAssetForm) },
-    onSubmit: async ({ value }) =>
-      mutation.mutateAsync(await Schema.decodeUnknownPromise(CustomAssetForm)(value)),
-  });
-  if (assets.isPending) return <PageState kind="pending" />;
-  return (
-    <>
-      <PageBreadcrumbs
-        items={[{ label: "Assets", href: "/assets" }, { label: "Create manual asset" }]}
-      />
-      <PageHeader
-        title="Create manual asset"
-        subtitle="Custom assets can be left unpriced and priced later."
-      />
-      <FormError message={error} />
-      <form.AppForm>
-        <FormFrame
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          <form.AppField name="name" children={(field) => <field.TextField label="Name" />} />
-          <form.AppField
-            name="symbol"
-            children={(field) => <field.TextField label="Symbol (optional)" />}
-          />
-          <form.AppField
-            name="price"
-            children={(field) => <field.TextField label="Initial price (optional)" number />}
-          />
-          <form.AppField
-            name="currencyAssetId"
-            children={(field) => (
-              <field.SelectField
-                label="Price currency"
-                options={fiat.map((asset) => ({
-                  value: asset.id,
-                  label: asset.symbol ?? asset.name,
-                }))}
-              />
-            )}
-          />
-          <form.SubmitButton label="Create asset" />
-        </FormFrame>
-      </form.AppForm>
-    </>
-  );
-}
 
 function LoadedAssetScreen({
   asset,
@@ -239,7 +66,7 @@ function LoadedAssetScreen({
     mutationFn: () => engineApi.deleteAsset(asset.id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
-      await navigate({ to: "/assets" });
+      await navigate({ to: "/" });
     },
     onError: (cause) => setError(errorMessage(cause)),
   });
@@ -258,44 +85,16 @@ function LoadedAssetScreen({
   if (!MANUAL_ASSET_CATEGORIES.has(asset.assetCategory)) {
     return (
       <>
-        <PageBreadcrumbs items={[{ label: "Assets", href: "/assets" }, { label: asset.name }]} />
-        <PageHeader
-          title={asset.name}
-          subtitle={`${asset.assetCategory} · read-only provider metadata`}
-        />
-        <Banner
-          status="info"
-          title="Automatically managed asset"
-          description="Provider identifiers and automatic prices cannot be edited manually."
-        />
-        <ResourceCard>
-          <MetadataList columns="single" label={{ position: "start" }} title="Provider metadata">
-            {asset.identifiers.map((identifier) => (
-              <MetadataListItem
-                key={`${identifier.type}:${identifier.value}`}
-                label={identifier.type}
-              >
-                {identifier.value}
-              </MetadataListItem>
-            ))}
-          </MetadataList>
-          {asset.price && (
-            <Text type="supporting" as="p">
-              Latest: {asset.price.price} {asset.price.currencyIso} · {asset.price.source} ·{" "}
-              {new Date(asset.price.observedAt).toLocaleString()}
-              {asset.price.isStale ? " · Delayed" : ""}
-            </Text>
-          )}
-        </ResourceCard>
+        <PageBreadcrumbs items={[{ label: "Dashboard", href: "/" }, { label: asset.name }]} />
+        <PageHeader title={asset.name} />
+        <PageState kind="error" message="This asset is maintained by a Connection and cannot be edited." />
       </>
     );
   }
   const fiat = allAssets.filter((candidate) => candidate.assetCategory === "cash");
   return (
     <>
-      <PageBreadcrumbs
-        items={[{ label: "Assets", href: "/assets" }, { label: `Edit ${asset.name}` }]}
-      />
+      <PageBreadcrumbs items={[{ label: "Dashboard", href: "/" }, { label: `Edit ${asset.name}` }]} />
       <PageHeader title={`Edit ${asset.name}`} />
       <FormError message={error} />
       <form.AppForm>

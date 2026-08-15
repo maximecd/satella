@@ -31,6 +31,7 @@ export const captureSnapshot = (
     const result = yield* db(
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* sql`DELETE FROM snapshots WHERE date(captured_at) = date(${capturedAt})`;
           yield* sql`INSERT INTO snapshots (id, captured_at) VALUES (${id}, ${capturedAt})`;
           yield* sql`INSERT INTO position_snapshots (snapshot_id, position_id, quantity)
             SELECT ${id}, id, quantity FROM positions`;

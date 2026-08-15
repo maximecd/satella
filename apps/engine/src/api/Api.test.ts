@@ -31,6 +31,8 @@ describe("finance API routes", () => {
     ["addOtherAsset", "/api/add-assets/other"],
     ["listConnections", "/api/connections"],
     ["connectConnection", "/api/connections"],
+    ["getSettings", "/api/settings"],
+    ["updateSettings", "/api/settings"],
   ] as const)("declares %s at %s", (name, path) => {
     expect(FinanceApi.endpoints[name].path).toBe(path);
   });

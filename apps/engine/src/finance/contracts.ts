@@ -227,18 +227,44 @@ export const SnapshotResult = Schema.Struct({
 });
 export type SnapshotResult = typeof SnapshotResult.Type;
 
+export const PriceRefreshFailure = Schema.Struct({
+  assetId: Schema.String,
+  provider: Schema.Literals(["yahoo-finance", "coingecko"]),
+  category: Schema.String,
+  message: Schema.String,
+});
+export type PriceRefreshFailure = typeof PriceRefreshFailure.Type;
+
 export const PriceRefreshResult = Schema.Struct({
   refreshedAssetIds: Schema.Array(Schema.String),
-  failures: Schema.Array(
-    Schema.Struct({
-      assetId: Schema.String,
-      provider: Schema.Literals(["yahoo-finance", "coingecko"]),
-      category: Schema.String,
-      message: Schema.String,
-    }),
-  ),
+  failures: Schema.Array(PriceRefreshFailure),
 });
 export type PriceRefreshResult = typeof PriceRefreshResult.Type;
+
+export const ConnectionRefreshResult = Schema.Struct({
+  connection: Connection,
+  failures: Schema.Array(PriceRefreshFailure),
+});
+export type ConnectionRefreshResult = typeof ConnectionRefreshResult.Type;
+
+export const ReportingCurrencyOption = Schema.Struct({
+  assetId: Schema.String,
+  iso: Schema.String,
+  name: Schema.String,
+});
+export type ReportingCurrencyOption = typeof ReportingCurrencyOption.Type;
+
+export const Settings = Schema.Struct({
+  reportingCurrencyAssetId: Schema.String,
+  reportingCurrencyIso: Schema.String,
+  currencies: Schema.Array(ReportingCurrencyOption),
+});
+export type Settings = typeof Settings.Type;
+
+export const UpdateSettingsInput = Schema.Struct({
+  reportingCurrencyAssetId: Schema.String,
+});
+export type UpdateSettingsInput = typeof UpdateSettingsInput.Type;
 
 export const PortfolioHistoryPoint = Schema.Struct({
   snapshotId: Schema.String,

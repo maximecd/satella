@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import { SqlClient } from "effect/unstable/sql";
 import { engineTestLayer } from "../../database/database.test-utils.js";
 import { describe, expect, it } from "@effect/vitest";
+import { reconcileConnectorAccounts } from "../connector-service.js";
 import * as Finance from "../finance.test-utils.js";
 
 describe("connections", () => {
@@ -64,6 +65,47 @@ describe("connections", () => {
         baseCurrencyAssetId: "fiat:USD",
       }).pipe(Effect.flip);
       expect(readOnly.message).toContain("read-only");
+    }).pipe(Effect.provide(engineTestLayer())),
+  );
+
+  it.effect("upserts today's Portfolio snapshot after a successful Connection refresh", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const timestamp = new Date().toISOString();
+      yield* sql`INSERT INTO connections (id, name, connector_id, config_json, created_at, updated_at)
+        VALUES ('okx', 'OKX', 'okx', ${JSON.stringify({ token: "x" })}, ${timestamp}, ${timestamp})`;
+      yield* reconcileConnectorAccounts("okx", [
+        {
+          externalId: "trading",
+          name: "Trading",
+          baseCurrencyIso: "USD",
+          positions: [
+            {
+              asset: {
+                externalId: "okx:currency:BTC",
+                assetCategory: "crypto",
+                name: "BTC",
+                symbol: "BTC",
+                identifiers: [{ type: "okx_currency", value: "BTC" }],
+              },
+              quantity: 1,
+            },
+          ],
+        },
+      ]);
+      const first = yield* Finance.completeConnectionRefresh("okx", {
+        refresh: false,
+        now: () => new Date("2026-08-11T08:00:00.000Z"),
+      });
+      const second = yield* Finance.completeConnectionRefresh("okx", {
+        refresh: false,
+        now: () => new Date("2026-08-11T18:00:00.000Z"),
+      });
+      const history = yield* Finance.getPortfolioHistory();
+      expect(first.connection.accounts).toHaveLength(1);
+      expect(second.failures).toEqual([]);
+      expect(history).toHaveLength(1);
+      expect(history[0]?.capturedAt.slice(0, 10)).toBe("2026-08-11");
     }).pipe(Effect.provide(engineTestLayer())),
   );
 });
