@@ -13,31 +13,33 @@ import { useState } from "react";
 import { engineApi } from "../api";
 import { FormError, PageHeader, PageState } from "../components";
 import { invalidateFinanceQueries } from "../add-assets";
-import { connectorCapabilitiesQuery, custodiansQuery } from "../queries";
+import { connectorCapabilitiesQuery, connectionsQuery, manualAccountsQuery } from "../queries";
 import { AddAssetsButton } from "./add-assets";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
 
 export function SettingsScreen() {
-  const query = useQuery(custodiansQuery);
+  const query = useQuery(connectionsQuery);
+  const accounts = useQuery(manualAccountsQuery);
   const capabilities = useQuery(connectorCapabilitiesQuery);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [syncError, setSyncError] = useState<string | null>(null);
-  const resync = useMutation({
-    mutationFn: engineApi.resyncCustodian,
+  const refresh = useMutation({
+    mutationFn: engineApi.refreshConnection,
     onSuccess: async () => {
       setSyncError(null);
       await invalidateFinanceQueries(queryClient);
-      toast({ body: "Connection resynced." });
+      toast({ body: "Connection refreshed." });
     },
     onError: (cause) => setSyncError(errorMessage(cause)),
   });
-  if (query.isPending || capabilities.isPending) return <PageState kind="pending" />;
+  if (query.isPending || capabilities.isPending || accounts.isPending)
+    return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
-  const connected = query.data.filter((custodian) => custodian.managementMode === "synced");
-  const institutions = query.data.filter((custodian) => custodian.managementMode === "manual");
+  const connected = query.data;
+  const institutions = accounts.data ?? [];
   return (
     <>
       <PageHeader
@@ -57,23 +59,23 @@ export function SettingsScreen() {
             />
           ) : (
             <List density="balanced" hasDividers>
-              {connected.map((custodian) => (
+              {connected.map((connection) => (
                 <ListItem
-                  key={custodian.id}
-                  label={custodian.name}
-                  description={`${custodian.accounts.length} account${custodian.accounts.length === 1 ? "" : "s"}`}
+                  key={connection.id}
+                  label={connection.name}
+                  description={`${connection.accounts.length} account${connection.accounts.length === 1 ? "" : "s"}`}
                   endContent={
                     <Stack direction="horizontal" gap={2} align="center">
                       <Token label="Connected" size="sm" color="blue" />
                       <Button
                         label="Resync"
                         size="sm"
-                        isLoading={resync.isPending}
-                        onClick={() => resync.mutate(custodian.id)}
+                        isLoading={refresh.isPending}
+                        onClick={() => refresh.mutate(connection.id)}
                       />
                       <Button
                         as={RouterLink}
-                        href={`/custodians/${custodian.id}/edit`}
+                        href={`/custodians/${connection.id}/edit`}
                         label="Edit"
                         size="sm"
                       />
@@ -94,12 +96,12 @@ export function SettingsScreen() {
             />
           ) : (
             <List density="balanced" hasDividers>
-              {institutions.map((custodian) => (
+              {institutions.map((account) => (
                 <ListItem
-                  key={custodian.id}
-                  href={`/custodians/${custodian.id}`}
-                  label={custodian.name}
-                  description={`${custodian.accounts.length} account${custodian.accounts.length === 1 ? "" : "s"}`}
+                  key={account.id}
+                  href={`/accounts/${account.id}`}
+                  label={account.name}
+                  description={`${account.positions.length} holding${account.positions.length === 1 ? "" : "s"}`}
                   endContent={<Token label="Manual" size="sm" color="gray" />}
                 />
               ))}

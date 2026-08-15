@@ -8,16 +8,11 @@ import * as Finance from "../finance.test-utils.js";
 describe("positions", () => {
   it.effect("enforces finite unique positions and keeps zero quantities", () =>
     Effect.gen(function* () {
-      const custodian = yield* Finance.createCustodian({
-        name: "Wallet",
-        managementMode: "manual",
-      });
       const account = yield* Finance.createAccount({
-        custodianId: custodian.id,
         name: "Default",
       });
       const custom = yield* Finance.createAsset({
-        assetClass: "custom",
+        assetCategory: "other",
         name: "Collectible",
         identifiers: [],
       });
@@ -49,7 +44,7 @@ describe("positions", () => {
           (asset_id, price, currency_asset_id, source, observed_at, updated_at)
           VALUES ('fiat:EUR', 1.25, 'fiat:USD', 'test', ${timestamp}, ${timestamp})`;
       const asset = yield* Finance.createAsset({
-        assetClass: "custom",
+        assetCategory: "other",
         name: "USD investment",
         identifiers: [],
       });
@@ -57,12 +52,7 @@ describe("positions", () => {
         price: 10,
         currencyAssetId: "fiat:USD",
       });
-      const custodian = yield* Finance.createCustodian({
-        name: "Broker",
-        managementMode: "manual",
-      });
       const account = yield* Finance.createAccount({
-        custodianId: custodian.id,
         name: "EUR portfolio",
         baseCurrencyAssetId: "fiat:EUR",
       });

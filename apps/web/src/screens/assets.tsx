@@ -29,6 +29,8 @@ import { submitThenChangeValidation, useAppForm } from "../form";
 import { assetQuery, assetsQuery, queryKeys } from "../queries";
 import { AddAssetsButton } from "./add-assets";
 
+const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "derivatives", "commodities", "other"]);
+
 const CustomAssetForm = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
   symbol: Schema.String,
@@ -69,7 +71,7 @@ export function AssetListScreen() {
     <>
       <PageHeader
         title="Assets"
-        subtitle="The shared catalog used by positions in every custodian."
+        subtitle="The shared catalog used by positions in every account."
         action={<AddAssetsButton label="Create manual asset" start="other" />}
       />
       <TextInput
@@ -101,11 +103,11 @@ export function AssetListScreen() {
               description={assetDescription(asset)}
               endContent={
                 <Stack direction="horizontal" align="center" gap={2}>
-                  <Badge label={asset.assetClass} />
+                  <Badge label={asset.assetCategory} />
                   <Button
                     as={RouterLink}
                     href={`/assets/${asset.id}/edit`}
-                    label={asset.assetClass === "custom" ? "Edit" : "Inspect"}
+                    label={MANUAL_ASSET_CATEGORIES.has(asset.assetCategory) ? "Edit" : "Inspect"}
                     size="sm"
                   />
                 </Stack>
@@ -126,7 +128,7 @@ export function CreateCustomAssetScreen() {
   const mutation = useMutation({
     mutationFn: async (value: typeof CustomAssetForm.Type) => {
       const asset = await engineApi.createAsset({
-        assetClass: "custom",
+        assetCategory: "other",
         name: value.name,
         ...(value.symbol.trim() ? { symbol: value.symbol.trim() } : {}),
         identifiers: [],
@@ -146,7 +148,7 @@ export function CreateCustomAssetScreen() {
     },
     onError: (cause) => setError(errorMessage(cause)),
   });
-  const fiat = assets.data?.filter((asset) => asset.assetClass === "fiat") ?? [];
+  const fiat = assets.data?.filter((asset) => asset.assetCategory === "cash") ?? [];
   const form = useAppForm({
     defaultValues: { name: "", symbol: "", price: "", currencyAssetId: "fiat:USD" },
     validationLogic: submitThenChangeValidation,
@@ -253,13 +255,13 @@ function LoadedAssetScreen({
     onSubmit: async ({ value }) =>
       save.mutateAsync(await Schema.decodeUnknownPromise(EditAssetForm)(value)),
   });
-  if (asset.assetClass !== "custom") {
+  if (!MANUAL_ASSET_CATEGORIES.has(asset.assetCategory)) {
     return (
       <>
         <PageBreadcrumbs items={[{ label: "Assets", href: "/assets" }, { label: asset.name }]} />
         <PageHeader
           title={asset.name}
-          subtitle={`${asset.assetClass} · read-only provider metadata`}
+          subtitle={`${asset.assetCategory} · read-only provider metadata`}
         />
         <Banner
           status="info"
@@ -288,7 +290,7 @@ function LoadedAssetScreen({
       </>
     );
   }
-  const fiat = allAssets.filter((candidate) => candidate.assetClass === "fiat");
+  const fiat = allAssets.filter((candidate) => candidate.assetCategory === "cash");
   return (
     <>
       <PageBreadcrumbs

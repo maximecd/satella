@@ -5,14 +5,13 @@ import type {
   AddManualHoldingInput,
   AddOtherAssetInput,
   AssetSearchResult,
-  ConnectCustodianInput,
+  ConnectConnectionInput,
   CreateAccountInput,
   CreateAssetInput,
-  CreateCustodianInput,
   CreatePositionInput,
   SetManualPriceInput,
   UpdateAccountInput,
-  UpdateCustodianInput,
+  UpdateConnectionInput,
   UpdateCustomAssetInput,
 } from "@optimus/engine/api";
 import { EngineApi } from "@optimus/engine/api";
@@ -33,7 +32,7 @@ export const getHello = () => request((client) => client.system.hello({}));
 export const engineApi = {
   connectorCapabilities: () => request((client) => client.finance.connectorCapabilities({})),
   getDashboard: () => request((client) => client.finance.getDashboard({})),
-  listManualCustodians: () => request((client) => client.finance.listManualCustodians({})),
+  listManualAccounts: () => request((client) => client.finance.listManualAccounts({})),
   lookupManualHolding: (accountId: string, identifierType: string, identifierValue: string) =>
     request((client) =>
       client.finance.lookupManualHolding({
@@ -46,19 +45,17 @@ export const engineApi = {
     request((client) => client.finance.addCashAccount({ payload })),
   addOtherAsset: (payload: AddOtherAssetInput) =>
     request((client) => client.finance.addOtherAsset({ payload })),
-  listCustodians: () => request((client) => client.finance.listCustodians({})),
-  getCustodian: (id: string) =>
-    request((client) => client.finance.getCustodian({ params: { id } })),
-  createCustodian: (payload: CreateCustodianInput) =>
-    request((client) => client.finance.createCustodian({ payload })),
-  connectCustodian: (payload: ConnectCustodianInput) =>
-    request((client) => client.finance.connectCustodian({ payload })),
-  resyncCustodian: (id: string) =>
-    request((client) => client.finance.resyncCustodian({ params: { id } })),
-  updateCustodian: (id: string, payload: UpdateCustodianInput) =>
-    request((client) => client.finance.updateCustodian({ params: { id }, payload })),
-  deleteCustodian: (id: string) =>
-    request((client) => client.finance.deleteCustodian({ params: { id } })),
+  listConnections: () => request((client) => client.finance.listConnections({})),
+  getConnection: (id: string) =>
+    request((client) => client.finance.getConnection({ params: { id } })),
+  connectConnection: (payload: ConnectConnectionInput) =>
+    request((client) => client.finance.connectConnection({ payload })),
+  refreshConnection: (id: string) =>
+    request((client) => client.finance.refreshConnection({ params: { id } })),
+  updateConnection: (id: string, payload: UpdateConnectionInput) =>
+    request((client) => client.finance.updateConnection({ params: { id }, payload })),
+  deleteConnection: (id: string) =>
+    request((client) => client.finance.deleteConnection({ params: { id } })),
   getAccount: (id: string) => request((client) => client.finance.getAccount({ params: { id } })),
   createAccount: (payload: CreateAccountInput) =>
     request((client) => client.finance.createAccount({ payload })),
@@ -86,6 +83,6 @@ export const engineApi = {
   portfolioHistory: () => request((client) => client.finance.portfolioHistory({})),
   refreshPrices: () => request((client) => client.finance.refreshPrices({})),
   captureSnapshot: () => request((client) => client.finance.captureSnapshot({})),
-  searchAssets: (query: string, assetClass: AssetSearchResult["assetClass"]) =>
-    request((client) => client.finance.searchAssets({ query: { query, assetClass } })),
+  searchAssets: (query: string, assetCategory: AssetSearchResult["assetCategory"]) =>
+    request((client) => client.finance.searchAssets({ query: { query, assetCategory } })),
 };

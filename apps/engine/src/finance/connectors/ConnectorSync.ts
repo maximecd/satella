@@ -4,14 +4,14 @@ import * as Layer from "effect/Layer";
 
 import type { FinanceApiError } from "../contracts.js";
 import * as ConnectorService from "../connector-service.js";
-import { connectorSyncFailure } from "../custodians/CustodianSql.js";
+import { connectorSyncFailure } from "../connections/ConnectionSql.js";
 import { HttpClient } from "effect/unstable/http";
 import { SqlClient } from "effect/unstable/sql";
 export class ConnectorSync extends Context.Service<
   ConnectorSync,
   {
     readonly syncRegistered: (
-      custodianId: string,
+      connectionId: string,
       connectorId: string,
       credentials: unknown,
     ) => Effect.Effect<void, FinanceApiError>;
@@ -23,8 +23,8 @@ export const make = Effect.gen(function* () {
   const http = yield* HttpClient.HttpClient;
   return ConnectorSync.of({
     syncRegistered: Effect.fn("ConnectorSync.syncRegistered")(
-      (custodianId, connectorId, credentials) =>
-        ConnectorService.syncRegisteredConnector(custodianId, connectorId, credentials).pipe(
+      (connectionId, connectorId, credentials) =>
+        ConnectorService.syncRegisteredConnector(connectionId, connectorId, credentials).pipe(
           Effect.provideService(SqlClient.SqlClient, sql),
           Effect.provideService(HttpClient.HttpClient, http),
           Effect.mapError(connectorSyncFailure),

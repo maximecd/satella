@@ -8,12 +8,7 @@ import * as Finance from "../finance.test-utils.js";
 describe("accounts", () => {
   it.effect("renames a manual account and deletes it after its positions are gone", () =>
     Effect.gen(function* () {
-      const custodian = yield* Finance.createCustodian({
-        name: "Bank",
-        managementMode: "manual",
-      });
       const account = yield* Finance.createAccount({
-        custodianId: custodian.id,
         name: "Checking",
         baseCurrencyAssetId: "fiat:EUR",
       });
@@ -28,10 +23,10 @@ describe("accounts", () => {
       });
       yield* Finance.deletePosition(withBalance.positions[0]!.id);
       yield* Finance.deleteAccount(account.id);
-      const remaining = yield* Finance.getCustodian(custodian.id);
+      const remaining = yield* Finance.getAccount(account.id).pipe(Effect.flip);
       expect(renamed.name).toBe("Everyday");
       expect(renamed.baseCurrencyIso).toBe("EUR");
-      expect(remaining.accounts).toEqual([]);
+      expect(remaining.message).toContain("was not found");
     }).pipe(Effect.provide(engineTestLayer())),
   );
 });

@@ -2,15 +2,22 @@ import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
 import * as Duration from "effect/Duration";
 
-import type { AccountKind, AssetClass, PresentationRole } from "../contracts.js";
+import type { AssetCategory } from "../contracts.js";
 import { FinanceApiError as FinanceError } from "../contracts.js";
 import { DEFAULT_MARKET_DATA_POLICY, DEFAULT_REPORTING_CURRENCY } from "../config.js";
 
 export type FinanceEffect<A> = Effect.Effect<A, FinanceError, SqlClient.SqlClient>;
 
+export const MANUAL_ASSET_CATEGORIES = new Set<AssetCategory>([
+  "bonds",
+  "derivatives",
+  "commodities",
+  "other",
+]);
+
 export interface AssetRow {
   readonly id: string;
-  readonly asset_class: AssetClass;
+  readonly asset_category: AssetCategory;
   readonly name: string;
   readonly symbol: string | null;
   readonly created_at: string;
@@ -31,12 +38,10 @@ export interface PriceRow {
   readonly updated_at: string;
 }
 
-export interface CustodianRow {
+export interface ConnectionRow {
   readonly id: string;
   readonly name: string;
-  readonly management_mode: "manual" | "synced";
-  readonly presentation_role: PresentationRole | null;
-  readonly connector_id: string | null;
+  readonly connector_id: string;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -44,7 +49,6 @@ export interface CustodianRow {
 export interface AccountSummaryRow {
   readonly id: string;
   readonly name: string;
-  readonly account_kind: AccountKind;
   readonly base_currency_iso: string;
   readonly connector_account_id: string | null;
   readonly position_count: number;
@@ -52,12 +56,9 @@ export interface AccountSummaryRow {
 
 export interface AccountRow {
   readonly id: string;
-  readonly custodian_id: string;
-  readonly custodian_name: string;
-  readonly management_mode: "manual" | "synced";
-  readonly presentation_role: PresentationRole | null;
+  readonly connection_id: string | null;
+  readonly connection_name: string | null;
   readonly name: string;
-  readonly account_kind: AccountKind;
   readonly base_currency_asset_id: string;
   readonly base_currency_iso: string;
   readonly connector_account_id: string | null;
@@ -71,7 +72,7 @@ export interface PositionRow {
   readonly asset_id: string;
   readonly asset_name: string;
   readonly asset_symbol: string | null;
-  readonly asset_class: AssetClass;
+  readonly asset_category: AssetCategory;
   readonly quantity: number;
   readonly price: number | null;
   readonly currency_asset_id: string | null;
@@ -125,16 +126,18 @@ export const firstOrNotFound = <A>(rows: ReadonlyArray<A>, entity: string) =>
     ? Effect.fail(failure("not_found", `${entity} was not found`))
     : Effect.succeed(rows[0]);
 
-export const assertFiat = (assetId: string) =>
+export const assertCash = (assetId: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const rows = yield* db(
-      sql<{ readonly asset_class: string }>`SELECT asset_class FROM assets WHERE id = ${assetId}`,
+      sql<{
+        readonly asset_category: string;
+      }>`SELECT asset_category FROM assets WHERE id = ${assetId}`,
     );
     const row = yield* firstOrNotFound(rows, "Currency asset");
-    if (row.asset_class !== "fiat") {
+    if (row.asset_category !== "cash") {
       return yield* Effect.fail(
-        failure("validation", "Account and price currencies must be fiat assets"),
+        failure("validation", "Account and price currencies must be cash assets"),
       );
     }
   });

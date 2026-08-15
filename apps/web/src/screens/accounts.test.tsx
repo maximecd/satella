@@ -23,13 +23,9 @@ describe("accounts screen", () => {
     renderRoute("/accounts/account-1");
 
     const breadcrumbs = await screen.findByRole("navigation", { name: "Breadcrumb" });
-    expect(within(breadcrumbs).getByRole("link", { name: "Custodians" })).toHaveAttribute(
+    expect(within(breadcrumbs).getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
-      "/custodians",
-    );
-    expect(within(breadcrumbs).getByRole("link", { name: "Broker" })).toHaveAttribute(
-      "href",
-      "/custodians/custodian-1",
+      "/",
     );
     expect(within(breadcrumbs).getByText("Portfolio")).toHaveAttribute("aria-current", "page");
   });

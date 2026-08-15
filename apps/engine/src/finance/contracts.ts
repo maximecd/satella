@@ -2,17 +2,27 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 
-export const AssetClass = Schema.Literals(["fiat", "security", "crypto", "custom"]);
-export type AssetClass = typeof AssetClass.Type;
+export const AssetCategory = Schema.Literals([
+  "stocks_etfs",
+  "bonds",
+  "crypto",
+  "cash",
+  "derivatives",
+  "commodities",
+  "other",
+]);
+export type AssetCategory = typeof AssetCategory.Type;
 
-export const AccountKind = Schema.Literals(["current", "savings", "securities", "crypto", "other"]);
-export type AccountKind = typeof AccountKind.Type;
+export const SearchableAssetCategory = Schema.Literals(["stocks_etfs", "crypto"]);
+export type SearchableAssetCategory = typeof SearchableAssetCategory.Type;
 
-export const PresentationRole = Schema.Literal("direct_ownership");
-export type PresentationRole = typeof PresentationRole.Type;
-
-export const ManagementMode = Schema.Literals(["manual", "synced"]);
-export type ManagementMode = typeof ManagementMode.Type;
+export const GenericAssetCategory = Schema.Literals([
+  "bonds",
+  "derivatives",
+  "commodities",
+  "other",
+]);
+export type GenericAssetCategory = typeof GenericAssetCategory.Type;
 
 export const IdentifierInput = Schema.Struct({
   type: Schema.Trim.check(Schema.isNonEmpty()),
@@ -33,7 +43,7 @@ export type Price = typeof Price.Type;
 
 export const Asset = Schema.Struct({
   id: Schema.String,
-  assetClass: AssetClass,
+  assetCategory: AssetCategory,
   name: Schema.String,
   symbol: Schema.NullOr(Schema.String),
   identifiers: Schema.Array(IdentifierInput),
@@ -49,7 +59,7 @@ export const Position = Schema.Struct({
   assetId: Schema.String,
   assetName: Schema.String,
   assetSymbol: Schema.NullOr(Schema.String),
-  assetClass: AssetClass,
+  assetCategory: AssetCategory,
   quantity: Schema.Number,
   price: Schema.NullOr(Price),
   reportingValue: Schema.NullOr(Schema.Number),
@@ -60,12 +70,9 @@ export type Position = typeof Position.Type;
 
 export const Account = Schema.Struct({
   id: Schema.String,
-  custodianId: Schema.String,
-  custodianName: Schema.String,
-  managementMode: ManagementMode,
-  presentationRole: Schema.NullOr(PresentationRole),
+  connectionId: Schema.NullOr(Schema.String),
+  connectionName: Schema.NullOr(Schema.String),
   name: Schema.String,
-  accountKind: AccountKind,
   baseCurrencyAssetId: Schema.String,
   baseCurrencyIso: Schema.String,
   connectorAccountId: Schema.NullOr(Schema.String),
@@ -81,31 +88,28 @@ export type Account = typeof Account.Type;
 export const AccountSummary = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
-  accountKind: AccountKind,
   baseCurrencyIso: Schema.String,
   connectorAccountId: Schema.NullOr(Schema.String),
   positionCount: Schema.Number,
 });
 export type AccountSummary = typeof AccountSummary.Type;
 
-export const Custodian = Schema.Struct({
+export const Connection = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
-  managementMode: ManagementMode,
-  presentationRole: Schema.NullOr(PresentationRole),
-  connectorId: Schema.NullOr(Schema.String),
+  connectorId: Schema.String,
   accounts: Schema.Array(AccountSummary),
   createdAt: Schema.String,
   updatedAt: Schema.String,
 });
-export type Custodian = typeof Custodian.Type;
+export type Connection = typeof Connection.Type;
 
 export const ConnectorCapability = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   icon: Schema.optional(Schema.String),
   instructions: Schema.optional(Schema.String),
-  assetClasses: Schema.Array(Schema.Literals(["fiat", "security", "crypto"])),
+  assetCategories: Schema.Array(AssetCategory),
   credentialFields: Schema.Array(
     Schema.Struct({
       key: Schema.Trim.check(Schema.isNonEmpty()),
@@ -132,38 +136,22 @@ export const ConnectorCapabilities = Schema.Struct({
 
 export const EntityIdPath = Schema.Struct({ id: Schema.String });
 
-export const CreateCustodianInput = Schema.Struct({
-  name: Schema.Trim.check(Schema.isNonEmpty()),
-  managementMode: ManagementMode.pipe(
-    Schema.optional,
-    Schema.withDecodingDefaultType(Effect.succeed("manual" as const)),
-  ),
-  connectorId: Schema.optional(Schema.Trim.check(Schema.isNonEmpty())),
-  connectorConfig: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
-});
-export type CreateCustodianInput = typeof CreateCustodianInput.Type;
-
-/** Credentials are stored in the connector configuration for future resyncs. */
-export const ConnectCustodianInput = Schema.Struct({
+/** Credentials are stored in the connector configuration for later refreshes. */
+export const ConnectConnectionInput = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
   connectorId: Schema.Trim.check(Schema.isNonEmpty()),
   credentials: Schema.Record(Schema.String, Schema.Unknown),
 });
-export type ConnectCustodianInput = typeof ConnectCustodianInput.Type;
+export type ConnectConnectionInput = typeof ConnectConnectionInput.Type;
 
-export const UpdateCustodianInput = Schema.Struct({
+export const UpdateConnectionInput = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
   credentials: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 });
-export type UpdateCustodianInput = typeof UpdateCustodianInput.Type;
+export type UpdateConnectionInput = typeof UpdateConnectionInput.Type;
 
 export const CreateAccountInput = Schema.Struct({
-  custodianId: Schema.String,
   name: Schema.Trim.check(Schema.isNonEmpty()),
-  accountKind: AccountKind.pipe(
-    Schema.optional,
-    Schema.withDecodingDefaultType(Effect.succeed("other" as const)),
-  ),
   baseCurrencyAssetId: Schema.optional(Schema.String),
 });
 export type CreateAccountInput = typeof CreateAccountInput.Type;
@@ -175,7 +163,7 @@ export const UpdateAccountInput = Schema.Struct({
 export type UpdateAccountInput = typeof UpdateAccountInput.Type;
 
 export const CreateAssetInput = Schema.Struct({
-  assetClass: AssetClass,
+  assetCategory: AssetCategory,
   name: Schema.Trim.check(Schema.isNonEmpty()),
   symbol: Schema.optional(Schema.Trim.check(Schema.isNonEmpty())),
   identifiers: Schema.Array(IdentifierInput).pipe(
@@ -260,18 +248,6 @@ export const PortfolioHistoryPoint = Schema.Struct({
 });
 export type PortfolioHistoryPoint = typeof PortfolioHistoryPoint.Type;
 
-export const ExistingOrNewCustodian = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal("existing"),
-    id: Schema.String,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("new"),
-    name: Schema.Trim.check(Schema.isNonEmpty()),
-  }),
-]);
-export type ExistingOrNewCustodian = typeof ExistingOrNewCustodian.Type;
-
 export const ExistingOrNewAccount = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("existing"),
@@ -286,7 +262,7 @@ export const ExistingOrNewAccount = Schema.Union([
 export type ExistingOrNewAccount = typeof ExistingOrNewAccount.Type;
 
 export const ProviderAssetInput = Schema.Struct({
-  assetClass: Schema.Literals(["security", "crypto"]),
+  assetCategory: SearchableAssetCategory,
   name: Schema.Trim.check(Schema.isNonEmpty()),
   symbol: Schema.Trim.check(Schema.isNonEmpty()),
   identifiers: Schema.Array(IdentifierInput),
@@ -295,22 +271,24 @@ export type ProviderAssetInput = typeof ProviderAssetInput.Type;
 
 export const AddManualHoldingInput = Schema.Struct({
   asset: ProviderAssetInput,
-  custodian: ExistingOrNewCustodian,
   account: ExistingOrNewAccount,
   quantity: Schema.Number,
 });
 export type AddManualHoldingInput = typeof AddManualHoldingInput.Type;
 
 export const AddCashAccountInput = Schema.Struct({
-  accountKind: Schema.Literals(["current", "savings"]),
-  custodian: ExistingOrNewCustodian,
-  accountName: Schema.Trim.check(Schema.isNonEmpty()),
+  account: ExistingOrNewAccount,
   currencyAssetId: Schema.String,
   balance: Schema.Number,
 });
 export type AddCashAccountInput = typeof AddCashAccountInput.Type;
 
 export const AddOtherAssetInput = Schema.Struct({
+  category: GenericAssetCategory.pipe(
+    Schema.optional,
+    Schema.withDecodingDefaultType(Effect.succeed("other" as const)),
+  ),
+  account: ExistingOrNewAccount,
   name: Schema.Trim.check(Schema.isNonEmpty()),
   value: Schema.Number,
   currencyAssetId: Schema.String,
@@ -319,7 +297,6 @@ export type AddOtherAssetInput = typeof AddOtherAssetInput.Type;
 
 export const AddAssetsResult = Schema.Struct({
   accountId: Schema.String,
-  custodianId: Schema.String,
   accountName: Schema.String,
   positionOutcome: Schema.Literals(["created", "updated"]),
 });
@@ -340,10 +317,8 @@ export type ManualHoldingLookup = typeof ManualHoldingLookup.Type;
 export const DashboardAccountRow = Schema.Struct({
   accountId: Schema.String,
   accountName: Schema.String,
-  custodianId: Schema.String,
-  custodianName: Schema.String,
-  accountKind: AccountKind,
-  source: Schema.Literals(["manual", "connected"]),
+  connectionId: Schema.NullOr(Schema.String),
+  connectionName: Schema.NullOr(Schema.String),
   connectorId: Schema.NullOr(Schema.String),
   connectorName: Schema.NullOr(Schema.String),
   baseCurrencyIso: Schema.String,
@@ -351,7 +326,6 @@ export const DashboardAccountRow = Schema.Struct({
   total: Schema.Number,
   totalIncomplete: Schema.Boolean,
   hasStalePrices: Schema.Boolean,
-  presentationRole: Schema.NullOr(PresentationRole),
 });
 export type DashboardAccountRow = typeof DashboardAccountRow.Type;
 
@@ -362,12 +336,12 @@ export type Dashboard = typeof Dashboard.Type;
 
 export const SearchAssetsParams = Schema.Struct({
   query: Schema.String,
-  assetClass: Schema.Literals(["security", "crypto"]),
+  assetCategory: SearchableAssetCategory,
 });
 
 export const AssetSearchResult = Schema.Struct({
   provider: Schema.Literals(["yahoo-finance", "coingecko"]),
-  assetClass: Schema.Literals(["security", "crypto"]),
+  assetCategory: SearchableAssetCategory,
   name: Schema.String,
   symbol: Schema.String,
   identifiers: Schema.Array(IdentifierInput),

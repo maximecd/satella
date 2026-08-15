@@ -30,7 +30,12 @@ const report = `<?xml version="1.0" encoding="UTF-8"?>
       </CashReport>
       <OpenPositions>
         <OpenPosition accountId="U123456" assetCategory="STK" symbol="AAPL" description="Apple &amp; Co" conid="265598" position="2" levelOfDetail="Summary" isin="US0378331005" securityIDType="ISIN" securityID="US0378331005" />
+        <OpenPosition accountId="U123456" assetCategory="FUND" symbol="VWCE" description="Vanguard FTSE" conid="400" position="5" levelOfDetail="Summary" />
+        <OpenPosition accountId="U123456" assetCategory="BOND" symbol="US10Y" description="US Treasury" conid="500" position="10" levelOfDetail="Summary" />
         <OpenPosition accountId="U123456" assetCategory="OPT" symbol="AAPL  260918C00200000" description="Apple call" conid="111" position="-1" levelOfDetail="Summary" multiplier="100" />
+        <OpenPosition accountId="U123456" assetCategory="FUT" symbol="ES" description="E-mini S&amp;P" conid="600" position="1" levelOfDetail="Summary" />
+        <OpenPosition accountId="U123456" assetCategory="CMDTY" symbol="XAUUSD" description="Gold" conid="700" position="2" levelOfDetail="Summary" />
+        <OpenPosition accountId="U123456" assetCategory="EVENT_FORECASTX" symbol="EVT" description="Forecast" conid="800" position="3" levelOfDetail="Summary" />
         <OpenPosition accountId="U123456" assetCategory="CASH" currency="USD" position="100.50" />
       </OpenPositions>
     </FlexStatement>
@@ -94,12 +99,11 @@ describe("IBKR Flex connector", () => {
         externalId: "U123456",
         name: "PEA (U123456)",
         baseCurrencyIso: "USD",
-        accountKind: "securities",
         positions: [
           {
             asset: {
               externalId: "ibkr:currency:USD",
-              assetClass: "fiat",
+              assetCategory: "cash",
               name: "USD",
               symbol: "USD",
               identifiers: [{ type: "iso_currency", value: "USD" }],
@@ -109,7 +113,7 @@ describe("IBKR Flex connector", () => {
           {
             asset: {
               externalId: "ibkr:currency:EUR",
-              assetClass: "fiat",
+              assetCategory: "cash",
               name: "EUR",
               symbol: "EUR",
               identifiers: [{ type: "iso_currency", value: "EUR" }],
@@ -119,7 +123,7 @@ describe("IBKR Flex connector", () => {
           {
             asset: {
               externalId: "ibkr:conid:265598",
-              assetClass: "security",
+              assetCategory: "stocks_etfs",
               name: "Apple & Co",
               symbol: "AAPL",
               identifiers: [
@@ -131,12 +135,58 @@ describe("IBKR Flex connector", () => {
           },
           {
             asset: {
+              externalId: "ibkr:conid:400",
+              assetCategory: "stocks_etfs",
+              name: "Vanguard FTSE",
+              symbol: "VWCE",
+              identifiers: [{ type: "ibkr_conid", value: "400" }],
+            },
+            quantity: 5,
+          },
+          {
+            asset: {
+              externalId: "ibkr:conid:500",
+              assetCategory: "bonds",
+              name: "US Treasury",
+              identifiers: [{ type: "ibkr_conid", value: "500" }],
+            },
+            quantity: 10,
+          },
+          {
+            asset: {
               externalId: "ibkr:conid:111",
-              assetClass: "security",
+              assetCategory: "derivatives",
               name: "Apple call",
               identifiers: [{ type: "ibkr_conid", value: "111" }],
             },
             quantity: -1,
+          },
+          {
+            asset: {
+              externalId: "ibkr:conid:600",
+              assetCategory: "derivatives",
+              name: "E-mini S&P",
+              identifiers: [{ type: "ibkr_conid", value: "600" }],
+            },
+            quantity: 1,
+          },
+          {
+            asset: {
+              externalId: "ibkr:conid:700",
+              assetCategory: "commodities",
+              name: "Gold",
+              identifiers: [{ type: "ibkr_conid", value: "700" }],
+            },
+            quantity: 2,
+          },
+          {
+            asset: {
+              externalId: "ibkr:conid:800",
+              assetCategory: "other",
+              name: "Forecast",
+              identifiers: [{ type: "ibkr_conid", value: "800" }],
+            },
+            quantity: 3,
           },
         ],
       },
@@ -162,7 +212,6 @@ describe("IBKR Flex connector", () => {
         externalId: "UEMPTY",
         name: "UEMPTY",
         baseCurrencyIso: "USD",
-        accountKind: "securities",
         positions: [],
       },
     ]);
@@ -191,12 +240,11 @@ describe("IBKR Flex connector", () => {
         externalId: "UEMPTY",
         name: "UEMPTY",
         baseCurrencyIso: "USD",
-        accountKind: "securities",
         positions: [
           {
             asset: {
               externalId: "ibkr:currency:USD",
-              assetClass: "fiat",
+              assetCategory: "cash",
               name: "USD",
               symbol: "USD",
               identifiers: [{ type: "iso_currency", value: "USD" }],
@@ -212,7 +260,13 @@ describe("IBKR Flex connector", () => {
     expect(() => parseFlexXml('<!DOCTYPE x [<!ENTITY y "z">]><FlexQueryResponse />')).toThrow(
       "DTD",
     );
-    expect(IbkrConnector.assetClasses).toEqual(["security"]);
+    expect(IbkrConnector.assetCategories).toEqual([
+      "stocks_etfs",
+      "bonds",
+      "cash",
+      "derivatives",
+      "commodities",
+    ]);
     expect(IbkrConnector.credentialFields.map(({ key, kind }) => [key, kind])).toEqual([
       ["token", "password"],
       ["queryId", "text"],

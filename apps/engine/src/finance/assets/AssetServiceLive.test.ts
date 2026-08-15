@@ -8,19 +8,19 @@ describe("assets", () => {
   it.effect("reuses strong identifiers but never merges by name or ticker alone", () =>
     Effect.gen(function* () {
       const apple = yield* Finance.createAsset({
-        assetClass: "security",
+        assetCategory: "stocks_etfs",
         name: "Apple",
         symbol: "AAPL",
         identifiers: [{ type: "isin", value: "US0378331005" }],
       });
       const sameApple = yield* Finance.createAsset({
-        assetClass: "security",
+        assetCategory: "stocks_etfs",
         name: "Apple Inc.",
         symbol: "AAPL",
         identifiers: [{ type: "isin", value: "US0378331005" }],
       });
       const ambiguousApple = yield* Finance.createAsset({
-        assetClass: "security",
+        assetCategory: "stocks_etfs",
         name: "Apple",
         symbol: "AAPL",
         identifiers: [],
@@ -31,28 +31,18 @@ describe("assets", () => {
   );
 
   it.effect(
-    "uses one shared custom price across custodians and marks missing prices incomplete",
+    "uses one shared manual price across accounts and marks missing prices incomplete",
     () =>
       Effect.gen(function* () {
         const asset = yield* Finance.createAsset({
-          assetClass: "custom",
+          assetCategory: "other",
           name: "Private company",
           identifiers: [],
         });
-        const firstCustodian = yield* Finance.createCustodian({
-          name: "First",
-          managementMode: "manual",
-        });
-        const secondCustodian = yield* Finance.createCustodian({
-          name: "Second",
-          managementMode: "manual",
-        });
         const first = yield* Finance.createAccount({
-          custodianId: firstCustodian.id,
           name: "Default",
         });
         const second = yield* Finance.createAccount({
-          custodianId: secondCustodian.id,
           name: "Default",
         });
         yield* Finance.createPosition({ accountId: first.id, assetId: asset.id, quantity: 2 });

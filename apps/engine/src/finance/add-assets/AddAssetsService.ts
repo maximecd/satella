@@ -2,18 +2,18 @@ import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 
 import type {
+  Account,
   AddAssetsResult,
   AddCashAccountInput,
   AddManualHoldingInput,
   AddOtherAssetInput,
-  Custodian,
   FinanceApiError,
 } from "../contracts.js";
 
 export class AddAssetsService extends Context.Service<
   AddAssetsService,
   {
-    readonly listManualCustodians: () => Effect.Effect<ReadonlyArray<Custodian>, FinanceApiError>;
+    readonly listManualAccounts: () => Effect.Effect<ReadonlyArray<Account>, FinanceApiError>;
     readonly lookupManualHolding: (
       accountId: string,
       identifierType: string,

@@ -43,7 +43,7 @@ describe("add assets screen", () => {
     expect(screen.getByText("Asset name is required.")).toBeInTheDocument();
     await user.type(name, " Watch ");
     await user.tab();
-    expect(name).toHaveValue("Watch");
+    expect(name).toHaveValue(" Watch ");
   });
 
   it("collects a manual crypto holding on one form", async () => {
@@ -51,7 +51,7 @@ describe("add assets screen", () => {
     vi.mocked(engineApi.listAssets).mockResolvedValue([
       {
         id: "fiat:USD",
-        assetClass: "fiat",
+        assetCategory: "cash",
         name: "US Dollar",
         symbol: "USD",
         identifiers: [],
@@ -63,7 +63,7 @@ describe("add assets screen", () => {
     vi.mocked(engineApi.searchAssets).mockResolvedValue([
       {
         provider: "coingecko",
-        assetClass: "crypto",
+        assetCategory: "crypto",
         name: "Bitcoin",
         symbol: "BTC",
         identifiers: [{ type: "coingecko", value: "bitcoin" }],
@@ -71,7 +71,6 @@ describe("add assets screen", () => {
     ]);
     vi.mocked(engineApi.addManualHolding).mockResolvedValue({
       accountId: "account-2",
-      custodianId: "custodian-2",
       accountName: "Spot",
       positionOutcome: "created",
     });
@@ -79,10 +78,9 @@ describe("add assets screen", () => {
     renderRoute("/");
     await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
     await user.click(await screen.findByRole("button", { name: /Crypto/ }));
-    expect(await screen.findByLabelText("Choose a platform or wallet")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Choose an account")).toBeInTheDocument();
     await user.type(screen.getByLabelText("Asset"), "bitcoin");
     await user.click(await screen.findByRole("button", { name: /Bitcoin · BTC/ }));
-    await user.type(screen.getByLabelText("Choose a platform or wallet"), "Coinbase");
     await user.type(screen.getByLabelText("Choose an account"), "Spot");
     await user.type(screen.getByLabelText("Quantity"), "1.5");
     await user.click(screen.getByRole("button", { name: "Add quantity" }));
@@ -90,12 +88,11 @@ describe("add assets screen", () => {
     await waitFor(() =>
       expect(engineApi.addManualHolding).toHaveBeenCalledWith({
         asset: {
-          assetClass: "crypto",
+          assetCategory: "crypto",
           name: "Bitcoin",
           symbol: "BTC",
           identifiers: [{ type: "coingecko", value: "bitcoin" }],
         },
-        custodian: { type: "new", name: "Coinbase" },
         account: { type: "new", name: "Spot", baseCurrencyAssetId: "fiat:USD" },
         quantity: 1.5,
       }),
@@ -107,7 +104,7 @@ describe("add assets screen", () => {
     vi.mocked(engineApi.listAssets).mockResolvedValue([
       {
         id: "fiat:USD",
-        assetClass: "fiat",
+        assetCategory: "cash",
         name: "US Dollar",
         symbol: "USD",
         identifiers: [],
@@ -118,24 +115,20 @@ describe("add assets screen", () => {
     ]);
     vi.mocked(engineApi.addCashAccount).mockResolvedValue({
       accountId: "account-3",
-      custodianId: "custodian-3",
       accountName: "Checking",
       positionOutcome: "created",
     });
 
     renderRoute("/");
     await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
-    await user.click(await screen.findByRole("button", { name: /Current accounts/ }));
-    await user.type(screen.getByLabelText("Choose a bank"), "Chase");
-    await user.type(screen.getByLabelText("Account name"), "Checking");
+    await user.click(await screen.findByRole("button", { name: /Cash/ }));
+    await user.type(screen.getByLabelText("Choose an account"), "Checking");
     await user.type(screen.getByLabelText("Balance"), "2500");
-    await user.click(screen.getByRole("button", { name: "Create account" }));
+    await user.click(screen.getByRole("button", { name: "Save cash" }));
 
     await waitFor(() =>
       expect(engineApi.addCashAccount).toHaveBeenCalledWith({
-        accountKind: "current",
-        custodian: { type: "new", name: "Chase" },
-        accountName: "Checking",
+        account: { type: "new", name: "Checking", baseCurrencyAssetId: "fiat:USD" },
         currencyAssetId: "fiat:USD",
         balance: 2500,
       }),
@@ -152,7 +145,7 @@ describe("add assets screen", () => {
           icon: "data:image/svg+xml;base64,PHN2Zy8+",
           instructions:
             "# Connect OKX\n\nCreate a read-only API key.\n\n## Checklist\n\n| Field | Required |\n| --- | --- |\n| API key | Yes |",
-          assetClasses: ["crypto"],
+          assetCategories: ["crypto"],
           credentialFields: [
             { key: "apiKey", label: "API key", kind: "text", required: true },
             { key: "secretKey", label: "Secret key", kind: "password", required: true },

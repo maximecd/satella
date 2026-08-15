@@ -57,29 +57,26 @@ describe("market data coordinator", () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         const canonical = yield* Finance.createAsset({
-          assetClass: "crypto",
+          assetCategory: "crypto",
           name: "Bitcoin",
           symbol: "BTC",
           identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
         });
         const duplicate = yield* Finance.createAsset({
-          assetClass: "crypto",
+          assetCategory: "crypto",
           name: "BTC",
           symbol: "BTC",
           identifiers: [],
         });
         const timestamp = new Date().toISOString();
-        yield* sql`INSERT INTO custodians (id, name, management_mode, created_at, updated_at)
-          VALUES ('okx', 'OKX', 'synced', ${timestamp}, ${timestamp})`;
-        yield* sql`INSERT INTO custodian_connectors
-          (custodian_id, connector_id, config_json, created_at, updated_at)
-          VALUES ('okx', 'okx', '{}', ${timestamp}, ${timestamp})`;
+        yield* sql`INSERT INTO connections (id, name, connector_id, config_json, created_at, updated_at)
+          VALUES ('okx', 'OKX', 'okx', '{}', ${timestamp}, ${timestamp})`;
         yield* sql`INSERT INTO accounts
-          (id, custodian_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
+          (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
           VALUES ('trading', 'okx', 'Trading', 'fiat:USD', 'trading', ${timestamp}, ${timestamp})`;
         yield* sql`INSERT INTO positions (id, account_id, asset_id, quantity, created_at, updated_at)
           VALUES ('btc-position', 'trading', ${duplicate.id}, 1, ${timestamp}, ${timestamp})`;
-        yield* sql`INSERT INTO connector_asset_mappings (custodian_id, external_asset_id, asset_id)
+        yield* sql`INSERT INTO connector_asset_mappings (connection_id, external_asset_id, asset_id)
           VALUES ('okx', 'okx:currency:BTC', ${duplicate.id})`;
         const refreshed = yield* refreshPrices({ registry, requireFresh: true });
         return {
@@ -122,17 +119,12 @@ describe("market data coordinator", () => {
     const result = await run(
       Effect.gen(function* () {
         const bitcoin = yield* Finance.createAsset({
-          assetClass: "crypto",
+          assetCategory: "crypto",
           name: "BTC",
           symbol: "BTC",
           identifiers: [],
         });
-        const custodian = yield* Finance.createCustodian({
-          name: "OKX",
-          managementMode: "manual",
-        });
         const account = yield* Finance.createAccount({
-          custodianId: custodian.id,
           name: "Trading",
         });
         yield* Finance.createPosition({ accountId: account.id, assetId: bitcoin.id, quantity: 1 });
@@ -143,7 +135,7 @@ describe("market data coordinator", () => {
             Effect.succeed([
               {
                 provider: "coingecko" as const,
-                assetClass: "crypto" as const,
+                assetCategory: "crypto" as const,
                 name: "Bitcoin",
                 symbol: "BTC",
                 identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
@@ -184,16 +176,11 @@ describe("market data coordinator", () => {
     const result = await run(
       Effect.gen(function* () {
         const etf = yield* Finance.createAsset({
-          assetClass: "security",
+          assetCategory: "stocks_etfs",
           name: "EUR ETF",
           identifiers: [{ type: "yahoo_symbol", value: "ETF.PA" }],
         });
-        const custodian = yield* Finance.createCustodian({
-          name: "Broker",
-          managementMode: "manual",
-        });
         const account = yield* Finance.createAccount({
-          custodianId: custodian.id,
           name: "Portfolio",
         });
         yield* Finance.createPosition({ accountId: account.id, assetId: etf.id, quantity: 2 });
@@ -238,7 +225,7 @@ describe("market data coordinator", () => {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         const etf = yield* Finance.createAsset({
-          assetClass: "security",
+          assetCategory: "stocks_etfs",
           name: "BNP EASY S&P 500 EUR",
           symbol: "ESE",
           identifiers: [{ type: "isin", value: isin }],
@@ -246,12 +233,7 @@ describe("market data coordinator", () => {
         // This is the stale mapping produced by the old ticker-first flow.
         yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
           VALUES ('stale-yahoo', ${etf.id}, 'yahoo_symbol', 'ESE')`;
-        const custodian = yield* Finance.createCustodian({
-          name: "Broker",
-          managementMode: "manual",
-        });
         const account = yield* Finance.createAccount({
-          custodianId: custodian.id,
           name: "Portfolio",
         });
         yield* Finance.createPosition({ accountId: account.id, assetId: etf.id, quantity: 1 });
@@ -263,7 +245,7 @@ describe("market data coordinator", () => {
             return Effect.succeed([
               {
                 provider: "yahoo-finance" as const,
-                assetClass: "security" as const,
+                assetCategory: "stocks_etfs" as const,
                 name: "BNP Paribas Easy S&P 500 UCITS ETF",
                 symbol: "ESE.PA",
                 identifiers: [{ type: "yahoo_symbol", value: "ESE.PA" }],
@@ -320,29 +302,19 @@ describe("market data coordinator", () => {
     const result = await run(
       Effect.gen(function* () {
         const apple = yield* Finance.createAsset({
-          assetClass: "security",
+          assetCategory: "stocks_etfs",
           name: "Apple",
           identifiers: [{ type: "yahoo_symbol", value: "AAPL" }],
         });
         const unknown = yield* Finance.createAsset({
-          assetClass: "security",
+          assetCategory: "stocks_etfs",
           name: "Unknown",
           identifiers: [{ type: "yahoo_symbol", value: "UNKNOWN" }],
         });
-        const firstCustodian = yield* Finance.createCustodian({
-          name: "One",
-          managementMode: "manual",
-        });
-        const secondCustodian = yield* Finance.createCustodian({
-          name: "Two",
-          managementMode: "manual",
-        });
         const first = yield* Finance.createAccount({
-          custodianId: firstCustodian.id,
           name: "Default",
         });
         const second = yield* Finance.createAccount({
-          custodianId: secondCustodian.id,
           name: "Default",
         });
         yield* Finance.createPosition({ accountId: first.id, assetId: apple.id, quantity: 1 });
@@ -367,7 +339,7 @@ describe("market data coordinator", () => {
     expect(batches[1]?.map(({ lookupKey }) => lookupKey)).toEqual(["UNKNOWN"]);
   });
 
-  it("never sends custom assets to a provider", async () => {
+  it("never sends other assets to a provider", async () => {
     let requests = 0;
     const yahoo: MarketDataProvider = {
       id: "yahoo-finance",
@@ -381,16 +353,11 @@ describe("market data coordinator", () => {
     const result = await run(
       Effect.gen(function* () {
         const custom = yield* Finance.createAsset({
-          assetClass: "custom",
+          assetCategory: "other",
           name: "Art",
           identifiers: [],
         });
-        const custodian = yield* Finance.createCustodian({
-          name: "Home",
-          managementMode: "manual",
-        });
         const account = yield* Finance.createAccount({
-          custodianId: custodian.id,
           name: "Default",
         });
         yield* Finance.createPosition({ accountId: account.id, assetId: custom.id, quantity: 1 });
@@ -425,16 +392,11 @@ describe("market data coordinator", () => {
     await run(
       Effect.gen(function* () {
         const asset = yield* Finance.createAsset({
-          assetClass: "security",
+          assetCategory: "stocks_etfs",
           name: "Shared",
           identifiers: [{ type: "yahoo_symbol", value: "SHARED" }],
         });
-        const custodian = yield* Finance.createCustodian({
-          name: "Broker",
-          managementMode: "manual",
-        });
         const account = yield* Finance.createAccount({
-          custodianId: custodian.id,
           name: "Default",
         });
         yield* Finance.createPosition({ accountId: account.id, assetId: asset.id, quantity: 1 });

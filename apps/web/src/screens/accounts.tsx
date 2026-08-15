@@ -26,7 +26,7 @@ import {
   ResourceCard,
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
-import { accountQuery, assetsQuery, custodianQuery, queryKeys } from "../queries";
+import { accountQuery, assetsQuery, queryKeys } from "../queries";
 import { AddAssetsButton } from "./add-assets";
 
 const errorMessage = (error: unknown) =>
@@ -164,7 +164,7 @@ function PositionTable({
           width: proportional(0.5),
           align: "end",
           renderCell: (row) =>
-            account.managementMode === "manual" && account.presentationRole === null ? (
+            account.connectionId === null ? (
               <Button
                 as={RouterLink}
                 href={`/positions/${row.id}/edit`}
@@ -204,15 +204,22 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
   return (
     <>
       <PageBreadcrumbs
-        items={[
-          { label: "Custodians", href: "/custodians" },
-          { label: account.custodianName, href: `/custodians/${account.custodianId}` },
-          { label: account.name },
-        ]}
+        items={
+          account.connectionId === null
+            ? [{ label: "Dashboard", href: "/" }, { label: account.name }]
+            : [
+                { label: "Custodians", href: "/custodians" },
+                {
+                  label: account.connectionName ?? "Connection",
+                  href: `/custodians/${account.connectionId}`,
+                },
+                { label: account.name },
+              ]
+        }
       />
       <PageHeader
         title={account.name}
-        subtitle={`${account.custodianName} · Valuation currency ${account.baseCurrencyIso}`}
+        subtitle={`${account.connectionName ?? "Manual"} · Valuation currency ${account.baseCurrencyIso}`}
         action={
           <>
             <Button
@@ -222,13 +229,13 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
                 await refresh.mutateAsync();
               }}
             />
-            {account.managementMode === "manual" && account.presentationRole === null && (
+            {account.connectionId === null && (
               <Button as={RouterLink} href={`/accounts/${id}/edit`} label="Edit account" />
             )}
           </>
         }
       />
-      {account.managementMode === "synced" && (
+      {account.connectionId !== null && (
         <Banner
           status="info"
           title="Connector-managed account"
@@ -266,7 +273,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
       </ResourceCard>
       <Stack direction="horizontal" justify="between" align="center" gap={3} wrap="wrap">
         <Heading level={2}>Positions</Heading>
-        {account.managementMode === "manual" && account.presentationRole === null && (
+        {account.connectionId === null && (
           <AddAssetsButton />
         )}
       </Stack>
@@ -289,8 +296,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
   );
 }
 
-export function CreateAccountScreen({ custodianId }: { readonly custodianId: string }) {
-  const custodian = useQuery(custodianQuery(custodianId));
+export function CreateAccountScreen(_props: { readonly custodianId: string }) {
   const assets = useQuery(assetsQuery);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -298,14 +304,13 @@ export function CreateAccountScreen({ custodianId }: { readonly custodianId: str
   const mutation = useMutation({
     mutationFn: engineApi.createAccount,
     onSuccess: async (account) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.custodians.detail(custodianId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts.manual });
       await navigate({ to: "/accounts/$accountId", params: { accountId: account.id } });
     },
     onError: (cause) => setError(errorMessage(cause)),
   });
-  const fiat = assets.data?.filter((asset) => asset.assetClass === "fiat") ?? [];
+  const fiat = assets.data?.filter((asset) => asset.assetCategory === "cash") ?? [];
   const defaultValues: typeof CreateAccountInput.Encoded = {
-    custodianId,
     name: "",
     baseCurrencyAssetId: "fiat:USD",
   };
@@ -316,20 +321,17 @@ export function CreateAccountScreen({ custodianId }: { readonly custodianId: str
     onSubmit: async ({ value }) =>
       mutation.mutateAsync(await Schema.decodeUnknownPromise(CreateAccountInput)(value)),
   });
-  if (custodian.isPending || assets.isPending) return <PageState kind="pending" />;
-  if (custodian.isError || assets.isError) return <PageState kind="error" />;
-  if (custodian.data.managementMode !== "manual")
-    return <PageState kind="error" message="Connector-managed custodians are read-only." />;
+  if (assets.isPending) return <PageState kind="pending" />;
+  if (assets.isError) return <PageState kind="error" />;
   return (
     <>
       <PageBreadcrumbs
         items={[
-          { label: "Custodians", href: "/custodians" },
-          { label: custodian.data.name, href: `/custodians/${custodianId}` },
+          { label: "Dashboard", href: "/" },
           { label: "Add account" },
         ]}
       />
-      <PageHeader title="Add account" subtitle={`Under ${custodian.data.name}`} />
+      <PageHeader title="Add account" subtitle="Create a standalone account." />
       <FormError message={error} />
       <form.AppForm>
         <FormFrame
@@ -369,12 +371,7 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
   const update = useMutation({
     mutationFn: (payload: UpdateAccountInput) => engineApi.updateAccount(account.id, payload),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.accounts.detail(account.id) }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.custodians.detail(account.custodianId),
-        }),
-      ]);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts.detail(account.id) });
       await navigate({ to: "/accounts/$accountId", params: { accountId: account.id } });
     },
     onError: (cause) => setError(errorMessage(cause)),
@@ -382,13 +379,8 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
   const remove = useMutation({
     mutationFn: () => engineApi.deleteAccount(account.id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.custodians.detail(account.custodianId),
-      });
-      await navigate({
-        to: "/custodians/$custodianId",
-        params: { custodianId: account.custodianId },
-      });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      await navigate({ to: "/" });
     },
     onError: (cause) => setError(errorMessage(cause)),
   });
@@ -400,13 +392,12 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
       update.mutateAsync(await Schema.decodeUnknownPromise(UpdateAccountInput)(value)),
   });
   if (assets.isPending) return <PageState kind="pending" />;
-  const fiat = assets.data?.filter((asset) => asset.assetClass === "fiat") ?? [];
+  const fiat = assets.data?.filter((asset) => asset.assetCategory === "cash") ?? [];
   return (
     <>
       <PageBreadcrumbs
         items={[
-          { label: "Custodians", href: "/custodians" },
-          { label: account.custodianName, href: `/custodians/${account.custodianId}` },
+          { label: "Dashboard", href: "/" },
           { label: account.name, href: `/accounts/${account.id}` },
           { label: "Edit" },
         ]}
@@ -452,7 +443,7 @@ export function EditAccountScreen({ id }: { readonly id: string }) {
   const query = useQuery(accountQuery(id));
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
-  if (query.data.managementMode !== "manual" || query.data.presentationRole !== null)
+  if (query.data.connectionId !== null)
     return <PageState kind="error" message="Connector-managed accounts are read-only." />;
   return <LoadedEditAccount account={query.data} />;
 }
