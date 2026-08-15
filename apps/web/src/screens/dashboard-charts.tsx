@@ -27,6 +27,12 @@ const valuedAmount = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+const compactAmount = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 2,
+});
+const wholeAmount = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 0,
+});
 const chartDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const tooltipDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
@@ -43,6 +49,20 @@ const CATEGORY_TOKENS = [
 const MIN_LABEL_WIDTH = 96;
 const MIN_LABEL_HEIGHT = 56;
 const VIEWPORT_MARGIN = 8;
+const Y_AXIS_CHAR_WIDTH = 8;
+const Y_AXIS_GUTTER = 16;
+const Y_AXIS_MIN_WIDTH = 56;
+const Y_AXIS_MAX_WIDTH = 96;
+
+const yAxisWidthFor = (points: ReadonlyArray<PortfolioHistoryPoint>) => {
+  const extreme =
+    points.length === 0 ? 0 : Math.max(...points.map((point) => Math.abs(point.total)));
+  const tick = compactAmount.format(extreme === 0 ? 0 : Math.ceil(extreme * 1.15));
+  return Math.min(
+    Y_AXIS_MAX_WIDTH,
+    Math.max(Y_AXIS_MIN_WIDTH, tick.length * Y_AXIS_CHAR_WIDTH + Y_AXIS_GUTTER),
+  );
+};
 
 const tooltipPortal = (): HTMLElement => {
   const theme = document.querySelector("[data-astryx-theme]");
@@ -67,11 +87,13 @@ const cellCopy = (cell: {
   readonly currencyIso: string;
 }) => {
   const amount = `${valuedAmount.format(cell.value)} ${cell.currencyIso}`;
+  const compact = `${wholeAmount.format(cell.value)} ${cell.currencyIso}`;
   const percent = `${Math.round(cell.percent)}%`;
   const title = cell.symbol === null ? cell.name : `${cell.name} (${cell.symbol})`;
   const detail = `${cell.name} • ${percent}`;
   return {
     amount,
+    compact,
     percent,
     title,
     detail,
@@ -91,7 +113,7 @@ function ChartFrame({
   const rootRef = useRef<HTMLElement | null>(null);
   return (
     <ChartRootContext.Provider value={rootRef}>
-      <Stack ref={rootRef} {...props}>
+      <Stack ref={rootRef} {...props} style={{ overflow: "visible" }}>
         {children}
       </Stack>
     </ChartRootContext.Provider>
@@ -216,14 +238,17 @@ export function PortfolioValueChart({
       })),
     [currencyIso, points],
   );
+  const yAxisWidth = useMemo(() => yAxisWidthFor(points), [points]);
   return (
     <ChartFrame height={280} aria-label="Portfolio value history" role="img">
       <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-        <AreaChart data={data} accessibilityLayer>
+        <AreaChart data={data} accessibilityLayer margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <XAxis dataKey="date" stroke={token("--color-text-secondary")} />
           <YAxis
             stroke={token("--color-text-secondary")}
-            tickFormatter={(value: number) => valuedAmount.format(value)}
+            width={yAxisWidth}
+            tickMargin={4}
+            tickFormatter={(value: number) => compactAmount.format(value)}
           />
           <ChartTooltip
             content={HistoryTooltipContent}
@@ -295,7 +320,7 @@ function AllocationCellShape(node: TreemapNode) {
           {showLabels ? (
             <>
               <Text weight="bold" hasTabularNumbers justify="center" color="inherit">
-                {copy.amount}
+                {copy.compact}
               </Text>
               <Text
                 type="supporting"

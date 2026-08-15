@@ -97,14 +97,22 @@ describe("dashboard screen", () => {
 
   it("shows an allocation tooltip near the hovered cell", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.getDashboard).mockResolvedValue(populatedDashboardFor());
+    const dashboard = populatedDashboardFor();
+    vi.mocked(engineApi.getDashboard).mockResolvedValue({
+      ...dashboard,
+      assetAllocation: dashboard.assetAllocation.map((cell) =>
+        cell.key === "apple" ? { ...cell, value: 800.25 } : cell,
+      ),
+    });
     renderRoute("/");
     const apple = await screen.findByRole("img", {
-      name: /Apple \(AAPL\), 800[.,]00 USD, 80%/,
+      name: /Apple \(AAPL\), 800[.,]25 USD, 80%/,
     });
     await user.hover(apple);
     const tooltip = await screen.findByRole("tooltip");
     expect(tooltip).toHaveTextContent("Apple • 80%");
-    expect(tooltip).toHaveTextContent(/800[.,]00 USD/);
+    expect(tooltip).toHaveTextContent(/800[.,]25 USD/);
+    expect(apple).toHaveTextContent(/800 USD/);
+    expect(apple).not.toHaveTextContent(/800[.,]\d/);
   });
 });
