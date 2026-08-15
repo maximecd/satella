@@ -3,6 +3,29 @@ import { SqlClient } from "effect/unstable/sql";
 
 export const FIXTURE_QUOTE_TIME = "2026-01-01T00:00:00Z";
 
+export const FIXTURE_PRICE_HISTORY = [
+  { capturedAt: "2025-08-15T00:00:00.000Z", aapl: 168, msft: 380, voo: 470, eur: 1.08 },
+  { capturedAt: "2025-11-15T00:00:00.000Z", aapl: 175, msft: 395, voo: 485, eur: 1.07 },
+  { capturedAt: "2026-01-15T00:00:00.000Z", aapl: 182, msft: 410, voo: 500, eur: 1.09 },
+  { capturedAt: "2026-03-15T00:00:00.000Z", aapl: 178, msft: 405, voo: 495, eur: 1.08 },
+  { capturedAt: "2026-05-15T00:00:00.000Z", aapl: 188, msft: 425, voo: 520, eur: 1.09 },
+  { capturedAt: "2026-06-15T00:00:00.000Z", aapl: 192, msft: 435, voo: 530, eur: 1.1 },
+  { capturedAt: "2026-07-15T00:00:00.000Z", aapl: 194, msft: 440, voo: 535, eur: 1.11 },
+  { capturedAt: "2026-07-22T00:00:00.000Z", aapl: 196, msft: 442, voo: 540, eur: 1.1 },
+  { capturedAt: "2026-08-01T00:00:00.000Z", aapl: 198, msft: 445, voo: 545, eur: 1.1 },
+  { capturedAt: "2026-08-08T00:00:00.000Z", aapl: 199, msft: 448, voo: 548, eur: 1.09 },
+  { capturedAt: "2026-08-12T00:00:00.000Z", aapl: 200, msft: 449, voo: 549, eur: 1.1 },
+  { capturedAt: "2026-08-14T00:00:00.000Z", aapl: 200, msft: 450, voo: 550, eur: 1.1 },
+] as const;
+
+const FIXTURE_SNAPSHOT_POSITIONS = [
+  ["seed:position:demo-brokerage:usd", 12_500],
+  ["seed:position:demo-brokerage:aapl", 12.5],
+  ["seed:position:demo-brokerage:msft", 4],
+  ["seed:position:demo-brokerage:voo", 7.25],
+  ["seed:position:demo-euro-cash:eur", 8_000],
+] as const;
+
 const timestamp = () => new Date().toISOString();
 
 const upsertAsset = (
@@ -82,6 +105,34 @@ const upsertPosition = (
       asset_id = excluded.asset_id,
       quantity = excluded.quantity,
       updated_at = excluded.updated_at`;
+
+const insertPriceSnapshot = (
+  sql: SqlClient.SqlClient,
+  snapshotId: string,
+  assetId: string,
+  price: number,
+  observedAt: string,
+) =>
+  sql`INSERT INTO asset_price_snapshots
+      (snapshot_id, asset_id, price, currency_asset_id, source, observed_at)
+    VALUES (${snapshotId}, ${assetId}, ${price}, 'fiat:USD', 'manual', ${observedAt})`;
+
+const insertHistorySnapshot = (
+  sql: SqlClient.SqlClient,
+  quote: (typeof FIXTURE_PRICE_HISTORY)[number],
+) =>
+  Effect.gen(function* () {
+    const id = `seed:snapshot:${quote.capturedAt.slice(0, 10)}`;
+    yield* sql`INSERT INTO snapshots (id, captured_at) VALUES (${id}, ${quote.capturedAt})`;
+    for (const [positionId, quantity] of FIXTURE_SNAPSHOT_POSITIONS) {
+      yield* sql`INSERT INTO position_snapshots (snapshot_id, position_id, quantity)
+        VALUES (${id}, ${positionId}, ${quantity})`;
+    }
+    yield* insertPriceSnapshot(sql, id, "seed:asset:aapl", quote.aapl, quote.capturedAt);
+    yield* insertPriceSnapshot(sql, id, "seed:asset:msft", quote.msft, quote.capturedAt);
+    yield* insertPriceSnapshot(sql, id, "seed:asset:voo", quote.voo, quote.capturedAt);
+    yield* insertPriceSnapshot(sql, id, "fiat:EUR", quote.eur, quote.capturedAt);
+  });
 
 export const seedDevelopmentFixture = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
@@ -195,6 +246,11 @@ export const seedDevelopmentFixture = Effect.gen(function* () {
         8_000,
         createdAt,
       );
+
+      yield* sql`DELETE FROM snapshots WHERE id LIKE 'seed:snapshot:%'`;
+      for (const quote of FIXTURE_PRICE_HISTORY) {
+        yield* insertHistorySnapshot(sql, quote);
+      }
     }),
   );
 });

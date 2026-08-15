@@ -42,12 +42,13 @@ describe("dashboard screen", () => {
     expect(screen.getByRole("img", { name: "Portfolio value history" })).toBeInTheDocument();
     expect(screen.getByText("Incomplete valuation")).toBeInTheDocument();
     const apple = await screen.findByRole("img", {
-      name: /Apple \(AAPL\), 800[.,]00 USD, 80[.,]0%/,
+      name: /Apple \(AAPL\), 800[.,]00 USD, 80%/,
     });
     apple.focus();
     expect(apple).toHaveFocus();
     expect(screen.getByText("1 unpriced asset excluded from allocation.")).toBeInTheDocument();
     expect(screen.getByText("Negative holdings are excluded from allocation.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Accounts" })).toBeInTheDocument();
 
     const accounts = screen.getByRole("list");
     const rows = within(accounts).getAllByRole("link");
@@ -84,13 +85,26 @@ describe("dashboard screen", () => {
     vi.mocked(engineApi.getDashboard).mockResolvedValue(populatedDashboardFor());
     renderRoute("/");
     expect(
-      await screen.findByRole("img", { name: /Apple \(AAPL\), 800[.,]00 USD, 80[.,]0%/ }),
+      await screen.findByRole("img", { name: /Apple \(AAPL\), 800[.,]00 USD, 80%/ }),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "Categories" }));
     expect(
-      screen.getByRole("img", { name: /Stocks & ETFs, 800[.,]00 USD, 80[.,]0%/ }),
+      screen.getByRole("img", { name: /Stocks & ETFs, 800[.,]00 USD, 80%/ }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: /Apple \(AAPL\)/ })).not.toBeInTheDocument();
+  });
+
+  it("shows an allocation tooltip near the hovered cell", async () => {
+    const user = userEvent.setup();
+    vi.mocked(engineApi.getDashboard).mockResolvedValue(populatedDashboardFor());
+    renderRoute("/");
+    const apple = await screen.findByRole("img", {
+      name: /Apple \(AAPL\), 800[.,]00 USD, 80%/,
+    });
+    await user.hover(apple);
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent("Apple • 80%");
+    expect(tooltip).toHaveTextContent(/800[.,]00 USD/);
   });
 });

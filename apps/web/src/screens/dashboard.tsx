@@ -90,16 +90,19 @@ export function DashboardScreen() {
                 </Text>
                 <Text type="supporting">{changeLabel(change, iso)}</Text>
               </Stack>
-              <SegmentedControl
-                label="Portfolio value range"
-                value={range}
-                onChange={(value) => setRange(value as PortfolioValueRange)}
-                size="sm"
-              >
-                {PORTFOLIO_VALUE_RANGES.map((value) => (
-                  <SegmentedControlItem key={value} value={value} label={value} />
-                ))}
-              </SegmentedControl>
+              <Stack align="start">
+                <SegmentedControl
+                  label="Portfolio value range"
+                  value={range}
+                  onChange={(value) => setRange(value as PortfolioValueRange)}
+                  size="sm"
+                  layout="hug"
+                >
+                  {PORTFOLIO_VALUE_RANGES.map((value) => (
+                    <SegmentedControlItem key={value} value={value} label={value} />
+                  ))}
+                </SegmentedControl>
+              </Stack>
               {history.length >= 2 ? (
                 <PortfolioValueChart points={history} currencyIso={iso} />
               ) : null}
@@ -113,15 +116,18 @@ export function DashboardScreen() {
           <Card padding={4}>
             <Stack gap={4}>
               <Heading level={2}>Allocation</Heading>
-              <SegmentedControl
-                label="Allocation"
-                value={allocationView}
-                onChange={(value) => setAllocationView(value as "assets" | "categories")}
-                size="sm"
-              >
-                <SegmentedControlItem value="assets" label="Assets" />
-                <SegmentedControlItem value="categories" label="Categories" />
-              </SegmentedControl>
+              <Stack align="start">
+                <SegmentedControl
+                  label="Allocation"
+                  value={allocationView}
+                  onChange={(value) => setAllocationView(value as "assets" | "categories")}
+                  size="sm"
+                  layout="hug"
+                >
+                  <SegmentedControlItem value="assets" label="Assets" />
+                  <SegmentedControlItem value="categories" label="Categories" />
+                </SegmentedControl>
+              </Stack>
               {allocation.length > 0 ? (
                 <AllocationTreemap cells={allocation} currencyIso={iso} />
               ) : (
@@ -135,21 +141,26 @@ export function DashboardScreen() {
           </Card>
         </GridSpan>
         <GridSpan columns="full">
-          <List density="balanced" hasDividers header="Accounts">
-            {dashboard.accounts.map((row) => (
-              <ListItem
-                key={row.accountId}
-                href={`/accounts/${row.accountId}`}
-                label={row.accountName}
-                description={rowDescription(row)}
-                endContent={
-                  <Text hasTabularNumbers>
-                    {valuedAmount.format(row.total)} {iso}
-                  </Text>
-                }
-              />
-            ))}
-          </List>
+          <Card padding={4}>
+            <Stack gap={4}>
+              <Heading level={2}>Accounts</Heading>
+              <List density="balanced" hasDividers>
+                {dashboard.accounts.map((row) => (
+                  <ListItem
+                    key={row.accountId}
+                    href={`/accounts/${row.accountId}`}
+                    label={row.accountName}
+                    description={rowDescription(row)}
+                    endContent={
+                      <Text hasTabularNumbers>
+                        {valuedAmount.format(row.total)} {iso}
+                      </Text>
+                    }
+                  />
+                ))}
+              </List>
+            </Stack>
+          </Card>
         </GridSpan>
       </Grid>
     </>
