@@ -1,3 +1,5 @@
+import { queryKeys } from "./queries";
+
 export const ADD_ASSETS_CATEGORIES = [
   "stocks_etfs",
   "bonds",
@@ -77,8 +79,10 @@ export const invalidateFinanceQueries = (queryClient: {
   invalidateQueries: (options: { queryKey: readonly unknown[] }) => Promise<unknown>;
 }) =>
   Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-    queryClient.invalidateQueries({ queryKey: ["connections"] }),
-    queryClient.invalidateQueries({ queryKey: ["accounts"] }),
-    queryClient.invalidateQueries({ queryKey: ["assets"] }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.connections.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.assets.all }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.history }),
   ]);

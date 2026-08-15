@@ -13,6 +13,7 @@ import type {
   UpdateAccountInput,
   UpdateConnectionInput,
   UpdateCustomAssetInput,
+  UpdateSettingsInput,
 } from "@optimus/engine/api";
 import { EngineApi } from "@optimus/engine/api";
 import * as Effect from "effect/Effect";
@@ -85,4 +86,7 @@ export const engineApi = {
   captureSnapshot: () => request((client) => client.finance.captureSnapshot({})),
   searchAssets: (query: string, assetCategory: AssetSearchResult["assetCategory"]) =>
     request((client) => client.finance.searchAssets({ query: { query, assetCategory } })),
+  getSettings: () => request((client) => client.finance.getSettings({})),
+  updateSettings: (payload: UpdateSettingsInput) =>
+    request((client) => client.finance.updateSettings({ payload })),
 };

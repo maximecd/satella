@@ -3,7 +3,12 @@ import * as Effect from "effect/Effect";
 import * as Duration from "effect/Duration";
 
 import { SqlClient } from "effect/unstable/sql";
-import type { AssetCategory, Dashboard, PortfolioHistoryPoint, SnapshotResult } from "../contracts.js";
+import type {
+  AssetCategory,
+  Dashboard,
+  PortfolioHistoryPoint,
+  SnapshotResult,
+} from "../contracts.js";
 import { CONNECTOR_CAPABILITIES, DEFAULT_SNAPSHOT_INTERVAL } from "../config.js";
 import { getAccount } from "../accounts/AccountSql.js";
 import { refreshPrices, type MarketDataRegistry } from "../market-data.js";
@@ -31,6 +36,7 @@ export const captureSnapshot = (
     const result = yield* db(
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* sql`DELETE FROM snapshots WHERE date(captured_at) = date(${capturedAt})`;
           yield* sql`INSERT INTO snapshots (id, captured_at) VALUES (${id}, ${capturedAt})`;
           yield* sql`INSERT INTO position_snapshots (snapshot_id, position_id, quantity)
             SELECT ${id}, id, quantity FROM positions`;

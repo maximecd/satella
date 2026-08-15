@@ -38,4 +38,37 @@ describe("portfolio snapshots", () => {
       expect(second).toBeNull();
     }).pipe(Effect.provide(engineTestLayer())),
   );
+
+  it.effect("upserts one Portfolio snapshot per calendar day", () =>
+    Effect.gen(function* () {
+      const account = yield* Finance.createAccount({ name: "Default" });
+      const asset = yield* Finance.createAsset({
+        assetCategory: "other",
+        name: "Art",
+        identifiers: [],
+      });
+      yield* Finance.createPosition({ accountId: account.id, assetId: asset.id, quantity: 1 });
+      yield* Finance.setManualPrice(asset.id, { price: 500, currencyAssetId: "fiat:USD" });
+      yield* Finance.captureSnapshot({
+        refresh: false,
+        now: () => new Date("2026-08-11T08:00:00.000Z"),
+      });
+      yield* Finance.setManualPrice(asset.id, { price: 700, currencyAssetId: "fiat:USD" });
+      yield* Finance.captureSnapshot({
+        refresh: false,
+        now: () => new Date("2026-08-11T18:00:00.000Z"),
+      });
+      yield* Finance.captureSnapshot({
+        refresh: false,
+        now: () => new Date("2026-08-12T08:00:00.000Z"),
+      });
+      const history = yield* Finance.getPortfolioHistory();
+      expect(
+        history.map(({ capturedAt, total }) => ({ day: capturedAt.slice(0, 10), total })),
+      ).toEqual([
+        { day: "2026-08-11", total: 700 },
+        { day: "2026-08-12", total: 700 },
+      ]);
+    }).pipe(Effect.provide(engineTestLayer())),
+  );
 });
