@@ -275,7 +275,7 @@ importers:
         version: 7.0.2
       vite-plus:
         specifier: 'catalog:'
-        version: 0.2.9(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10(@vitest/browser@4.1.10(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.11)(typescript@7.0.2))(vitest@4.1.10))(vitest@4.1.10))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1)(tsx@4.23.11)(typescript@7.0.2)
+        version: 0.2.9(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1)(tsx@4.23.11)(typescript@7.0.2)
       wait-on:
         specifier: 9.1.0
         version: 9.1.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
@@ -376,6 +376,9 @@ importers:
       effect:
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108
+      lucide-react:
+        specifier: ^1.31.0
+        version: 1.31.0(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -421,7 +424,7 @@ importers:
         version: 7.0.2
       vite-plus:
         specifier: 'catalog:'
-        version: 0.2.9(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1)(tsx@4.23.11)(typescript@7.0.2)
+        version: 0.2.9(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10(@vitest/browser@4.1.10(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.11)(typescript@7.0.2))(vitest@4.1.10))(vitest@4.1.10))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1)(tsx@4.23.11)(typescript@7.0.2)
 
   packages/connector-core:
     dependencies:
