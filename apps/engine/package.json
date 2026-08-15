@@ -13,7 +13,9 @@
   },
   "scripts": {
     "build": "vp pack",
-    "dev": "tsx watch --include '../../packages/connector-*/dist/**/*' src/main.ts",
+    "dev": "node scripts/dev.mjs",
+    "db:reset": "tsx src/database/cli.ts reset",
+    "db:seed": "tsx src/database/cli.ts seed",
     "start": "node dist/main.mjs",
     "test": "vp test run",
     "test:coverage": "vp test run --coverage",

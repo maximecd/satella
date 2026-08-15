@@ -30,6 +30,7 @@ export default mergeConfig(
           "src/effect/vitest.ts",
           // Process launch glue cannot be imported safely in unit tests.
           "src/main.ts",
+          "src/database/cli.ts",
         ],
         thresholds: {
           // Measured after the Effect 4/service extraction; ratchet upward with new tests.
