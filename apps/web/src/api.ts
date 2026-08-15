@@ -33,6 +33,9 @@ export const getHello = () => request((client) => client.system.hello({}));
 export const engineApi = {
   connectorCapabilities: () => request((client) => client.finance.connectorCapabilities({})),
   getDashboard: () => request((client) => client.finance.getDashboard({})),
+  getSettings: () => request((client) => client.finance.getSettings({})),
+  updateSettings: (payload: UpdateSettingsInput) =>
+    request((client) => client.finance.updateSettings({ payload })),
   listManualAccounts: () => request((client) => client.finance.listManualAccounts({})),
   lookupManualHolding: (accountId: string, identifierType: string, identifierValue: string) =>
     request((client) =>
@@ -86,7 +89,4 @@ export const engineApi = {
   captureSnapshot: () => request((client) => client.finance.captureSnapshot({})),
   searchAssets: (query: string, assetCategory: AssetSearchResult["assetCategory"]) =>
     request((client) => client.finance.searchAssets({ query: { query, assetCategory } })),
-  getSettings: () => request((client) => client.finance.getSettings({})),
-  updateSettings: (payload: UpdateSettingsInput) =>
-    request((client) => client.finance.updateSettings({ payload })),
 };

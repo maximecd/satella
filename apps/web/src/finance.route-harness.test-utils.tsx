@@ -3,7 +3,7 @@ import { Theme } from "@astryxdesign/core/theme";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
-import type { Account, Connection, Settings } from "@optimus/engine/api";
+import type { Account, Connection, Dashboard, Settings } from "@optimus/engine/api";
 import { vi } from "vite-plus/test";
 
 import { engineApi } from "./api";
@@ -53,6 +53,125 @@ export const account: Account = {
   updatedAt: "2026-08-11T00:00:00.000Z",
 };
 
+export const emptyDashboard: Dashboard = {
+  reportingCurrency: { assetId: "fiat:USD", iso: "USD" },
+  portfolioValue: 0,
+  totalIncomplete: false,
+  unpricedAssetCount: 0,
+  negativeHoldingCount: 0,
+  hasMeaningfulAssets: false,
+  accounts: [],
+  assetAllocation: [],
+  categoryAllocation: [],
+  history: [],
+};
+
+export const settings: Settings = {
+  reportingCurrency: { assetId: "fiat:USD", iso: "USD" },
+  currencies: [
+    { assetId: "fiat:EUR", iso: "EUR", name: "Euro" },
+    { assetId: "fiat:USD", iso: "USD", name: "US dollar" },
+  ],
+};
+
+export const populatedDashboardFor = (now = new Date()): Dashboard => {
+  const utcDay = (daysAgo: number, hours = 0) => {
+    const day = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - daysAgo,
+      hours,
+    );
+    return new Date(day).toISOString();
+  };
+  return {
+    reportingCurrency: { assetId: "fiat:USD", iso: "USD" },
+    portfolioValue: 1100,
+    totalIncomplete: true,
+    unpricedAssetCount: 1,
+    negativeHoldingCount: 1,
+    hasMeaningfulAssets: true,
+    accounts: [
+      {
+        accountId: "brokerage",
+        accountName: "Brokerage",
+        connectionId: "ibkr",
+        connectionName: "IBKR",
+        positionCount: 2,
+        total: 800,
+        totalIncomplete: false,
+      },
+      {
+        accountId: "livret",
+        accountName: "Livret A",
+        connectionId: null,
+        connectionName: null,
+        positionCount: 1,
+        total: 300,
+        totalIncomplete: true,
+      },
+    ],
+    assetAllocation: [
+      {
+        key: "apple",
+        name: "Apple",
+        symbol: "AAPL",
+        assetCategory: "stocks_etfs",
+        value: 800,
+        percent: 80,
+      },
+      {
+        key: "euro",
+        name: "Euro",
+        symbol: "EUR",
+        assetCategory: "cash",
+        value: 200,
+        percent: 20,
+      },
+    ],
+    categoryAllocation: [
+      {
+        key: "stocks_etfs",
+        name: "Stocks & ETFs",
+        symbol: null,
+        assetCategory: "stocks_etfs",
+        value: 800,
+        percent: 80,
+      },
+      {
+        key: "cash",
+        name: "Cash",
+        symbol: null,
+        assetCategory: "cash",
+        value: 200,
+        percent: 20,
+      },
+    ],
+    history: [
+      {
+        snapshotId: "s1",
+        capturedAt: utcDay(20),
+        total: 1000,
+        totalIncomplete: false,
+      },
+      {
+        snapshotId: "s1b",
+        capturedAt: utcDay(20, 18),
+        total: 1010,
+        totalIncomplete: false,
+      },
+      {
+        snapshotId: "s2",
+        capturedAt: utcDay(5),
+        total: 1100,
+        totalIncomplete: false,
+      },
+    ],
+  };
+};
+
+export const populatedDashboard = populatedDashboardFor();
+
 export const syncedConnection: Connection = {
   id: "custodian-1",
   name: "OKX",
@@ -101,15 +220,6 @@ export const connectedAccount: Account = {
   total: 100,
 };
 
-export const settings: Settings = {
-  reportingCurrencyAssetId: "fiat:USD",
-  reportingCurrencyIso: "USD",
-  currencies: [
-    { assetId: "fiat:EUR", iso: "EUR", name: "Euro" },
-    { assetId: "fiat:USD", iso: "USD", name: "US dollar" },
-  ],
-};
-
 export const renderRoute = (path: string) => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -134,13 +244,13 @@ export const resetFinanceMocks = () => {
   vi.mocked(engineApi.connectorCapabilities).mockResolvedValue({ connectors: [] });
   vi.mocked(engineApi.listConnections).mockResolvedValue([]);
   vi.mocked(engineApi.listManualAccounts).mockResolvedValue([]);
-  vi.mocked(engineApi.getDashboard).mockResolvedValue({ accounts: [] });
+  vi.mocked(engineApi.getDashboard).mockResolvedValue(emptyDashboard);
+  vi.mocked(engineApi.getSettings).mockResolvedValue(settings);
+  vi.mocked(engineApi.updateSettings).mockResolvedValue(settings);
   vi.mocked(engineApi.listAssets).mockResolvedValue([]);
   vi.mocked(engineApi.getAccount).mockResolvedValue(account);
   vi.mocked(engineApi.getPositionAccount).mockResolvedValue(account);
   vi.mocked(engineApi.updatePosition).mockResolvedValue(account);
-  vi.mocked(engineApi.getSettings).mockResolvedValue(settings);
-  vi.mocked(engineApi.updateSettings).mockResolvedValue(settings);
   vi.mocked(engineApi.refreshConnection).mockResolvedValue({
     connection: syncedConnection,
     failures: [],

@@ -5,12 +5,11 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Finance from "../finance.test-utils.js";
 
 describe("settings", () => {
-  it.effect("defaults Reporting currency to USD and persists a supported Cash currency", () =>
+  it.effect("defaults Reporting currency to USD and lists the supported cash currencies", () =>
     Effect.gen(function* () {
-      const initial = yield* Finance.getSettings();
-      expect(initial.reportingCurrencyAssetId).toBe("fiat:USD");
-      expect(initial.reportingCurrencyIso).toBe("USD");
-      expect(initial.currencies.map(({ iso }) => iso)).toEqual([
+      const settings = yield* Finance.getSettings();
+      expect(settings.reportingCurrency).toEqual({ assetId: "fiat:USD", iso: "USD" });
+      expect(settings.currencies.map(({ iso }) => iso)).toEqual([
         "AUD",
         "CAD",
         "CHF",
@@ -22,26 +21,47 @@ describe("settings", () => {
         "NZD",
         "USD",
       ]);
-
-      const updated = yield* Finance.updateSettings({ reportingCurrencyAssetId: "fiat:EUR" });
-      expect(updated.reportingCurrencyAssetId).toBe("fiat:EUR");
-      expect(updated.reportingCurrencyIso).toBe("EUR");
-      expect((yield* Finance.getSettings()).reportingCurrencyIso).toBe("EUR");
     }).pipe(Effect.provide(engineTestLayer())),
   );
 
-  it.effect("rejects a Reporting currency that is not a seeded Cash currency", () =>
+  it.effect("persists a supported Reporting currency without changing Account native totals", () =>
     Effect.gen(function* () {
-      const custom = yield* Finance.createAsset({
-        assetCategory: "cash",
-        name: "Points",
+      const account = yield* Finance.createAccount({
+        name: "Livret A",
+        baseCurrencyAssetId: "fiat:EUR",
+      });
+      yield* Finance.createPosition({
+        accountId: account.id,
+        assetId: "fiat:EUR",
+        quantity: 100,
+      });
+      const updated = yield* Finance.updateSettings({ reportingCurrencyAssetId: "fiat:EUR" });
+      const native = yield* Finance.getAccount(account.id);
+      const settings = yield* Finance.getSettings();
+      expect(updated.reportingCurrency).toEqual({ assetId: "fiat:EUR", iso: "EUR" });
+      expect(settings.reportingCurrency.iso).toBe("EUR");
+      expect(native.baseCurrencyIso).toBe("EUR");
+      expect(native.total).toBe(100);
+    }).pipe(Effect.provide(engineTestLayer())),
+  );
+
+  it.effect("rejects a Reporting currency that is not a supported cash Asset", () =>
+    Effect.gen(function* () {
+      const asset = yield* Finance.createAsset({
+        assetCategory: "other",
+        name: "Art",
         identifiers: [],
       });
       const rejected = yield* Finance.updateSettings({
-        reportingCurrencyAssetId: custom.id,
+        reportingCurrencyAssetId: asset.id,
       }).pipe(Effect.flip);
-      expect(rejected.message).toContain("supported Cash currency");
-      expect((yield* Finance.getSettings()).reportingCurrencyIso).toBe("USD");
+      const missing = yield* Finance.updateSettings({
+        reportingCurrencyAssetId: "missing",
+      }).pipe(Effect.flip);
+      const settings = yield* Finance.getSettings();
+      expect(rejected.code).toBe("validation");
+      expect(missing.code).toBe("not_found");
+      expect(settings.reportingCurrency.iso).toBe("USD");
     }).pipe(Effect.provide(engineTestLayer())),
   );
 });

@@ -68,7 +68,7 @@ describe("connections", () => {
     }).pipe(Effect.provide(engineTestLayer())),
   );
 
-  it.effect("upserts today's Portfolio snapshot after a successful Connection refresh", () =>
+  it.effect("captures a new Portfolio snapshot after a successful Connection refresh", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       const timestamp = new Date().toISOString();
@@ -104,8 +104,10 @@ describe("connections", () => {
       const history = yield* Finance.getPortfolioHistory();
       expect(first.connection.accounts).toHaveLength(1);
       expect(second.failures).toEqual([]);
-      expect(history).toHaveLength(1);
-      expect(history[0]?.capturedAt.slice(0, 10)).toBe("2026-08-11");
+      expect(history.map(({ capturedAt }) => capturedAt)).toEqual([
+        "2026-08-11T08:00:00.000Z",
+        "2026-08-11T18:00:00.000Z",
+      ]);
     }).pipe(Effect.provide(engineTestLayer())),
   );
 });

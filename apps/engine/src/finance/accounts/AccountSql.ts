@@ -5,10 +5,12 @@ import { SqlClient } from "effect/unstable/sql";
 import type { Account, CreateAccountInput, Position, UpdateAccountInput } from "../contracts.js";
 import {
   assertCash,
+  convertAmount,
   db,
   failure,
   firstOrNotFound,
   isStalePrice,
+  loadFxMap,
   nowIso,
   requireNonEmpty,
   usdAssetId,
@@ -21,9 +23,11 @@ export const assertManualAccountOwner = (accountId: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const row = yield* firstOrNotFound(
-      yield* db(sql<{
-        readonly connection_id: string | null;
-      }>`SELECT connection_id FROM accounts WHERE id = ${accountId}`),
+      yield* db(
+        sql<{
+          readonly connection_id: string | null;
+        }>`SELECT connection_id FROM accounts WHERE id = ${accountId}`,
+      ),
       "Account",
     );
     if (row.connection_id !== null) {
@@ -36,36 +40,24 @@ export const assertManualAccountOwner = (accountId: string) =>
 export const loadPosition = (
   row: PositionRow,
   valuationCurrencyId: string,
-  reportingCurrencyId: string,
+  fxPivotId: string,
   fx: ReadonlyMap<string, number>,
 ): Position => {
-  const implicitCashPrice =
-    row.asset_category === "cash" &&
-    (row.asset_id === valuationCurrencyId || row.asset_id === reportingCurrencyId)
-      ? 1
-      : null;
-  const selectedPrice = row.price ?? implicitCashPrice;
-  const currencyId =
-    row.currency_asset_id ??
-    (implicitCashPrice === null
-      ? null
-      : row.asset_id === valuationCurrencyId
-        ? valuationCurrencyId
-        : reportingCurrencyId);
-  const currencyRate =
-    currencyId === reportingCurrencyId ? 1 : currencyId === null ? undefined : fx.get(currencyId);
-  const valuationRate =
-    valuationCurrencyId === reportingCurrencyId ? 1 : fx.get(valuationCurrencyId);
+  const cashConversion =
+    row.asset_category === "cash"
+      ? convertAmount(row.quantity, row.asset_id, valuationCurrencyId, fxPivotId, fx)
+      : undefined;
+  const selectedPrice = row.price;
   const conversion =
-    currencyId === valuationCurrencyId
-      ? 1
-      : currencyRate === undefined || valuationRate === undefined
-        ? undefined
-        : currencyRate / valuationRate;
+    row.currency_asset_id === null
+      ? undefined
+      : convertAmount(1, row.currency_asset_id, valuationCurrencyId, fxPivotId, fx);
   const reportingValue =
-    selectedPrice === null || conversion === undefined
-      ? null
-      : row.quantity * selectedPrice * conversion;
+    row.asset_category === "cash"
+      ? (cashConversion ?? null)
+      : selectedPrice === null || conversion === undefined
+        ? null
+        : row.quantity * selectedPrice * conversion;
   return {
     id: row.id,
     accountId: row.account_id,
@@ -97,7 +89,7 @@ export const loadPosition = (
   };
 };
 
-export const getAccount = (id: string): FinanceEffect<Account> =>
+export const getAccount = (id: string, valuationCurrencyAssetId?: string): FinanceEffect<Account> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const account = yield* firstOrNotFound(
@@ -125,16 +117,10 @@ export const getAccount = (id: string): FinanceEffect<Account> =>
       LEFT JOIN asset_identifiers price_identifier ON price_identifier.asset_id = price_currency.id
         AND price_identifier.identifier_type = 'iso_currency'
       WHERE p.account_id = ${id} ORDER BY a.name, p.id`);
-    const reportingCurrencyId = yield* usdAssetId;
-    const fxRows = yield* db(sql<{
-      readonly asset_id: string;
-      readonly price: number;
-    }>`SELECT asset_id, price
-      FROM asset_prices WHERE currency_asset_id = ${reportingCurrencyId}`);
-    const fx = new Map(fxRows.map(({ asset_id, price }) => [asset_id, price] as const));
-    const positions = rows.map((row) =>
-      loadPosition(row, account.base_currency_asset_id, reportingCurrencyId, fx),
-    );
+    const fxPivotId = yield* usdAssetId;
+    const fx = yield* loadFxMap(fxPivotId);
+    const targetCurrencyId = valuationCurrencyAssetId ?? account.base_currency_asset_id;
+    const positions = rows.map((row) => loadPosition(row, targetCurrencyId, fxPivotId, fx));
     return {
       id: account.id,
       connectionId: account.connection_id,

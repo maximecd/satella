@@ -4,7 +4,11 @@ import * as Duration from "effect/Duration";
 
 import type { AssetCategory } from "../contracts.js";
 import { FinanceApiError as FinanceError } from "../contracts.js";
-import { DEFAULT_MARKET_DATA_POLICY, DEFAULT_REPORTING_CURRENCY } from "../config.js";
+import {
+  DEFAULT_MARKET_DATA_POLICY,
+  DEFAULT_REPORTING_CURRENCY,
+  SUPPORTED_REPORTING_CURRENCIES,
+} from "../config.js";
 
 export type FinanceEffect<A> = Effect.Effect<A, FinanceError, SqlClient.SqlClient>;
 
@@ -146,8 +150,51 @@ export const usdAssetId = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const rows = yield* db(sql<{ readonly asset_id: string }>`SELECT asset_id FROM asset_identifiers
     WHERE identifier_type = 'iso_currency' AND identifier_value = ${DEFAULT_REPORTING_CURRENCY}`);
-  return (yield* firstOrNotFound(rows, "Reporting currency")).asset_id;
+  return (yield* firstOrNotFound(rows, "FX pivot currency")).asset_id;
 });
+
+export const reportingCurrency = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  const rows = yield* db(sql<{
+    readonly asset_id: string;
+    readonly iso: string;
+  }>`SELECT a.id AS asset_id, COALESCE(ai.identifier_value, a.symbol, a.name) AS iso
+    FROM app_settings s
+    JOIN assets a ON a.id = s.reporting_currency_asset_id
+    LEFT JOIN asset_identifiers ai ON ai.asset_id = a.id AND ai.identifier_type = 'iso_currency'
+    WHERE s.id = 1`);
+  const row = yield* firstOrNotFound(rows, "Reporting currency");
+  return { assetId: row.asset_id, iso: row.iso };
+});
+
+export const loadFxMap = (pivotAssetId: string) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const fxRows = yield* db(
+      sql<{
+        readonly asset_id: string;
+        readonly price: number;
+      }>`SELECT asset_id, price FROM asset_prices WHERE currency_asset_id = ${pivotAssetId}`,
+    );
+    return new Map(fxRows.map(({ asset_id, price }) => [asset_id, price] as const));
+  });
+
+export const convertAmount = (
+  amount: number,
+  fromCurrencyId: string,
+  toCurrencyId: string,
+  pivotId: string,
+  fx: ReadonlyMap<string, number>,
+): number | undefined => {
+  if (fromCurrencyId === toCurrencyId) return amount;
+  const fromRate = fromCurrencyId === pivotId ? 1 : fx.get(fromCurrencyId);
+  const toRate = toCurrencyId === pivotId ? 1 : fx.get(toCurrencyId);
+  if (fromRate === undefined || toRate === undefined) return undefined;
+  return amount * (fromRate / toRate);
+};
+
+export const isSupportedReportingCurrency = (iso: string) =>
+  (SUPPORTED_REPORTING_CURRENCIES as readonly string[]).includes(iso);
 
 export const loadPrice = (assetId: string) =>
   Effect.gen(function* () {

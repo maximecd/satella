@@ -13,6 +13,16 @@ export const AssetCategory = Schema.Literals([
 ]);
 export type AssetCategory = typeof AssetCategory.Type;
 
+export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
+  stocks_etfs: "Stocks & ETFs",
+  bonds: "Bonds",
+  crypto: "Crypto",
+  cash: "Cash",
+  derivatives: "Derivatives",
+  commodities: "Commodities",
+  other: "Other assets",
+};
+
 export const SearchableAssetCategory = Schema.Literals(["stocks_etfs", "crypto"]);
 export type SearchableAssetCategory = typeof SearchableAssetCategory.Type;
 
@@ -247,25 +257,6 @@ export const ConnectionRefreshResult = Schema.Struct({
 });
 export type ConnectionRefreshResult = typeof ConnectionRefreshResult.Type;
 
-export const ReportingCurrencyOption = Schema.Struct({
-  assetId: Schema.String,
-  iso: Schema.String,
-  name: Schema.String,
-});
-export type ReportingCurrencyOption = typeof ReportingCurrencyOption.Type;
-
-export const Settings = Schema.Struct({
-  reportingCurrencyAssetId: Schema.String,
-  reportingCurrencyIso: Schema.String,
-  currencies: Schema.Array(ReportingCurrencyOption),
-});
-export type Settings = typeof Settings.Type;
-
-export const UpdateSettingsInput = Schema.Struct({
-  reportingCurrencyAssetId: Schema.String,
-});
-export type UpdateSettingsInput = typeof UpdateSettingsInput.Type;
-
 export const PortfolioHistoryPoint = Schema.Struct({
   snapshotId: Schema.String,
   capturedAt: Schema.String,
@@ -345,20 +336,59 @@ export const DashboardAccountRow = Schema.Struct({
   accountName: Schema.String,
   connectionId: Schema.NullOr(Schema.String),
   connectionName: Schema.NullOr(Schema.String),
-  connectorId: Schema.NullOr(Schema.String),
-  connectorName: Schema.NullOr(Schema.String),
-  baseCurrencyIso: Schema.String,
   positionCount: Schema.Number,
   total: Schema.Number,
   totalIncomplete: Schema.Boolean,
-  hasStalePrices: Schema.Boolean,
 });
 export type DashboardAccountRow = typeof DashboardAccountRow.Type;
 
+export const ReportingCurrency = Schema.Struct({
+  assetId: Schema.String,
+  iso: Schema.String,
+});
+export type ReportingCurrency = typeof ReportingCurrency.Type;
+
+export const AllocationCell = Schema.Struct({
+  key: Schema.String,
+  name: Schema.String,
+  symbol: Schema.NullOr(Schema.String),
+  assetCategory: AssetCategory,
+  value: Schema.Number,
+  percent: Schema.Number,
+});
+export type AllocationCell = typeof AllocationCell.Type;
+
 export const Dashboard = Schema.Struct({
+  reportingCurrency: ReportingCurrency,
+  portfolioValue: Schema.Number,
+  totalIncomplete: Schema.Boolean,
+  unpricedAssetCount: Schema.Number,
+  negativeHoldingCount: Schema.Number,
+  hasMeaningfulAssets: Schema.Boolean,
   accounts: Schema.Array(DashboardAccountRow),
+  assetAllocation: Schema.Array(AllocationCell),
+  categoryAllocation: Schema.Array(AllocationCell),
+  history: Schema.Array(PortfolioHistoryPoint),
 });
 export type Dashboard = typeof Dashboard.Type;
+
+export const SettingsCurrency = Schema.Struct({
+  assetId: Schema.String,
+  iso: Schema.String,
+  name: Schema.String,
+});
+export type SettingsCurrency = typeof SettingsCurrency.Type;
+
+export const Settings = Schema.Struct({
+  reportingCurrency: ReportingCurrency,
+  currencies: Schema.Array(SettingsCurrency),
+});
+export type Settings = typeof Settings.Type;
+
+export const UpdateSettingsInput = Schema.Struct({
+  reportingCurrencyAssetId: Schema.String,
+});
+export type UpdateSettingsInput = typeof UpdateSettingsInput.Type;
 
 export const SearchAssetsParams = Schema.Struct({
   query: Schema.String,

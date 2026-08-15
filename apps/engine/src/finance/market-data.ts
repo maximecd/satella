@@ -366,6 +366,7 @@ export interface RefreshPricesOptions {
   /** Automatically resolve an unlinked asset through the provider search index. */
   readonly resolveMissingLookups?: boolean;
   readonly searchAssets?: AssetSearch;
+  readonly includeAllCashFx?: boolean;
 }
 
 export interface RefreshPricesResult {
@@ -532,7 +533,8 @@ const discoverAssetIdentifiers = (
   values: ReadonlyArray<IdentifierRow>,
   search: AssetSearch,
 ): Effect.Effect<DiscoveredAssetIdentifiers, never> => {
-  if (asset.asset_category === "cash") return Effect.succeed({ source: "fallback", identifiers: [] });
+  if (asset.asset_category === "cash")
+    return Effect.succeed({ source: "fallback", identifiers: [] });
   const isin = values.find(({ identifier_type }) => identifier_type === "isin")?.identifier_value;
   if (asset.asset_category === "stocks_etfs" && isin !== undefined && isin.trim().length > 0) {
     return search(isin.trim(), "stocks_etfs").pipe(
@@ -601,13 +603,15 @@ const refreshPriceAssets = (
     const sql = yield* SqlClient.SqlClient;
     yield* sql.withTransaction(mergeConnectorAssetDuplicates());
     const selected = options.assetIds;
+    const includeAllCashFx = options.includeAllCashFx === true;
     const assets =
       selected === undefined
         ? yield* sql<RefreshAssetRow>`SELECT DISTINCT a.id, a.asset_category, a.name, a.symbol, ap.observed_at
           FROM assets a LEFT JOIN asset_prices ap ON ap.asset_id = a.id
           WHERE a.asset_category IN ('stocks_etfs', 'crypto', 'cash') AND (
             EXISTS (SELECT 1 FROM positions p WHERE p.asset_id = a.id) OR
-            EXISTS (SELECT 1 FROM accounts ac WHERE ac.base_currency_asset_id = a.id)
+            EXISTS (SELECT 1 FROM accounts ac WHERE ac.base_currency_asset_id = a.id) OR
+            (${includeAllCashFx ? 1 : 0} = 1 AND a.asset_category = 'cash')
           )`
         : yield* sql<RefreshAssetRow>`SELECT a.id, a.asset_category, a.name, a.symbol, ap.observed_at
           FROM assets a LEFT JOIN asset_prices ap ON ap.asset_id = a.id

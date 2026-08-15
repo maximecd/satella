@@ -84,5 +84,4 @@ export const invalidateFinanceQueries = (queryClient: {
     queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.assets.all }),
     queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.history }),
   ]);

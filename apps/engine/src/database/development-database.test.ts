@@ -16,8 +16,7 @@ import {
   runNodeScript,
   startEngine,
 } from "./development-database.test-utils.js";
-
-const FIXTURE_QUOTE_TIME = "2026-01-01T00:00:00Z";
+import { FIXTURE_PRICE_HISTORY, FIXTURE_QUOTE_TIME } from "./seed.js";
 
 const expectPrintedSelection = (output: string, worktree: string) => {
   expect(output).toContain(worktree);
@@ -135,7 +134,21 @@ const expectCanonicalFixture = async (directory: string) => {
     observedAt: FIXTURE_QUOTE_TIME,
   });
   expect(connections).toEqual([]);
-  expect(history).toEqual([]);
+  expect(history).toHaveLength(FIXTURE_PRICE_HISTORY.length);
+  expect(history[0]).toEqual(
+    expect.objectContaining({
+      capturedAt: "2025-08-15T00:00:00.000Z",
+      total: 28_167.5,
+      totalIncomplete: false,
+    }),
+  );
+  expect(history.at(-1)).toEqual(
+    expect.objectContaining({
+      capturedAt: "2026-08-14T00:00:00.000Z",
+      total: 29_587.5,
+      totalIncomplete: false,
+    }),
+  );
   return { accounts, assets };
 };
 
@@ -430,7 +443,7 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
     }
   });
 
-  it("seeds successfully without network access and without snapshots", async () => {
+  it("seeds successfully without network access", async () => {
     const checkouts = await createGitCheckouts();
     const preload = join(checkouts.root, "block-network.mjs");
     try {
