@@ -2,10 +2,6 @@
 
 Project-specific guidance for AI coding agents.
 
-## Plans
-
-Plans in `.plans` must use an incrementing two-digit numeric prefix in creation order, following the format `01-plan-name.md`, `02-plan-name.md`, and so on.
-
 <!-- ASTRYX:START -->
 Astryx v0.3.0 · 90+ components
 CLI: run every command as `pnpm exec astryx <cmd>` (shown below as `astryx ...`).
