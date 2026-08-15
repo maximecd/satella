@@ -17,11 +17,11 @@ import { useToast } from "@astryxdesign/core/Toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import {
-  ConnectCustodianInput,
+  ConnectConnectionInput,
   ConnectorCapability,
-  CreateCustodianInput,
-  Custodian,
-  UpdateCustodianInput,
+  CreateAccountInput,
+  Connection,
+  UpdateConnectionInput,
 } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState, type CSSProperties, type FormEvent } from "react";
@@ -36,21 +36,16 @@ import {
   PageState,
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
-import { connectorCapabilitiesQuery, custodianQuery, custodiansQuery, queryKeys } from "../queries";
+import { connectorCapabilitiesQuery, connectionQuery, connectionsQuery, queryKeys } from "../queries";
 import { AddAssetsButton } from "./add-assets";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
 
-const managementBadge = (mode: "manual" | "synced") => (
-  <Badge
-    label={mode === "manual" ? "Manual" : "Synced"}
-    variant={mode === "manual" ? "success" : "neutral"}
-  />
-);
+const connectedBadge = () => <Badge label="Connected" variant="neutral" />;
 
 export function CustodianListScreen() {
-  const query = useQuery(custodiansQuery);
+  const query = useQuery(connectionsQuery);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   return (
@@ -84,7 +79,7 @@ export function CustodianListScreen() {
               description={`${custodian.accounts.length} account${custodian.accounts.length === 1 ? "" : "s"}`}
               endContent={
                 <Stack direction="horizontal" align="center" gap={2}>
-                  {managementBadge(custodian.managementMode)}
+                  {connectedBadge()}
                   <Button
                     as={RouterLink}
                     href={`/custodians/${custodian.id}`}
@@ -155,24 +150,23 @@ export function CreateManualCustodianScreen() {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
-    mutationFn: engineApi.createCustodian,
-    onSuccess: async (custodian) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all });
-      await navigate({ to: "/custodians/$custodianId", params: { custodianId: custodian.id } });
+    mutationFn: engineApi.createAccount,
+    onSuccess: async (account) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts.manual });
+      await navigate({ to: "/accounts/$accountId", params: { accountId: account.id } });
     },
     onError: (cause) => setError(errorMessage(cause)),
   });
-  const defaultValues: typeof CreateCustodianInput.Encoded = {
+  const defaultValues: typeof CreateAccountInput.Encoded = {
     name: "",
-    managementMode: "manual",
   };
   const form = useAppForm({
     defaultValues,
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.toStandardSchemaV1(CreateCustodianInput) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(CreateAccountInput) },
     onSubmit: async ({ value }) => {
       setError(null);
-      const decoded = await Schema.decodeUnknownPromise(CreateCustodianInput)(value);
+      const decoded = await Schema.decodeUnknownPromise(CreateAccountInput)(value);
       await mutation.mutateAsync(decoded);
     },
   });
@@ -352,9 +346,9 @@ function ConnectorCredentialsForm({ connector }: { readonly connector: Connector
     });
   };
   const connect = useMutation({
-    mutationFn: engineApi.connectCustodian,
+    mutationFn: engineApi.connectConnection,
     onSuccess: async (custodian) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.connections.all });
       await navigate({ to: "/custodians/$custodianId", params: { custodianId: custodian.id } });
     },
     onError: (cause) => setError(errorMessage(cause)),
@@ -376,7 +370,7 @@ function ConnectorCredentialsForm({ connector }: { readonly connector: Connector
     if (Object.keys(nextFieldErrors).length > 0) {
       return;
     }
-    const payload = await Schema.decodeUnknownPromise(ConnectCustodianInput)({
+    const payload = await Schema.decodeUnknownPromise(ConnectConnectionInput)({
       name: name.trim(),
       connectorId: connector.id,
       credentials,
@@ -483,17 +477,17 @@ function ConnectorInstructions({ connector }: { readonly connector: ConnectorCap
 }
 
 export function CustodianDetailScreen({ id }: { readonly id: string }) {
-  const query = useQuery(custodianQuery(id));
+  const query = useQuery(connectionQuery(id));
   const queryClient = useQueryClient();
   const toast = useToast();
   const [syncError, setSyncError] = useState<string | null>(null);
   const resync = useMutation({
-    mutationFn: () => engineApi.resyncCustodian(id),
+    mutationFn: () => engineApi.refreshConnection(id),
     onSuccess: async () => {
       setSyncError(null);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.custodians.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.connections.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.connections.detail(id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.assets.all }),
       ]);
@@ -511,21 +505,17 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
       />
       <PageHeader
         title={custodian.name}
-        subtitle={`${custodian.managementMode} custodian`}
+        subtitle="Connected account source"
         action={
           <Stack direction="horizontal" gap={2} align="center">
-            {custodian.managementMode === "synced" && (
-              <Button
-                label="Resync"
-                variant="primary"
-                onClick={() => resync.mutate()}
-                isDisabled={resync.isPending}
-                isLoading={resync.isPending}
-              />
-            )}
-            {custodian.managementMode === "manual" && custodian.presentationRole === null && (
-              <Button as={RouterLink} href={`/custodians/${id}/edit`} label="Edit" />
-            )}
+            <Button
+              label="Resync"
+              variant="primary"
+              onClick={() => resync.mutate()}
+              isDisabled={resync.isPending}
+              isLoading={resync.isPending}
+            />
+            <Button as={RouterLink} href={`/custodians/${id}/edit`} label="Edit" />
           </Stack>
         }
       />
@@ -533,11 +523,8 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
       <Stack direction="horizontal" justify="between" align="center" gap={3} wrap="wrap">
         <Stack direction="horizontal" align="center" gap={2}>
           <Heading level={2}>Accounts</Heading>
-          {managementBadge(custodian.managementMode)}
+          {connectedBadge()}
         </Stack>
-        {custodian.managementMode === "manual" && custodian.presentationRole === null && (
-          <AddAssetsButton />
-        )}
       </Stack>
       {custodian.accounts.length === 0 ? (
         <EmptyState title="No accounts" description="Create an account to hold positions." />
@@ -574,7 +561,7 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
 }
 
 export function EditCustodianScreen({ id }: { readonly id: string }) {
-  const query = useQuery(custodianQuery(id));
+  const query = useQuery(connectionQuery(id));
   const capabilities = useQuery(connectorCapabilitiesQuery);
   if (query.isPending || capabilities.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
@@ -595,27 +582,27 @@ function LoadedEditCustodian({
   custodian,
   connector,
 }: {
-  readonly custodian: Custodian;
+  readonly custodian: Connection;
   readonly connector?: ConnectorCapability;
 }) {
-  if (custodian.managementMode === "synced" && connector !== undefined) {
+  if (connector !== undefined) {
     return <LoadedEditConnectorCustodian custodian={custodian} connector={connector} />;
   }
   return <LoadedEditManualCustodian custodian={custodian} />;
 }
 
-function LoadedEditManualCustodian({ custodian }: { readonly custodian: Custodian }) {
+function LoadedEditManualCustodian({ custodian }: { readonly custodian: Connection }) {
   const { id, name } = custodian;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const update = useMutation({
-    mutationFn: (payload: UpdateCustodianInput) => engineApi.updateCustodian(id, payload),
+    mutationFn: (payload: UpdateConnectionInput) => engineApi.updateConnection(id, payload),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.custodians.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.connections.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.connections.detail(id) }),
       ]);
       toast({ body: "Custodian updated." });
       await navigate({ to: "/custodians/$custodianId", params: { custodianId: id } });
@@ -623,9 +610,9 @@ function LoadedEditManualCustodian({ custodian }: { readonly custodian: Custodia
     onError: (cause) => setError(errorMessage(cause)),
   });
   const remove = useMutation({
-    mutationFn: () => engineApi.deleteCustodian(id),
+    mutationFn: () => engineApi.deleteConnection(id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.connections.all });
       await navigate({ to: "/custodians" });
     },
     onError: (cause) => setError(errorMessage(cause)),
@@ -633,9 +620,9 @@ function LoadedEditManualCustodian({ custodian }: { readonly custodian: Custodia
   const form = useAppForm({
     defaultValues: { name },
     validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.toStandardSchemaV1(UpdateCustodianInput) },
+    validators: { onDynamic: Schema.toStandardSchemaV1(UpdateConnectionInput) },
     onSubmit: async ({ value }) => {
-      const decoded = await Schema.decodeUnknownPromise(UpdateCustodianInput)(value);
+      const decoded = await Schema.decodeUnknownPromise(UpdateConnectionInput)(value);
       await update.mutateAsync(decoded);
     },
   });
@@ -677,7 +664,7 @@ function LoadedEditConnectorCustodian({
   custodian,
   connector,
 }: {
-  readonly custodian: Custodian;
+  readonly custodian: Connection;
   readonly connector: ConnectorCapability;
 }) {
   const queryClient = useQueryClient();
@@ -689,11 +676,11 @@ function LoadedEditConnectorCustodian({
   );
   const [error, setError] = useState<string | null>(null);
   const update = useMutation({
-    mutationFn: (payload: UpdateCustodianInput) => engineApi.updateCustodian(custodian.id, payload),
+    mutationFn: (payload: UpdateConnectionInput) => engineApi.updateConnection(custodian.id, payload),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.custodians.detail(custodian.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.connections.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.connections.detail(custodian.id) }),
       ]);
       toast({ body: "Connection updated." });
       await navigate({
@@ -704,9 +691,9 @@ function LoadedEditConnectorCustodian({
     onError: (cause) => setError(errorMessage(cause)),
   });
   const remove = useMutation({
-    mutationFn: () => engineApi.deleteCustodian(custodian.id),
+    mutationFn: () => engineApi.deleteConnection(custodian.id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.custodians.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.connections.all });
       await navigate({ to: "/custodians" });
     },
     onError: (cause) => setError(errorMessage(cause)),
@@ -718,7 +705,7 @@ function LoadedEditConnectorCustodian({
     const changedCredentials = Object.fromEntries(
       Object.entries(credentials).filter(([, value]) => value !== ""),
     );
-    const payload = await Schema.decodeUnknownPromise(UpdateCustodianInput)({
+    const payload = await Schema.decodeUnknownPromise(UpdateConnectionInput)({
       name: name.trim(),
       ...(Object.keys(changedCredentials).length === 0 ? {} : { credentials: changedCredentials }),
     });

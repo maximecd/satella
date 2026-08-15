@@ -4,22 +4,22 @@ import { engineApi } from "./api";
 
 export const queryKeys = {
   dashboard: ["dashboard"] as const,
-  custodians: {
-    all: ["custodians"] as const,
-    manual: ["custodians", "manual"] as const,
-    detail: (id: string) => ["custodians", id] as const,
+  connections: {
+    all: ["connections"] as const,
+    detail: (id: string) => ["connections", id] as const,
   },
   connectors: { capabilities: ["connectors", "capabilities"] as const },
   accounts: {
     all: ["accounts"] as const,
+    manual: ["accounts", "manual"] as const,
     detail: (id: string) => ["accounts", id] as const,
   },
   positions: { account: (id: string) => ["positions", id, "account"] as const },
   assets: {
     all: ["assets"] as const,
     detail: (id: string) => ["assets", id] as const,
-    search: (query: string, assetClass: "security" | "crypto") =>
-      ["assets", "search", assetClass, query] as const,
+    search: (query: string, assetCategory: "stocks_etfs" | "crypto") =>
+      ["assets", "search", assetCategory, query] as const,
     holding: (accountId: string, identifierType: string, identifierValue: string) =>
       ["assets", "holding", accountId, identifierType, identifierValue] as const,
   },
@@ -32,24 +32,24 @@ export const dashboardQuery = queryOptions({
   retry: 1,
 });
 
-export const custodiansQuery = queryOptions({
-  queryKey: queryKeys.custodians.all,
-  queryFn: engineApi.listCustodians,
+export const connectionsQuery = queryOptions({
+  queryKey: queryKeys.connections.all,
+  queryFn: engineApi.listConnections,
   staleTime: 15_000,
   retry: 1,
 });
 
-export const custodianQuery = (id: string) =>
+export const connectionQuery = (id: string) =>
   queryOptions({
-    queryKey: queryKeys.custodians.detail(id),
-    queryFn: () => engineApi.getCustodian(id),
+    queryKey: queryKeys.connections.detail(id),
+    queryFn: () => engineApi.getConnection(id),
     staleTime: 15_000,
     retry: 1,
   });
 
-export const manualCustodiansQuery = queryOptions({
-  queryKey: queryKeys.custodians.manual,
-  queryFn: engineApi.listManualCustodians,
+export const manualAccountsQuery = queryOptions({
+  queryKey: queryKeys.accounts.manual,
+  queryFn: engineApi.listManualAccounts,
   staleTime: 15_000,
   retry: 1,
 });
@@ -105,10 +105,10 @@ export const manualHoldingQuery = (
     retry: 1,
   });
 
-export const assetSearchQuery = (query: string, assetClass: "security" | "crypto") =>
+export const assetSearchQuery = (query: string, assetCategory: "stocks_etfs" | "crypto") =>
   queryOptions({
-    queryKey: queryKeys.assets.search(query, assetClass),
-    queryFn: () => engineApi.searchAssets(query, assetClass),
+    queryKey: queryKeys.assets.search(query, assetCategory),
+    queryFn: () => engineApi.searchAssets(query, assetCategory),
     enabled: query.length >= 2,
     staleTime: 60_000,
     retry: 0,

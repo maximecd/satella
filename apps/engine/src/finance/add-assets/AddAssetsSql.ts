@@ -3,20 +3,21 @@ import * as Effect from "effect/Effect";
 
 import { SqlClient } from "effect/unstable/sql";
 import type {
-  AccountKind,
+  Account,
   AddAssetsResult,
   AddCashAccountInput,
   AddManualHoldingInput,
   AddOtherAssetInput,
-  Custodian,
+  ExistingOrNewAccount,
+  GenericAssetCategory,
   IdentifierInput,
+  SearchableAssetCategory,
 } from "../contracts.js";
 import { FinanceApiError as FinanceError } from "../contracts.js";
 import { getAccount } from "../accounts/AccountSql.js";
 import { findByStrongIdentifier, getAsset } from "../assets/AssetSql.js";
-import { getCustodian, listCustodians } from "../custodians/CustodianSql.js";
 import {
-  assertFiat,
+  assertCash,
   databaseFailure,
   db,
   failure,
@@ -27,64 +28,39 @@ import {
   type FinanceEffect,
 } from "../internal/sql.js";
 
-export const holdingAccountKind = (assetClass: "security" | "crypto"): AccountKind =>
-  assetClass === "security" ? "securities" : "crypto";
-
-export const assertManualCustodian = (custodian: Custodian) => {
-  if (custodian.managementMode !== "manual") {
-    return Effect.fail(failure("read_only", "Connector-managed custodians are read-only"));
+export const assertManualAccount = (account: Account) => {
+  if (account.connectionId !== null) {
+    return Effect.fail(failure("read_only", "Only manual accounts can receive holdings"));
   }
-  if (custodian.presentationRole !== null) {
-    return Effect.fail(
-      failure("read_only", "System-managed custodians cannot be selected in manual workflows"),
-    );
-  }
-  return Effect.succeed(custodian);
+  return Effect.succeed(account);
 };
 
-export const insertManualCustodian = (name: string) =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    const id = randomUUID();
-    const timestamp = nowIso();
-    yield* sql`INSERT INTO custodians (id, name, management_mode, created_at, updated_at)
-      VALUES (${id}, ${name}, 'manual', ${timestamp}, ${timestamp})`;
-    return id;
-  });
-
-export const insertManualAccount = (
-  custodianId: string,
-  name: string,
-  accountKind: AccountKind,
-  currencyId: string,
-) =>
+export const insertManualAccount = (name: string, currencyId: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const id = randomUUID();
     const timestamp = nowIso();
     yield* sql`INSERT INTO accounts
-      (id, custodian_id, name, account_kind, base_currency_asset_id, connector_account_id, created_at, updated_at)
-      VALUES (${id}, ${custodianId}, ${name}, ${accountKind}, ${currencyId}, NULL, ${timestamp}, ${timestamp})`;
+      (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
+      VALUES (${id}, NULL, ${name}, ${currencyId}, NULL, ${timestamp}, ${timestamp})`;
     return id;
   });
 
-export const resolveManualCustodianId = (input: {
-  readonly type: "existing" | "new";
-  readonly id?: string;
-  readonly name?: string;
-}) =>
+export const resolveManualAccountId = (input: ExistingOrNewAccount) =>
   Effect.gen(function* () {
     if (input.type === "existing") {
-      const custodian = yield* getCustodian(input.id!);
-      yield* assertManualCustodian(custodian);
-      return custodian.id;
+      const account = yield* getAccount(input.id);
+      yield* assertManualAccount(account);
+      return account.id;
     }
-    const name = yield* requireNonEmpty(input.name ?? "", "Custodian name");
-    return yield* insertManualCustodian(name);
+    const name = yield* requireNonEmpty(input.name, "Account name");
+    const currencyId = input.baseCurrencyAssetId ?? (yield* usdAssetId);
+    yield* assertCash(currencyId);
+    return yield* insertManualAccount(name, currencyId);
   });
 
 export const resolveProviderAssetId = (input: {
-  readonly assetClass: "security" | "crypto";
+  readonly assetCategory: SearchableAssetCategory;
   readonly name: string;
   readonly symbol: string;
   readonly identifiers: ReadonlyArray<IdentifierInput>;
@@ -93,7 +69,7 @@ export const resolveProviderAssetId = (input: {
     const existingId = yield* findByStrongIdentifier(input.identifiers);
     if (existingId !== undefined) {
       const asset = yield* getAsset(existingId);
-      if (asset.assetClass !== input.assetClass) {
+      if (asset.assetCategory !== input.assetCategory) {
         return yield* Effect.fail(
           failure("validation", "The selected asset does not match this category"),
         );
@@ -104,8 +80,8 @@ export const resolveProviderAssetId = (input: {
     const id = randomUUID();
     const timestamp = nowIso();
     const name = yield* requireNonEmpty(input.name, "Asset name");
-    yield* sql`INSERT INTO assets (id, asset_class, name, symbol, created_at, updated_at)
-      VALUES (${id}, ${input.assetClass}, ${name}, ${input.symbol.trim()}, ${timestamp}, ${timestamp})`;
+    yield* sql`INSERT INTO assets (id, asset_category, name, symbol, created_at, updated_at)
+      VALUES (${id}, ${input.assetCategory}, ${name}, ${input.symbol.trim()}, ${timestamp}, ${timestamp})`;
     for (const identifier of input.identifiers) {
       yield* sql`INSERT INTO asset_identifiers
         (id, asset_id, identifier_type, identifier_value)
@@ -130,14 +106,15 @@ export const upsertAbsolutePosition = (accountId: string, assetId: string, quant
     return "updated" as const;
   });
 
-export const listManualCustodians = (): FinanceEffect<ReadonlyArray<Custodian>> =>
-  listCustodians().pipe(
-    Effect.map((custodians) =>
-      custodians.filter(
-        (custodian) => custodian.managementMode === "manual" && custodian.presentationRole === null,
-      ),
-    ),
-  );
+export const listManualAccounts = (): FinanceEffect<ReadonlyArray<Account>> =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const rows = yield* db(
+      sql<{ readonly id: string }>`SELECT id FROM accounts
+        WHERE connection_id IS NULL ORDER BY created_at, id`,
+    );
+    return yield* Effect.forEach(rows, ({ id }) => getAccount(id));
+  });
 
 export const lookupManualHolding = (
   accountId: string,
@@ -146,12 +123,7 @@ export const lookupManualHolding = (
 ): FinanceEffect<{ readonly assetId: string | null; readonly quantity: number | null }> =>
   Effect.gen(function* () {
     const account = yield* getAccount(accountId);
-    yield* assertManualCustodian(yield* getCustodian(account.custodianId));
-    if (account.presentationRole !== null) {
-      return yield* Effect.fail(
-        failure("read_only", "System-managed accounts cannot be selected in manual workflows"),
-      );
-    }
+    yield* assertManualAccount(account);
     const sql = yield* SqlClient.SqlClient;
     const matched = yield* db(sql<{
       readonly asset_id: string;
@@ -163,49 +135,26 @@ export const lookupManualHolding = (
     return { assetId, quantity: position?.quantity ?? null };
   });
 
+const toAddAssetsResult = (
+  account: Account,
+  positionOutcome: "created" | "updated",
+): AddAssetsResult => ({
+  accountId: account.id,
+  accountName: account.name,
+  positionOutcome,
+});
+
 export const addManualHolding = (input: AddManualHoldingInput): FinanceEffect<AddAssetsResult> =>
   Effect.gen(function* () {
     yield* requireFinite(input.quantity, "Quantity");
-    const expectedKind = holdingAccountKind(input.asset.assetClass);
     const sql = yield* SqlClient.SqlClient;
-    const result = yield* sql
+    return yield* sql
       .withTransaction(
         Effect.gen(function* () {
           const assetId = yield* resolveProviderAssetId(input.asset);
-          const custodianId = yield* resolveManualCustodianId(input.custodian);
-          let accountId: string;
-          if (input.account.type === "existing") {
-            const account = yield* getAccount(input.account.id);
-            if (account.custodianId !== custodianId) {
-              return yield* Effect.fail(
-                failure("validation", "The selected account does not belong to that institution"),
-              );
-            }
-            if (account.accountKind !== expectedKind) {
-              return yield* Effect.fail(
-                failure("validation", "The selected account is not compatible with this asset"),
-              );
-            }
-            if (account.managementMode !== "manual" || account.presentationRole !== null) {
-              return yield* Effect.fail(
-                failure("read_only", "Only manual accounts can receive holdings"),
-              );
-            }
-            accountId = account.id;
-          } else {
-            const name = yield* requireNonEmpty(input.account.name, "Account name");
-            const currencyId = input.account.baseCurrencyAssetId ?? (yield* usdAssetId);
-            yield* assertFiat(currencyId);
-            accountId = yield* insertManualAccount(custodianId, name, expectedKind, currencyId);
-          }
+          const accountId = yield* resolveManualAccountId(input.account);
           const positionOutcome = yield* upsertAbsolutePosition(accountId, assetId, input.quantity);
-          const account = yield* getAccount(accountId);
-          return {
-            accountId: account.id,
-            custodianId: account.custodianId,
-            accountName: account.name,
-            positionOutcome,
-          };
+          return toAddAssetsResult(yield* getAccount(accountId), positionOutcome);
         }),
       )
       .pipe(
@@ -214,33 +163,30 @@ export const addManualHolding = (input: AddManualHoldingInput): FinanceEffect<Ad
         ),
         Effect.catchDefect((cause) => Effect.fail(databaseFailure(cause))),
       );
-    return result;
   });
 
 export const addCashAccount = (input: AddCashAccountInput): FinanceEffect<AddAssetsResult> =>
   Effect.gen(function* () {
     yield* requireFinite(input.balance, "Balance");
-    yield* assertFiat(input.currencyAssetId);
+    yield* assertCash(input.currencyAssetId);
     const sql = yield* SqlClient.SqlClient;
     return yield* sql
       .withTransaction(
         Effect.gen(function* () {
-          const custodianId = yield* resolveManualCustodianId(input.custodian);
-          const name = yield* requireNonEmpty(input.accountName, "Account name");
-          const accountId = yield* insertManualAccount(
-            custodianId,
-            name,
-            input.accountKind,
+          const accountId =
+            input.account.type === "existing"
+              ? yield* resolveManualAccountId(input.account)
+              : yield* resolveManualAccountId({
+                  type: "new",
+                  name: input.account.name,
+                  baseCurrencyAssetId: input.account.baseCurrencyAssetId ?? input.currencyAssetId,
+                });
+          const positionOutcome = yield* upsertAbsolutePosition(
+            accountId,
             input.currencyAssetId,
+            input.balance,
           );
-          yield* upsertAbsolutePosition(accountId, input.currencyAssetId, input.balance);
-          const account = yield* getAccount(accountId);
-          return {
-            accountId: account.id,
-            custodianId: account.custodianId,
-            accountName: account.name,
-            positionOutcome: "created" as const,
-          };
+          return toAddAssetsResult(yield* getAccount(accountId), positionOutcome);
         }),
       )
       .pipe(
@@ -251,54 +197,26 @@ export const addCashAccount = (input: AddCashAccountInput): FinanceEffect<AddAss
       );
   });
 
-export const ensureDirectOwnershipAccount = () =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    const existing = yield* sql<{
-      readonly custodian_id: string;
-      readonly account_id: string;
-    }>`SELECT c.id AS custodian_id, a.id AS account_id
-      FROM custodians c JOIN accounts a ON a.custodian_id = c.id
-      WHERE c.presentation_role = 'direct_ownership' AND a.presentation_role = 'direct_ownership'
-      ORDER BY c.created_at, a.created_at LIMIT 1`;
-    if (existing[0] !== undefined) return existing[0];
-    const timestamp = nowIso();
-    const custodianId = randomUUID();
-    const accountId = randomUUID();
-    const currencyId = yield* usdAssetId;
-    yield* sql`INSERT INTO custodians
-      (id, name, management_mode, presentation_role, created_at, updated_at)
-      VALUES (${custodianId}, 'Direct ownership', 'manual', 'direct_ownership', ${timestamp}, ${timestamp})`;
-    yield* sql`INSERT INTO accounts
-      (id, custodian_id, name, account_kind, presentation_role, base_currency_asset_id, connector_account_id, created_at, updated_at)
-      VALUES (${accountId}, ${custodianId}, 'Other assets', 'other', 'direct_ownership', ${currencyId}, NULL, ${timestamp}, ${timestamp})`;
-    return { custodian_id: custodianId, account_id: accountId };
-  });
-
 export const addOtherAsset = (input: AddOtherAssetInput): FinanceEffect<AddAssetsResult> =>
   Effect.gen(function* () {
     yield* requireFinite(input.value, "Current value");
-    yield* assertFiat(input.currencyAssetId);
+    yield* assertCash(input.currencyAssetId);
     const name = yield* requireNonEmpty(input.name, "Asset name");
+    const category: GenericAssetCategory = input.category ?? "other";
     const sql = yield* SqlClient.SqlClient;
     return yield* sql
       .withTransaction(
         Effect.gen(function* () {
           const assetId = randomUUID();
           const timestamp = nowIso();
-          yield* sql`INSERT INTO assets (id, asset_class, name, symbol, created_at, updated_at)
-            VALUES (${assetId}, 'custom', ${name}, NULL, ${timestamp}, ${timestamp})`;
+          yield* sql`INSERT INTO assets (id, asset_category, name, symbol, created_at, updated_at)
+            VALUES (${assetId}, ${category}, ${name}, NULL, ${timestamp}, ${timestamp})`;
           yield* sql`INSERT INTO asset_prices
             (asset_id, price, currency_asset_id, source, observed_at, updated_at)
             VALUES (${assetId}, ${input.value}, ${input.currencyAssetId}, 'manual', ${timestamp}, ${timestamp})`;
-          const destination = yield* ensureDirectOwnershipAccount();
-          yield* upsertAbsolutePosition(destination.account_id, assetId, 1);
-          return {
-            accountId: destination.account_id,
-            custodianId: destination.custodian_id,
-            accountName: "Other assets",
-            positionOutcome: "created" as const,
-          };
+          const accountId = yield* resolveManualAccountId(input.account);
+          const positionOutcome = yield* upsertAbsolutePosition(accountId, assetId, 1);
+          return toAddAssetsResult(yield* getAccount(accountId), positionOutcome);
         }),
       )
       .pipe(

@@ -20,13 +20,10 @@ const valuedAmount = new Intl.NumberFormat(undefined, {
 });
 
 const sourceLabel = (row: DashboardAccountRow) =>
-  row.source === "connected" ? "Connected" : "Manual";
+  row.connectionId === null ? "Manual" : "Connected";
 
 const rowDescription = (row: DashboardAccountRow) => {
-  const context =
-    row.presentationRole === "direct_ownership"
-      ? "Directly owned"
-      : (row.connectorName ?? row.custodianName);
+  const context = row.connectionName ?? "Manual";
   const status = row.totalIncomplete
     ? "Incomplete valuation"
     : row.hasStalePrices
@@ -66,10 +63,10 @@ export function DashboardScreen() {
                   <Token
                     label={sourceLabel(row)}
                     size="sm"
-                    color={row.source === "connected" ? "blue" : "gray"}
+                    color={row.connectionId === null ? "gray" : "blue"}
                     icon={
                       <StatusDot
-                        variant={row.source === "connected" ? "accent" : "neutral"}
+                        variant={row.connectionId === null ? "neutral" : "accent"}
                         label={sourceLabel(row)}
                       />
                     }

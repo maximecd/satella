@@ -13,8 +13,8 @@ const provideSql = <A, E>(
 export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   return AddAssetsService.of({
-    listManualCustodians: Effect.fn("AddAssetsService.listManualCustodians")(() =>
-      provideSql(sql, Operations.listManualCustodians()),
+    listManualAccounts: Effect.fn("AddAssetsService.listManualAccounts")(() =>
+      provideSql(sql, Operations.listManualAccounts()),
     ),
     lookupManualHolding: Effect.fn("AddAssetsService.lookupManualHolding")(
       (accountId, identifierType, identifierValue) =>

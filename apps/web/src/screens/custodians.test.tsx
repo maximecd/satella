@@ -6,7 +6,7 @@ import { engineApi } from "../api";
 import {
   renderRoute,
   resetFinanceMocks,
-  syncedCustodian,
+  syncedConnection,
 } from "../finance.route-harness.test-utils";
 
 vi.mock("../api", async () => import("../engine-api.test-utils"));
@@ -20,18 +20,18 @@ describe("custodians screen", () => {
     renderRoute("/custodians");
     expect(await screen.findByRole("heading", { name: "Custodians" })).toBeInTheDocument();
     expect(screen.getByText("No custodians yet")).toBeInTheDocument();
-    expect(engineApi.listCustodians).toHaveBeenCalledOnce();
+    expect(engineApi.listConnections).toHaveBeenCalledOnce();
   });
 
   it("edits connector credentials while leaving unchanged secrets blank", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.getCustodian).mockResolvedValue(syncedCustodian);
+    vi.mocked(engineApi.getConnection).mockResolvedValue(syncedConnection);
     vi.mocked(engineApi.connectorCapabilities).mockResolvedValue({
       connectors: [
         {
           id: "okx",
           name: "OKX",
-          assetClasses: ["crypto"],
+          assetCategories: ["crypto"],
           credentialFields: [
             { key: "apiKey", label: "API key", kind: "text", required: true },
             { key: "secretKey", label: "Secret key", kind: "password", required: true },
@@ -46,7 +46,7 @@ describe("custodians screen", () => {
         },
       ],
     });
-    vi.mocked(engineApi.updateCustodian).mockResolvedValue(syncedCustodian);
+    vi.mocked(engineApi.updateConnection).mockResolvedValue(syncedConnection);
 
     renderRoute("/custodians/custodian-1/edit");
     expect(await screen.findByRole("heading", { name: "Edit OKX" })).toBeInTheDocument();
@@ -55,7 +55,7 @@ describe("custodians screen", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() =>
-      expect(engineApi.updateCustodian).toHaveBeenCalledWith("custodian-1", {
+      expect(engineApi.updateConnection).toHaveBeenCalledWith("custodian-1", {
         name: "OKX",
         credentials: { apiKey: "replacement-key" },
       }),
@@ -64,12 +64,12 @@ describe("custodians screen", () => {
 
   it("resyncs a connector-managed custodian from its detail page", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.getCustodian).mockResolvedValue(syncedCustodian);
-    vi.mocked(engineApi.resyncCustodian).mockResolvedValue(syncedCustodian);
+    vi.mocked(engineApi.getConnection).mockResolvedValue(syncedConnection);
+    vi.mocked(engineApi.refreshConnection).mockResolvedValue(syncedConnection);
 
     renderRoute("/custodians/custodian-1");
     await user.click(await screen.findByRole("button", { name: "Resync" }));
 
-    expect(engineApi.resyncCustodian).toHaveBeenCalledWith("custodian-1");
+    expect(engineApi.refreshConnection).toHaveBeenCalledWith("custodian-1");
   });
 });

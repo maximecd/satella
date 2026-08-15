@@ -10,7 +10,7 @@ export class MarketDataService extends Context.Service<
   {
     readonly search: (
       query: string,
-      assetClass: AssetSearchResult["assetClass"],
+      assetCategory: AssetSearchResult["assetCategory"],
     ) => Effect.Effect<ReadonlyArray<AssetSearchResult>, FinanceApiError>;
     readonly refresh: (options?: {
       readonly requireFresh?: boolean;
@@ -21,8 +21,8 @@ export class MarketDataService extends Context.Service<
 export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   return MarketDataService.of({
-    search: Effect.fn("MarketDataService.search")((query, assetClass) =>
-      MarketData.searchAssets(query, assetClass).pipe(
+    search: Effect.fn("MarketDataService.search")((query, assetCategory) =>
+      MarketData.searchAssets(query, assetCategory).pipe(
         Effect.provideService(SqlClient.SqlClient, sql),
       ),
     ),

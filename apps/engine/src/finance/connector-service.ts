@@ -28,7 +28,7 @@ const validationFailure = (message: string) =>
 const assetFingerprint = (asset: ConnectorAsset): string =>
   JSON.stringify({
     externalId: asset.externalId,
-    assetClass: asset.assetClass,
+    assetCategory: asset.assetCategory,
     name: asset.name.trim(),
     symbol: asset.symbol?.trim() ?? null,
     identifiers: [...asset.identifiers]
@@ -40,7 +40,7 @@ const assetFingerprint = (asset: ConnectorAsset): string =>
 
 const normalizeAsset = (asset: ConnectorAsset): NormalizedConnectorAsset => ({
   externalAssetId: asset.externalId.trim(),
-  assetClass: asset.assetClass,
+  assetCategory: asset.assetCategory,
   name: asset.name.trim(),
   ...(asset.symbol === undefined ? {} : { symbol: asset.symbol.trim() }),
   identifiers: asset.identifiers.map(({ type, value }: ConnectorAssetIdentifier) => ({
@@ -106,7 +106,6 @@ export const normalizeConnectorAccounts = (
         externalAccountId,
         name: account.name.trim(),
         baseCurrencyIso,
-        accountKind: account.accountKind,
         positions,
       });
     }
@@ -119,11 +118,11 @@ export const normalizeConnectorAccounts = (
   });
 
 export const reconcileConnectorAccounts = (
-  custodianId: string,
+  connectionId: string,
   accounts: ReadonlyArray<ConnectorAccount>,
 ): Effect.Effect<ReconciliationResult, FinanceApiError, SqlClient.SqlClient> =>
   normalizeConnectorAccounts(accounts).pipe(
-    Effect.flatMap((output) => reconcileConnector(custodianId, output)),
+    Effect.flatMap((output) => reconcileConnector(connectionId, output)),
   );
 
 export type ConnectorSyncError =
@@ -133,21 +132,21 @@ export type ConnectorSyncError =
 
 /** Authenticates a connector, fetches its complete account tree, and reconciles it atomically. */
 export const syncConnector = <Credentials, R>(
-  custodianId: string,
+  connectionId: string,
   connector: Connector<Credentials, R>,
   credentials: Credentials,
 ): Effect.Effect<ReconciliationResult, ConnectorSyncError, R | SqlClient.SqlClient> =>
   connector.authenticate(credentials).pipe(
     Effect.flatMap((authenticated: AuthenticatedConnector<R>) => authenticated.fetchAccounts()),
     Effect.flatMap((accounts: ReadonlyArray<ConnectorAccount>) =>
-      reconcileConnectorAccounts(custodianId, accounts),
+      reconcileConnectorAccounts(connectionId, accounts),
     ),
   );
 
 /** Runs a connector selected from the compiled registry without exposing the registry to callers. */
 export const syncRegisteredConnectorFrom = (
   registry: ConnectorRegistry,
-  custodianId: string,
+  connectionId: string,
   connectorId: string,
   credentials: unknown,
 ): Effect.Effect<
@@ -164,11 +163,11 @@ export const syncRegisteredConnectorFrom = (
       }),
     );
   }
-  return syncConnector(custodianId, connector, credentials);
+  return syncConnector(connectionId, connector, credentials);
 };
 
 export const syncRegisteredConnector = (
-  custodianId: string,
+  connectionId: string,
   connectorId: string,
   credentials: unknown,
-) => syncRegisteredConnectorFrom(CONNECTOR_REGISTRY, custodianId, connectorId, credentials);
+) => syncRegisteredConnectorFrom(CONNECTOR_REGISTRY, connectionId, connectorId, credentials);

@@ -1,11 +1,11 @@
-import type { AnyConnector, ConnectorAssetClass, ConnectorCredentialField } from "./connector.js";
+import type { AnyConnector, ConnectorAssetCategory, ConnectorCredentialField } from "./connector.js";
 
 export interface ConnectorCapability {
   readonly id: string;
   readonly name: string;
   readonly icon?: string;
   readonly instructions?: string;
-  readonly assetClasses: ReadonlyArray<ConnectorAssetClass>;
+  readonly assetCategories: ReadonlyArray<ConnectorAssetCategory>;
   readonly credentialFields: ReadonlyArray<ConnectorCredentialField>;
 }
 
@@ -23,8 +23,8 @@ const validateConnector = (connector: AnyConnector) => {
   if (connector.name.trim().length === 0) {
     throw new Error(`Connector ${connector.id} must have a non-empty name`);
   }
-  if (connector.assetClasses.length === 0) {
-    throw new Error(`Connector ${connector.id} must declare at least one supported asset class`);
+  if (connector.assetCategories.length === 0) {
+    throw new Error(`Connector ${connector.id} must declare at least one supported asset category`);
   }
   return connector;
 };
@@ -33,15 +33,16 @@ export const connectorCapabilities = (
   registry: ConnectorRegistry,
 ): ReadonlyArray<ConnectorCapability> =>
   Object.freeze(
-    [...registry.values()].map(({ id, name, icon, instructions, assetClasses, credentialFields }) =>
-      Object.freeze({
-        id,
-        name,
-        ...(icon === undefined ? {} : { icon }),
-        ...(instructions === undefined ? {} : { instructions }),
-        assetClasses: Object.freeze([...assetClasses]),
-        credentialFields: Object.freeze([...credentialFields]),
-      }),
+    [...registry.values()].map(
+      ({ id, name, icon, instructions, assetCategories, credentialFields }) =>
+        Object.freeze({
+          id,
+          name,
+          ...(icon === undefined ? {} : { icon }),
+          ...(instructions === undefined ? {} : { instructions }),
+          assetCategories: Object.freeze([...assetCategories]),
+          credentialFields: Object.freeze([...credentialFields]),
+        }),
     ),
   );
 

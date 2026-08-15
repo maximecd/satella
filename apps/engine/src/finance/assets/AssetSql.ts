@@ -10,11 +10,12 @@ import type {
   UpdateCustomAssetInput,
 } from "../contracts.js";
 import {
-  assertFiat,
+  assertCash,
   db,
   failure,
   firstOrNotFound,
   loadPrice,
+  MANUAL_ASSET_CATEGORIES,
   nowIso,
   requireFinite,
   requireNonEmpty,
@@ -27,7 +28,7 @@ export const getAsset = (id: string): FinanceEffect<Asset> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const asset = yield* firstOrNotFound(
-      yield* db(sql<AssetRow>`SELECT id, asset_class, name, symbol, created_at, updated_at
+      yield* db(sql<AssetRow>`SELECT id, asset_category, name, symbol, created_at, updated_at
         FROM assets WHERE id = ${id}`),
       "Asset",
     );
@@ -36,7 +37,7 @@ export const getAsset = (id: string): FinanceEffect<Asset> =>
     const price = yield* loadPrice(id);
     return {
       id: asset.id,
-      assetClass: asset.asset_class,
+      assetCategory: asset.asset_category,
       name: asset.name,
       symbol: asset.symbol,
       identifiers: identifiers.map(({ identifier_type: type, identifier_value: value }) => ({
@@ -83,8 +84,8 @@ export const createAsset = (input: CreateAssetInput): FinanceEffect<Asset> =>
     yield* db(
       sql.withTransaction(
         Effect.gen(function* () {
-          yield* sql`INSERT INTO assets (id, asset_class, name, symbol, created_at, updated_at)
-            VALUES (${id}, ${input.assetClass}, ${name}, ${input.symbol?.trim() ?? null}, ${timestamp}, ${timestamp})`;
+          yield* sql`INSERT INTO assets (id, asset_category, name, symbol, created_at, updated_at)
+            VALUES (${id}, ${input.assetCategory}, ${name}, ${input.symbol?.trim() ?? null}, ${timestamp}, ${timestamp})`;
           for (const identifier of identifiers) {
             yield* sql`INSERT INTO asset_identifiers
               (id, asset_id, identifier_type, identifier_value)
@@ -102,7 +103,7 @@ export const updateCustomAsset = (
 ): FinanceEffect<Asset> =>
   Effect.gen(function* () {
     const asset = yield* getAsset(id);
-    if (asset.assetClass !== "custom") {
+    if (!MANUAL_ASSET_CATEGORIES.has(asset.assetCategory)) {
       return yield* Effect.fail(failure("read_only", "Automatic assets are read-only"));
     }
     const name = yield* requireNonEmpty(input.name, "Asset name");
@@ -116,12 +117,12 @@ export const setManualPrice = (id: string, input: SetManualPriceInput): FinanceE
   Effect.gen(function* () {
     yield* requireFinite(input.price, "Price");
     const asset = yield* getAsset(id);
-    if (asset.assetClass !== "custom") {
+    if (!MANUAL_ASSET_CATEGORIES.has(asset.assetCategory)) {
       return yield* Effect.fail(
-        failure("read_only", "Manual prices are allowed only for custom assets"),
+        failure("read_only", "Manual prices are allowed only for assets without automatic pricing"),
       );
     }
-    yield* assertFiat(input.currencyAssetId);
+    yield* assertCash(input.currencyAssetId);
     const sql = yield* SqlClient.SqlClient;
     const timestamp = nowIso();
     yield* db(sql`INSERT INTO asset_prices

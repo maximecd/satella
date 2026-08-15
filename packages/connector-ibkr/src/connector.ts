@@ -75,6 +75,30 @@ const securityCategories = new Set([
 
 const symbolCategories = new Set(["STK", "FUND", "CRYPTO"]);
 
+const stocksAndEtfs = new Set(["STK", "FUND"]);
+const bonds = new Set(["BILL", "BOND", "IBGNOTE"]);
+const derivatives = new Set([
+  "CFD",
+  "FOP",
+  "FSFOP",
+  "FSOPT",
+  "FUT",
+  "FXCFD",
+  "FXFWD",
+  "IOPT",
+  "OPT",
+  "WAR",
+]);
+
+const ibkrAssetCategory = (category: string) => {
+  if (stocksAndEtfs.has(category)) return "stocks_etfs" as const;
+  if (bonds.has(category)) return "bonds" as const;
+  if (category === "CRYPTO") return "crypto" as const;
+  if (derivatives.has(category)) return "derivatives" as const;
+  if (category === "CMDTY") return "commodities" as const;
+  return "other" as const;
+};
+
 const trimOptional = (value: string | undefined): string | undefined => {
   const trimmed = value?.trim();
   return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed;
@@ -250,7 +274,7 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
     positions.push({
       asset: {
         externalId: `ibkr:currency:${iso}`,
-        assetClass: "fiat",
+        assetCategory: "cash",
         name: iso,
         symbol: iso,
         identifiers: [{ type: "iso_currency", value: iso }],
@@ -263,7 +287,7 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
     positions.push({
       asset: {
         externalId,
-        assetClass: group.category === "CRYPTO" ? "crypto" : "security",
+        assetCategory: ibkrAssetCategory(group.category),
         name: group.name,
         ...(group.symbol === undefined ? {} : { symbol: group.symbol }),
         identifiers: group.identifiers,
@@ -275,7 +299,6 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
     externalId: accountId,
     name,
     baseCurrencyIso: baseCurrency,
-    accountKind: "securities",
     positions,
   };
 };
@@ -513,7 +536,7 @@ export const makeIbkrConnector = <R = HttpClient.HttpClient>(
   name: "Interactive Brokers",
   icon: ibkrIcon,
   instructions: ibkrInstructions,
-  assetClasses: ["security"],
+  assetCategories: ["stocks_etfs", "bonds", "cash", "derivatives", "commodities"],
   credentialFields: [
     {
       key: "token",

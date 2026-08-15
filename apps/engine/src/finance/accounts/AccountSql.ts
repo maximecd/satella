@@ -2,16 +2,9 @@ import { randomUUID } from "node:crypto";
 import * as Effect from "effect/Effect";
 
 import { SqlClient } from "effect/unstable/sql";
-import type {
-  Account,
-  CreateAccountInput,
-  Position,
-  PresentationRole,
-  UpdateAccountInput,
-} from "../contracts.js";
-import { getCustodian } from "../custodians/CustodianSql.js";
+import type { Account, CreateAccountInput, Position, UpdateAccountInput } from "../contracts.js";
 import {
-  assertFiat,
+  assertCash,
   db,
   failure,
   firstOrNotFound,
@@ -29,23 +22,13 @@ export const assertManualAccountOwner = (accountId: string) =>
     const sql = yield* SqlClient.SqlClient;
     const row = yield* firstOrNotFound(
       yield* db(sql<{
-        readonly management_mode: string;
-        readonly presentation_role: PresentationRole | null;
-      }>`SELECT c.management_mode, a.presentation_role
-        FROM accounts a JOIN custodians c ON c.id = a.custodian_id WHERE a.id = ${accountId}`),
+        readonly connection_id: string | null;
+      }>`SELECT connection_id FROM accounts WHERE id = ${accountId}`),
       "Account",
     );
-    if (row.management_mode !== "manual") {
+    if (row.connection_id !== null) {
       return yield* Effect.fail(
         failure("read_only", "Connector-managed accounts and positions are read-only"),
-      );
-    }
-    if (row.presentation_role !== null) {
-      return yield* Effect.fail(
-        failure(
-          "read_only",
-          "System-managed accounts cannot be changed through ordinary workflows",
-        ),
       );
     }
   });
@@ -56,15 +39,15 @@ export const loadPosition = (
   reportingCurrencyId: string,
   fx: ReadonlyMap<string, number>,
 ): Position => {
-  const implicitFiatPrice =
-    row.asset_class === "fiat" &&
+  const implicitCashPrice =
+    row.asset_category === "cash" &&
     (row.asset_id === valuationCurrencyId || row.asset_id === reportingCurrencyId)
       ? 1
       : null;
-  const selectedPrice = row.price ?? implicitFiatPrice;
+  const selectedPrice = row.price ?? implicitCashPrice;
   const currencyId =
     row.currency_asset_id ??
-    (implicitFiatPrice === null
+    (implicitCashPrice === null
       ? null
       : row.asset_id === valuationCurrencyId
         ? valuationCurrencyId
@@ -89,7 +72,7 @@ export const loadPosition = (
     assetId: row.asset_id,
     assetName: row.asset_name,
     assetSymbol: row.asset_symbol,
-    assetClass: row.asset_class,
+    assetCategory: row.asset_category,
     quantity: row.quantity,
     price:
       row.price === null ||
@@ -118,18 +101,19 @@ export const getAccount = (id: string): FinanceEffect<Account> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const account = yield* firstOrNotFound(
-      yield* db(sql<AccountRow>`SELECT a.id, a.custodian_id, c.name AS custodian_name,
-        c.management_mode, a.presentation_role, a.name, a.account_kind, a.base_currency_asset_id,
+      yield* db(sql<AccountRow>`SELECT a.id, a.connection_id, c.name AS connection_name,
+        a.name, a.base_currency_asset_id,
         COALESCE(ai.identifier_value, ba.symbol, ba.name) AS base_currency_iso,
         a.connector_account_id, a.created_at, a.updated_at
-        FROM accounts a JOIN custodians c ON c.id = a.custodian_id
+        FROM accounts a
+        LEFT JOIN connections c ON c.id = a.connection_id
         JOIN assets ba ON ba.id = a.base_currency_asset_id
         LEFT JOIN asset_identifiers ai ON ai.asset_id = ba.id AND ai.identifier_type = 'iso_currency'
         WHERE a.id = ${id}`),
       "Account",
     );
     const rows = yield* db(sql<PositionRow>`SELECT p.id, p.account_id, p.asset_id,
-      a.name AS asset_name, a.symbol AS asset_symbol, a.asset_class, p.quantity,
+      a.name AS asset_name, a.symbol AS asset_symbol, a.asset_category, p.quantity,
       ap.price, ap.currency_asset_id,
       COALESCE(price_identifier.identifier_value, price_currency.symbol, price_currency.name)
         AS currency_iso,
@@ -153,12 +137,9 @@ export const getAccount = (id: string): FinanceEffect<Account> =>
     );
     return {
       id: account.id,
-      custodianId: account.custodian_id,
-      custodianName: account.custodian_name,
-      managementMode: account.management_mode,
-      presentationRole: account.presentation_role,
+      connectionId: account.connection_id,
+      connectionName: account.connection_name,
       name: account.name,
-      accountKind: account.account_kind,
       baseCurrencyAssetId: account.base_currency_asset_id,
       baseCurrencyIso: account.base_currency_iso,
       connectorAccountId: account.connector_account_id,
@@ -173,32 +154,22 @@ export const getAccount = (id: string): FinanceEffect<Account> =>
 
 export const createAccount = (input: CreateAccountInput): FinanceEffect<Account> =>
   Effect.gen(function* () {
-    const custodian = yield* getCustodian(input.custodianId);
-    if (custodian.managementMode !== "manual") {
-      return yield* Effect.fail(failure("read_only", "Connector-managed custodians are read-only"));
-    }
-    if (custodian.presentationRole !== null) {
-      return yield* Effect.fail(
-        failure("read_only", "System-managed custodians cannot receive manual accounts"),
-      );
-    }
     const name = yield* requireNonEmpty(input.name, "Account name");
-    const accountKind = input.accountKind ?? "other";
     const currencyId = input.baseCurrencyAssetId ?? (yield* usdAssetId);
-    yield* assertFiat(currencyId);
+    yield* assertCash(currencyId);
     const sql = yield* SqlClient.SqlClient;
     const id = randomUUID();
     const timestamp = nowIso();
     yield* db(sql`INSERT INTO accounts
-      (id, custodian_id, name, account_kind, base_currency_asset_id, connector_account_id, created_at, updated_at)
-      VALUES (${id}, ${input.custodianId}, ${name}, ${accountKind}, ${currencyId}, NULL, ${timestamp}, ${timestamp})`);
+      (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
+      VALUES (${id}, NULL, ${name}, ${currencyId}, NULL, ${timestamp}, ${timestamp})`);
     return yield* getAccount(id);
   });
 
 export const updateAccount = (id: string, input: UpdateAccountInput): FinanceEffect<Account> =>
   Effect.gen(function* () {
     yield* assertManualAccountOwner(id);
-    yield* assertFiat(input.baseCurrencyAssetId);
+    yield* assertCash(input.baseCurrencyAssetId);
     const name = yield* requireNonEmpty(input.name, "Account name");
     const sql = yield* SqlClient.SqlClient;
     yield* db(sql`UPDATE accounts SET name = ${name}, base_currency_asset_id = ${input.baseCurrencyAssetId},

@@ -85,15 +85,15 @@ const FIAT_CURRENCIES = new Set([
 ]);
 
 const connectorAsset = (currency: string) => {
-  const assetClass = FIAT_CURRENCIES.has(currency) ? ("fiat" as const) : ("crypto" as const);
+  const assetCategory = FIAT_CURRENCIES.has(currency) ? ("cash" as const) : ("crypto" as const);
   return {
     externalId: `okx:currency:${currency}`,
-    assetClass,
+    assetCategory,
     name: currency,
     symbol: currency,
     identifiers: [
       {
-        type: assetClass === "fiat" ? "iso_currency" : "okx_currency",
+        type: assetCategory === "cash" ? "iso_currency" : "okx_currency",
         value: currency,
       },
     ],
@@ -233,21 +233,18 @@ const buildAccounts = (
       externalId: "trading",
       name: "Trading",
       baseCurrencyIso: "USD",
-      accountKind: "crypto",
       positions: tradingPositions,
     },
     {
       externalId: "funding",
       name: "Funding",
       baseCurrencyIso: "USD",
-      accountKind: "crypto",
       positions: fundingPositions,
     },
     {
       externalId: "earn",
       name: "Earn",
       baseCurrencyIso: "USD",
-      accountKind: "crypto",
       positions: earnPositions,
     },
   ];
@@ -333,7 +330,7 @@ export const makeOkxConnector = <R = HttpClient.HttpClient>(
   name: "OKX",
   icon: okxIcon,
   instructions: okxInstructions,
-  assetClasses: ["crypto"],
+  assetCategories: ["crypto"],
   credentialFields: [
     {
       key: "apiKey",

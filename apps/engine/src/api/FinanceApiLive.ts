@@ -7,7 +7,7 @@ import { AccountService } from "../finance/accounts/AccountService.js";
 import { AddAssetsService } from "../finance/add-assets/AddAssetsService.js";
 import { AssetService } from "../finance/assets/AssetService.js";
 import { ConnectorCatalog } from "../finance/connectors/ConnectorCatalog.js";
-import { CustodianService } from "../finance/custodians/CustodianService.js";
+import { ConnectionService } from "../finance/connections/ConnectionService.js";
 import { MarketDataService } from "../finance/market-data/MarketDataService.js";
 import { PortfolioService } from "../finance/portfolio/PortfolioService.js";
 import { PositionService } from "../finance/positions/PositionService.js";
@@ -29,9 +29,9 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
         return yield* (yield* PortfolioService).dashboard();
       }),
     )
-    .handle("listManualCustodians", () =>
+    .handle("listManualAccounts", () =>
       Effect.gen(function* () {
-        return yield* (yield* AddAssetsService).listManualCustodians();
+        return yield* (yield* AddAssetsService).listManualAccounts();
       }),
     )
     .handle("lookupManualHolding", ({ query }) =>
@@ -58,39 +58,34 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
         return yield* (yield* AddAssetsService).addOtherAsset(payload);
       }),
     )
-    .handle("listCustodians", () =>
+    .handle("listConnections", () =>
       Effect.gen(function* () {
-        return yield* (yield* CustodianService).list();
+        return yield* (yield* ConnectionService).list();
       }),
     )
-    .handle("getCustodian", ({ params }) =>
+    .handle("getConnection", ({ params }) =>
       Effect.gen(function* () {
-        return yield* (yield* CustodianService).get(params.id);
+        return yield* (yield* ConnectionService).get(params.id);
       }),
     )
-    .handle("createCustodian", ({ payload }) =>
+    .handle("connectConnection", ({ payload }) =>
       Effect.gen(function* () {
-        return yield* (yield* CustodianService).create(payload);
+        return yield* (yield* ConnectionService).connect(payload);
       }),
     )
-    .handle("connectCustodian", ({ payload }) =>
+    .handle("refreshConnection", ({ params }) =>
       Effect.gen(function* () {
-        return yield* (yield* CustodianService).connect(payload);
+        return yield* (yield* ConnectionService).refresh(params.id);
       }),
     )
-    .handle("resyncCustodian", ({ params }) =>
+    .handle("updateConnection", ({ params, payload }) =>
       Effect.gen(function* () {
-        return yield* (yield* CustodianService).resync(params.id);
+        return yield* (yield* ConnectionService).update(params.id, payload);
       }),
     )
-    .handle("updateCustodian", ({ params, payload }) =>
+    .handle("deleteConnection", ({ params }) =>
       Effect.gen(function* () {
-        return yield* (yield* CustodianService).update(params.id, payload);
-      }),
-    )
-    .handle("deleteCustodian", ({ params }) =>
-      Effect.gen(function* () {
-        return yield* (yield* CustodianService).delete(params.id);
+        return yield* (yield* ConnectionService).delete(params.id);
       }),
     )
     .handle("getAccount", ({ params }) =>
@@ -115,7 +110,7 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
     )
     .handle("searchAssets", ({ query }) =>
       Effect.gen(function* () {
-        return yield* (yield* MarketDataService).search(query.query, query.assetClass);
+        return yield* (yield* MarketDataService).search(query.query, query.assetCategory);
       }),
     )
     .handle("listAssets", () =>

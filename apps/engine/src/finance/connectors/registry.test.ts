@@ -20,7 +20,7 @@ describe("connector composition", () => {
     const custom = {
       id: "custom",
       name: "Custom",
-      assetClasses: ["fiat" as const],
+      assetCategories: ["cash" as const],
       credentialFields: [],
       credentialsSchema: Schema.Unknown,
       authenticate: () => Effect.die("unused"),

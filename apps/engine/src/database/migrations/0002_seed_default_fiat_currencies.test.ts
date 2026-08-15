@@ -10,7 +10,7 @@ describe("default currencies", () => {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       const currencies = yield* sql<{ readonly symbol: string }>`SELECT symbol FROM assets
-        WHERE asset_class = 'fiat' ORDER BY symbol`;
+        WHERE asset_category = 'cash' ORDER BY symbol`;
       const accountColumns = yield* sql<{
         readonly name: string;
       }>`PRAGMA table_info(accounts)`;

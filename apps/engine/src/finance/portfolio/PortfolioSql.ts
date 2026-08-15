@@ -3,11 +3,10 @@ import * as Effect from "effect/Effect";
 import * as Duration from "effect/Duration";
 
 import { SqlClient } from "effect/unstable/sql";
-import type { AssetClass, Dashboard, PortfolioHistoryPoint, SnapshotResult } from "../contracts.js";
+import type { AssetCategory, Dashboard, PortfolioHistoryPoint, SnapshotResult } from "../contracts.js";
 import { CONNECTOR_CAPABILITIES, DEFAULT_SNAPSHOT_INTERVAL } from "../config.js";
 import { getAccount } from "../accounts/AccountSql.js";
 import { refreshPrices, type MarketDataRegistry } from "../market-data.js";
-import type { PresentationRole } from "../contracts.js";
 import { db, usdAssetId, type FinanceEffect } from "../internal/sql.js";
 
 export interface CaptureSnapshotOptions {
@@ -76,7 +75,7 @@ interface HistoricalPositionRow {
   readonly snapshot_id: string;
   readonly captured_at: string;
   readonly asset_id: string | null;
-  readonly asset_class: AssetClass | null;
+  readonly asset_category: AssetCategory | null;
   readonly quantity: number | null;
   readonly price: number | null;
   readonly currency_asset_id: string | null;
@@ -87,7 +86,7 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
     const sql = yield* SqlClient.SqlClient;
     const reportingCurrencyId = yield* usdAssetId;
     const rows = yield* db(sql<HistoricalPositionRow>`SELECT s.id AS snapshot_id, s.captured_at,
-      p.asset_id, a.asset_class, ps.quantity, aps.price, aps.currency_asset_id
+      p.asset_id, a.asset_category, ps.quantity, aps.price, aps.currency_asset_id
       FROM snapshots s
       LEFT JOIN position_snapshots ps ON ps.snapshot_id = s.id
       LEFT JOIN positions p ON p.id = ps.position_id
@@ -115,7 +114,7 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
       let totalIncomplete = false;
       for (const row of snapshotRows) {
         if (row.asset_id === null || row.quantity === null) continue;
-        const implicit = row.asset_class === "fiat" && row.asset_id === reportingCurrencyId;
+        const implicit = row.asset_category === "cash" && row.asset_id === reportingCurrencyId;
         const price = row.price ?? (implicit ? 1 : null);
         const currencyId = row.currency_asset_id ?? (implicit ? reportingCurrencyId : null);
         const conversion =
@@ -141,26 +140,21 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
     const sql = yield* SqlClient.SqlClient;
     const rows = yield* db(sql<{
       readonly id: string;
-      readonly presentation_role: PresentationRole | null;
+      readonly connection_id: string | null;
       readonly connector_id: string | null;
-    }>`SELECT a.id, a.presentation_role, cc.connector_id
+    }>`SELECT a.id, a.connection_id, c.connector_id
       FROM accounts a
-      JOIN custodians c ON c.id = a.custodian_id
-      LEFT JOIN custodian_connectors cc ON cc.custodian_id = c.id
+      LEFT JOIN connections c ON c.id = a.connection_id
       ORDER BY a.created_at, a.id`);
     const accounts = yield* Effect.forEach(rows, (row) =>
       getAccount(row.id).pipe(
         Effect.map((account) => {
           const connector = CONNECTOR_CAPABILITIES.find(({ id }) => id === row.connector_id);
-          const isDirect = row.presentation_role === "direct_ownership";
           return {
             accountId: account.id,
-            accountName: isDirect ? "Other assets" : account.name,
-            custodianId: account.custodianId,
-            custodianName: isDirect ? "" : account.custodianName,
-            accountKind: isDirect ? ("other" as const) : account.accountKind,
-            source:
-              account.managementMode === "synced" ? ("connected" as const) : ("manual" as const),
+            accountName: account.name,
+            connectionId: account.connectionId,
+            connectionName: account.connectionName,
             connectorId: row.connector_id,
             connectorName: connector?.name ?? null,
             baseCurrencyIso: account.baseCurrencyIso,
@@ -168,7 +162,6 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
             total: account.total,
             totalIncomplete: account.totalIncomplete,
             hasStalePrices: account.hasStalePrices,
-            presentationRole: row.presentation_role,
           };
         }),
       ),

@@ -3,7 +3,7 @@ import { Theme } from "@astryxdesign/core/theme";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
-import type { Account, Custodian } from "@optimus/engine/api";
+import type { Account, Connection } from "@optimus/engine/api";
 import { vi } from "vite-plus/test";
 
 import { engineApi } from "./api";
@@ -12,12 +12,9 @@ import { stoneTheme } from "./themes/stone/stoneTheme";
 
 export const account: Account = {
   id: "account-1",
-  custodianId: "custodian-1",
-  custodianName: "Broker",
-  managementMode: "manual",
-  presentationRole: null,
+  connectionId: null,
+  connectionName: null,
   name: "Portfolio",
-  accountKind: "securities",
   baseCurrencyAssetId: "fiat:USD",
   baseCurrencyIso: "USD",
   connectorAccountId: null,
@@ -28,7 +25,7 @@ export const account: Account = {
       assetId: "asset-1",
       assetName: "Unpriced asset",
       assetSymbol: null,
-      assetClass: "custom",
+      assetCategory: "other",
       quantity: 2,
       price: null,
       reportingValue: null,
@@ -41,7 +38,7 @@ export const account: Account = {
       assetId: "asset-2",
       assetName: "Closed asset",
       assetSymbol: "CLOSED",
-      assetClass: "custom",
+      assetCategory: "other",
       quantity: 0,
       price: null,
       reportingValue: null,
@@ -56,11 +53,9 @@ export const account: Account = {
   updatedAt: "2026-08-11T00:00:00.000Z",
 };
 
-export const syncedCustodian: Custodian = {
+export const syncedConnection: Connection = {
   id: "custodian-1",
   name: "OKX",
-  managementMode: "synced",
-  presentationRole: null,
   connectorId: "okx",
   accounts: [],
   createdAt: "2026-08-11T00:00:00.000Z",
@@ -89,8 +84,8 @@ export const renderRoute = (path: string) => {
 
 export const resetFinanceMocks = () => {
   vi.mocked(engineApi.connectorCapabilities).mockResolvedValue({ connectors: [] });
-  vi.mocked(engineApi.listCustodians).mockResolvedValue([]);
-  vi.mocked(engineApi.listManualCustodians).mockResolvedValue([]);
+  vi.mocked(engineApi.listConnections).mockResolvedValue([]);
+  vi.mocked(engineApi.listManualAccounts).mockResolvedValue([]);
   vi.mocked(engineApi.getDashboard).mockResolvedValue({ accounts: [] });
   vi.mocked(engineApi.listAssets).mockResolvedValue([]);
   vi.mocked(engineApi.getAccount).mockResolvedValue(account);

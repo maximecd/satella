@@ -1,69 +1,74 @@
 export const ADD_ASSETS_CATEGORIES = [
-  "stocks-etfs",
+  "stocks_etfs",
+  "bonds",
   "crypto",
-  "current",
-  "savings",
+  "cash",
+  "derivatives",
+  "commodities",
   "other",
 ] as const;
 
 export type AddAssetsCategory = (typeof ADD_ASSETS_CATEGORIES)[number];
 
+export type AddAssetsFlow = "holdings" | "cash" | "generic";
+
 export const categoryMeta = (category: AddAssetsCategory) => {
   switch (category) {
-    case "stocks-etfs":
+    case "stocks_etfs":
       return {
         label: "Stocks & ETFs",
-        description: "Search listed stocks and ETFs, then place them in a bank or broker account.",
-        assetClass: "security" as const,
-        accountKind: "securities" as const,
-        discoveryClass: "security" as const,
-        custodianPrompt: "Choose a bank or broker",
+        description: "Search listed stocks and ETFs, then place them in an account.",
+        assetCategory: "stocks_etfs" as const,
+        flow: "holdings" as const,
         accountPrompt: "Choose an account",
-        hasHoldingsFlow: true,
+      };
+    case "bonds":
+      return {
+        label: "Bonds",
+        description: "Track a bond by name and current value.",
+        assetCategory: "bonds" as const,
+        flow: "generic" as const,
+        accountPrompt: "Choose an account",
       };
     case "crypto":
       return {
         label: "Crypto",
-        description: "Search supported crypto and place it in a platform or wallet account.",
-        assetClass: "crypto" as const,
-        accountKind: "crypto" as const,
-        discoveryClass: "crypto" as const,
-        custodianPrompt: "Choose a platform or wallet",
+        description: "Search supported crypto and place it in an account.",
+        assetCategory: "crypto" as const,
+        flow: "holdings" as const,
         accountPrompt: "Choose an account",
-        hasHoldingsFlow: true,
       };
-    case "current":
+    case "cash":
       return {
-        label: "Current accounts",
-        description: "Track a bank current account and its current balance.",
-        assetClass: "fiat" as const,
-        accountKind: "current" as const,
-        discoveryClass: "fiat" as const,
-        custodianPrompt: "Choose a bank",
-        accountPrompt: "Account name",
-        hasHoldingsFlow: false,
+        label: "Cash",
+        description: "Select or create an account, then set its currency and balance.",
+        assetCategory: "cash" as const,
+        flow: "cash" as const,
+        accountPrompt: "Choose an account",
       };
-    case "savings":
+    case "derivatives":
       return {
-        label: "Savings accounts",
-        description: "Track a savings account and its current balance.",
-        assetClass: "fiat" as const,
-        accountKind: "savings" as const,
-        discoveryClass: "fiat" as const,
-        custodianPrompt: "Choose a bank",
-        accountPrompt: "Account name",
-        hasHoldingsFlow: false,
+        label: "Derivatives",
+        description: "Track a derivative by name and current value.",
+        assetCategory: "derivatives" as const,
+        flow: "generic" as const,
+        accountPrompt: "Choose an account",
+      };
+    case "commodities":
+      return {
+        label: "Commodities",
+        description: "Track a commodity by name and current value.",
+        assetCategory: "commodities" as const,
+        flow: "generic" as const,
+        accountPrompt: "Choose an account",
       };
     case "other":
       return {
         label: "Other assets",
         description: "Track a custom asset by name and current value.",
-        assetClass: "custom" as const,
-        accountKind: "other" as const,
-        discoveryClass: "custom" as const,
-        custodianPrompt: "",
-        accountPrompt: "",
-        hasHoldingsFlow: false,
+        assetCategory: "other" as const,
+        flow: "generic" as const,
+        accountPrompt: "Choose an account",
       };
   }
 };
@@ -73,7 +78,7 @@ export const invalidateFinanceQueries = (queryClient: {
 }) =>
   Promise.all([
     queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-    queryClient.invalidateQueries({ queryKey: ["custodians"] }),
+    queryClient.invalidateQueries({ queryKey: ["connections"] }),
     queryClient.invalidateQueries({ queryKey: ["accounts"] }),
     queryClient.invalidateQueries({ queryKey: ["assets"] }),
   ]);

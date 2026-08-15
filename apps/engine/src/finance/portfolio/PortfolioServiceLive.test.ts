@@ -7,16 +7,11 @@ import * as Finance from "../finance.test-utils.js";
 describe("portfolio snapshots", () => {
   it.effect("captures current quantities and selected prices atomically", () =>
     Effect.gen(function* () {
-      const custodian = yield* Finance.createCustodian({
-        name: "Snapshot",
-        managementMode: "manual",
-      });
       const account = yield* Finance.createAccount({
-        custodianId: custodian.id,
         name: "Default",
       });
       const asset = yield* Finance.createAsset({
-        assetClass: "custom",
+        assetCategory: "other",
         name: "Art",
         identifiers: [],
       });

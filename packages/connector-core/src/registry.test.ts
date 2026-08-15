@@ -7,7 +7,7 @@ import { connectorCapabilities, connectorRegistryFrom, validateConnectorOutput }
 const connector = (id: string, name = id) => ({
   id,
   name,
-  assetClasses: ["crypto" as const],
+  assetCategories: ["crypto" as const],
   credentialFields: [],
   credentialsSchema: Schema.Unknown,
   authenticate: () => Effect.die("unused"),
@@ -29,8 +29,8 @@ describe("connector registry", () => {
       "must have a non-empty name",
     );
     expect(() =>
-      connectorRegistryFrom([{ ...connector("empty-classes"), assetClasses: [] }]),
-    ).toThrow("must declare at least one supported asset class");
+      connectorRegistryFrom([{ ...connector("empty-categories"), assetCategories: [] }]),
+    ).toThrow("must declare at least one supported asset category");
   });
 
   it("validates provider output without importing a provider package", async () => {
@@ -41,7 +41,6 @@ describe("connector registry", () => {
             externalId: "account",
             name: "Account",
             baseCurrencyIso: "USD",
-            accountKind: "crypto",
             positions: [],
           },
         ]),
@@ -54,7 +53,6 @@ describe("connector registry", () => {
       externalId: "account",
       name: "Account",
       baseCurrencyIso: "USD",
-      accountKind: "crypto" as const,
       positions: [],
     };
     await expect(Effect.runPromise(validateConnectorOutput([account, account]))).rejects.toThrow(
@@ -70,7 +68,7 @@ describe("connector registry", () => {
                 quantity: Number.NaN,
                 asset: {
                   externalId: "asset",
-                  assetClass: "crypto",
+                  assetCategory: "crypto",
                   name: "Asset",
                   identifiers: [],
                 },

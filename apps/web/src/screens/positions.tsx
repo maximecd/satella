@@ -46,7 +46,7 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [searchClass, setSearchClass] = useState<"security" | "crypto">("security");
+  const [searchClass, setSearchClass] = useState<"stocks_etfs" | "crypto">("stocks_etfs");
 
   useEffect(() => {
     const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -90,18 +90,14 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
 
   if (account.isPending || assets.isPending) return <PageState kind="pending" />;
   if (account.isError || assets.isError) return <PageState kind="error" />;
-  if (account.data.managementMode !== "manual")
+  if (account.data.connectionId !== null)
     return <PageState kind="error" message="Connector-managed positions are read-only." />;
 
   return (
     <>
       <PageBreadcrumbs
         items={[
-          { label: "Custodians", href: "/custodians" },
-          {
-            label: account.data.custodianName,
-            href: `/custodians/${account.data.custodianId}`,
-          },
+          { label: "Dashboard", href: "/" },
           { label: account.data.name, href: `/accounts/${accountId}` },
           { label: "Add position" },
         ]}
@@ -121,13 +117,13 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
             </Text>
           </Stack>
           <Selector
-            label="Asset class"
+            label="Asset category"
             options={[
-              { value: "security", label: "Stocks & ETFs" },
+              { value: "stocks_etfs", label: "Stocks & ETFs" },
               { value: "crypto", label: "Crypto" },
             ]}
             value={searchClass}
-            onChange={(value) => setSearchClass(value === "crypto" ? "crypto" : "security")}
+            onChange={(value) => setSearchClass(value === "crypto" ? "crypto" : "stocks_etfs")}
             width="100%"
           />
           <TextInput
@@ -157,7 +153,7 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
                       {result.name} · {result.symbol}
                     </Text>
                   }
-                  description={`${result.provider} · ${result.assetClass}`}
+                  description={`${result.provider} · ${result.assetCategory}`}
                   endContent={
                     <Button
                       label="Use asset"
@@ -165,7 +161,7 @@ export function CreatePositionScreen({ accountId }: { readonly accountId: string
                       isLoading={addFromSearch.isPending}
                       clickAction={async () => {
                         await addFromSearch.mutateAsync({
-                          assetClass: result.assetClass,
+                          assetCategory: result.assetCategory,
                           name: result.name,
                           symbol: result.symbol,
                           identifiers: [...result.identifiers],
@@ -232,8 +228,8 @@ export function EditPositionScreen({ positionId }: { readonly positionId: string
     <LoadedEditPosition
       accountId={query.data.id}
       accountName={query.data.name}
-      custodianId={query.data.custodianId}
-      custodianName={query.data.custodianName}
+      connectionId={query.data.connectionId}
+      connectionName={query.data.connectionName}
       positionId={positionId}
       assetName={position.assetName}
       quantity={position.quantity}
@@ -244,16 +240,16 @@ export function EditPositionScreen({ positionId }: { readonly positionId: string
 function LoadedEditPosition({
   accountId,
   accountName,
-  custodianId,
-  custodianName,
+  connectionId,
+  connectionName,
   positionId,
   assetName,
   quantity,
 }: {
   readonly accountId: string;
   readonly accountName: string;
-  readonly custodianId: string;
-  readonly custodianName: string;
+  readonly connectionId: string | null;
+  readonly connectionName: string | null;
   readonly positionId: string;
   readonly assetName: string;
   readonly quantity: number;
@@ -294,12 +290,20 @@ function LoadedEditPosition({
   return (
     <>
       <PageBreadcrumbs
-        items={[
-          { label: "Custodians", href: "/custodians" },
-          { label: custodianName, href: `/custodians/${custodianId}` },
-          { label: accountName, href: `/accounts/${accountId}` },
-          { label: `Edit ${assetName}` },
-        ]}
+        items={
+          connectionId === null
+            ? [
+                { label: "Dashboard", href: "/" },
+                { label: accountName, href: `/accounts/${accountId}` },
+                { label: "Edit" },
+              ]
+            : [
+                { label: "Custodians", href: "/custodians" },
+                { label: connectionName ?? "Connection", href: `/custodians/${connectionId}` },
+                { label: accountName, href: `/accounts/${accountId}` },
+                { label: "Edit" },
+              ]
+        }
       />
       <PageHeader
         title={`Edit ${assetName}`}

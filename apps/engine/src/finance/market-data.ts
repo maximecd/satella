@@ -7,7 +7,7 @@ import YahooFinance from "yahoo-finance2";
 
 import {
   DEFAULT_MARKET_DATA_POLICY,
-  DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CLASS,
+  DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CATEGORY,
   DEFAULT_REPORTING_CURRENCY,
 } from "./config.js";
 import { mergeConnectorAssetDuplicates } from "./connector.js";
@@ -286,18 +286,18 @@ const searchCache = new Map<
 
 export const searchAssets = (
   queryInput: string,
-  assetClass: "security" | "crypto",
+  assetCategory: "stocks_etfs" | "crypto",
 ): Effect.Effect<ReadonlyArray<AssetSearchResult>, FinanceApiError> => {
   const query = queryInput.trim();
   if (query.length < 2) return Effect.succeed([]);
-  const cacheKey = `${assetClass}:${query.toLocaleLowerCase()}`;
+  const cacheKey = `${assetCategory}:${query.toLocaleLowerCase()}`;
   const cached = searchCache.get(cacheKey);
   if (cached !== undefined && cached.expiresAt > Date.now()) return Effect.succeed(cached.results);
 
   return Effect.tryPromise({
     try: async () => {
       let results: ReadonlyArray<AssetSearchResult>;
-      if (assetClass === "security") {
+      if (assetCategory === "stocks_etfs") {
         const controller = new AbortController();
         const timeout = setTimeout(
           () => controller.abort(),
@@ -315,7 +315,7 @@ export const searchAssets = (
             ? [
                 {
                   provider: "yahoo-finance" as const,
-                  assetClass: "security" as const,
+                  assetCategory: "stocks_etfs" as const,
                   name: quote.longname ?? quote.shortname ?? quote.symbol,
                   symbol: quote.symbol,
                   identifiers: [{ type: "yahoo_symbol", value: quote.symbol }],
@@ -327,7 +327,7 @@ export const searchAssets = (
         const response = await coinGeckoSearchClient.search.get({ query });
         results = response.coins.slice(0, 10).map((coin) => ({
           provider: "coingecko" as const,
-          assetClass: "crypto" as const,
+          assetCategory: "crypto" as const,
           name: coin.name,
           symbol: coin.symbol.toUpperCase(),
           identifiers: [{ type: "coingecko_coin_id", value: coin.id }],
@@ -342,7 +342,7 @@ export const searchAssets = (
 
 interface RefreshAssetRow {
   readonly id: string;
-  readonly asset_class: "fiat" | "security" | "crypto";
+  readonly asset_category: "cash" | "stocks_etfs" | "crypto";
   readonly name: string;
   readonly symbol: string | null;
   readonly observed_at: string | null;
@@ -356,7 +356,7 @@ interface IdentifierRow {
 
 type AssetSearch = (
   query: string,
-  assetClass: "security" | "crypto",
+  assetCategory: "stocks_etfs" | "crypto",
 ) => Effect.Effect<ReadonlyArray<AssetSearchResult>, FinanceApiError>;
 
 export interface RefreshPricesOptions {
@@ -442,24 +442,24 @@ const ensureFiat = (iso: string) =>
     if (existing[0] !== undefined) return existing[0].asset_id;
     const id = `fiat:${iso}`;
     const timestamp = new Date().toISOString();
-    yield* sql`INSERT INTO assets (id, asset_class, name, symbol, created_at, updated_at)
-      VALUES (${id}, 'fiat', ${iso}, ${iso}, ${timestamp}, ${timestamp})`;
+    yield* sql`INSERT INTO assets (id, asset_category, name, symbol, created_at, updated_at)
+      VALUES (${id}, 'cash', ${iso}, ${iso}, ${timestamp}, ${timestamp})`;
     yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
       VALUES (${randomUUID()}, ${id}, 'iso_currency', ${iso})`;
     return id;
   });
 
 const lookupForAsset = (
-  assetClass: RefreshAssetRow["asset_class"],
+  assetCategory: RefreshAssetRow["asset_category"],
   values: ReadonlyArray<IdentifierRow>,
 ): Omit<ProviderLookup, "assetIds"> | undefined => {
-  if (assetClass === "security") {
+  if (assetCategory === "stocks_etfs") {
     const symbol = values.find(
       ({ identifier_type }) => identifier_type === "yahoo_symbol",
     )?.identifier_value;
     return symbol === undefined ? undefined : { lookupKey: symbol, kind: "security" };
   }
-  if (assetClass === "fiat") {
+  if (assetCategory === "cash") {
     const iso = values.find(
       ({ identifier_type }) => identifier_type === "iso_currency",
     )?.identifier_value;
@@ -484,10 +484,10 @@ const lookupForAsset = (
 const normalizeSearchText = (value: string) => value.trim().toLocaleLowerCase();
 
 const selectAutomaticAssetMatch = (
-  asset: Pick<RefreshAssetRow, "name" | "symbol" | "asset_class">,
+  asset: Pick<RefreshAssetRow, "name" | "symbol" | "asset_category">,
   results: ReadonlyArray<AssetSearchResult>,
 ) => {
-  const candidates = results.filter(({ assetClass }) => assetClass === asset.asset_class);
+  const candidates = results.filter(({ assetCategory }) => assetCategory === asset.asset_category);
   const symbol = asset.symbol === null ? undefined : normalizeSearchText(asset.symbol);
   const name = normalizeSearchText(asset.name);
   const exactNameAndSymbol = candidates.filter(
@@ -511,10 +511,10 @@ const selectAutomaticAssetMatch = (
 };
 
 const selectIsinAssetMatch = (
-  asset: Pick<RefreshAssetRow, "name" | "symbol" | "asset_class">,
+  asset: Pick<RefreshAssetRow, "name" | "symbol" | "asset_category">,
   results: ReadonlyArray<AssetSearchResult>,
 ) => {
-  const candidates = results.filter(({ assetClass }) => assetClass === "security");
+  const candidates = results.filter(({ assetCategory }) => assetCategory === "stocks_etfs");
   if (candidates.length === 1) return candidates[0];
   // Yahoo does not return the ISIN in every search result. If it returns
   // several listings, only accept one whose displayed identity still agrees
@@ -532,10 +532,10 @@ const discoverAssetIdentifiers = (
   values: ReadonlyArray<IdentifierRow>,
   search: AssetSearch,
 ): Effect.Effect<DiscoveredAssetIdentifiers, never> => {
-  if (asset.asset_class === "fiat") return Effect.succeed({ source: "fallback", identifiers: [] });
+  if (asset.asset_category === "cash") return Effect.succeed({ source: "fallback", identifiers: [] });
   const isin = values.find(({ identifier_type }) => identifier_type === "isin")?.identifier_value;
-  if (asset.asset_class === "security" && isin !== undefined && isin.trim().length > 0) {
-    return search(isin.trim(), "security").pipe(
+  if (asset.asset_category === "stocks_etfs" && isin !== undefined && isin.trim().length > 0) {
+    return search(isin.trim(), "stocks_etfs").pipe(
       Effect.map((results) => {
         const match = selectIsinAssetMatch(asset, results);
         return {
@@ -554,7 +554,7 @@ const discoverAssetIdentifiers = (
   }
   const query = asset.symbol?.trim() || asset.name.trim();
   if (query.length === 0) return Effect.succeed({ source: "fallback", identifiers: [] });
-  return search(query, asset.asset_class).pipe(
+  return search(query, asset.asset_category).pipe(
     Effect.map((results) => {
       const match = selectAutomaticAssetMatch(asset, results);
       return {
@@ -580,7 +580,7 @@ const findExistingAssetIdentifiers = (asset: RefreshAssetRow, sql: SqlClient.Sql
       FROM assets candidate
       JOIN asset_identifiers ai ON ai.asset_id = candidate.id
       WHERE candidate.id <> ${asset.id}
-        AND candidate.asset_class = ${asset.asset_class}
+        AND candidate.asset_category = ${asset.asset_category}
         AND candidate.symbol IS NOT NULL
         AND lower(trim(candidate.symbol)) = lower(trim(${symbol}))
         AND ai.identifier_type IN ('coingecko_coin_id', 'coingecko_platform', 'contract_address', 'yahoo_symbol')`;
@@ -603,15 +603,15 @@ const refreshPriceAssets = (
     const selected = options.assetIds;
     const assets =
       selected === undefined
-        ? yield* sql<RefreshAssetRow>`SELECT DISTINCT a.id, a.asset_class, a.name, a.symbol, ap.observed_at
+        ? yield* sql<RefreshAssetRow>`SELECT DISTINCT a.id, a.asset_category, a.name, a.symbol, ap.observed_at
           FROM assets a LEFT JOIN asset_prices ap ON ap.asset_id = a.id
-          WHERE a.asset_class <> 'custom' AND (
+          WHERE a.asset_category IN ('stocks_etfs', 'crypto', 'cash') AND (
             EXISTS (SELECT 1 FROM positions p WHERE p.asset_id = a.id) OR
             EXISTS (SELECT 1 FROM accounts ac WHERE ac.base_currency_asset_id = a.id)
           )`
-        : yield* sql<RefreshAssetRow>`SELECT a.id, a.asset_class, a.name, a.symbol, ap.observed_at
+        : yield* sql<RefreshAssetRow>`SELECT a.id, a.asset_category, a.name, a.symbol, ap.observed_at
           FROM assets a LEFT JOIN asset_prices ap ON ap.asset_id = a.id
-          WHERE a.asset_class <> 'custom' AND a.id IN ${sql.in(selected)}`;
+          WHERE a.asset_category IN ('stocks_etfs', 'crypto', 'cash') AND a.id IN ${sql.in(selected)}`;
     const freshnessCutoff =
       Date.now() - Duration.toMillis(DEFAULT_MARKET_DATA_POLICY.priceFreshness);
     const due = assets.filter(
@@ -629,16 +629,16 @@ const refreshPriceAssets = (
     const providerLookups = new Map<MarketDataProviderId, Map<string, ProviderLookup>>();
     const skipped: RefreshPricesResult["failures"][number][] = [];
     for (const asset of due) {
-      const providerId = DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CLASS[asset.asset_class];
+      const providerId = DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CATEGORY[asset.asset_category];
       const values = byAsset.get(asset.id) ?? [];
-      let lookup = lookupForAsset(asset.asset_class, values);
+      let lookup = lookupForAsset(asset.asset_category, values);
       const hasIsin =
-        asset.asset_class === "security" &&
+        asset.asset_category === "stocks_etfs" &&
         values.some(
           ({ identifier_type, identifier_value }) =>
             identifier_type === "isin" && identifier_value.trim().length > 0,
         );
-      if (options.resolveMissingLookups !== false && asset.asset_class !== "fiat" && hasIsin) {
+      if (options.resolveMissingLookups !== false && asset.asset_category !== "cash" && hasIsin) {
         // An imported ISIN is more precise than the broker's bare ticker. Use
         // it even when a previous sync left a guessed yahoo_symbol behind.
         const discovered = yield* discoverAssetIdentifiers(asset, values, search);
@@ -663,7 +663,7 @@ const refreshPriceAssets = (
       } else if (
         lookup === undefined &&
         options.resolveMissingLookups !== false &&
-        asset.asset_class !== "fiat"
+        asset.asset_category !== "cash"
       ) {
         const existing = yield* findExistingAssetIdentifiers(asset, sql);
         const discovered =
@@ -676,11 +676,11 @@ const refreshPriceAssets = (
               VALUES (${randomUUID()}, ${asset.id}, ${identifier.identifier_type}, ${identifier.identifier_value})
               ON CONFLICT(identifier_type, identifier_value) DO NOTHING`;
           }
-          lookup = lookupForAsset(asset.asset_class, [...values, ...discovered.identifiers]);
+          lookup = lookupForAsset(asset.asset_category, [...values, ...discovered.identifiers]);
         }
       }
       if (
-        asset.asset_class === "fiat" &&
+        asset.asset_category === "cash" &&
         values.some(
           ({ identifier_type, identifier_value }) =>
             identifier_type === "iso_currency" && identifier_value === DEFAULT_REPORTING_CURRENCY,
@@ -778,7 +778,7 @@ export const refreshPrices = (
       FROM asset_prices ap
       JOIN positions position ON position.asset_id = ap.asset_id
       JOIN assets currency ON currency.id = ap.currency_asset_id
-      WHERE currency.asset_class = 'fiat'
+      WHERE currency.asset_category = 'cash'
         AND ap.currency_asset_id <> ${`fiat:${DEFAULT_REPORTING_CURRENCY}`}`;
 
     if (quoteCurrencies.length === 0) return primary;

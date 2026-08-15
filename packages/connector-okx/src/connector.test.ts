@@ -104,12 +104,11 @@ describe("OKX connector", () => {
         externalId: "trading",
         name: "Trading",
         baseCurrencyIso: "USD",
-        accountKind: "crypto",
         positions: [
           {
             asset: {
               externalId: "okx:currency:BTC",
-              assetClass: "crypto",
+              assetCategory: "crypto",
               name: "BTC",
               symbol: "BTC",
               identifiers: [{ type: "okx_currency", value: "BTC" }],
@@ -122,12 +121,11 @@ describe("OKX connector", () => {
         externalId: "funding",
         name: "Funding",
         baseCurrencyIso: "USD",
-        accountKind: "crypto",
         positions: [
           {
             asset: {
               externalId: "okx:currency:BTC",
-              assetClass: "crypto",
+              assetCategory: "crypto",
               name: "BTC",
               symbol: "BTC",
               identifiers: [{ type: "okx_currency", value: "BTC" }],
@@ -137,7 +135,7 @@ describe("OKX connector", () => {
           {
             asset: {
               externalId: "okx:currency:USDT",
-              assetClass: "crypto",
+              assetCategory: "crypto",
               name: "USDT",
               symbol: "USDT",
               identifiers: [{ type: "okx_currency", value: "USDT" }],
@@ -150,12 +148,11 @@ describe("OKX connector", () => {
         externalId: "earn",
         name: "Earn",
         baseCurrencyIso: "USD",
-        accountKind: "crypto",
         positions: [
           {
             asset: {
               externalId: "okx:currency:ETH",
-              assetClass: "crypto",
+              assetCategory: "crypto",
               name: "ETH",
               symbol: "ETH",
               identifiers: [{ type: "okx_currency", value: "ETH" }],
@@ -179,7 +176,7 @@ describe("OKX connector", () => {
 
   it("exposes live-only credentials", () => {
     const connector = makeOkxConnector();
-    expect(connector.assetClasses).toEqual(["crypto"]);
+    expect(connector.assetCategories).toEqual(["crypto"]);
     expect(connector.credentialFields.map(({ key }) => key)).toEqual([
       "apiKey",
       "secretKey",
