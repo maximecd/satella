@@ -26,12 +26,15 @@ import {
   PriceRefreshResult,
   PortfolioHistoryPoint,
   SetManualPriceInput,
+  ConnectionRefreshResult,
   SearchAssetsParams,
+  Settings,
   SnapshotResult,
   UpdateAccountInput,
   UpdateConnectionInput,
   UpdateCustomAssetInput,
   UpdatePositionInput,
+  UpdateSettingsInput,
 } from "../finance/contracts.js";
 
 export const HelloResponse = Schema.Struct({
@@ -114,7 +117,7 @@ export const FinanceApi = HttpApiGroup.make("finance")
   .add(
     HttpApiEndpoint.post("refreshConnection", "/api/connections/:id/refresh", {
       params: EntityIdParams,
-      success: Connection,
+      success: ConnectionRefreshResult,
       error: FinanceApiError,
     }),
   )
@@ -256,6 +259,19 @@ export const FinanceApi = HttpApiGroup.make("finance")
   .add(
     HttpApiEndpoint.post("captureSnapshot", "/api/snapshots", {
       success: created(SnapshotResult),
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("getSettings", "/api/settings", {
+      success: Settings,
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.patch("updateSettings", "/api/settings", {
+      payload: UpdateSettingsInput,
+      success: Settings,
       error: FinanceApiError,
     }),
   );

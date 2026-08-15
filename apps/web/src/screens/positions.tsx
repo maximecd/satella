@@ -1,16 +1,8 @@
-import { Button } from "@astryxdesign/core/Button";
-import { Heading } from "@astryxdesign/core/Heading";
-import { List, ListItem } from "@astryxdesign/core/List";
-import { Section } from "@astryxdesign/core/Section";
-import { Selector } from "@astryxdesign/core/Selector";
-import { Stack } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
-import { TextInput } from "@astryxdesign/core/TextInput";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { NumberFromNonEmptyString, PositionQuantityFormInput } from "@optimus/engine/api";
+import { useNavigate } from "@tanstack/react-router";
+import { PositionQuantityFormInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { engineApi } from "../api";
 import {
@@ -22,201 +14,10 @@ import {
   PageState,
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
-import {
-  accountQuery,
-  assetSearchQuery,
-  assetsQuery,
-  positionAccountQuery,
-  queryKeys,
-} from "../queries";
-
-const CreatePositionForm = Schema.Struct({
-  assetId: Schema.Trim.check(Schema.isNonEmpty()),
-  quantity: NumberFromNonEmptyString,
-});
+import { positionAccountQuery, queryKeys } from "../queries";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
-
-export function CreatePositionScreen({ accountId }: { readonly accountId: string }) {
-  const account = useQuery(accountQuery(accountId));
-  const assets = useQuery(assetsQuery);
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [searchClass, setSearchClass] = useState<"stocks_etfs" | "crypto">("stocks_etfs");
-
-  useEffect(() => {
-    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => clearTimeout(timeout);
-  }, [search]);
-
-  const searchResults = useQuery(assetSearchQuery(debouncedSearch, searchClass));
-  const mutation = useMutation({
-    mutationFn: engineApi.createPosition,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts.detail(accountId) });
-      await navigate({ to: "/accounts/$accountId", params: { accountId } });
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
-  const available =
-    assets.data?.filter(
-      (asset) => !account.data?.positions.some((position) => position.assetId === asset.id),
-    ) ?? [];
-  const form = useAppForm({
-    defaultValues: { assetId: "", quantity: "" },
-    validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.toStandardSchemaV1(CreatePositionForm) },
-    onSubmit: async ({ value }) => {
-      const decoded = await Schema.decodeUnknownPromise(CreatePositionForm)(value);
-      await mutation.mutateAsync({
-        accountId,
-        assetId: decoded.assetId,
-        quantity: decoded.quantity,
-      });
-    },
-  });
-  const addFromSearch = useMutation({
-    mutationFn: engineApi.createAsset,
-    onSuccess: async (asset) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
-      form.setFieldValue("assetId", asset.id);
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
-
-  if (account.isPending || assets.isPending) return <PageState kind="pending" />;
-  if (account.isError || assets.isError) return <PageState kind="error" />;
-  if (account.data.connectionId !== null)
-    return <PageState kind="error" message="Connector-managed positions are read-only." />;
-
-  return (
-    <>
-      <PageBreadcrumbs
-        items={[
-          { label: "Dashboard", href: "/" },
-          { label: account.data.name, href: `/accounts/${accountId}` },
-          { label: "Add position" },
-        ]}
-      />
-      <PageHeader
-        title="Add position"
-        subtitle={`To ${account.data.name}`}
-        action={<Button as={Link} href="/assets/custom/new" label="Create custom asset" />}
-      />
-      <FormError message={error} />
-      <Section variant="muted" padding={4}>
-        <Stack gap={4}>
-          <Stack gap={1}>
-            <Heading level={2}>Find an automatic asset</Heading>
-            <Text type="supporting" as="p">
-              Search a provider and add its identifiers to the shared asset catalog.
-            </Text>
-          </Stack>
-          <Selector
-            label="Asset category"
-            options={[
-              { value: "stocks_etfs", label: "Stocks & ETFs" },
-              { value: "crypto", label: "Crypto" },
-            ]}
-            value={searchClass}
-            onChange={(value) => setSearchClass(value === "crypto" ? "crypto" : "stocks_etfs")}
-            width="100%"
-          />
-          <TextInput
-            label="Provider search"
-            value={search}
-            onChange={setSearch}
-            placeholder="Search by name or exact symbol"
-            width="100%"
-          />
-          {searchResults.isFetching && (
-            <Text type="supporting" as="p" role="status">
-              Searching…
-            </Text>
-          )}
-          {searchResults.isError && (
-            <Text type="supporting" as="p" role="alert">
-              Provider search is temporarily unavailable.
-            </Text>
-          )}
-          {searchResults.data && searchResults.data.length > 0 && (
-            <List density="compact" hasDividers>
-              {searchResults.data.map((result) => (
-                <ListItem
-                  key={`${result.provider}:${result.identifiers[0]?.value}`}
-                  label={
-                    <Text weight="semibold">
-                      {result.name} · {result.symbol}
-                    </Text>
-                  }
-                  description={`${result.provider} · ${result.assetCategory}`}
-                  endContent={
-                    <Button
-                      label="Use asset"
-                      size="sm"
-                      isLoading={addFromSearch.isPending}
-                      clickAction={async () => {
-                        await addFromSearch.mutateAsync({
-                          assetCategory: result.assetCategory,
-                          name: result.name,
-                          symbol: result.symbol,
-                          identifiers: [...result.identifiers],
-                        });
-                      }}
-                    />
-                  }
-                />
-              ))}
-            </List>
-          )}
-          {debouncedSearch.length > 0 &&
-            !searchResults.isFetching &&
-            searchResults.data?.length === 0 && (
-              <Text type="supporting" as="p">
-                No provider matches found.
-              </Text>
-            )}
-        </Stack>
-      </Section>
-      {available.length === 0 ? (
-        <Text type="supporting" as="p">
-          No unused assets are available. Create a custom asset first.
-        </Text>
-      ) : (
-        <form.AppForm>
-          <FormFrame
-            onSubmit={(event) => {
-              event.preventDefault();
-              void form.handleSubmit();
-            }}
-          >
-            <form.AppField
-              name="assetId"
-              children={(field) => (
-                <field.SelectField
-                  label="Asset"
-                  options={available.map((asset) => ({
-                    value: asset.id,
-                    label: `${asset.name}${asset.symbol ? ` (${asset.symbol})` : ""}`,
-                  }))}
-                />
-              )}
-            />
-            <form.AppField
-              name="quantity"
-              children={(field) => <field.TextField label="Quantity" number />}
-            />
-            <form.SubmitButton label="Add position" />
-          </FormFrame>
-        </form.AppForm>
-      )}
-    </>
-  );
-}
 
 export function EditPositionScreen({ positionId }: { readonly positionId: string }) {
   const query = useQuery(positionAccountQuery(positionId));
@@ -281,7 +82,6 @@ function LoadedEditPosition({
     validationLogic: submitThenChangeValidation,
     validators: { onDynamic: Schema.toStandardSchemaV1(PositionQuantityFormInput) },
     onSubmit: async ({ value }) => {
-      // Standard Schema reports issues but intentionally preserves encoded HTML values.
       const decoded = await Schema.decodeUnknownPromise(PositionQuantityFormInput)(value);
       await update.mutateAsync(decoded.quantity);
     },
@@ -298,8 +98,12 @@ function LoadedEditPosition({
                 { label: "Edit" },
               ]
             : [
-                { label: "Custodians", href: "/custodians" },
-                { label: connectionName ?? "Connection", href: `/custodians/${connectionId}` },
+                { label: "Settings", href: "/settings" },
+                { label: "Connections", href: "/settings/connections" },
+                {
+                  label: connectionName ?? "Connection",
+                  href: `/settings/connections/${connectionId}`,
+                },
                 { label: accountName, href: `/accounts/${accountId}` },
                 { label: "Edit" },
               ]

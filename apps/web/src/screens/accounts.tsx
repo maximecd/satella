@@ -3,6 +3,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Heading } from "@astryxdesign/core/Heading";
+import { Link as AstryxLink } from "@astryxdesign/core/Link";
 import { Section } from "@astryxdesign/core/Section";
 import { Stack } from "@astryxdesign/core/Stack";
 import { Table, proportional } from "@astryxdesign/core/Table";
@@ -11,7 +12,7 @@ import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { Account, Position } from "@optimus/engine/api";
-import { CreateAccountInput, UpdateAccountInput } from "@optimus/engine/api";
+import { UpdateAccountInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
 
@@ -27,6 +28,7 @@ import {
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { accountQuery, assetsQuery, queryKeys } from "../queries";
+import { RefreshConnectionButton } from "../refresh-connection";
 import { AddAssetsButton } from "./add-assets";
 
 const errorMessage = (error: unknown) =>
@@ -38,19 +40,7 @@ const valuedAmount = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 2,
 });
 const fxRate = new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 });
-const quoteTime = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-const sourceName = (source: string) =>
-  source === "yahoo-finance"
-    ? "Yahoo Finance"
-    : source === "coingecko"
-      ? "CoinGecko"
-      : source === "manual"
-        ? "Manual"
-        : source;
+const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "derivatives", "commodities", "other"]);
 
 const formatValuedAmount = (value: number, currencyIso: string) =>
   `${valuedAmount.format(value)} ${currencyIso}`;
@@ -101,16 +91,31 @@ function PositionTable({
           key: "assetName",
           header: "Asset",
           width: proportional(1.5),
-          renderCell: (row) => (
-            <Stack gap={0.5}>
-              <Text weight="semibold">{row.assetName}</Text>
-              {row.assetSymbol && (
-                <Text type="supporting" as="p">
-                  {row.assetSymbol}
-                </Text>
-              )}
-            </Stack>
-          ),
+          renderCell: (row) => {
+            const name = (
+              <Stack gap={0.5}>
+                <Text weight="semibold">{row.assetName}</Text>
+                {row.assetSymbol && (
+                  <Text type="supporting" as="p">
+                    {row.assetSymbol}
+                  </Text>
+                )}
+              </Stack>
+            );
+            return account.connectionId === null &&
+              MANUAL_ASSET_CATEGORIES.has(row.position.assetCategory) ? (
+              <AstryxLink
+                as={RouterLink}
+                href={`/assets/${row.position.assetId}/edit`}
+                isStandalone
+                weight="semibold"
+              >
+                {row.assetName}
+              </AstryxLink>
+            ) : (
+              name
+            );
+          },
         },
         {
           key: "quantity",
@@ -128,16 +133,9 @@ function PositionTable({
             row.price === null ? (
               <Text type="supporting">—</Text>
             ) : (
-              <Stack gap={0.5} align="end">
-                <Text hasTabularNumbers>
-                  {marketPrice.format(row.price.price)} {row.price.currencyIso}
-                </Text>
-                <Text type="supporting" as="p">
-                  {row.price.isStale ? "Delayed · " : ""}
-                  {sourceName(row.price.source)} ·{" "}
-                  {quoteTime.format(new Date(row.price.observedAt))}
-                </Text>
-              </Stack>
+              <Text hasTabularNumbers>
+                {marketPrice.format(row.price.price)} {row.price.currencyIso}
+              </Text>
             ),
         },
         {
@@ -181,16 +179,7 @@ function PositionTable({
 
 export function AccountDetailScreen({ id }: { readonly id: string }) {
   const query = useQuery(accountQuery(id));
-  const queryClient = useQueryClient();
-  const refresh = useMutation({
-    mutationFn: engineApi.refreshPrices,
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.accounts.detail(id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all }),
-      ]);
-    },
-  });
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   const account = query.data;
@@ -208,10 +197,11 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
           account.connectionId === null
             ? [{ label: "Dashboard", href: "/" }, { label: account.name }]
             : [
-                { label: "Custodians", href: "/custodians" },
+                { label: "Settings", href: "/settings" },
+                { label: "Connections", href: "/settings/connections" },
                 {
                   label: account.connectionName ?? "Connection",
-                  href: `/custodians/${account.connectionId}`,
+                  href: `/settings/connections/${account.connectionId}`,
                 },
                 { label: account.name },
               ]
@@ -219,48 +209,26 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
       />
       <PageHeader
         title={account.name}
-        subtitle={`${account.connectionName ?? "Manual"} · Valuation currency ${account.baseCurrencyIso}`}
+        subtitle={`Valuation currency ${account.baseCurrencyIso}`}
         action={
-          <>
-            <Button
-              label="Refresh prices"
-              isLoading={refresh.isPending}
-              clickAction={async () => {
-                await refresh.mutateAsync();
-              }}
+          account.connectionId !== null ? (
+            <RefreshConnectionButton
+              connectionId={account.connectionId}
+              onError={setRefreshError}
             />
-            {account.connectionId === null && (
-              <Button as={RouterLink} href={`/accounts/${id}/edit`} label="Edit account" />
-            )}
-          </>
+          ) : (
+            <Button as={RouterLink} href={`/accounts/${id}/edit`} label="Edit account" />
+          )
         }
       />
-      {account.connectionId !== null && (
-        <Banner
-          status="info"
-          title="Connector-managed account"
-          description="Account and position fields are read-only."
-        />
+      {refreshError !== null && (
+        <Banner status="error" title="Refresh failed" description={refreshError} />
       )}
       {account.totalIncomplete && (
         <Banner
           status="warning"
           title="Total is incomplete"
           description="Unpriced positions are excluded from this total."
-        />
-      )}
-      {refresh.isError && (
-        <Banner
-          status="warning"
-          title="Price refresh failed"
-          description={errorMessage(refresh.error)}
-        />
-      )}
-      {refresh.data !== undefined && refresh.data.failures.length > 0 && (
-        <Banner
-          status="warning"
-          title="Some prices could not be refreshed"
-          description={`${refresh.data.failures.length} quote${refresh.data.failures.length === 1 ? "" : "s"} kept their last-known values.`}
         />
       )}
       <ResourceCard>
@@ -273,9 +241,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
       </ResourceCard>
       <Stack direction="horizontal" justify="between" align="center" gap={3} wrap="wrap">
         <Heading level={2}>Positions</Heading>
-        {account.connectionId === null && (
-          <AddAssetsButton />
-        )}
+        {account.connectionId === null && <AddAssetsButton />}
       </Stack>
       <PositionTable positions={active} account={account} />
       {zero.length > 0 && (
@@ -292,73 +258,6 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
           </Collapsible>
         </Section>
       )}
-    </>
-  );
-}
-
-export function CreateAccountScreen(_props: { readonly custodianId: string }) {
-  const assets = useQuery(assetsQuery);
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: engineApi.createAccount,
-    onSuccess: async (account) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts.manual });
-      await navigate({ to: "/accounts/$accountId", params: { accountId: account.id } });
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
-  const fiat = assets.data?.filter((asset) => asset.assetCategory === "cash") ?? [];
-  const defaultValues: typeof CreateAccountInput.Encoded = {
-    name: "",
-    baseCurrencyAssetId: "fiat:USD",
-  };
-  const form = useAppForm({
-    defaultValues,
-    validationLogic: submitThenChangeValidation,
-    validators: { onDynamic: Schema.toStandardSchemaV1(CreateAccountInput) },
-    onSubmit: async ({ value }) =>
-      mutation.mutateAsync(await Schema.decodeUnknownPromise(CreateAccountInput)(value)),
-  });
-  if (assets.isPending) return <PageState kind="pending" />;
-  if (assets.isError) return <PageState kind="error" />;
-  return (
-    <>
-      <PageBreadcrumbs
-        items={[
-          { label: "Dashboard", href: "/" },
-          { label: "Add account" },
-        ]}
-      />
-      <PageHeader title="Add account" subtitle="Create a standalone account." />
-      <FormError message={error} />
-      <form.AppForm>
-        <FormFrame
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          <form.AppField
-            name="name"
-            children={(field) => <field.TextField label="Account name" />}
-          />
-          <form.AppField
-            name="baseCurrencyAssetId"
-            children={(field) => (
-              <field.SelectField
-                label="Valuation currency"
-                options={fiat.map((asset) => ({
-                  value: asset.id,
-                  label: asset.symbol ?? asset.name,
-                }))}
-              />
-            )}
-          />
-          <form.SubmitButton label="Create account" />
-        </FormFrame>
-      </form.AppForm>
     </>
   );
 }
@@ -444,6 +343,11 @@ export function EditAccountScreen({ id }: { readonly id: string }) {
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   if (query.data.connectionId !== null)
-    return <PageState kind="error" message="Connector-managed accounts are read-only." />;
+    return (
+      <PageState
+        kind="error"
+        message="This Account is managed by a Connection and cannot be edited."
+      />
+    );
   return <LoadedEditAccount account={query.data} />;
 }

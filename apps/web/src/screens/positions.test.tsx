@@ -30,7 +30,7 @@ describe("positions screen", () => {
 
     expect(screen.queryByText("Quantity is required.")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save quantity" }));
-    expect(screen.getByText("Quantity is required.")).toBeInTheDocument();
+    expect(screen.getAllByText("Quantity is required.").length).toBeGreaterThan(0);
     expect(screen.queryByText(/Unable to decode/)).not.toBeInTheDocument();
   });
 });

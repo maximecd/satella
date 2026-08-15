@@ -1,9 +1,6 @@
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { List, ListItem } from "@astryxdesign/core/List";
-import { Stack } from "@astryxdesign/core/Stack";
-import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
-import { Token } from "@astryxdesign/core/Token";
 import { useQuery } from "@tanstack/react-query";
 import type { DashboardAccountRow } from "@optimus/engine/api";
 
@@ -19,17 +16,14 @@ const valuedAmount = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 2,
 });
 
-const sourceLabel = (row: DashboardAccountRow) =>
-  row.connectionId === null ? "Manual" : "Connected";
-
 const rowDescription = (row: DashboardAccountRow) => {
-  const context = row.connectionName ?? "Manual";
-  const status = row.totalIncomplete
-    ? "Incomplete valuation"
-    : row.hasStalePrices
-      ? "Delayed prices"
-      : `${row.positionCount} holding${row.positionCount === 1 ? "" : "s"}`;
-  return `${context} · ${status}`;
+  const holdings = `${row.positionCount} holding${row.positionCount === 1 ? "" : "s"}`;
+  const parts = [
+    row.connectionName,
+    holdings,
+    row.totalIncomplete ? "Incomplete valuation" : null,
+  ].filter((part): part is string => part !== null);
+  return parts.join(" · ");
 };
 
 export function DashboardScreen() {
@@ -39,15 +33,11 @@ export function DashboardScreen() {
   const accounts = query.data.accounts;
   return (
     <>
-      <PageHeader
-        title="Dashboard"
-        subtitle="Accounts across every institution and connection."
-        action={<AddAssetsButton />}
-      />
+      <PageHeader title="Dashboard" action={<AddAssetsButton />} />
       {accounts.length === 0 ? (
         <EmptyState
           title="No assets yet"
-          description="Connect a provider or track assets manually. Optimus will show every account here."
+          description="Connect a service or track assets manually. Optimus will show every account here."
           actions={<AddAssetsButton />}
         />
       ) : (
@@ -59,22 +49,9 @@ export function DashboardScreen() {
               label={row.accountName}
               description={rowDescription(row)}
               endContent={
-                <Stack direction="horizontal" align="center" gap={2}>
-                  <Token
-                    label={sourceLabel(row)}
-                    size="sm"
-                    color={row.connectionId === null ? "gray" : "blue"}
-                    icon={
-                      <StatusDot
-                        variant={row.connectionId === null ? "neutral" : "accent"}
-                        label={sourceLabel(row)}
-                      />
-                    }
-                  />
-                  <Text hasTabularNumbers>
-                    {valuedAmount.format(row.total)} {row.baseCurrencyIso}
-                  </Text>
-                </Stack>
+                <Text hasTabularNumbers>
+                  {valuedAmount.format(row.total)} {row.baseCurrencyIso}
+                </Text>
               }
             />
           ))}

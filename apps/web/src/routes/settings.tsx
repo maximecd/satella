@@ -1,7 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { SettingsScreen } from "../screens/settings";
+function SettingsLayout() {
+  return <Outlet />;
+}
 
 export const Route = createFileRoute("/settings")({
-  component: SettingsScreen,
+  component: SettingsLayout,
 });

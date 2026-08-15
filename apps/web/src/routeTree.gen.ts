@@ -11,21 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as CustodiansIndexRouteImport } from './routes/custodians.index'
-import { Route as AssetsIndexRouteImport } from './routes/assets.index'
-import { Route as CustodiansNewRouteImport } from './routes/custodians.new'
-import { Route as CustodiansNewIndexRouteImport } from './routes/custodians.new.index'
-import { Route as CustodiansCustodianIdIndexRouteImport } from './routes/custodians.$custodianId.index'
+import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as SettingsConnectionsIndexRouteImport } from './routes/settings.connections.index'
 import { Route as AccountsAccountIdIndexRouteImport } from './routes/accounts.$accountId.index'
 import { Route as PositionsPositionIdEditRouteImport } from './routes/positions.$positionId.edit'
-import { Route as CustodiansNewManualRouteImport } from './routes/custodians.new.manual'
-import { Route as CustodiansNewConnectorRouteImport } from './routes/custodians.new.connector'
-import { Route as CustodiansCustodianIdEditRouteImport } from './routes/custodians.$custodianId.edit'
-import { Route as AssetsCustomNewRouteImport } from './routes/assets.custom.new'
 import { Route as AssetsAssetIdEditRouteImport } from './routes/assets.$assetId.edit'
 import { Route as AccountsAccountIdEditRouteImport } from './routes/accounts.$accountId.edit'
-import { Route as CustodiansCustodianIdAccountsNewRouteImport } from './routes/custodians.$custodianId.accounts.new'
-import { Route as AccountsAccountIdPositionsNewRouteImport } from './routes/accounts.$accountId.positions.new'
+import { Route as SettingsConnectionsConnectionIdIndexRouteImport } from './routes/settings.connections.$connectionId.index'
+import { Route as SettingsConnectionsConnectionIdEditRouteImport } from './routes/settings.connections.$connectionId.edit'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -37,31 +30,16 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CustodiansIndexRoute = CustodiansIndexRouteImport.update({
-  id: '/custodians/',
-  path: '/custodians/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AssetsIndexRoute = AssetsIndexRouteImport.update({
-  id: '/assets/',
-  path: '/assets/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CustodiansNewRoute = CustodiansNewRouteImport.update({
-  id: '/custodians/new',
-  path: '/custodians/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CustodiansNewIndexRoute = CustodiansNewIndexRouteImport.update({
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => CustodiansNewRoute,
+  getParentRoute: () => SettingsRoute,
 } as any)
-const CustodiansCustodianIdIndexRoute =
-  CustodiansCustodianIdIndexRouteImport.update({
-    id: '/custodians/$custodianId/',
-    path: '/custodians/$custodianId/',
-    getParentRoute: () => rootRouteImport,
+const SettingsConnectionsIndexRoute =
+  SettingsConnectionsIndexRouteImport.update({
+    id: '/connections/',
+    path: '/connections/',
+    getParentRoute: () => SettingsRoute,
   } as any)
 const AccountsAccountIdIndexRoute = AccountsAccountIdIndexRouteImport.update({
   id: '/accounts/$accountId/',
@@ -71,27 +49,6 @@ const AccountsAccountIdIndexRoute = AccountsAccountIdIndexRouteImport.update({
 const PositionsPositionIdEditRoute = PositionsPositionIdEditRouteImport.update({
   id: '/positions/$positionId/edit',
   path: '/positions/$positionId/edit',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CustodiansNewManualRoute = CustodiansNewManualRouteImport.update({
-  id: '/manual',
-  path: '/manual',
-  getParentRoute: () => CustodiansNewRoute,
-} as any)
-const CustodiansNewConnectorRoute = CustodiansNewConnectorRouteImport.update({
-  id: '/connector',
-  path: '/connector',
-  getParentRoute: () => CustodiansNewRoute,
-} as any)
-const CustodiansCustodianIdEditRoute =
-  CustodiansCustodianIdEditRouteImport.update({
-    id: '/custodians/$custodianId/edit',
-    path: '/custodians/$custodianId/edit',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const AssetsCustomNewRoute = AssetsCustomNewRouteImport.update({
-  id: '/assets/custom/new',
-  path: '/assets/custom/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AssetsAssetIdEditRoute = AssetsAssetIdEditRouteImport.update({
@@ -104,150 +61,100 @@ const AccountsAccountIdEditRoute = AccountsAccountIdEditRouteImport.update({
   path: '/accounts/$accountId/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CustodiansCustodianIdAccountsNewRoute =
-  CustodiansCustodianIdAccountsNewRouteImport.update({
-    id: '/custodians/$custodianId/accounts/new',
-    path: '/custodians/$custodianId/accounts/new',
-    getParentRoute: () => rootRouteImport,
+const SettingsConnectionsConnectionIdIndexRoute =
+  SettingsConnectionsConnectionIdIndexRouteImport.update({
+    id: '/connections/$connectionId/',
+    path: '/connections/$connectionId/',
+    getParentRoute: () => SettingsRoute,
   } as any)
-const AccountsAccountIdPositionsNewRoute =
-  AccountsAccountIdPositionsNewRouteImport.update({
-    id: '/accounts/$accountId/positions/new',
-    path: '/accounts/$accountId/positions/new',
-    getParentRoute: () => rootRouteImport,
+const SettingsConnectionsConnectionIdEditRoute =
+  SettingsConnectionsConnectionIdEditRouteImport.update({
+    id: '/connections/$connectionId/edit',
+    path: '/connections/$connectionId/edit',
+    getParentRoute: () => SettingsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/settings': typeof SettingsRoute
-  '/custodians/new': typeof CustodiansNewRouteWithChildren
-  '/assets': typeof AssetsIndexRoute
-  '/custodians': typeof CustodiansIndexRoute
+  '/settings': typeof SettingsRouteWithChildren
+  '/settings/': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
-  '/assets/custom/new': typeof AssetsCustomNewRoute
-  '/custodians/$custodianId/edit': typeof CustodiansCustodianIdEditRoute
-  '/custodians/new/connector': typeof CustodiansNewConnectorRoute
-  '/custodians/new/manual': typeof CustodiansNewManualRoute
   '/positions/$positionId/edit': typeof PositionsPositionIdEditRoute
   '/accounts/$accountId': typeof AccountsAccountIdIndexRoute
-  '/custodians/$custodianId': typeof CustodiansCustodianIdIndexRoute
-  '/custodians/new/': typeof CustodiansNewIndexRoute
-  '/accounts/$accountId/positions/new': typeof AccountsAccountIdPositionsNewRoute
-  '/custodians/$custodianId/accounts/new': typeof CustodiansCustodianIdAccountsNewRoute
+  '/settings/connections': typeof SettingsConnectionsIndexRoute
+  '/settings/connections/$connectionId/edit': typeof SettingsConnectionsConnectionIdEditRoute
+  '/settings/connections/$connectionId': typeof SettingsConnectionsConnectionIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/settings': typeof SettingsRoute
-  '/assets': typeof AssetsIndexRoute
-  '/custodians': typeof CustodiansIndexRoute
+  '/settings': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
-  '/assets/custom/new': typeof AssetsCustomNewRoute
-  '/custodians/$custodianId/edit': typeof CustodiansCustodianIdEditRoute
-  '/custodians/new/connector': typeof CustodiansNewConnectorRoute
-  '/custodians/new/manual': typeof CustodiansNewManualRoute
   '/positions/$positionId/edit': typeof PositionsPositionIdEditRoute
   '/accounts/$accountId': typeof AccountsAccountIdIndexRoute
-  '/custodians/$custodianId': typeof CustodiansCustodianIdIndexRoute
-  '/custodians/new': typeof CustodiansNewIndexRoute
-  '/accounts/$accountId/positions/new': typeof AccountsAccountIdPositionsNewRoute
-  '/custodians/$custodianId/accounts/new': typeof CustodiansCustodianIdAccountsNewRoute
+  '/settings/connections': typeof SettingsConnectionsIndexRoute
+  '/settings/connections/$connectionId/edit': typeof SettingsConnectionsConnectionIdEditRoute
+  '/settings/connections/$connectionId': typeof SettingsConnectionsConnectionIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/settings': typeof SettingsRoute
-  '/custodians/new': typeof CustodiansNewRouteWithChildren
-  '/assets/': typeof AssetsIndexRoute
-  '/custodians/': typeof CustodiansIndexRoute
+  '/settings': typeof SettingsRouteWithChildren
+  '/settings/': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
-  '/assets/custom/new': typeof AssetsCustomNewRoute
-  '/custodians/$custodianId/edit': typeof CustodiansCustodianIdEditRoute
-  '/custodians/new/connector': typeof CustodiansNewConnectorRoute
-  '/custodians/new/manual': typeof CustodiansNewManualRoute
   '/positions/$positionId/edit': typeof PositionsPositionIdEditRoute
   '/accounts/$accountId/': typeof AccountsAccountIdIndexRoute
-  '/custodians/$custodianId/': typeof CustodiansCustodianIdIndexRoute
-  '/custodians/new/': typeof CustodiansNewIndexRoute
-  '/accounts/$accountId/positions/new': typeof AccountsAccountIdPositionsNewRoute
-  '/custodians/$custodianId/accounts/new': typeof CustodiansCustodianIdAccountsNewRoute
+  '/settings/connections/': typeof SettingsConnectionsIndexRoute
+  '/settings/connections/$connectionId/edit': typeof SettingsConnectionsConnectionIdEditRoute
+  '/settings/connections/$connectionId/': typeof SettingsConnectionsConnectionIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/settings'
-    | '/custodians/new'
-    | '/assets'
-    | '/custodians'
+    | '/settings/'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
-    | '/assets/custom/new'
-    | '/custodians/$custodianId/edit'
-    | '/custodians/new/connector'
-    | '/custodians/new/manual'
     | '/positions/$positionId/edit'
     | '/accounts/$accountId'
-    | '/custodians/$custodianId'
-    | '/custodians/new/'
-    | '/accounts/$accountId/positions/new'
-    | '/custodians/$custodianId/accounts/new'
+    | '/settings/connections'
+    | '/settings/connections/$connectionId/edit'
+    | '/settings/connections/$connectionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/settings'
-    | '/assets'
-    | '/custodians'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
-    | '/assets/custom/new'
-    | '/custodians/$custodianId/edit'
-    | '/custodians/new/connector'
-    | '/custodians/new/manual'
     | '/positions/$positionId/edit'
     | '/accounts/$accountId'
-    | '/custodians/$custodianId'
-    | '/custodians/new'
-    | '/accounts/$accountId/positions/new'
-    | '/custodians/$custodianId/accounts/new'
+    | '/settings/connections'
+    | '/settings/connections/$connectionId/edit'
+    | '/settings/connections/$connectionId'
   id:
     | '__root__'
     | '/'
     | '/settings'
-    | '/custodians/new'
-    | '/assets/'
-    | '/custodians/'
+    | '/settings/'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
-    | '/assets/custom/new'
-    | '/custodians/$custodianId/edit'
-    | '/custodians/new/connector'
-    | '/custodians/new/manual'
     | '/positions/$positionId/edit'
     | '/accounts/$accountId/'
-    | '/custodians/$custodianId/'
-    | '/custodians/new/'
-    | '/accounts/$accountId/positions/new'
-    | '/custodians/$custodianId/accounts/new'
+    | '/settings/connections/'
+    | '/settings/connections/$connectionId/edit'
+    | '/settings/connections/$connectionId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  SettingsRoute: typeof SettingsRoute
-  CustodiansNewRoute: typeof CustodiansNewRouteWithChildren
-  AssetsIndexRoute: typeof AssetsIndexRoute
-  CustodiansIndexRoute: typeof CustodiansIndexRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
   AccountsAccountIdEditRoute: typeof AccountsAccountIdEditRoute
   AssetsAssetIdEditRoute: typeof AssetsAssetIdEditRoute
-  AssetsCustomNewRoute: typeof AssetsCustomNewRoute
-  CustodiansCustodianIdEditRoute: typeof CustodiansCustodianIdEditRoute
   PositionsPositionIdEditRoute: typeof PositionsPositionIdEditRoute
   AccountsAccountIdIndexRoute: typeof AccountsAccountIdIndexRoute
-  CustodiansCustodianIdIndexRoute: typeof CustodiansCustodianIdIndexRoute
-  AccountsAccountIdPositionsNewRoute: typeof AccountsAccountIdPositionsNewRoute
-  CustodiansCustodianIdAccountsNewRoute: typeof CustodiansCustodianIdAccountsNewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -266,40 +173,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/custodians/': {
-      id: '/custodians/'
-      path: '/custodians'
-      fullPath: '/custodians'
-      preLoaderRoute: typeof CustodiansIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/assets/': {
-      id: '/assets/'
-      path: '/assets'
-      fullPath: '/assets'
-      preLoaderRoute: typeof AssetsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/custodians/new': {
-      id: '/custodians/new'
-      path: '/custodians/new'
-      fullPath: '/custodians/new'
-      preLoaderRoute: typeof CustodiansNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/custodians/new/': {
-      id: '/custodians/new/'
+    '/settings/': {
+      id: '/settings/'
       path: '/'
-      fullPath: '/custodians/new/'
-      preLoaderRoute: typeof CustodiansNewIndexRouteImport
-      parentRoute: typeof CustodiansNewRoute
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
     }
-    '/custodians/$custodianId/': {
-      id: '/custodians/$custodianId/'
-      path: '/custodians/$custodianId'
-      fullPath: '/custodians/$custodianId'
-      preLoaderRoute: typeof CustodiansCustodianIdIndexRouteImport
-      parentRoute: typeof rootRouteImport
+    '/settings/connections/': {
+      id: '/settings/connections/'
+      path: '/connections'
+      fullPath: '/settings/connections'
+      preLoaderRoute: typeof SettingsConnectionsIndexRouteImport
+      parentRoute: typeof SettingsRoute
     }
     '/accounts/$accountId/': {
       id: '/accounts/$accountId/'
@@ -313,34 +199,6 @@ declare module '@tanstack/react-router' {
       path: '/positions/$positionId/edit'
       fullPath: '/positions/$positionId/edit'
       preLoaderRoute: typeof PositionsPositionIdEditRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/custodians/new/manual': {
-      id: '/custodians/new/manual'
-      path: '/manual'
-      fullPath: '/custodians/new/manual'
-      preLoaderRoute: typeof CustodiansNewManualRouteImport
-      parentRoute: typeof CustodiansNewRoute
-    }
-    '/custodians/new/connector': {
-      id: '/custodians/new/connector'
-      path: '/connector'
-      fullPath: '/custodians/new/connector'
-      preLoaderRoute: typeof CustodiansNewConnectorRouteImport
-      parentRoute: typeof CustodiansNewRoute
-    }
-    '/custodians/$custodianId/edit': {
-      id: '/custodians/$custodianId/edit'
-      path: '/custodians/$custodianId/edit'
-      fullPath: '/custodians/$custodianId/edit'
-      preLoaderRoute: typeof CustodiansCustodianIdEditRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/assets/custom/new': {
-      id: '/assets/custom/new'
-      path: '/assets/custom/new'
-      fullPath: '/assets/custom/new'
-      preLoaderRoute: typeof AssetsCustomNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/assets/$assetId/edit': {
@@ -357,54 +215,50 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountsAccountIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/custodians/$custodianId/accounts/new': {
-      id: '/custodians/$custodianId/accounts/new'
-      path: '/custodians/$custodianId/accounts/new'
-      fullPath: '/custodians/$custodianId/accounts/new'
-      preLoaderRoute: typeof CustodiansCustodianIdAccountsNewRouteImport
-      parentRoute: typeof rootRouteImport
+    '/settings/connections/$connectionId/': {
+      id: '/settings/connections/$connectionId/'
+      path: '/connections/$connectionId'
+      fullPath: '/settings/connections/$connectionId'
+      preLoaderRoute: typeof SettingsConnectionsConnectionIdIndexRouteImport
+      parentRoute: typeof SettingsRoute
     }
-    '/accounts/$accountId/positions/new': {
-      id: '/accounts/$accountId/positions/new'
-      path: '/accounts/$accountId/positions/new'
-      fullPath: '/accounts/$accountId/positions/new'
-      preLoaderRoute: typeof AccountsAccountIdPositionsNewRouteImport
-      parentRoute: typeof rootRouteImport
+    '/settings/connections/$connectionId/edit': {
+      id: '/settings/connections/$connectionId/edit'
+      path: '/connections/$connectionId/edit'
+      fullPath: '/settings/connections/$connectionId/edit'
+      preLoaderRoute: typeof SettingsConnectionsConnectionIdEditRouteImport
+      parentRoute: typeof SettingsRoute
     }
   }
 }
 
-interface CustodiansNewRouteChildren {
-  CustodiansNewConnectorRoute: typeof CustodiansNewConnectorRoute
-  CustodiansNewManualRoute: typeof CustodiansNewManualRoute
-  CustodiansNewIndexRoute: typeof CustodiansNewIndexRoute
+interface SettingsRouteChildren {
+  SettingsIndexRoute: typeof SettingsIndexRoute
+  SettingsConnectionsIndexRoute: typeof SettingsConnectionsIndexRoute
+  SettingsConnectionsConnectionIdEditRoute: typeof SettingsConnectionsConnectionIdEditRoute
+  SettingsConnectionsConnectionIdIndexRoute: typeof SettingsConnectionsConnectionIdIndexRoute
 }
 
-const CustodiansNewRouteChildren: CustodiansNewRouteChildren = {
-  CustodiansNewConnectorRoute: CustodiansNewConnectorRoute,
-  CustodiansNewManualRoute: CustodiansNewManualRoute,
-  CustodiansNewIndexRoute: CustodiansNewIndexRoute,
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsIndexRoute: SettingsIndexRoute,
+  SettingsConnectionsIndexRoute: SettingsConnectionsIndexRoute,
+  SettingsConnectionsConnectionIdEditRoute:
+    SettingsConnectionsConnectionIdEditRoute,
+  SettingsConnectionsConnectionIdIndexRoute:
+    SettingsConnectionsConnectionIdIndexRoute,
 }
 
-const CustodiansNewRouteWithChildren = CustodiansNewRoute._addFileChildren(
-  CustodiansNewRouteChildren,
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
 )
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  SettingsRoute: SettingsRoute,
-  CustodiansNewRoute: CustodiansNewRouteWithChildren,
-  AssetsIndexRoute: AssetsIndexRoute,
-  CustodiansIndexRoute: CustodiansIndexRoute,
+  SettingsRoute: SettingsRouteWithChildren,
   AccountsAccountIdEditRoute: AccountsAccountIdEditRoute,
   AssetsAssetIdEditRoute: AssetsAssetIdEditRoute,
-  AssetsCustomNewRoute: AssetsCustomNewRoute,
-  CustodiansCustodianIdEditRoute: CustodiansCustodianIdEditRoute,
   PositionsPositionIdEditRoute: PositionsPositionIdEditRoute,
   AccountsAccountIdIndexRoute: AccountsAccountIdIndexRoute,
-  CustodiansCustodianIdIndexRoute: CustodiansCustodianIdIndexRoute,
-  AccountsAccountIdPositionsNewRoute: AccountsAccountIdPositionsNewRoute,
-  CustodiansCustodianIdAccountsNewRoute: CustodiansCustodianIdAccountsNewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -11,6 +11,7 @@ import { ConnectionService } from "../finance/connections/ConnectionService.js";
 import { MarketDataService } from "../finance/market-data/MarketDataService.js";
 import { PortfolioService } from "../finance/portfolio/PortfolioService.js";
 import { PositionService } from "../finance/positions/PositionService.js";
+import { SettingsService } from "../finance/settings/SettingsService.js";
 
 export const SystemApiLive = HttpApiBuilder.group(EngineApi, "system", (handlers) =>
   handlers.handle("hello", () => Effect.succeed({ message: "Hello world" })),
@@ -176,6 +177,16 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
     .handle("captureSnapshot", () =>
       Effect.gen(function* () {
         return yield* (yield* PortfolioService).captureSnapshot();
+      }),
+    )
+    .handle("getSettings", () =>
+      Effect.gen(function* () {
+        return yield* (yield* SettingsService).get();
+      }),
+    )
+    .handle("updateSettings", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* SettingsService).update(payload);
       }),
     ),
 );

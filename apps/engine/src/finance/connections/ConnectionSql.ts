@@ -7,12 +7,15 @@ import { SqlClient } from "effect/unstable/sql";
 import type {
   ConnectConnectionInput,
   Connection,
+  ConnectionRefreshResult,
   FinanceApiError,
   UpdateConnectionInput,
 } from "../contracts.js";
 import { FinanceApiError as FinanceError } from "../contracts.js";
 import { CONNECTOR_CAPABILITIES } from "../config.js";
 import { syncRegisteredConnector, type ConnectorSyncError } from "../connector-service.js";
+import { refreshPrices } from "../market-data.js";
+import { captureSnapshot, type CaptureSnapshotOptions } from "../portfolio/PortfolioSql.js";
 import {
   db,
   failure,
@@ -117,7 +120,11 @@ export const connectConnection = (
 /** Re-authenticates with the stored connector credentials and reconciles a complete snapshot. */
 export const refreshConnection = (
   id: string,
-): Effect.Effect<Connection, FinanceApiError, SqlClient.SqlClient | HttpClient.HttpClient> =>
+): Effect.Effect<
+  ConnectionRefreshResult,
+  FinanceApiError,
+  SqlClient.SqlClient | HttpClient.HttpClient
+> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const row = yield* firstOrNotFound(
@@ -145,7 +152,24 @@ export const refreshConnection = (
       Effect.mapError(connectorSyncFailure),
     );
     yield* db(sql`UPDATE connections SET updated_at = ${nowIso()} WHERE id = ${id}`);
-    return yield* getConnection(id);
+    return yield* completeConnectionRefresh(id);
+  });
+
+/** Records today's Portfolio snapshot after a Connection import or Refresh. */
+export const completeConnectionRefresh = (
+  id: string,
+  options: CaptureSnapshotOptions = {},
+): FinanceEffect<ConnectionRefreshResult> =>
+  Effect.gen(function* () {
+    const failures =
+      options.refresh === false
+        ? []
+        : (yield* refreshPrices({
+            requireFresh: true,
+            ...(options.registry === undefined ? {} : { registry: options.registry }),
+          })).failures;
+    yield* captureSnapshot({ ...options, refresh: false });
+    return { connection: yield* getConnection(id), failures };
   });
 
 export const updateConnection = (
@@ -183,7 +207,9 @@ export const updateConnection = (
       return yield* getConnection(id);
     }
 
-    yield* db(sql`UPDATE connections SET name = ${name}, updated_at = ${nowIso()} WHERE id = ${id}`);
+    yield* db(
+      sql`UPDATE connections SET name = ${name}, updated_at = ${nowIso()} WHERE id = ${id}`,
+    );
     return yield* getConnection(id);
   });
 
