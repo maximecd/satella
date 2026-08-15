@@ -38,3 +38,29 @@ _Avoid_: Resync
 **Market-data source**:
 An external service that supplies asset prices. Its identity, quote time, and routine freshness status are operational details hidden during normal use.
 _Avoid_: Provider
+
+## Privacy
+
+**Vault**:
+One person's locally stored Optimus data, including their portfolio, connections, and credentials.
+_Avoid_: Database, account
+
+**Vault password**:
+The secret chosen by the person to unlock their vault. Optimus cannot recover a forgotten vault password.
+_Avoid_: Login password, account password
+
+**Locked vault**:
+A vault whose portfolio, connections, and credentials are unavailable until its vault password is supplied.
+_Avoid_: Logged out
+
+**Screen lock**:
+A privacy screen, shown as **Lock** in the interface, that hides the interface behind a four-digit PIN while the vault remains unlocked and background work may continue. It does not protect the vault from local software.
+_Avoid_: Vault lock, logout
+
+**Screen-lock PIN**:
+The four-digit code used to dismiss the screen lock. After three failed attempts, the vault password is required instead.
+_Avoid_: Vault password
+
+**Vault reset**:
+The irreversible deletion of a vault, including its portfolio and connection credentials, after which Optimus returns to first-time onboarding.
+_Avoid_: Password reset, account reset

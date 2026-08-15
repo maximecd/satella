@@ -2,6 +2,10 @@
 
 Project-specific guidance for AI coding agents.
 
+## Project status
+
+Optimus is pre-production with no released installations or compatibility obligations. Prefer the clean target design; schema resets and breaking technical changes are acceptable without migration or backward-compatibility work.
+
 <!-- ASTRYX:START -->
 Astryx v0.3.0 · 90+ components
 CLI: run every command as `pnpm exec astryx <cmd>` (shown below as `astryx ...`).
