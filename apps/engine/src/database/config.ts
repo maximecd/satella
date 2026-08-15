@@ -1,13 +1,20 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import { execFile } from "node:child_process";
 import { chmod, mkdir, stat } from "node:fs/promises";
-import { homedir, platform } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
+import { promisify } from "node:util";
 
 import { DatabaseConfigError } from "./errors.js";
 
-const DATA_DIRECTORY_ENV = "OPTIMUS_DATA_DIR";
+const execFileAsync = promisify(execFile);
+
+export const DATA_DIRECTORY_ENV = "OPTIMUS_DATA_DIR";
+export const DATABASE_CONTEXT_ENV = "OPTIMUS_DATABASE_CONTEXT";
+export const DEVELOPMENT_DATABASE_CONTEXT = "development";
+export const WORKTREE_DATA_DIRECTORY_NAME = ".optimus";
+export const DATABASE_FILE_NAME = "optimus.sqlite";
 
 export class DatabaseConfig extends Context.Service<
   DatabaseConfig,
@@ -16,28 +23,15 @@ export class DatabaseConfig extends Context.Service<
     readonly databasePath: string;
     readonly backupDirectory: string;
     readonly databaseExisted: boolean;
+    readonly worktreeRoot: string | undefined;
   }
 >()("@optimus/engine/DatabaseConfig") {}
 
-const defaultDataDirectory = (): string => {
-  const home = homedir();
-
-  switch (platform()) {
-    case "darwin":
-      return join(home, "Library", "Application Support", "Optimus");
-    case "win32":
-      return join(process.env["LOCALAPPDATA"] ?? join(home, "AppData", "Local"), "Optimus");
-    default: {
-      const xdgDataHome = process.env["XDG_DATA_HOME"];
-      return join(
-        xdgDataHome !== undefined && isAbsolute(xdgDataHome)
-          ? xdgDataHome
-          : join(home, ".local", "share"),
-        "Optimus",
-      );
-    }
-  }
-};
+export interface DatabaseLocation {
+  readonly dataDirectory: string;
+  readonly databasePath: string;
+  readonly worktreeRoot: string | undefined;
+}
 
 const pathExists = (path: string) =>
   Effect.tryPromise({
@@ -76,41 +70,93 @@ const ensurePrivateDirectory = (path: string) =>
       }),
   });
 
-const resolveDataDirectory = (
-  override: string | undefined,
-): Effect.Effect<string, DatabaseConfigError> => {
-  if (override !== undefined) {
-    if (override.length === 0 || !isAbsolute(override)) {
-      return Effect.fail(
-        new DatabaseConfigError({
-          reason: "invalid-override",
-          path: override,
-          cause: undefined,
-          message: `${DATA_DIRECTORY_ENV} must be a non-empty absolute path`,
-        }),
-      );
-    }
+const locationFromDirectory = (
+  dataDirectory: string,
+  worktreeRoot: string | undefined,
+): DatabaseLocation => ({
+  dataDirectory,
+  databasePath: join(dataDirectory, DATABASE_FILE_NAME),
+  worktreeRoot,
+});
 
-    return Effect.succeed(resolve(override));
+const validateOverride = (
+  override: string,
+): Effect.Effect<DatabaseLocation, DatabaseConfigError> => {
+  if (override.length === 0 || !isAbsolute(override)) {
+    return Effect.fail(
+      new DatabaseConfigError({
+        reason: "invalid-override",
+        path: override,
+        cause: undefined,
+        message: `${DATA_DIRECTORY_ENV} must be a non-empty absolute path`,
+      }),
+    );
   }
 
-  return Effect.succeed(resolve(defaultDataDirectory()));
+  return Effect.succeed(locationFromDirectory(resolve(override), undefined));
+};
+
+const resolveGitWorktreeRoot = Effect.tryPromise({
+  try: async () => {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+      cwd: process.cwd(),
+    });
+    const worktreeRoot = stdout.trim();
+    if (worktreeRoot.length === 0) {
+      throw new Error("git rev-parse --show-toplevel returned an empty path");
+    }
+    return worktreeRoot;
+  },
+  catch: (cause) =>
+    new DatabaseConfigError({
+      reason: "worktree",
+      path: process.cwd(),
+      cause,
+      message: `Could not resolve the Git worktree root from ${process.cwd()}. Development database tooling requires a Git checkout.`,
+    }),
+});
+
+export const resolveDatabaseLocation = (
+  override: string | undefined = process.env[DATA_DIRECTORY_ENV],
+): Effect.Effect<DatabaseLocation, DatabaseConfigError> => {
+  if (override !== undefined) {
+    return validateOverride(override);
+  }
+
+  if (process.env[DATABASE_CONTEXT_ENV] === DEVELOPMENT_DATABASE_CONTEXT) {
+    return resolveGitWorktreeRoot.pipe(
+      Effect.map((worktreeRoot) =>
+        locationFromDirectory(join(worktreeRoot, WORKTREE_DATA_DIRECTORY_NAME), worktreeRoot),
+      ),
+    );
+  }
+
+  // TODO: Packaging must define production data ownership before production startup is enabled.
+  return Effect.fail(
+    new DatabaseConfigError({
+      reason: "production-not-configured",
+      path: "",
+      cause: undefined,
+      message:
+        "Production database location is not configured. Set OPTIMUS_DATA_DIR to an absolute directory, or start the engine through a development command.",
+    }),
+  );
 };
 
 const makeConfig = (override: string | undefined) =>
   Effect.gen(function* () {
-    const dataDirectory = yield* resolveDataDirectory(override);
-    const backupDirectory = join(dataDirectory, "backups");
-    const databasePath = join(dataDirectory, "optimus.sqlite");
+    const location = yield* resolveDatabaseLocation(override);
+    const backupDirectory = join(location.dataDirectory, "backups");
 
-    yield* ensurePrivateDirectory(dataDirectory).pipe(
+    yield* ensurePrivateDirectory(location.dataDirectory).pipe(
       Effect.mapError(
         (cause) =>
           new DatabaseConfigError({
             reason: "filesystem",
-            path: dataDirectory,
+            path: location.dataDirectory,
             cause,
-            message: `Could not create the Optimus data directory: ${dataDirectory}`,
+            message: `Could not create the Optimus data directory: ${location.dataDirectory}`,
           }),
       ),
     );
@@ -126,14 +172,14 @@ const makeConfig = (override: string | undefined) =>
       ),
     );
 
-    const databaseExisted = yield* pathExists(databasePath).pipe(
+    const databaseExisted = yield* pathExists(location.databasePath).pipe(
       Effect.mapError(
         (cause) =>
           new DatabaseConfigError({
             reason: "filesystem",
-            path: databasePath,
+            path: location.databasePath,
             cause,
-            message: `Could not inspect the Optimus database path: ${databasePath}`,
+            message: `Could not inspect the Optimus database path: ${location.databasePath}`,
           }),
       ),
       Effect.flatMap((info) => {
@@ -144,9 +190,9 @@ const makeConfig = (override: string | undefined) =>
           return Effect.fail(
             new DatabaseConfigError({
               reason: "invalid-path",
-              path: databasePath,
+              path: location.databasePath,
               cause: undefined,
-              message: `The Optimus database path is not a regular file: ${databasePath}`,
+              message: `The Optimus database path is not a regular file: ${location.databasePath}`,
             }),
           );
         }
@@ -155,10 +201,11 @@ const makeConfig = (override: string | undefined) =>
     );
 
     return DatabaseConfig.of({
-      dataDirectory,
-      databasePath,
+      dataDirectory: location.dataDirectory,
+      databasePath: location.databasePath,
       backupDirectory,
       databaseExisted,
+      worktreeRoot: location.worktreeRoot,
     });
   });
 

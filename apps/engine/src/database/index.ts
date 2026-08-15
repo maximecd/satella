@@ -12,6 +12,7 @@ import {
   DatabaseHistoryError,
   DatabaseMigrationError,
   DatabaseOpenError,
+  DatabaseOwnedError,
   DatabasePragmaError,
   DatabaseValidationError,
 } from "./errors.js";
@@ -21,6 +22,7 @@ import {
   ProductionMigrations,
   runMigrations,
 } from "./migrations.js";
+import { claimDatabaseOwnership, releaseDatabaseOwnership } from "./ownership.js";
 
 export {
   DatabaseConfig,
@@ -31,6 +33,7 @@ export {
   DatabaseHistoryError,
   DatabaseMigrationError,
   DatabaseOpenError,
+  DatabaseOwnedError,
   DatabasePragmaError,
   ProductionMigrations,
   runMigrations,
@@ -45,24 +48,35 @@ export class DatabaseReady extends Context.Service<DatabaseReady, { readonly rea
 
 export interface DatabaseLiveOptions extends Omit<MigrationRunOptions, "registry"> {
   readonly migrations?: MigrationRegistry;
+  readonly claimOwnership?: boolean;
 }
 
 export const makeDatabaseLive = (options: DatabaseLiveOptions = {}) =>
   Layer.effectContext(
     Effect.gen(function* () {
       const config = yield* DatabaseConfig;
+      if (options.claimOwnership === true) {
+        yield* claimDatabaseOwnership(config.dataDirectory);
+        yield* Effect.addFinalizer(() => releaseDatabaseOwnership(config.dataDirectory));
+      }
       const client = yield* makeSqliteClient(config);
       const summary = yield* runMigrations({
-        ...options,
         registry: options.migrations ?? ProductionMigrations,
+        ...(options.now === undefined ? {} : { now: options.now }),
+        ...(options.backupRetention === undefined
+          ? {}
+          : { backupRetention: options.backupRetention }),
       }).pipe(
         Effect.provideService(DatabaseConfig, config),
         Effect.provideService(SqlClient.SqlClient, client),
         Effect.provideService(Sqlite.SqliteClient, client),
       );
-      yield* Effect.logInfo("SQLite database initialized")
+      const initialized = Effect.logInfo("SQLite database initialized")
         .pipe(Effect.annotateLogs("database_path", config.databasePath))
         .pipe(Effect.annotateLogs("migration_count", String(summary.applied.length)));
+      yield* config.worktreeRoot === undefined
+        ? initialized
+        : initialized.pipe(Effect.annotateLogs("worktree_root", config.worktreeRoot));
       yield* Effect.addFinalizer(() =>
         Effect.logDebug("SQLite database closed").pipe(
           Effect.annotateLogs("database_path", config.databasePath),
@@ -75,4 +89,6 @@ export const makeDatabaseLive = (options: DatabaseLiveOptions = {}) =>
     }),
   );
 
-export const DatabaseLive = makeDatabaseLive().pipe(Layer.provide(DatabaseConfigLive));
+export const DatabaseLive = makeDatabaseLive({ claimOwnership: true }).pipe(
+  Layer.provide(DatabaseConfigLive),
+);

@@ -1,9 +1,20 @@
 import * as Data from "effect/Data";
 
 export class DatabaseConfigError extends Data.TaggedError("DatabaseConfigError")<{
-  readonly reason: "invalid-override" | "invalid-path" | "filesystem";
+  readonly reason:
+    | "invalid-override"
+    | "invalid-path"
+    | "filesystem"
+    | "worktree"
+    | "production-not-configured";
   readonly path: string;
   readonly cause: unknown;
+  readonly message: string;
+}> {}
+
+export class DatabaseOwnedError extends Data.TaggedError("DatabaseOwnedError")<{
+  readonly path: string;
+  readonly pid: number;
   readonly message: string;
 }> {}
 
@@ -52,5 +63,6 @@ export type DatabaseError =
   | DatabaseHistoryError
   | DatabaseMigrationError
   | DatabaseOpenError
+  | DatabaseOwnedError
   | DatabasePragmaError
   | DatabaseValidationError;

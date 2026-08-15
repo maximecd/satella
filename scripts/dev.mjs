@@ -67,6 +67,7 @@ const run = async () => {
   const env = {
     ...process.env,
     OPTIMUS_ENGINE_PORT: String(enginePort),
+    OPTIMUS_DATABASE_CONTEXT: "development",
     OPTIMUS_WEB_ORIGIN: webUrl,
     OPTIMUS_WEB_URL: webUrl,
     VITE_ENGINE_URL: engineUrl,
