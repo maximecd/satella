@@ -1,7 +1,9 @@
 import * as Schema from "effect/Schema";
 import { HttpApiSchema } from "effect/unstable/httpapi";
 
-import { SCREEN_LOCK_TIMEOUTS } from "./constants.js";
+import { MIN_VAULT_PASSWORD_LENGTH, SCREEN_LOCK_TIMEOUTS } from "./constants.js";
+
+export { MIN_VAULT_PASSWORD_LENGTH };
 
 export class VaultApiError extends Schema.TaggedError<VaultApiError>()(
   "VaultApiError",

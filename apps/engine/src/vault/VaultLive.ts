@@ -162,7 +162,7 @@ const closeSession = (session: Session) => {
   return Scope.close(session.scope, Exit.void);
 };
 
-export const DEVELOPMENT_VAULT_PASSWORD = "optimus-dev-vault";
+export const DEVELOPMENT_VAULT_PASSWORD = "password";
 export const DEVELOPMENT_SCREEN_LOCK_PIN = "0000";
 
 export const VaultLive = Layer.effect(

@@ -5,6 +5,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
+import { MIN_VAULT_PASSWORD_LENGTH } from "@optimus/engine/api";
 import { engineApi } from "../api";
 import { FormError } from "../components";
 import { vaultStatusQuery } from "../queries";
@@ -63,8 +64,8 @@ export function OnboardingScreen() {
         <form
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
-            if (password.length < 12) {
-              setError("Vault password must be at least 12 characters.");
+            if (password.length < MIN_VAULT_PASSWORD_LENGTH) {
+              setError(`Vault password must be at least ${MIN_VAULT_PASSWORD_LENGTH} characters.`);
               return;
             }
             if (password !== confirmPassword) {

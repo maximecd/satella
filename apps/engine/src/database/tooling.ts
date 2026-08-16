@@ -56,7 +56,6 @@ export const resetDatabase = (location: DatabaseLocation) =>
   Effect.gen(function* () {
     yield* assertDatabaseUnlocked(location.dataDirectory, location.databasePath);
     yield* removeDataDirectory(location.dataDirectory);
-    yield* withVault(location.dataDirectory, Effect.void);
   });
 
 export const seedDatabase = (location: DatabaseLocation) =>

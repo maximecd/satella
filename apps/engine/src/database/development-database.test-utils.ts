@@ -107,6 +107,16 @@ export const runDb = (
   },
 ) => runNodeScript(dbCli, args, options);
 
+export const vaultStatusForDirectory = (directory: string) =>
+  Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const vault = yield* VaultService;
+        return yield* vault.status();
+      }).pipe(Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(directory))))),
+    ),
+  );
+
 export const inspectDirectory = <A>(
   directory: string,
   program: Effect.Effect<A, unknown, SqlClient.SqlClient>,
