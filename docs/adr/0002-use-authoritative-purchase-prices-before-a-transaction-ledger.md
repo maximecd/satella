@@ -1,0 +1,3 @@
+# Use authoritative purchase prices before a transaction ledger
+
+For V0, Positions remain the source of current holdings and gain an optional authoritative Average unit purchase price rather than being derived from a new Transaction ledger. Manual purchase prices always override Connection values, quantity changes never modify or blend the authoritative unit price, and absence remains absence. This deliberately limits the first result to current Unrealized P&L while avoiding invented transactions, disposal rules, corporate-action inference, and premature claims about realized gain or investment return; a later ledger may add those capabilities without changing the meaning of current Positions.

@@ -1,0 +1,3 @@
+# Use decimal representations for financial values
+
+Financial quantities, prices, FX rates, monetary amounts, and derived values use exact decimal representations in persistence and API contracts, with rounding confined to presentation boundaries. This replaces SQLite `REAL` and JavaScript-number arithmetic before Acquisition cost becomes persisted product data, accepting a pre-production schema and contract break to avoid binary floating-point drift for fractional shares, crypto, multi-currency conversion, and aggregate P&L. Decimal-library details remain behind an Optimus-owned financial-number boundary so the domain does not depend pervasively on one implementation.

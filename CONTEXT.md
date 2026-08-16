@@ -10,8 +10,12 @@ An untyped financial container that holds assets, such as a PEA, current account
 **Asset**:
 Something of financial value held in one or more accounts.
 
+**Position**:
+The current quantity of one Asset held in one Account.
+_Avoid_: Transaction, holding history
+
 **Asset category**:
-An intrinsic classification of an asset as Stocks & ETFs, Bonds, Crypto, Cash, Derivatives, Commodities, or Other assets. The same categories organize Add assets and portfolio allocation.
+An intrinsic classification of an asset as Stocks & ETFs, Bonds, Crypto, Cash, or Other assets. The same categories organize Add assets and portfolio allocation.
 _Avoid_: Asset class, account kind
 
 **Portfolio value**:
@@ -21,6 +25,20 @@ _Avoid_: Performance, return
 **Reporting currency**:
 The single currency used to express portfolio-wide totals, history, and allocation. USD is the default, and the user may change it in Settings.
 _Avoid_: Default currency, base currency
+
+## Acquisition and performance
+
+**Acquisition cost**:
+The current quantity of a non-Cash Position multiplied by its Average unit purchase price. It is unavailable when the Average unit purchase price is unavailable, and excludes taxes, dividends, fees, and realized gains or losses.
+_Avoid_: Tax basis, cost basis
+
+**Average unit purchase price**:
+The authoritative unit price paid for a Position, expressed in its chosen purchase currency. A manual value takes precedence over a Connection-supplied value; it may be unavailable when neither exists.
+_Avoid_: PRU, average cost basis
+
+**Unrealized P&L**:
+The current value of a positive non-Cash Position in its Acquisition-cost currency minus its Acquisition cost, then expressed in the Reporting currency at the current exchange rate. It includes both Asset-price and currency movements; Cash has zero Unrealized P&L, and realized gains or losses, dividends, fees, and taxes are excluded.
+_Avoid_: Performance, return, total return, all-time return
 
 ## Connections
 
