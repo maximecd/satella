@@ -132,7 +132,7 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
     )
     .handle("updateAsset", ({ params, payload }) =>
       Effect.gen(function* () {
-        return yield* (yield* AssetService).updateCustom(params.id, payload);
+        return yield* (yield* AssetService).maintain(params.id, payload);
       }),
     )
     .handle("setManualPrice", ({ params, payload }) =>
@@ -145,9 +145,9 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
         return yield* (yield* AssetService).delete(params.id);
       }),
     )
-    .handle("getPositionAccount", ({ params }) =>
+    .handle("getPositionEdit", ({ params }) =>
       Effect.gen(function* () {
-        return yield* (yield* PositionService).getAccount(params.id);
+        return yield* (yield* PositionService).getEdit(params.id);
       }),
     )
     .handle("createPosition", ({ payload }) =>

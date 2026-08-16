@@ -4,11 +4,14 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] One Asset-maintenance operation accepts the complete editable outcome and validates it before persistence.
-- [ ] Metadata and manual-price changes commit together or roll back together.
-- [ ] The Asset editing screen submits one task and preserves its existing accessible success and failure behavior.
-- [ ] Engine tests prove complete success, validation failure, not-found behavior, and rollback when either persistence step fails.
-- [ ] Route-level tests assert the visible Asset result rather than a sequence of engine calls.
+- [x] One Asset-maintenance operation accepts the complete editable outcome and validates it before persistence.
+- [x] Metadata and manual-price changes commit together or roll back together.
+- [x] The Asset editing screen submits one task and preserves its existing accessible success and failure behavior.
+- [x] Engine tests prove complete success, validation failure, not-found behavior, and rollback when either persistence step fails.
+- [x] Route-level tests assert the visible Asset result rather than a sequence of engine calls.
 
+## Comments
+
+Asset name, symbol, and optional manual price commit in one engine-owned maintainAsset task with transactional rollback. The edit screen submits that single task.

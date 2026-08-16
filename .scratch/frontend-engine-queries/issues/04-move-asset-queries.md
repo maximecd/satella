@@ -4,11 +4,14 @@
 
 **Blocked by:** 01 — Establish the Portfolio data module with Reporting currency; 02 — Make Asset maintenance atomic.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Asset screens use the Portfolio data module for reads and writes and no longer coordinate engine operations directly.
-- [ ] Editing an Asset reconciles its list and detail reads plus every affected Account and Dashboard projection.
-- [ ] Deleting an Asset removes or refreshes every projection that could still display it or include its value.
-- [ ] Query policy, returned-data reconciliation, and affected-projection invalidation remain private implementation details of the module.
-- [ ] Module and route-level tests prove coherent visible results without asserting internal cache keys or refetch counts.
+- [x] Asset screens use the Portfolio data module for reads and writes and no longer coordinate engine operations directly.
+- [x] Editing an Asset reconciles its list and detail reads plus every affected Account and Dashboard projection.
+- [x] Deleting an Asset removes or refreshes every projection that could still display it or include its value.
+- [x] Query policy, returned-data reconciliation, and affected-projection invalidation remain private implementation details of the module.
+- [x] Module and route-level tests prove coherent visible results without asserting internal cache keys or refetch counts.
 
+## Comments
+
+Asset list, detail, maintenance, and deletion go through the Portfolio module. Affected Asset, Account, and Dashboard projections are reconciled privately.

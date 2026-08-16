@@ -4,11 +4,14 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The engine returns the requested Position with the minimal Account and Connection context required by the edit flow.
-- [ ] Missing Positions produce the canonical finance failure without relying on frontend array searches.
-- [ ] Position editing renders, updates, deletes, and navigates correctly from the focused read model.
-- [ ] Engine tests cover the focused read model for manual and connected Accounts plus not-found behavior.
-- [ ] Route-level tests verify accessible Position-edit behavior without asserting an Account-shaped response.
+- [x] The engine returns the requested Position with the minimal Account and Connection context required by the edit flow.
+- [x] Missing Positions produce the canonical finance failure without relying on frontend array searches.
+- [x] Position editing renders, updates, deletes, and navigates correctly from the focused read model.
+- [x] Engine tests cover the focused read model for manual and connected Accounts plus not-found behavior.
+- [x] Route-level tests verify accessible Position-edit behavior without asserting an Account-shaped response.
 
+## Comments
+
+GET /api/positions/:id returns PositionEdit (Position plus minimal Account/Connection context). Missing Positions use the canonical not_found failure. The edit screen no longer searches an Account payload.

@@ -1,10 +1,8 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
-
-vi.mock("../api", async () => import("../engine-api.test-utils"));
 
 const sideNav = () => screen.getByRole("navigation", { name: "Side navigation" });
 

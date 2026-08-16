@@ -8,8 +8,11 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 
+import { createHttpPortfolioEngine, PortfolioEngineProvider } from "./portfolio";
 import { routeTree } from "./routeTree.gen";
 import { stoneTheme } from "./themes/stone/stoneTheme";
+
+const portfolioEngine = createHttpPortfolioEngine();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000 }, mutations: { retry: false } },
@@ -34,7 +37,9 @@ createRoot(root).render(
     <Theme theme={stoneTheme}>
       <LayerProvider>
         <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} />
+          <PortfolioEngineProvider engine={portfolioEngine}>
+            <RouterProvider router={router} />
+          </PortfolioEngineProvider>
         </QueryClientProvider>
       </LayerProvider>
     </Theme>

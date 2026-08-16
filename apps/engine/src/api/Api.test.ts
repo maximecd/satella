@@ -15,7 +15,7 @@ describe("finance API routes", () => {
     ["updateAsset", "/api/assets/:id"],
     ["setManualPrice", "/api/assets/:id/price"],
     ["deleteAsset", "/api/assets/:id"],
-    ["getPositionAccount", "/api/positions/:id"],
+    ["getPositionEdit", "/api/positions/:id"],
     ["updatePosition", "/api/positions/:id"],
     ["deletePosition", "/api/positions/:id"],
   ] as const)("declares %s with a dynamic id segment", (name, path) => {

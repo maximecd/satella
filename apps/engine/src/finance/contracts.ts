@@ -196,6 +196,27 @@ export const SetManualPriceInput = Schema.Struct({
 });
 export type SetManualPriceInput = typeof SetManualPriceInput.Type;
 
+export const MaintainAssetInput = Schema.Struct({
+  name: Schema.Trim.check(Schema.isNonEmpty()),
+  symbol: Schema.optional(Schema.String),
+  manualPrice: Schema.optional(SetManualPriceInput),
+});
+export type MaintainAssetInput = typeof MaintainAssetInput.Type;
+
+export const PositionEditAccount = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  connectionId: Schema.NullOr(Schema.String),
+  connectionName: Schema.NullOr(Schema.String),
+});
+export type PositionEditAccount = typeof PositionEditAccount.Type;
+
+export const PositionEdit = Schema.Struct({
+  position: Position,
+  account: PositionEditAccount,
+});
+export type PositionEdit = typeof PositionEdit.Type;
+
 export const CreatePositionInput = Schema.Struct({
   accountId: Schema.String,
   assetId: Schema.String,

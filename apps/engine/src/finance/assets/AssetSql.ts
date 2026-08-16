@@ -6,6 +6,7 @@ import type {
   Asset,
   CreateAssetInput,
   IdentifierInput,
+  MaintainAssetInput,
   SetManualPriceInput,
   UpdateCustomAssetInput,
 } from "../contracts.js";
@@ -131,6 +132,43 @@ export const setManualPrice = (id: string, input: SetManualPriceInput): FinanceE
       ON CONFLICT(asset_id) DO UPDATE SET price = excluded.price,
         currency_asset_id = excluded.currency_asset_id, source = 'manual',
         observed_at = excluded.observed_at, updated_at = excluded.updated_at`);
+    return yield* getAsset(id);
+  });
+
+export const maintainAsset = (id: string, input: MaintainAssetInput): FinanceEffect<Asset> =>
+  Effect.gen(function* () {
+    const name = yield* requireNonEmpty(input.name, "Asset name");
+    if (input.manualPrice !== undefined) {
+      yield* requireFinite(input.manualPrice.price, "Price");
+    }
+    const asset = yield* getAsset(id);
+    if (!MANUAL_ASSET_CATEGORIES.has(asset.assetCategory)) {
+      return yield* Effect.fail(failure("read_only", "Automatic assets are read-only"));
+    }
+    if (input.manualPrice !== undefined) {
+      yield* assertCash(input.manualPrice.currencyAssetId);
+    }
+    const sql = yield* SqlClient.SqlClient;
+    const timestamp = nowIso();
+    const symbol = input.symbol?.trim() ? input.symbol.trim() : null;
+    yield* db(
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`UPDATE assets SET name = ${name}, symbol = ${symbol},
+            updated_at = ${timestamp} WHERE id = ${id}`;
+          if (input.manualPrice !== undefined) {
+            const observedAt = input.manualPrice.observedAt ?? timestamp;
+            yield* sql`INSERT INTO asset_prices
+              (asset_id, price, currency_asset_id, source, observed_at, updated_at)
+              VALUES (${id}, ${input.manualPrice.price}, ${input.manualPrice.currencyAssetId},
+                'manual', ${observedAt}, ${timestamp})
+              ON CONFLICT(asset_id) DO UPDATE SET price = excluded.price,
+                currency_asset_id = excluded.currency_asset_id, source = 'manual',
+                observed_at = excluded.observed_at, updated_at = excluded.updated_at`;
+          }
+        }),
+      ),
+    );
     return yield* getAsset(id);
   });
 

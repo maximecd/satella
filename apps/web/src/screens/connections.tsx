@@ -12,14 +12,12 @@ import { Stack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { ConnectorCapability, Connection } from "@optimus/engine/api";
 import { UpdateConnectionInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState, type FormEvent } from "react";
 
-import { engineApi } from "../api";
 import {
   DeleteButton,
   FormError,
@@ -29,11 +27,12 @@ import {
   PageState,
 } from "../components";
 import {
-  connectorCapabilitiesQuery,
-  connectionQuery,
-  connectionsQuery,
-  queryKeys,
-} from "../queries";
+  useConnection,
+  useConnections,
+  useConnectorCapabilities,
+  useDeleteConnection,
+  useUpdateConnection,
+} from "../portfolio";
 import { RefreshConnectionButton } from "../refresh-connection";
 import { AddAssetsButton } from "./add-assets";
 
@@ -43,7 +42,7 @@ const errorMessage = (error: unknown) =>
 const accountCount = (count: number) => `${count} account${count === 1 ? "" : "s"}`;
 
 export function ConnectionsListScreen() {
-  const query = useQuery(connectionsQuery);
+  const query = useConnections();
   const [refreshError, setRefreshError] = useState<string | null>(null);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
@@ -91,7 +90,7 @@ export function ConnectionsListScreen() {
 }
 
 export function ConnectionDetailScreen({ id }: { readonly id: string }) {
-  const query = useQuery(connectionQuery(id));
+  const query = useConnection(id);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
@@ -145,8 +144,8 @@ export function ConnectionDetailScreen({ id }: { readonly id: string }) {
 }
 
 export function EditConnectionScreen({ id }: { readonly id: string }) {
-  const query = useQuery(connectionQuery(id));
-  const capabilities = useQuery(connectorCapabilitiesQuery);
+  const query = useConnection(id);
+  const capabilities = useConnectorCapabilities();
   if (query.isPending || capabilities.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   if (capabilities.isError)
@@ -167,7 +166,6 @@ function LoadedEditConnection({
   readonly connection: Connection;
   readonly connector: ConnectorCapability;
 }) {
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
   const [name, setName] = useState(connection.name);
@@ -175,30 +173,8 @@ function LoadedEditConnection({
     Object.fromEntries(connector.credentialFields.map((field) => [field.key, ""])),
   );
   const [error, setError] = useState<string | null>(null);
-  const update = useMutation({
-    mutationFn: (payload: UpdateConnectionInput) =>
-      engineApi.updateConnection(connection.id, payload),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.connections.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.connections.detail(connection.id) }),
-      ]);
-      toast({ body: "Connection updated." });
-      await navigate({
-        to: "/settings/connections/$connectionId",
-        params: { connectionId: connection.id },
-      });
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
-  const remove = useMutation({
-    mutationFn: () => engineApi.deleteConnection(connection.id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.connections.all });
-      await navigate({ to: "/settings/connections" });
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
+  const update = useUpdateConnection(connection.id);
+  const remove = useDeleteConnection(connection.id);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -210,7 +186,16 @@ function LoadedEditConnection({
       name: name.trim(),
       ...(Object.keys(changedCredentials).length === 0 ? {} : { credentials: changedCredentials }),
     });
-    await update.mutateAsync(payload);
+    try {
+      await update.mutateAsync(payload);
+      toast({ body: "Connection updated." });
+      await navigate({
+        to: "/settings/connections/$connectionId",
+        params: { connectionId: connection.id },
+      });
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
   };
 
   return (
@@ -282,7 +267,14 @@ function LoadedEditConnection({
       <DeleteButton
         entity="connection"
         isPending={remove.isPending}
-        onDelete={() => remove.mutateAsync()}
+        onDelete={async () => {
+          try {
+            await remove.mutateAsync();
+            await navigate({ to: "/settings/connections" });
+          } catch (cause) {
+            setError(errorMessage(cause));
+          }
+        }}
       />
     </>
   );

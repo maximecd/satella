@@ -16,7 +16,6 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Toolbar } from "@astryxdesign/core/Toolbar";
 import { useToast } from "@astryxdesign/core/Toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AssetSearchResult, ConnectorCapability } from "@optimus/engine/api";
 import { NumberFromNonEmptyString } from "@optimus/engine/api";
 import { ConnectConnectionInput } from "@optimus/engine/api";
@@ -32,22 +31,20 @@ import {
   type ReactNode,
 } from "react";
 
-import {
-  ADD_ASSETS_CATEGORIES,
-  categoryMeta,
-  invalidateFinanceQueries,
-  type AddAssetsCategory,
-} from "../add-assets";
-import { engineApi } from "../api";
+import { ADD_ASSETS_CATEGORIES, categoryMeta, type AddAssetsCategory } from "../add-assets";
 import { FormError, FormFrame, PageState } from "../components";
 import {
-  assetSearchQuery,
-  assetsQuery,
-  connectionsQuery,
-  connectorCapabilitiesQuery,
-  manualAccountsQuery,
-  manualHoldingQuery,
-} from "../queries";
+  useAddCashAccount,
+  useAddManualHolding,
+  useAddOtherAsset,
+  useAssetSearch,
+  useAssets,
+  useConnectConnection,
+  useConnections,
+  useConnectorCapabilities,
+  useManualAccounts,
+  useManualHoldingLookup,
+} from "../portfolio";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
@@ -159,8 +156,7 @@ function AddAssetsDialog({
   readonly start: AddAssetsStart;
   readonly onClose: () => void;
 }) {
-  const queryClient = useQueryClient();
-  const capabilities = useQuery(connectorCapabilitiesQuery);
+  const capabilities = useConnectorCapabilities();
   const [history, setHistory] = useState<Frame[]>(() => initialHistory(start));
   const current = history[history.length - 1] ?? categoryFrame();
   const go = (frame: Frame) => setHistory((frames) => [...frames, frame]);
@@ -177,8 +173,8 @@ function AddAssetsDialog({
       return;
     }
     const meta = categoryMeta(category);
-    const listed =
-      capabilities.data ?? (await queryClient.ensureQueryData(connectorCapabilitiesQuery));
+    const listed = capabilities.data ?? (await capabilities.refetch()).data;
+    if (listed === undefined) return;
     const hasConnector = listed.connectors.some((connector) =>
       connector.assetCategories.includes(meta.assetCategory),
     );
@@ -338,7 +334,7 @@ function ConnectorStep({
   readonly onManual: () => void;
 }) {
   const meta = categoryMeta(category);
-  const capabilities = useQuery(connectorCapabilitiesQuery);
+  const capabilities = useConnectorCapabilities();
   const [search, setSearch] = useState("");
   if (capabilities.isPending) return <PageState kind="pending" />;
   if (capabilities.isError)
@@ -426,8 +422,8 @@ function ConnectStep({
   readonly onComplete: () => void;
 }) {
   const meta = categoryMeta(category);
-  const capabilities = useQuery(connectorCapabilitiesQuery);
-  const listed = useQuery(connectionsQuery);
+  const capabilities = useConnectorCapabilities();
+  const listed = useConnections();
   if (capabilities.isPending || listed.isPending) return <PageState kind="pending" />;
   if (capabilities.isError)
     return <PageState kind="error" message={errorMessage(capabilities.error)} />;
@@ -461,7 +457,6 @@ function ConnectorImportForm({
   readonly suggestedName: string;
   readonly onComplete: () => void;
 }) {
-  const queryClient = useQueryClient();
   const toast = useToast();
   const [name, setName] = useState(suggestedName);
   const [credentials, setCredentials] = useState<Record<string, string>>(() =>
@@ -482,15 +477,7 @@ function ConnectorImportForm({
       return next;
     });
   };
-  const connect = useMutation({
-    mutationFn: engineApi.connectConnection,
-    onSuccess: async (connection) => {
-      await invalidateFinanceQueries(queryClient);
-      toast({ body: `Imported accounts from ${connection.name}.` });
-      onComplete();
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
+  const connect = useConnectConnection();
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
@@ -508,7 +495,13 @@ function ConnectorImportForm({
       connectorId: connector.id,
       credentials,
     });
-    await connect.mutateAsync(payload);
+    try {
+      const connection = await connect.mutateAsync(payload);
+      toast({ body: `Imported accounts from ${connection.name}.` });
+      onComplete();
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
   };
   const instructions = connector.instructions?.replace(/^#\s+.*$/m, "").trim();
   return (
@@ -610,8 +603,8 @@ function ManualStep({
 }
 
 function useManualAccountPicker() {
-  const accounts = useQuery(manualAccountsQuery);
-  const assets = useQuery(assetsQuery);
+  const accounts = useManualAccounts();
+  const assets = useAssets();
   const [accountChoice, setAccountChoice] = useState(CREATE_NEW);
   const [accountName, setAccountName] = useState("");
   const [currencyId, setCurrencyId] = useState("fiat:USD");
@@ -731,14 +724,12 @@ function HoldingsForm({
     return () => clearTimeout(timeout);
   }, [query]);
   const searchCategory = meta.assetCategory === "crypto" ? "crypto" : "stocks_etfs";
-  const results = useQuery(assetSearchQuery(debounced, searchCategory));
+  const results = useAssetSearch(debounced, searchCategory);
   const identifier = selected?.identifiers[0];
-  const lookup = useQuery(
-    manualHoldingQuery(
-      picker.creatingAccount ? "" : picker.accountChoice,
-      identifier?.type ?? "",
-      identifier?.value ?? "",
-    ),
+  const lookup = useManualHoldingLookup(
+    picker.creatingAccount ? "" : picker.accountChoice,
+    identifier?.type ?? "",
+    identifier?.value ?? "",
   );
   const existingQuantity = lookup.data?.quantity;
   useEffect(() => {
@@ -746,22 +737,8 @@ function HoldingsForm({
       setQuantity(String(existingQuantity));
     }
   }, [existingQuantity]);
-  const queryClient = useQueryClient();
   const toast = useToast();
-  const mutation = useMutation({
-    mutationFn: engineApi.addManualHolding,
-    onSuccess: async (result) => {
-      await invalidateFinanceQueries(queryClient);
-      toast({
-        body:
-          result.positionOutcome === "updated"
-            ? `Updated ${selected?.name ?? "holding"} quantity in ${result.accountName}.`
-            : `Added ${selected?.name ?? "holding"} to ${result.accountName}.`,
-      });
-      onComplete();
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
+  const mutation = useAddManualHolding();
   if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
   if (picker.accounts.isError)
     return <PageState kind="error" message={errorMessage(picker.accounts.error)} />;
@@ -795,16 +772,27 @@ function HoldingsForm({
       return;
     }
     if (decoded === undefined) return;
-    await mutation.mutateAsync({
-      asset: {
-        assetCategory: searchCategory,
-        name: selected.name,
-        symbol: selected.symbol,
-        identifiers: [{ type: identifier.type, value: identifier.value }],
-      },
-      account: picker.destination(),
-      quantity: decoded,
-    });
+    try {
+      const result = await mutation.mutateAsync({
+        asset: {
+          assetCategory: searchCategory,
+          name: selected.name,
+          symbol: selected.symbol,
+          identifiers: [{ type: identifier.type, value: identifier.value }],
+        },
+        account: picker.destination(),
+        quantity: decoded,
+      });
+      toast({
+        body:
+          result.positionOutcome === "updated"
+            ? `Updated ${selected.name} quantity in ${result.accountName}.`
+            : `Added ${selected.name} to ${result.accountName}.`,
+      });
+      onComplete();
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
   };
   return (
     <Stack gap={4}>
@@ -911,17 +899,8 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
   const [balance, setBalance] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const queryClient = useQueryClient();
   const toast = useToast();
-  const cash = useMutation({
-    mutationFn: engineApi.addCashAccount,
-    onSuccess: async (result) => {
-      await invalidateFinanceQueries(queryClient);
-      toast({ body: `Updated ${result.accountName}.` });
-      onComplete();
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
+  const cash = useAddCashAccount();
   if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
   if (picker.accounts.isError)
     return <PageState kind="error" message={errorMessage(picker.accounts.error)} />;
@@ -949,11 +928,17 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
     }
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0 || decoded === undefined) return;
-    await cash.mutateAsync({
-      account: picker.destination(),
-      currencyAssetId: picker.currencyId,
-      balance: decoded,
-    });
+    try {
+      const result = await cash.mutateAsync({
+        account: picker.destination(),
+        currencyAssetId: picker.currencyId,
+        balance: decoded,
+      });
+      toast({ body: `Updated ${result.accountName}.` });
+      onComplete();
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
   };
   return (
     <Stack gap={4}>
@@ -1017,17 +1002,8 @@ function GenericForm({
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const queryClient = useQueryClient();
   const toast = useToast();
-  const mutation = useMutation({
-    mutationFn: engineApi.addOtherAsset,
-    onSuccess: async (_result, variables) => {
-      await invalidateFinanceQueries(queryClient);
-      toast({ body: `Added ${variables.name}.` });
-      onComplete();
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
+  const mutation = useAddOtherAsset();
   if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
   if (picker.accounts.isError)
     return <PageState kind="error" message={errorMessage(picker.accounts.error)} />;
@@ -1051,25 +1027,33 @@ function GenericForm({
       () => undefined,
     );
     if (decoded === undefined) {
-      nextFieldErrors.value = value.trim() === "" ? "Current value is required." : "Enter a valid value.";
+      nextFieldErrors.value =
+        value.trim() === "" ? "Current value is required." : "Enter a valid value.";
     }
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0 || decoded === undefined) return;
-    await mutation.mutateAsync({
-      category: meta.assetCategory === "bonds" ||
-        meta.assetCategory === "derivatives" ||
-        meta.assetCategory === "commodities" ||
-        meta.assetCategory === "other"
-        ? meta.assetCategory
-        : "other",
-      account: picker.destination(),
-      name: name.trim(),
-      value: decoded,
-      currencyAssetId: picker.creatingAccount
-        ? picker.currencyId
-        : (picker.listed.find((account) => account.id === picker.accountChoice)
-            ?.baseCurrencyAssetId ?? picker.currencyId),
-    });
+    try {
+      await mutation.mutateAsync({
+        category:
+          meta.assetCategory === "bonds" ||
+          meta.assetCategory === "derivatives" ||
+          meta.assetCategory === "commodities" ||
+          meta.assetCategory === "other"
+            ? meta.assetCategory
+            : "other",
+        account: picker.destination(),
+        name: name.trim(),
+        value: decoded,
+        currencyAssetId: picker.creatingAccount
+          ? picker.currencyId
+          : (picker.listed.find((account) => account.id === picker.accountChoice)
+              ?.baseCurrencyAssetId ?? picker.currencyId),
+      });
+      toast({ body: `Added ${name.trim()}.` });
+      onComplete();
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
   };
   return (
     <Stack gap={4}>

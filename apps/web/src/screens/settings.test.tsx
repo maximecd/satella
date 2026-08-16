@@ -1,16 +1,14 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { engineApi } from "../api";
 import {
   populatedDashboardFor,
   renderRoute,
   resetFinanceMocks,
+  seedPortfolioEngine,
   settings,
 } from "../finance.route-harness.test-utils";
-
-vi.mock("../api", async () => import("../engine-api.test-utils"));
 
 describe("settings screen", () => {
   beforeEach(() => {
@@ -37,18 +35,11 @@ describe("settings screen", () => {
 
   it("saves Reporting currency immediately", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.updateSettings).mockResolvedValue({
-      ...settings,
-      reportingCurrency: { assetId: "fiat:EUR", iso: "EUR" },
-    });
     renderRoute("/settings");
     await user.click(await screen.findByLabelText("Reporting currency"));
     await user.click(await screen.findByRole("option", { name: /EUR/ }));
-    await waitFor(() =>
-      expect(engineApi.updateSettings).toHaveBeenCalledWith({
-        reportingCurrencyAssetId: "fiat:EUR",
-      }),
-    );
+    expect((await screen.findAllByText("Reporting currency saved.")).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Reporting currency")).toHaveTextContent(/EUR/);
   });
 
   it("saves Reporting currency immediately and updates Dashboard values", async () => {
@@ -56,20 +47,14 @@ describe("settings screen", () => {
     const usd = populatedDashboardFor(new Date("2026-08-15T12:00:00.000Z"));
     const eur = {
       ...usd,
-      reportingCurrency: { assetId: "fiat:EUR", iso: "EUR" },
+      reportingCurrency: { assetId: "fiat:EUR" as const, iso: "EUR" },
       portfolioValue: 1000,
     };
-    let reporting = settings;
-    vi.mocked(engineApi.getDashboard).mockImplementation(async () =>
-      reporting.reportingCurrency.iso === "EUR" ? eur : usd,
-    );
-    vi.mocked(engineApi.getSettings).mockImplementation(async () => reporting);
-    vi.mocked(engineApi.updateSettings).mockImplementation(async (payload) => {
-      reporting = {
-        ...settings,
-        reportingCurrency: { assetId: payload.reportingCurrencyAssetId, iso: "EUR" },
-      };
-      return reporting;
+    seedPortfolioEngine({
+      dashboard: usd,
+      settings,
+      projectDashboard: (_dashboard, nextSettings) =>
+        nextSettings.reportingCurrency.iso === "EUR" ? eur : usd,
     });
     renderRoute("/");
     expect(await screen.findByText(/1[.,]100[.,]00 USD/)).toBeInTheDocument();
@@ -78,9 +63,7 @@ describe("settings screen", () => {
     await user.click(selector);
     await user.click(await screen.findByRole("option", { name: /EUR/ }));
     await waitFor(() =>
-      expect(engineApi.updateSettings).toHaveBeenCalledWith({
-        reportingCurrencyAssetId: "fiat:EUR",
-      }),
+      expect(screen.getByLabelText("Reporting currency")).toHaveTextContent(/EUR/),
     );
     await user.click(screen.getByRole("link", { name: "Dashboard" }));
     expect(await screen.findByText(/1[.,]000[.,]00 EUR/)).toBeInTheDocument();
