@@ -7,7 +7,11 @@ import { it } from "@effect/vitest";
 import { SqlClient } from "effect/unstable/sql";
 import type { MigrationRegistry } from "./index.js";
 import { TempDirectoryError } from "./DatabaseTestLayer.js";
-import { acquireTestDirectory, dekForDirectory, scopedCustomMigrations } from "./database.test-utils.js";
+import {
+  acquireTestDirectory,
+  dekForDirectory,
+  scopedCustomMigrations,
+} from "./database.test-utils.js";
 import { makeEncryptedSqliteClient } from "./encrypted-client.js";
 import { Reactivity } from "effect/unstable/reactivity";
 
@@ -120,7 +124,8 @@ describe("SQLite migration startup", () => {
             const sql = yield* SqlClient.SqlClient;
             return {
               rows: yield* sql`SELECT id, value FROM records`,
-              rebuilt: yield* sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'records_new'`,
+              rebuilt:
+                yield* sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'records_new'`,
             };
           }),
         );

@@ -305,7 +305,9 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
       await writeFile(join(dataDirectory(checkouts.main), "engine.lock"), "2147483647\n");
       const recovered = await runDb(["reset"], { cwd: checkouts.main });
       expect(recovered.code).toBe(0);
-      const recoveredNames = await readdir(dataDirectory(checkouts.main)).catch(() => [] as string[]);
+      const recoveredNames = await readdir(dataDirectory(checkouts.main)).catch(
+        () => [] as string[],
+      );
       expect(recoveredNames).not.toContain("vault.envelope.json");
     } finally {
       await checkouts.dispose();

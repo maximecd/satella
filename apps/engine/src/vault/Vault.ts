@@ -41,7 +41,9 @@ export class VaultService extends Context.Service<
     readonly initialize: (
       input: InitializeVaultInput,
     ) => Effect.Effect<VaultStatus, VaultStateError | VaultUnlockError>;
-    readonly unlock: (password: string) => Effect.Effect<VaultStatus, VaultStateError | VaultUnlockError>;
+    readonly unlock: (
+      password: string,
+    ) => Effect.Effect<VaultStatus, VaultStateError | VaultUnlockError>;
     readonly close: () => Effect.Effect<VaultStatus>;
     readonly lockScreen: () => Effect.Effect<VaultStatus, VaultStateError>;
     readonly unlockScreen: (pin: string) => Effect.Effect<VaultStatus, VaultStateError>;
@@ -59,7 +61,9 @@ export class VaultService extends Context.Service<
     readonly setScreenLockTimeout: (
       minutes: ScreenLockTimeoutMinutes,
     ) => Effect.Effect<void, VaultStateError>;
-    readonly verifyPassword: (password: string) => Effect.Effect<void, VaultStateError | VaultUnlockError>;
+    readonly verifyPassword: (
+      password: string,
+    ) => Effect.Effect<void, VaultStateError | VaultUnlockError>;
     readonly reset: (confirmation: string) => Effect.Effect<VaultStatus, VaultStateError>;
     readonly currentSql: () => Effect.Effect<SqlClient.SqlClient, VaultStateError>;
     readonly assertRendererFinanceAccess: () => Effect.Effect<void, VaultStateError>;

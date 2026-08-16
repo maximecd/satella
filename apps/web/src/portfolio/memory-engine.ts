@@ -347,7 +347,7 @@ export const createMemoryPortfolioEngine = (
         updatedAt: nowIso(),
       };
       state.assets = state.assets.map((asset) => (asset.id === id ? next : asset));
-      for (const account of [...state.accounts]) {
+      for (const account of state.accounts) {
         replaceAccount({
           ...account,
           positions: account.positions.map((position) =>
@@ -373,7 +373,7 @@ export const createMemoryPortfolioEngine = (
       rejectIfFailed("deleteAsset");
       requireAsset(id);
       state.assets = state.assets.filter((asset) => asset.id !== id);
-      for (const account of [...state.accounts]) {
+      for (const account of state.accounts) {
         replaceAccount({
           ...account,
           positions: account.positions.filter((position) => position.assetId !== id),

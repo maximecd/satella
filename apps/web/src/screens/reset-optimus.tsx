@@ -6,6 +6,7 @@ import { engineApi } from "../api";
 import { FormError } from "../components";
 import { Field } from "../components/ui/field";
 import { vaultStatusQuery } from "../queries";
+import { clearVaultDerivedCaches } from "../runtime";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
@@ -17,8 +18,9 @@ export function ResetOptimusControl() {
   const reset = useMutation({
     mutationFn: engineApi.resetVault,
     onSuccess: async (status) => {
+      await clearVaultDerivedCaches();
+      queryClient.clear();
       queryClient.setQueryData(vaultStatusQuery.queryKey, status);
-      await queryClient.invalidateQueries();
     },
     onError: (cause) => setError(errorMessage(cause)),
   });

@@ -92,7 +92,10 @@ export const VaultApiLive = HttpApiBuilder.group(EngineApi, "vault", (handlers) 
     .handle("changePassword", ({ payload }) =>
       run(
         Effect.gen(function* () {
-          yield* (yield* VaultService).changePassword(payload.currentPassword, payload.nextPassword);
+          yield* (yield* VaultService).changePassword(
+            payload.currentPassword,
+            payload.nextPassword,
+          );
         }),
       ),
     )

@@ -50,7 +50,7 @@ const json = async (port: number, path: string, init: RequestInit = {}) => {
     ...init,
     headers: {
       "content-type": "application/json",
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
   const text = await response.text();
@@ -66,7 +66,9 @@ describe("engine Vault process", () => {
 
   afterEach(async () => {
     await Promise.all(engines.splice(0).map((engine) => engine.stop()));
-    await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+    await Promise.all(
+      directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+    );
   });
 
   const start = async () => {

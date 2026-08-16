@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
-import { open, rename, unlink } from "node:fs/promises";
+import { chmod, open, rename, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import * as Data from "effect/Data";
@@ -224,6 +224,7 @@ export const replaceEnvelope = async (path: string, envelope: KeyEnvelope) => {
     await handle.close();
   }
   await rename(temporary, path);
+  await chmod(path, 0o600);
   try {
     const directory = await open(dirname(path), "r");
     try {

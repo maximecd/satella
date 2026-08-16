@@ -21,8 +21,7 @@ import {
   toPortfolioFailure,
   tryFinanceApiError,
 } from "./failure";
-
-const defaultEngineUrl = import.meta.env["VITE_ENGINE_URL"] ?? "http://127.0.0.1:3001";
+import { engineUrl } from "../runtime";
 
 const fetchEngine = (async (input, init) => {
   const response = await globalThis.fetch(input, init);
@@ -37,7 +36,7 @@ const fetchEngine = (async (input, init) => {
   return response;
 }) satisfies typeof fetch;
 
-export const createHttpPortfolioEngine = (baseUrl = defaultEngineUrl): PortfolioEngine => {
+export const createHttpPortfolioEngine = (baseUrl = engineUrl()): PortfolioEngine => {
   const clientEffect = HttpApiClient.make(EngineApi, { baseUrl });
   type EngineClient = Effect.Success<typeof clientEffect>;
   const run = async <A, E>(

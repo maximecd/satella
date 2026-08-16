@@ -1,4 +1,5 @@
-import { argon2 } from "node:crypto";
+import * as nodeCrypto from "node:crypto";
+import { argon2id as wasmArgon2id } from "hash-wasm";
 
 export const ARGON2_VERSION = 19;
 export const PRODUCTION_KDF = {
@@ -58,29 +59,51 @@ export const deriveKeyEncryptionKey = async (
   extras: { readonly secret?: Uint8Array; readonly associatedData?: Uint8Array } = {},
 ): Promise<Uint8Array> => {
   assertKdfParameters(parameters);
-  const message = typeof password === "string" ? Buffer.from(password, "utf8") : Buffer.from(password);
-  const derived = await new Promise<Buffer>((resolve, reject) => {
-    argon2(
-      "argon2id",
-      {
-        message,
-        nonce: Buffer.from(parameters.salt),
-        parallelism: parameters.parallelism,
-        tagLength: 32,
-        memory: parameters.memoryKiB,
-        passes: parameters.passes,
-        ...(extras.secret === undefined ? {} : { secret: Buffer.from(extras.secret) }),
-        ...(extras.associatedData === undefined
-          ? {}
-          : { associatedData: Buffer.from(extras.associatedData) }),
-      },
-      (error, result) => {
-        if (error !== undefined && error !== null) reject(error);
-        else resolve(result as Buffer);
-      },
-    );
+  const message =
+    typeof password === "string" ? Buffer.from(password, "utf8") : Buffer.from(password);
+  const nativeArgon2 = nodeCrypto.argon2;
+  if (typeof nativeArgon2 === "function") {
+    try {
+      const derived = await new Promise<Buffer>((resolve, reject) => {
+        nativeArgon2(
+          "argon2id",
+          {
+            message,
+            nonce: Buffer.from(parameters.salt),
+            parallelism: parameters.parallelism,
+            tagLength: 32,
+            memory: parameters.memoryKiB,
+            passes: parameters.passes,
+            ...(extras.secret === undefined ? {} : { secret: Buffer.from(extras.secret) }),
+            ...(extras.associatedData === undefined
+              ? {}
+              : { associatedData: Buffer.from(extras.associatedData) }),
+          },
+          (error, result) => {
+            if (error !== undefined && error !== null) reject(error);
+            else resolve(result as Buffer);
+          },
+        );
+      });
+      return new Uint8Array(derived);
+    } catch (cause) {
+      if (extras.associatedData !== undefined) throw cause;
+    }
+  }
+
+  if (extras.associatedData !== undefined) {
+    throw new Error("Argon2 associated data is unavailable in this runtime");
+  }
+  return wasmArgon2id({
+    password: message,
+    salt: Buffer.from(parameters.salt),
+    iterations: parameters.passes,
+    parallelism: parameters.parallelism,
+    memorySize: parameters.memoryKiB,
+    hashLength: 32,
+    ...(extras.secret === undefined ? {} : { secret: Buffer.from(extras.secret) }),
+    outputType: "binary",
   });
-  return new Uint8Array(derived);
 };
 
 /** RFC 9106 section 5.3 Argon2id version 19 vector. */

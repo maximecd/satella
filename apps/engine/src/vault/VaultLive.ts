@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { access, rm } from "node:fs/promises";
+import { access, chmod, mkdir, rm } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 
 import * as Effect from "effect/Effect";
@@ -16,6 +16,7 @@ import {
   makeSqliteClient,
   runMigrations,
 } from "../database/index.js";
+import { claimDatabaseOwnership } from "../database/ownership.js";
 import { EngineSqliteClientTag } from "../database/encrypted-client.js";
 import {
   createEnvelope,
@@ -83,10 +84,15 @@ const asVaultError = (message: string) => (cause: unknown) =>
 const asCreateError = (cause: unknown) =>
   cause instanceof VaultStateError || cause instanceof VaultUnlockError
     ? cause
-    : new VaultStateError({
-        reason: "closed",
-        message: "The Vault could not be created.",
-      });
+    : (() => {
+        console.error(
+          `[Optimus] Vault creation failed (${cause instanceof Error ? cause.constructor.name : typeof cause})`,
+        );
+        return new VaultStateError({
+          reason: "closed",
+          message: "The Vault could not be created.",
+        });
+      })();
 
 const asStateOnly = (message: string) => (cause: unknown) =>
   cause instanceof VaultStateError
@@ -96,8 +102,7 @@ const asStateOnly = (message: string) => (cause: unknown) =>
         message,
       });
 
-const chosenKdf = () =>
-  process.env["OPTIMUS_VAULT_KDF"] === "fast" ? FAST_KDF : PRODUCTION_KDF;
+const chosenKdf = () => (process.env["OPTIMUS_VAULT_KDF"] === "fast" ? FAST_KDF : PRODUCTION_KDF);
 
 const requirePassword = (password: string) => {
   if (password.length < MIN_VAULT_PASSWORD_LENGTH) {
@@ -173,6 +178,17 @@ export const VaultLive = Layer.effect(
 
     const envelopePresent = () => Effect.promise(() => fileExists(config.envelopePath));
 
+    const ensureVaultDirectories = () =>
+      Effect.tryPromise({
+        try: async () => {
+          await mkdir(config.dataDirectory, { mode: 0o700, recursive: true });
+          await chmod(config.dataDirectory, 0o700);
+          await mkdir(config.backupDirectory, { mode: 0o700, recursive: true });
+          await chmod(config.backupDirectory, 0o700);
+        },
+        catch: asCreateError,
+      });
+
     const currentStatus = () =>
       Effect.gen(function* () {
         const hasEnvelope = yield* envelopePresent();
@@ -240,6 +256,7 @@ export const VaultLive = Layer.effect(
           }
           yield* requirePassword(input.password);
           yield* requirePin(input.pin);
+          yield* ensureVaultDirectories();
           const created = yield* Effect.tryPromise({
             try: () => createEnvelope(input.password, input.kdf ?? chosenKdf()),
             catch: asCreateError,
@@ -249,11 +266,7 @@ export const VaultLive = Layer.effect(
             catch: asCreateError,
           });
           const session = yield* openWithDek(created.envelope, created.dek);
-          yield* writeSecurity(
-            session.sql,
-            input.pin,
-            DEFAULT_SCREEN_LOCK_TIMEOUT_MINUTES,
-          );
+          yield* writeSecurity(session.sql, input.pin, DEFAULT_SCREEN_LOCK_TIMEOUT_MINUTES);
           return yield* currentStatus();
         }).pipe(
           Effect.mapError((error) =>
@@ -433,6 +446,8 @@ export const VaultLive = Layer.effect(
             try: () => rm(config.dataDirectory, { recursive: true, force: true }),
             catch: asVaultError("Vault reset failed."),
           });
+          yield* ensureVaultDirectories();
+          yield* claimDatabaseOwnership(config.dataDirectory);
           return yield* currentStatus();
         }).pipe(
           Effect.mapError((error) =>
