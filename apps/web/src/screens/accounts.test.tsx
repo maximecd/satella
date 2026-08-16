@@ -1,15 +1,14 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { engineApi } from "../api";
 import {
   connectedAccount,
   renderRoute,
   resetFinanceMocks,
+  seedPortfolioEngine,
+  syncedConnection,
 } from "../finance.route-harness.test-utils";
-
-vi.mock("../api", async () => import("../engine-api.test-utils"));
 
 describe("accounts screen", () => {
   beforeEach(() => {
@@ -40,28 +39,34 @@ describe("accounts screen", () => {
   });
 
   it("shows native market prices without source or quote-time labels", async () => {
-    vi.mocked(engineApi.getAccount).mockResolvedValueOnce({
-      ...connectedAccount,
-      connectionId: null,
-      connectionName: null,
-      name: "Portfolio",
-      total: 68,
-      totalIncomplete: false,
-      positions: [
+    seedPortfolioEngine({
+      accounts: [
         {
-          ...connectedAccount.positions[0]!,
-          assetName: "EUR ETF",
-          quantity: 2,
-          price: {
-            price: 34,
-            currencyAssetId: "fiat:EUR",
-            currencyIso: "EUR",
-            source: "yahoo-finance",
-            observedAt: "2026-08-11T00:00:00.000Z",
-            updatedAt: "2026-08-11T00:00:00.000Z",
-            isStale: true,
-          },
-          reportingValue: 68,
+          ...connectedAccount,
+          id: "account-1",
+          connectionId: null,
+          connectionName: null,
+          name: "Portfolio",
+          total: 68,
+          totalIncomplete: false,
+          positions: [
+            {
+              ...connectedAccount.positions[0]!,
+              accountId: "account-1",
+              assetName: "EUR ETF",
+              quantity: 2,
+              price: {
+                price: 34,
+                currencyAssetId: "fiat:EUR",
+                currencyIso: "EUR",
+                source: "yahoo-finance",
+                observedAt: "2026-08-11T00:00:00.000Z",
+                updatedAt: "2026-08-11T00:00:00.000Z",
+                isStale: true,
+              },
+              reportingValue: 68,
+            },
+          ],
         },
       ],
     });
@@ -78,9 +83,9 @@ describe("accounts screen", () => {
 
   it("refreshes the owning Connection from a connected Account", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.getAccount).mockResolvedValue(connectedAccount);
+    seedPortfolioEngine({ connections: [syncedConnection] });
     renderRoute("/accounts/connected-account");
     await user.click(await screen.findByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(engineApi.refreshConnection).toHaveBeenCalledWith("custodian-1"));
+    expect((await screen.findAllByText("Connection refreshed.")).length).toBeGreaterThan(0);
   });
 });

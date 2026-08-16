@@ -7,18 +7,17 @@ import { List, ListItem } from "@astryxdesign/core/List";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Stack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
-import { useQuery } from "@tanstack/react-query";
 import type { DashboardAccountRow } from "@optimus/engine/api";
 import { useState } from "react";
 
 import { PageHeader, PageState } from "../components";
+import { useDashboard } from "../portfolio";
 import {
   observationsInRange,
   periodChange,
   PORTFOLIO_VALUE_RANGES,
   type PortfolioValueRange,
 } from "../portfolio-history";
-import { dashboardQuery } from "../queries";
 import { AddAssetsButton } from "./add-assets";
 import { AllocationTreemap, PortfolioValueChart } from "./dashboard-charts";
 
@@ -49,7 +48,7 @@ const changeLabel = (change: ReturnType<typeof periodChange>, currencyIso: strin
 };
 
 export function DashboardScreen() {
-  const query = useQuery(dashboardQuery);
+  const query = useDashboard();
   const [range, setRange] = useState<PortfolioValueRange>("1M");
   const [allocationView, setAllocationView] = useState<"assets" | "categories">("assets");
   if (query.isPending) return <PageState kind="pending" />;

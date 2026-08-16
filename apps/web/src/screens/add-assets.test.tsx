@@ -1,11 +1,23 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { engineApi } from "../api";
-import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
+import {
+  renderRoute,
+  resetFinanceMocks,
+  seedPortfolioEngine,
+} from "../finance.route-harness.test-utils";
 
-vi.mock("../api", async () => import("../engine-api.test-utils"));
+const usd = {
+  id: "fiat:USD",
+  assetCategory: "cash" as const,
+  name: "US Dollar",
+  symbol: "USD",
+  identifiers: [],
+  price: null,
+  createdAt: "2026-08-11T00:00:00.000Z",
+  updatedAt: "2026-08-11T00:00:00.000Z",
+};
 
 describe("add assets screen", () => {
   beforeEach(() => {
@@ -48,31 +60,23 @@ describe("add assets screen", () => {
 
   it("collects a manual crypto holding on one form", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.listAssets).mockResolvedValue([
-      {
-        id: "fiat:USD",
-        assetCategory: "cash",
-        name: "US Dollar",
-        symbol: "USD",
-        identifiers: [],
-        price: null,
-        createdAt: "2026-08-11T00:00:00.000Z",
-        updatedAt: "2026-08-11T00:00:00.000Z",
+    seedPortfolioEngine({
+      accounts: [],
+      assets: [usd],
+      searchResults: [
+        {
+          provider: "coingecko",
+          assetCategory: "crypto",
+          name: "Bitcoin",
+          symbol: "BTC",
+          identifiers: [{ type: "coingecko", value: "bitcoin" }],
+        },
+      ],
+      addAssetsResult: {
+        accountId: "account-2",
+        accountName: "Spot",
+        positionOutcome: "created",
       },
-    ]);
-    vi.mocked(engineApi.searchAssets).mockResolvedValue([
-      {
-        provider: "coingecko",
-        assetCategory: "crypto",
-        name: "Bitcoin",
-        symbol: "BTC",
-        identifiers: [{ type: "coingecko", value: "bitcoin" }],
-      },
-    ]);
-    vi.mocked(engineApi.addManualHolding).mockResolvedValue({
-      accountId: "account-2",
-      accountName: "Spot",
-      positionOutcome: "created",
     });
 
     renderRoute("/");
@@ -85,38 +89,19 @@ describe("add assets screen", () => {
     await user.type(screen.getByLabelText("Quantity"), "1.5");
     await user.click(screen.getByRole("button", { name: "Add quantity" }));
 
-    await waitFor(() =>
-      expect(engineApi.addManualHolding).toHaveBeenCalledWith({
-        asset: {
-          assetCategory: "crypto",
-          name: "Bitcoin",
-          symbol: "BTC",
-          identifiers: [{ type: "coingecko", value: "bitcoin" }],
-        },
-        account: { type: "new", name: "Spot", baseCurrencyAssetId: "fiat:USD" },
-        quantity: 1.5,
-      }),
-    );
+    expect((await screen.findAllByText("Added Bitcoin to Spot.")).length).toBeGreaterThan(0);
   });
 
   it("collects a cash account on one form", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.listAssets).mockResolvedValue([
-      {
-        id: "fiat:USD",
-        assetCategory: "cash",
-        name: "US Dollar",
-        symbol: "USD",
-        identifiers: [],
-        price: null,
-        createdAt: "2026-08-11T00:00:00.000Z",
-        updatedAt: "2026-08-11T00:00:00.000Z",
+    seedPortfolioEngine({
+      accounts: [],
+      assets: [usd],
+      addAssetsResult: {
+        accountId: "account-3",
+        accountName: "Checking",
+        positionOutcome: "created",
       },
-    ]);
-    vi.mocked(engineApi.addCashAccount).mockResolvedValue({
-      accountId: "account-3",
-      accountName: "Checking",
-      positionOutcome: "created",
     });
 
     renderRoute("/");
@@ -126,39 +111,35 @@ describe("add assets screen", () => {
     await user.type(screen.getByLabelText("Balance"), "2500");
     await user.click(screen.getByRole("button", { name: "Save cash" }));
 
-    await waitFor(() =>
-      expect(engineApi.addCashAccount).toHaveBeenCalledWith({
-        account: { type: "new", name: "Checking", baseCurrencyAssetId: "fiat:USD" },
-        currencyAssetId: "fiat:USD",
-        balance: 2500,
-      }),
-    );
+    expect((await screen.findAllByText("Updated Checking.")).length).toBeGreaterThan(0);
   });
 
   it("renders connector setup fields from connector metadata", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.connectorCapabilities).mockResolvedValue({
-      connectors: [
-        {
-          id: "okx",
-          name: "OKX",
-          icon: "data:image/svg+xml;base64,PHN2Zy8+",
-          instructions:
-            "# Connect OKX\n\nCreate a read-only API key.\n\n## Checklist\n\n| Field | Required |\n| --- | --- |\n| API key | Yes |",
-          assetCategories: ["crypto"],
-          credentialFields: [
-            { key: "apiKey", label: "API key", kind: "text", required: true },
-            { key: "secretKey", label: "Secret key", kind: "password", required: true },
-            {
-              key: "region",
-              label: "Region",
-              kind: "select",
-              required: true,
-              options: [{ value: "global", label: "Global" }],
-            },
-          ],
-        },
-      ],
+    seedPortfolioEngine({
+      capabilities: {
+        connectors: [
+          {
+            id: "okx",
+            name: "OKX",
+            icon: "data:image/svg+xml;base64,PHN2Zy8+",
+            instructions:
+              "# Connect OKX\n\nCreate a read-only API key.\n\n## Checklist\n\n| Field | Required |\n| --- | --- |\n| API key | Yes |",
+            assetCategories: ["crypto"],
+            credentialFields: [
+              { key: "apiKey", label: "API key", kind: "text", required: true },
+              { key: "secretKey", label: "Secret key", kind: "password", required: true },
+              {
+                key: "region",
+                label: "Region",
+                kind: "select",
+                required: true,
+                options: [{ value: "global", label: "Global" }],
+              },
+            ],
+          },
+        ],
+      },
     });
 
     renderRoute("/");

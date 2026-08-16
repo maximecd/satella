@@ -5,6 +5,7 @@ import type {
   Asset,
   CreateAssetInput,
   FinanceApiError,
+  MaintainAssetInput,
   SetManualPriceInput,
   UpdateCustomAssetInput,
 } from "../contracts.js";
@@ -18,6 +19,10 @@ export class AssetService extends Context.Service<
     readonly updateCustom: (
       id: string,
       input: UpdateCustomAssetInput,
+    ) => Effect.Effect<Asset, FinanceApiError>;
+    readonly maintain: (
+      id: string,
+      input: MaintainAssetInput,
     ) => Effect.Effect<Asset, FinanceApiError>;
     readonly setManualPrice: (
       id: string,

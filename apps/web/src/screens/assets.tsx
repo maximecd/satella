@@ -1,11 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { Asset } from "@optimus/engine/api";
 import { NumberFromNonEmptyString } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
 
-import { engineApi } from "../api";
 import {
   DeleteButton,
   FormError,
@@ -15,7 +13,7 @@ import {
   PageState,
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
-import { assetQuery, assetsQuery, queryKeys } from "../queries";
+import { useAsset, useAssets, useDeleteAsset, useMaintainAsset } from "../portfolio";
 
 const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "derivatives", "commodities", "other"]);
 
@@ -36,40 +34,10 @@ function LoadedAssetScreen({
   readonly asset: Asset;
   readonly allAssets: ReadonlyArray<Asset>;
 }) {
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  const save = useMutation({
-    mutationFn: async (value: typeof EditAssetForm.Type) => {
-      const updated = await engineApi.updateAsset(asset.id, {
-        name: value.name,
-        ...(value.symbol.trim() ? { symbol: value.symbol.trim() } : {}),
-      });
-      if (value.price.trim()) {
-        const price = await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(value.price);
-        return engineApi.setManualPrice(asset.id, {
-          price,
-          currencyAssetId: value.currencyAssetId,
-        });
-      }
-      return updated;
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.assets.detail(asset.id) }),
-      ]);
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
-  const remove = useMutation({
-    mutationFn: () => engineApi.deleteAsset(asset.id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.assets.all });
-      await navigate({ to: "/" });
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
+  const save = useMaintainAsset(asset.id);
+  const remove = useDeleteAsset(asset.id);
   const form = useAppForm({
     defaultValues: {
       name: asset.name,
@@ -79,8 +47,24 @@ function LoadedAssetScreen({
     },
     validationLogic: submitThenChangeValidation,
     validators: { onDynamic: Schema.toStandardSchemaV1(EditAssetForm) },
-    onSubmit: async ({ value }) =>
-      save.mutateAsync(await Schema.decodeUnknownPromise(EditAssetForm)(value)),
+    onSubmit: async ({ value }) => {
+      try {
+        const decoded = await Schema.decodeUnknownPromise(EditAssetForm)(value);
+        const manualPrice = decoded.price.trim()
+          ? {
+              price: await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(decoded.price),
+              currencyAssetId: decoded.currencyAssetId,
+            }
+          : undefined;
+        await save.mutateAsync({
+          name: decoded.name,
+          symbol: decoded.symbol,
+          ...(manualPrice === undefined ? {} : { manualPrice }),
+        });
+      } catch (cause) {
+        setError(errorMessage(cause));
+      }
+    },
   });
   if (!MANUAL_ASSET_CATEGORIES.has(asset.assetCategory)) {
     return (
@@ -136,16 +120,23 @@ function LoadedAssetScreen({
       <DeleteButton
         entity="asset"
         isPending={remove.isPending}
-        onDelete={() => remove.mutateAsync()}
+        onDelete={async () => {
+          try {
+            await remove.mutateAsync();
+            await navigate({ to: "/" });
+          } catch (cause) {
+            setError(errorMessage(cause));
+          }
+        }}
       />
     </>
   );
 }
 
 export function AssetDetailScreen({ id }: { readonly id: string }) {
-  const query = useQuery(assetQuery(id));
-  const all = useQuery(assetsQuery);
+  const query = useAsset(id);
+  const all = useAssets();
   if (query.isPending || all.isPending) return <PageState kind="pending" />;
   if (query.isError || all.isError) return <PageState kind="error" />;
-  return <LoadedAssetScreen asset={query.data} allAssets={all.data} />;
+  return <LoadedAssetScreen key={query.data.updatedAt} asset={query.data} allAssets={all.data} />;
 }

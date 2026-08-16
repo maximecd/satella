@@ -34,9 +34,11 @@ import {
   Dashboard,
   FinanceApiError,
   LookupManualHoldingParams,
+  MaintainAssetInput,
   ManualHoldingLookup,
   PriceRefreshResult,
   PortfolioHistoryPoint,
+  PositionEdit,
   SetManualPriceInput,
   ConnectionRefreshResult,
   SearchAssetsParams,
@@ -44,7 +46,6 @@ import {
   SnapshotResult,
   UpdateAccountInput,
   UpdateConnectionInput,
-  UpdateCustomAssetInput,
   UpdatePositionInput,
   UpdateSettingsInput,
 } from "../finance/contracts.js";
@@ -207,7 +208,7 @@ export const FinanceApi = HttpApiGroup.make("finance")
   .add(
     HttpApiEndpoint.patch("updateAsset", "/api/assets/:id", {
       params: EntityIdParams,
-      payload: UpdateCustomAssetInput,
+      payload: MaintainAssetInput,
       success: Asset,
       error: FinanceApiError,
     }),
@@ -228,9 +229,9 @@ export const FinanceApi = HttpApiGroup.make("finance")
     }),
   )
   .add(
-    HttpApiEndpoint.get("getPositionAccount", "/api/positions/:id", {
+    HttpApiEndpoint.get("getPositionEdit", "/api/positions/:id", {
       params: EntityIdParams,
-      success: Account,
+      success: PositionEdit,
       error: FinanceApiError,
     }),
   )

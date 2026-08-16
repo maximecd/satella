@@ -1,10 +1,7 @@
 import { screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { engineApi } from "../api";
 import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
-
-vi.mock("../api", async () => import("../engine-api.test-utils"));
 
 describe("index route", () => {
   beforeEach(() => {
@@ -14,6 +11,5 @@ describe("index route", () => {
   it("renders the dashboard at / without redirecting", async () => {
     renderRoute("/");
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
-    expect(engineApi.getDashboard).toHaveBeenCalled();
   });
 });

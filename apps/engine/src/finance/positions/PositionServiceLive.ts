@@ -8,14 +8,18 @@ import { makeWithVaultSql } from "../with-vault-sql.js";
 export const make = Effect.gen(function* () {
   const withSql = yield* makeWithVaultSql;
   return PositionService.of({
-    create: Effect.fn("PositionService.create")((input) => withSql(Operations.createPosition(input))),
+    create: Effect.fn("PositionService.create")((input) =>
+      withSql(Operations.createPosition(input)),
+    ),
     update: Effect.fn("PositionService.update")((id, quantity) =>
       withSql(Operations.updatePosition(id, quantity)),
     ),
-    getAccount: Effect.fn("PositionService.getAccount")((id: string) =>
-      withSql(Operations.getPositionAccount(id)),
+    getEdit: Effect.fn("PositionService.getEdit")((id: string) =>
+      withSql(Operations.getPositionEdit(id)),
     ),
-    delete: Effect.fn("PositionService.delete")((id: string) => withSql(Operations.deletePosition(id))),
+    delete: Effect.fn("PositionService.delete")((id: string) =>
+      withSql(Operations.deletePosition(id)),
+    ),
   });
 });
 

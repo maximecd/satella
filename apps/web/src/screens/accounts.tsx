@@ -9,14 +9,12 @@ import { Stack } from "@astryxdesign/core/Stack";
 import { Table, proportional } from "@astryxdesign/core/Table";
 import { Text } from "@astryxdesign/core/Text";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { Account, Position } from "@optimus/engine/api";
 import { UpdateAccountInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
 
-import { engineApi } from "../api";
 import {
   DeleteButton,
   FormError,
@@ -27,7 +25,7 @@ import {
   ResourceCard,
 } from "../components";
 import { submitThenChangeValidation, useAppForm } from "../form";
-import { accountQuery, assetsQuery, queryKeys } from "../queries";
+import { useAccount, useAssets, useDeleteAccount, useUpdateAccount } from "../portfolio";
 import { RefreshConnectionButton } from "../refresh-connection";
 import { AddAssetsButton } from "./add-assets";
 
@@ -178,7 +176,7 @@ function PositionTable({
 }
 
 export function AccountDetailScreen({ id }: { readonly id: string }) {
-  const query = useQuery(accountQuery(id));
+  const query = useAccount(id);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
@@ -263,32 +261,23 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
 }
 
 function LoadedEditAccount({ account }: { readonly account: Account }) {
-  const assets = useQuery(assetsQuery);
-  const queryClient = useQueryClient();
+  const assets = useAssets();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  const update = useMutation({
-    mutationFn: (payload: UpdateAccountInput) => engineApi.updateAccount(account.id, payload),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts.detail(account.id) });
-      await navigate({ to: "/accounts/$accountId", params: { accountId: account.id } });
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
-  const remove = useMutation({
-    mutationFn: () => engineApi.deleteAccount(account.id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
-      await navigate({ to: "/" });
-    },
-    onError: (cause) => setError(errorMessage(cause)),
-  });
+  const update = useUpdateAccount(account.id);
+  const remove = useDeleteAccount(account.id);
   const form = useAppForm({
     defaultValues: { name: account.name, baseCurrencyAssetId: account.baseCurrencyAssetId },
     validationLogic: submitThenChangeValidation,
     validators: { onDynamic: Schema.toStandardSchemaV1(UpdateAccountInput) },
-    onSubmit: async ({ value }) =>
-      update.mutateAsync(await Schema.decodeUnknownPromise(UpdateAccountInput)(value)),
+    onSubmit: async ({ value }) => {
+      try {
+        await update.mutateAsync(await Schema.decodeUnknownPromise(UpdateAccountInput)(value));
+        await navigate({ to: "/accounts/$accountId", params: { accountId: account.id } });
+      } catch (cause) {
+        setError(errorMessage(cause));
+      }
+    },
   });
   if (assets.isPending) return <PageState kind="pending" />;
   const fiat = assets.data?.filter((asset) => asset.assetCategory === "cash") ?? [];
@@ -332,14 +321,21 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
       <DeleteButton
         entity="account"
         isPending={remove.isPending}
-        onDelete={() => remove.mutateAsync()}
+        onDelete={async () => {
+          try {
+            await remove.mutateAsync();
+            await navigate({ to: "/" });
+          } catch (cause) {
+            setError(errorMessage(cause));
+          }
+        }}
       />
     </>
   );
 }
 
 export function EditAccountScreen({ id }: { readonly id: string }) {
-  const query = useQuery(accountQuery(id));
+  const query = useAccount(id);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   if (query.data.connectionId !== null)

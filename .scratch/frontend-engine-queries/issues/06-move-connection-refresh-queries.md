@@ -4,11 +4,14 @@
 
 **Blocked by:** 01 — Establish the Portfolio data module with Reporting currency.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Connection screens and Refresh actions use the module interface instead of direct engine calls and manual invalidation.
-- [ ] Renaming a Connection updates Connection reads and every cached Account or Dashboard projection that displays its name.
-- [ ] Deleting a Connection removes its dependent projections from visible frontend state.
-- [ ] Refresh reconciles imported Accounts, Assets, prices, and Portfolio value with precise module-owned cache behavior.
-- [ ] Full and partial Refresh failures retain the existing concise user feedback and are covered through the module and route test surfaces.
+- [x] Connection screens and Refresh actions use the module interface instead of direct engine calls and manual invalidation.
+- [x] Renaming a Connection updates Connection reads and every cached Account or Dashboard projection that displays its name.
+- [x] Deleting a Connection removes its dependent projections from visible frontend state.
+- [x] Refresh reconciles imported Accounts, Assets, prices, and Portfolio value with precise module-owned cache behavior.
+- [x] Full and partial Refresh failures retain the existing concise user feedback and are covered through the module and route test surfaces.
 
+## Comments
+
+Connection maintenance, deletion, and Refresh go through the module. Screens still own toasts and partial Refresh failure copy.

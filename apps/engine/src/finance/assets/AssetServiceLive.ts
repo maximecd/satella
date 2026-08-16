@@ -14,6 +14,9 @@ export const make = Effect.gen(function* () {
     updateCustom: Effect.fn("AssetService.updateCustom")((id, input) =>
       withSql(Operations.updateCustomAsset(id, input)),
     ),
+    maintain: Effect.fn("AssetService.maintain")((id, input) =>
+      withSql(Operations.maintainAsset(id, input)),
+    ),
     setManualPrice: Effect.fn("AssetService.setManualPrice")((id, input) =>
       withSql(Operations.setManualPrice(id, input)),
     ),

@@ -1,5 +1,3 @@
-import { queryKeys } from "./queries";
-
 export const ADD_ASSETS_CATEGORIES = [
   "stocks_etfs",
   "bonds",
@@ -74,14 +72,3 @@ export const categoryMeta = (category: AddAssetsCategory) => {
       };
   }
 };
-
-export const invalidateFinanceQueries = (queryClient: {
-  invalidateQueries: (options: { queryKey: readonly unknown[] }) => Promise<unknown>;
-}) =>
-  Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.connections.all }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.assets.all }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
-  ]);

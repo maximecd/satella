@@ -3,10 +3,18 @@ import { Theme } from "@astryxdesign/core/theme";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
-import type { Account, Connection, Dashboard, Settings } from "@optimus/engine/api";
+import type { Account, Connection, Dashboard, PositionEdit, Settings } from "@optimus/engine/api";
 import { vi } from "vite-plus/test";
 
 import { engineApi } from "./api";
+
+import {
+  createMemoryPortfolioEngine,
+  PortfolioEngineProvider,
+  type MemoryPortfolioSeed,
+  type PortfolioEngineOperation,
+} from "./portfolio";
+import { PortfolioFailure } from "./portfolio/failure";
 import { routeTree } from "./routeTree.gen";
 import { stoneTheme } from "./themes/stone/stoneTheme";
 
@@ -220,7 +228,55 @@ export const connectedAccount: Account = {
   total: 100,
 };
 
+export const positionEdit: PositionEdit = {
+  position: account.positions[0]!,
+  account: {
+    id: account.id,
+    name: account.name,
+    connectionId: account.connectionId,
+    connectionName: account.connectionName,
+  },
+};
+
+export const connectedPositionEdit: PositionEdit = {
+  position: connectedAccount.positions[0]!,
+  account: {
+    id: connectedAccount.id,
+    name: connectedAccount.name,
+    connectionId: connectedAccount.connectionId,
+    connectionName: connectedAccount.connectionName,
+  },
+};
+
+export const defaultPortfolioSeed = (): MemoryPortfolioSeed => ({
+  dashboard: emptyDashboard,
+  settings,
+  accounts: [account, connectedAccount],
+  positionEdits: [positionEdit, connectedPositionEdit],
+});
+
+let sessionSeed: MemoryPortfolioSeed = defaultPortfolioSeed();
+let sessionFailure: {
+  readonly error: PortfolioFailure | null;
+  readonly operations?: ReadonlyArray<PortfolioEngineOperation>;
+} | null = null;
+
+export const seedPortfolioEngine = (seed: MemoryPortfolioSeed) => {
+  sessionSeed = { ...sessionSeed, ...seed };
+};
+
+export const failPortfolioEngine = (
+  error: PortfolioFailure | null,
+  operations?: ReadonlyArray<PortfolioEngineOperation>,
+) => {
+  sessionFailure = operations === undefined ? { error } : { error, operations };
+};
+
 export const renderRoute = (path: string) => {
+  const engine = createMemoryPortfolioEngine(sessionSeed);
+  if (sessionFailure !== null) {
+    engine.fail(sessionFailure.error, sessionFailure.operations);
+  }
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -233,34 +289,29 @@ export const renderRoute = (path: string) => {
     <Theme theme={stoneTheme}>
       <LayerProvider>
         <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} />
+          <PortfolioEngineProvider engine={engine}>
+            <RouterProvider router={router} />
+          </PortfolioEngineProvider>
         </QueryClientProvider>
       </LayerProvider>
     </Theme>,
   );
 };
 
+const openVaultStatus = {
+  state: "open" as const,
+  screenLock: false,
+  pinAttemptsRemaining: 3,
+  pinEntryDisabled: false,
+  screenLockTimeoutMinutes: 15 as const,
+};
+
 export const resetFinanceMocks = () => {
-  vi.mocked(engineApi.connectorCapabilities).mockResolvedValue({ connectors: [] });
-  vi.mocked(engineApi.listConnections).mockResolvedValue([]);
-  vi.mocked(engineApi.listManualAccounts).mockResolvedValue([]);
-  vi.mocked(engineApi.getDashboard).mockResolvedValue(emptyDashboard);
-  vi.mocked(engineApi.getSettings).mockResolvedValue(settings);
-  vi.mocked(engineApi.updateSettings).mockResolvedValue(settings);
-  vi.mocked(engineApi.listAssets).mockResolvedValue([]);
-  vi.mocked(engineApi.getAccount).mockResolvedValue(account);
-  vi.mocked(engineApi.getPositionAccount).mockResolvedValue(account);
-  vi.mocked(engineApi.updatePosition).mockResolvedValue(account);
-  vi.mocked(engineApi.refreshConnection).mockResolvedValue({
-    connection: syncedConnection,
-    failures: [],
-  });
-  vi.mocked(engineApi.getConnection).mockResolvedValue(syncedConnection);
-  vi.mocked(engineApi.vaultStatus).mockResolvedValue({
-    state: "open",
-    screenLock: false,
-    pinAttemptsRemaining: 3,
-    pinEntryDisabled: false,
-    screenLockTimeoutMinutes: 15,
-  });
+  sessionSeed = defaultPortfolioSeed();
+  sessionFailure = null;
+  if (vi.isMockFunction(engineApi.vaultStatus)) {
+    engineApi.vaultStatus.mockResolvedValue(openVaultStatus);
+  } else {
+    vi.spyOn(engineApi, "vaultStatus").mockResolvedValue(openVaultStatus);
+  }
 };

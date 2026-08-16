@@ -67,4 +67,53 @@ describe("positions", () => {
       expect(valued.totalIncomplete).toBe(false);
     }).pipe(Effect.provide(engineTestLayer())),
   );
+
+  it.effect("returns a focused edit model for manual and connected accounts", () =>
+    Effect.gen(function* () {
+      const manual = yield* Finance.createAccount({ name: "Brokerage" });
+      const collectible = yield* Finance.createAsset({
+        assetCategory: "other",
+        name: "Collectible",
+        identifiers: [],
+      });
+      const withPosition = yield* Finance.createPosition({
+        accountId: manual.id,
+        assetId: collectible.id,
+        quantity: 3,
+      });
+      const manualPosition = withPosition.positions[0]!;
+      const manualEdit = yield* Finance.getPositionEdit(manualPosition.id);
+
+      const sql = yield* SqlClient.SqlClient;
+      const timestamp = new Date().toISOString();
+      yield* sql`INSERT INTO connections (id, name, connector_id, config_json, created_at, updated_at)
+        VALUES ('synced', 'OKX', 'okx', '{}', ${timestamp}, ${timestamp})`;
+      yield* sql`INSERT INTO accounts
+        (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
+        VALUES ('synced-account', 'synced', 'Trading', 'fiat:USD', 'trading', ${timestamp}, ${timestamp})`;
+      yield* sql`INSERT INTO positions (id, account_id, asset_id, quantity, created_at, updated_at)
+        VALUES ('synced-position', 'synced-account', ${collectible.id}, 1, ${timestamp}, ${timestamp})`;
+      const connectedEdit = yield* Finance.getPositionEdit("synced-position");
+      const missing = yield* Finance.getPositionEdit("missing-position").pipe(Effect.flip);
+
+      expect(manualEdit.position.id).toBe(manualPosition.id);
+      expect(manualEdit.position.assetName).toBe("Collectible");
+      expect(manualEdit.position.quantity).toBe(3);
+      expect(manualEdit.account).toEqual({
+        id: manual.id,
+        name: "Brokerage",
+        connectionId: null,
+        connectionName: null,
+      });
+      expect(connectedEdit.position.id).toBe("synced-position");
+      expect(connectedEdit.account).toEqual({
+        id: "synced-account",
+        name: "Trading",
+        connectionId: "synced",
+        connectionName: "OKX",
+      });
+      expect(missing.code).toBe("not_found");
+      expect(missing.message).toContain("Position was not found");
+    }).pipe(Effect.provide(engineTestLayer())),
+  );
 });

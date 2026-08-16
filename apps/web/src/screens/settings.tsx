@@ -3,32 +3,19 @@ import { List, ListItem } from "@astryxdesign/core/List";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Stack } from "@astryxdesign/core/Stack";
 import { useToast } from "@astryxdesign/core/Toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { invalidateFinanceQueries } from "../add-assets";
-import { engineApi } from "../api";
 import { FormError, PageHeader, PageState } from "../components";
-import { settingsQuery } from "../queries";
+import { useSaveReportingCurrency, useSettings } from "../portfolio";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
 
 export function SettingsScreen() {
-  const query = useQuery(settingsQuery);
-  const queryClient = useQueryClient();
+  const query = useSettings();
   const toast = useToast();
   const [saveError, setSaveError] = useState<string | null>(null);
-  const save = useMutation({
-    mutationFn: engineApi.updateSettings,
-    onSuccess: async (settings) => {
-      setSaveError(null);
-      queryClient.setQueryData(settingsQuery.queryKey, settings);
-      await invalidateFinanceQueries(queryClient);
-      toast({ body: "Reporting currency saved." });
-    },
-    onError: (cause) => setSaveError(errorMessage(cause)),
-  });
+  const save = useSaveReportingCurrency();
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   const settings = query.data;
@@ -48,7 +35,16 @@ export function SettingsScreen() {
             value={settings.reportingCurrency.assetId}
             onChange={(value) => {
               if (value === settings.reportingCurrency.assetId) return;
-              save.mutate({ reportingCurrencyAssetId: value });
+              save.mutate(
+                { reportingCurrencyAssetId: value },
+                {
+                  onSuccess: () => {
+                    setSaveError(null);
+                    toast({ body: "Reporting currency saved." });
+                  },
+                  onError: (cause) => setSaveError(errorMessage(cause)),
+                },
+              );
             }}
             width="100%"
             isDisabled={save.isPending}

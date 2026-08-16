@@ -2,14 +2,12 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { engineApi } from "../api";
 import {
   populatedDashboardFor,
   renderRoute,
   resetFinanceMocks,
+  seedPortfolioEngine,
 } from "../finance.route-harness.test-utils";
-
-vi.mock("../api", async () => import("../engine-api.test-utils"));
 
 describe("dashboard screen", () => {
   beforeEach(() => {
@@ -27,12 +25,11 @@ describe("dashboard screen", () => {
     expect(screen.getAllByRole("button", { name: "Add assets" }).length).toBeGreaterThan(0);
     expect(screen.getByText("No assets yet")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Portfolio value" })).not.toBeInTheDocument();
-    expect(engineApi.getDashboard).toHaveBeenCalled();
   });
 
   it("shows Portfolio value, allocation, sorted Accounts, and 1M history from first to last daily point", async () => {
     const dashboard = populatedDashboardFor(new Date("2026-08-15T12:00:00.000Z"));
-    vi.mocked(engineApi.getDashboard).mockResolvedValue(dashboard);
+    seedPortfolioEngine({ dashboard });
     renderRoute("/");
 
     expect(await screen.findByRole("heading", { name: "Portfolio value" })).toBeInTheDocument();
@@ -63,7 +60,7 @@ describe("dashboard screen", () => {
 
   it("selects every Portfolio value range and reports sparse history honestly", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.getDashboard).mockResolvedValue(populatedDashboardFor());
+    seedPortfolioEngine({ dashboard: populatedDashboardFor() });
     renderRoute("/");
     expect(await screen.findByText(/\+90[.,]00 USD/)).toBeInTheDocument();
 
@@ -82,7 +79,7 @@ describe("dashboard screen", () => {
 
   it("toggles allocation between Assets and Asset categories", async () => {
     const user = userEvent.setup();
-    vi.mocked(engineApi.getDashboard).mockResolvedValue(populatedDashboardFor());
+    seedPortfolioEngine({ dashboard: populatedDashboardFor() });
     renderRoute("/");
     expect(
       await screen.findByRole("img", { name: /Apple \(AAPL\), 800[.,]00 USD, 80%/ }),
@@ -98,11 +95,13 @@ describe("dashboard screen", () => {
   it("shows an allocation tooltip near the hovered cell", async () => {
     const user = userEvent.setup();
     const dashboard = populatedDashboardFor();
-    vi.mocked(engineApi.getDashboard).mockResolvedValue({
-      ...dashboard,
-      assetAllocation: dashboard.assetAllocation.map((cell) =>
-        cell.key === "apple" ? { ...cell, value: 800.25 } : cell,
-      ),
+    seedPortfolioEngine({
+      dashboard: {
+        ...dashboard,
+        assetAllocation: dashboard.assetAllocation.map((cell) =>
+          cell.key === "apple" ? { ...cell, value: 800.25 } : cell,
+        ),
+      },
     });
     renderRoute("/");
     const apple = await screen.findByRole("img", {

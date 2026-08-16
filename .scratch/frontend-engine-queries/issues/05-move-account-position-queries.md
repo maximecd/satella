@@ -4,11 +4,14 @@
 
 **Blocked by:** 01 — Establish the Portfolio data module with Reporting currency; 03 — Return a focused Position-edit read model.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Account and Position screens use the module interface rather than direct engine operations or exposed query keys.
-- [ ] Updating or deleting a Position reconciles its focused edit read, owning Account, and Dashboard projections.
-- [ ] Updating an Account reconciles Account detail and every projection containing its name, currency, or value.
-- [ ] Deleting an Account removes it from Dashboard and from all cached Account collections relevant to Add assets.
-- [ ] Tests execute each task and observe affected reads through the module interface and accessible screens.
+- [x] Account and Position screens use the module interface rather than direct engine operations or exposed query keys.
+- [x] Updating or deleting a Position reconciles its focused edit read, owning Account, and Dashboard projections.
+- [x] Updating an Account reconciles Account detail and every projection containing its name, currency, or value.
+- [x] Deleting an Account removes it from Dashboard and from all cached Account collections relevant to Add assets.
+- [x] Tests execute each task and observe affected reads through the module interface and accessible screens.
 
+## Comments
+
+Account and Position reads/writes go through the module. Position and Account changes reconcile focused edit, owning Account, Dashboard, and Add-assets account collections.
