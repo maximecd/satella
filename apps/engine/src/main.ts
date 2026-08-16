@@ -4,15 +4,20 @@ import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import { FetchHttpClient } from "effect/unstable/http";
+import { HttpRouter } from "effect/unstable/http";
 
 import { ApiErrorLogging } from "./api/ApiLogging.js";
 import { EngineApiLive } from "./api/FinanceApiLive.js";
-import { DatabaseLive, DatabaseReady } from "./database/index.js";
-import { FetchHttpClient } from "effect/unstable/http";
-import { HttpRouter } from "effect/unstable/http";
+import { VaultFinanceAccess } from "./api/VaultAccess.js";
+import {
+  DatabaseConfig,
+  DatabaseConfigLive,
+} from "./database/index.js";
+import { claimDatabaseOwnership, releaseDatabaseOwnership } from "./database/ownership.js";
 import { FinanceLive } from "./finance/FinanceLive.js";
 import { IdGeneratorLive } from "./IdGenerator.js";
-import { PortfolioService } from "./finance/portfolio/PortfolioService.js";
+import { VaultLive } from "./vault/VaultLive.js";
 
 const parsePort = (value: string | undefined, fallback: number): number => {
   if (value === undefined) return fallback;
@@ -23,7 +28,23 @@ const parsePort = (value: string | undefined, fallback: number): number => {
 const enginePort = parsePort(process.env["OPTIMUS_ENGINE_PORT"], 3001);
 const webOrigin = process.env["OPTIMUS_WEB_ORIGIN"];
 
+const OwnershipLive = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const config = yield* DatabaseConfig;
+    yield* claimDatabaseOwnership(config.dataDirectory);
+    yield* Effect.addFinalizer(() => releaseDatabaseOwnership(config.dataDirectory));
+    const started = Effect.logInfo("Engine listening").pipe(
+      Effect.annotateLogs("database_path", config.databasePath),
+      Effect.annotateLogs("envelope_path", config.envelopePath),
+    );
+    yield* config.worktreeRoot === undefined
+      ? started
+      : started.pipe(Effect.annotateLogs("worktree_root", config.worktreeRoot));
+  }),
+).pipe(Layer.provide(DatabaseConfigLive));
+
 const routesLayer = EngineApiLive.pipe(
+  Layer.provideMerge(VaultFinanceAccess),
   Layer.provideMerge(ApiErrorLogging),
   Layer.provideMerge(
     HttpRouter.cors({
@@ -46,21 +67,12 @@ const HttpServerLive = HttpRouter.serve(routesLayer).pipe(
   ),
 );
 
-const ServerLive = Layer.unwrap(
-  Effect.gen(function* () {
-    yield* DatabaseReady;
-    const portfolio = yield* PortfolioService;
-    yield* portfolio
-      .captureSnapshotIfDue()
-      .pipe(
-        Effect.catch((error) =>
-          Effect.logWarning("Daily finance snapshot was not captured").pipe(
-            Effect.annotateLogs("error", String(error)),
-          ),
-        ),
-      );
-    return HttpServerLive;
-  }),
-).pipe(Layer.provide(FinanceLive), Layer.provide(DatabaseLive), Layer.provide(IdGeneratorLive));
+const ServerLive = HttpServerLive.pipe(
+  Layer.provide(FinanceLive),
+  Layer.provide(VaultLive),
+  Layer.provide(OwnershipLive),
+  Layer.provide(DatabaseConfigLive),
+  Layer.provide(IdGeneratorLive),
+);
 
 Layer.launch(ServerLive.pipe(Layer.provide(FetchHttpClient.layer))).pipe(NodeRuntime.runMain);

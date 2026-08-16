@@ -14,6 +14,7 @@ export const DATA_DIRECTORY_ENV = "OPTIMUS_DATA_DIR";
 export const DATABASE_CONTEXT_ENV = "OPTIMUS_DATABASE_CONTEXT";
 export const DEVELOPMENT_DATABASE_CONTEXT = "development";
 export const WORKTREE_DATA_DIRECTORY_NAME = ".optimus";
+export const ENVELOPE_FILE_NAME = "vault.envelope.json";
 export const DATABASE_FILE_NAME = "optimus.sqlite";
 
 export class DatabaseConfig extends Context.Service<
@@ -21,6 +22,7 @@ export class DatabaseConfig extends Context.Service<
   {
     readonly dataDirectory: string;
     readonly databasePath: string;
+    readonly envelopePath: string;
     readonly backupDirectory: string;
     readonly databaseExisted: boolean;
     readonly worktreeRoot: string | undefined;
@@ -203,6 +205,7 @@ const makeConfig = (override: string | undefined) =>
     return DatabaseConfig.of({
       dataDirectory: location.dataDirectory,
       databasePath: location.databasePath,
+      envelopePath: join(location.dataDirectory, ENVELOPE_FILE_NAME),
       backupDirectory,
       databaseExisted,
       worktreeRoot: location.worktreeRoot,

@@ -25,6 +25,10 @@ describe("settings screen", () => {
       "href",
       "/settings/connections",
     );
+    expect(screen.getByRole("link", { name: /Security/ })).toHaveAttribute(
+      "href",
+      "/settings/security",
+    );
     expect(screen.queryByText("Institutions & wallets")).not.toBeInTheDocument();
     expect(screen.queryByText("Advanced data")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Custodians/ })).not.toBeInTheDocument();

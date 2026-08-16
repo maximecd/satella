@@ -223,6 +223,8 @@ export class FinanceApiError extends Schema.TaggedError<FinanceApiError>()(
       "conflict",
       "connector_unavailable",
       "database",
+      "vault_closed",
+      "screen_locked",
     ]),
     message: Schema.String,
   },

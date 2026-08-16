@@ -89,4 +89,22 @@ export const engineApi = {
   captureSnapshot: () => request((client) => client.finance.captureSnapshot({})),
   searchAssets: (query: string, assetCategory: AssetSearchResult["assetCategory"]) =>
     request((client) => client.finance.searchAssets({ query: { query, assetCategory } })),
+  vaultStatus: () => request((client) => client.vault.status({})),
+  initializeVault: (payload: { password: string; pin: string }) =>
+    request((client) => client.vault.initialize({ payload })),
+  unlockVault: (password: string) =>
+    request((client) => client.vault.unlock({ payload: { password } })),
+  lockScreen: () => request((client) => client.vault.lockScreen({})),
+  unlockScreen: (pin: string) =>
+    request((client) => client.vault.unlockScreen({ payload: { pin } })),
+  unlockScreenWithPassword: (password: string) =>
+    request((client) => client.vault.unlockScreenWithPassword({ payload: { password } })),
+  changeVaultPassword: (payload: { currentPassword: string; nextPassword: string }) =>
+    request((client) => client.vault.changePassword({ payload })),
+  changeScreenLockPin: (payload: { password: string; pin: string }) =>
+    request((client) => client.vault.changePin({ payload })),
+  setScreenLockTimeout: (minutes: 5 | 15 | 30 | 60) =>
+    request((client) => client.vault.setScreenLockTimeout({ payload: { minutes } })),
+  resetVault: (confirmation: string) =>
+    request((client) => client.vault.reset({ payload: { confirmation } })),
 };

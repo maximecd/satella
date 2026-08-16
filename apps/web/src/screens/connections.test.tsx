@@ -80,6 +80,9 @@ describe("connections screens", () => {
 
     renderRoute("/settings/connections/custodian-1/edit");
     expect(await screen.findByRole("heading", { name: "Edit OKX" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/Prefer read-only credentials with no trading or withdrawal capability/),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/Secret key/, { selector: "input" })).toHaveValue("");
     await user.type(screen.getByLabelText("API key"), "replacement-key");
     await user.click(screen.getByRole("button", { name: "Save changes" }));

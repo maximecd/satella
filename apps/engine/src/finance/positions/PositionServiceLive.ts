@@ -1,30 +1,21 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import { SqlClient } from "effect/unstable/sql";
 import * as Operations from "./PositionSql.js";
 import { PositionService } from "./PositionService.js";
-
-const provideSql = <A, E>(
-  sql: SqlClient.SqlClient,
-  effect: Effect.Effect<A, E, SqlClient.SqlClient>,
-) => effect.pipe(Effect.provideService(SqlClient.SqlClient, sql));
+import { makeWithVaultSql } from "../with-vault-sql.js";
 
 export const make = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
+  const withSql = yield* makeWithVaultSql;
   return PositionService.of({
-    create: Effect.fn("PositionService.create")((input) =>
-      provideSql(sql, Operations.createPosition(input)),
-    ),
+    create: Effect.fn("PositionService.create")((input) => withSql(Operations.createPosition(input))),
     update: Effect.fn("PositionService.update")((id, quantity) =>
-      provideSql(sql, Operations.updatePosition(id, quantity)),
+      withSql(Operations.updatePosition(id, quantity)),
     ),
     getAccount: Effect.fn("PositionService.getAccount")((id: string) =>
-      provideSql(sql, Operations.getPositionAccount(id)),
+      withSql(Operations.getPositionAccount(id)),
     ),
-    delete: Effect.fn("PositionService.delete")((id: string) =>
-      provideSql(sql, Operations.deletePosition(id)),
-    ),
+    delete: Effect.fn("PositionService.delete")((id: string) => withSql(Operations.deletePosition(id))),
   });
 });
 

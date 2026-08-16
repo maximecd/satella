@@ -18,10 +18,7 @@ export class AddAssetsService extends Context.Service<
       accountId: string,
       identifierType: string,
       identifierValue: string,
-    ) => Effect.Effect<
-      { readonly assetId: string | null; readonly quantity: number | null },
-      FinanceApiError
-    >;
+    ) => Effect.Effect<{ readonly assetId: string | null; readonly quantity: number | null }, FinanceApiError>;
     readonly addManualHolding: (
       input: AddManualHoldingInput,
     ) => Effect.Effect<AddAssetsResult, FinanceApiError>;

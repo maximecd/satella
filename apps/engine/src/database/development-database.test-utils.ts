@@ -11,7 +11,11 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { SqlClient } from "effect/unstable/sql";
 
-import { DatabaseConfigFromDirectory, makeDatabaseLive } from "./index.js";
+import { DatabaseConfigFromDirectory } from "./index.js";
+import { VaultLive } from "../vault/VaultLive.js";
+import { VaultService } from "../vault/Vault.js";
+import { FAST_KDF } from "../vault/kdf.js";
+import { DEVELOPMENT_SCREEN_LOCK_PIN, DEVELOPMENT_VAULT_PASSWORD } from "../vault/VaultLive.js";
 
 const execFile = promisify(execFileCallback);
 const require = createRequire(import.meta.url);
@@ -57,7 +61,7 @@ export const commandEnv = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env["OPTIMUS_DATA_DIR"];
   delete env["OPTIMUS_DATABASE_CONTEXT"];
-  return { ...env, ...overrides };
+  return { ...env, OPTIMUS_VAULT_KDF: "fast", ...overrides };
 };
 
 export const runNodeScript = (
@@ -109,11 +113,21 @@ export const inspectDirectory = <A>(
 ) =>
   Effect.runPromise(
     Effect.scoped(
-      program.pipe(
-        Effect.provide(
-          makeDatabaseLive().pipe(Layer.provide(DatabaseConfigFromDirectory(directory))),
-        ),
-      ),
+      Effect.gen(function* () {
+        const vault = yield* VaultService;
+        const status = yield* vault.status();
+        if (status.state === "absent") {
+          yield* vault.initialize({
+            password: DEVELOPMENT_VAULT_PASSWORD,
+            pin: DEVELOPMENT_SCREEN_LOCK_PIN,
+            kdf: FAST_KDF,
+          });
+        } else if (status.state === "locked") {
+          yield* vault.unlock(DEVELOPMENT_VAULT_PASSWORD);
+        }
+        const sql = yield* vault.currentSql();
+        return yield* program.pipe(Effect.provideService(SqlClient.SqlClient, sql));
+      }).pipe(Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(directory))))),
     ),
   );
 
@@ -192,7 +206,7 @@ export const startEngine = async (options: {
     });
     child.once("exit", onExit);
     const onData = () => {
-      if (output.includes("SQLite database initialized")) {
+      if (output.includes("Engine listening") || output.includes("SQLite database initialized")) {
         child.stdout.off("data", onData);
         child.stderr.off("data", onData);
         child.off("exit", onExit);

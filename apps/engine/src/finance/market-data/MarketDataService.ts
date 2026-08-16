@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 
 import type { AssetSearchResult, FinanceApiError, PriceRefreshResult } from "../contracts.js";
 import * as MarketData from "../market-data.js";
-import { SqlClient } from "effect/unstable/sql";
+import { makeWithVaultSql } from "../with-vault-sql.js";
 export class MarketDataService extends Context.Service<
   MarketDataService,
   {
@@ -19,17 +19,13 @@ export class MarketDataService extends Context.Service<
 >()("@optimus/engine/finance/MarketDataService") {}
 
 export const make = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
+  const withSql = yield* makeWithVaultSql;
   return MarketDataService.of({
     search: Effect.fn("MarketDataService.search")((query, assetCategory) =>
-      MarketData.searchAssets(query, assetCategory).pipe(
-        Effect.provideService(SqlClient.SqlClient, sql),
-      ),
+      withSql(MarketData.searchAssets(query, assetCategory)),
     ),
     refresh: Effect.fn("MarketDataService.refresh")((options) =>
-      MarketData.refreshPrices({ requireFresh: true, ...options }).pipe(
-        Effect.provideService(SqlClient.SqlClient, sql),
-      ),
+      withSql(MarketData.refreshPrices({ requireFresh: true, ...options })),
     ),
   });
 });

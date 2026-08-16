@@ -2,10 +2,9 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { SqlClient } from "effect/unstable/sql";
-import * as Sqlite from "@effect/sql-sqlite-node/SqliteClient";
 
 import { DatabaseConfig, DatabaseConfigFromDirectory, DatabaseConfigLive } from "./config.js";
-import { makeSqliteClient } from "./client.js";
+import { EngineSqliteClientTag, makeSqliteClient } from "./encrypted-client.js";
 import {
   DatabaseBackupError,
   DatabaseConfigError,
@@ -39,8 +38,13 @@ export {
   runMigrations,
   DatabaseValidationError,
 };
+export { EngineSqliteClientTag, makeSqliteClient } from "./encrypted-client.js";
 export type { DatabaseError } from "./errors.js";
 export type { MigrationRegistry, MigrationRunOptions } from "./migrations.js";
+
+export class DatabaseKey extends Context.Service<DatabaseKey, { readonly dek: Uint8Array }>()(
+  "@optimus/engine/DatabaseKey",
+) {}
 
 export class DatabaseReady extends Context.Service<DatabaseReady, { readonly ready: true }>()(
   "@optimus/engine/DatabaseReady",
@@ -55,11 +59,12 @@ export const makeDatabaseLive = (options: DatabaseLiveOptions = {}) =>
   Layer.effectContext(
     Effect.gen(function* () {
       const config = yield* DatabaseConfig;
+      const key = yield* DatabaseKey;
       if (options.claimOwnership === true) {
         yield* claimDatabaseOwnership(config.dataDirectory);
         yield* Effect.addFinalizer(() => releaseDatabaseOwnership(config.dataDirectory));
       }
-      const client = yield* makeSqliteClient(config);
+      const client = yield* makeSqliteClient(config, key.dek);
       const summary = yield* runMigrations({
         registry: options.migrations ?? ProductionMigrations,
         ...(options.now === undefined ? {} : { now: options.now }),
@@ -69,7 +74,7 @@ export const makeDatabaseLive = (options: DatabaseLiveOptions = {}) =>
       }).pipe(
         Effect.provideService(DatabaseConfig, config),
         Effect.provideService(SqlClient.SqlClient, client),
-        Effect.provideService(Sqlite.SqliteClient, client),
+        Effect.provideService(EngineSqliteClientTag, client),
       );
       const initialized = Effect.logInfo("SQLite database initialized")
         .pipe(Effect.annotateLogs("database_path", config.databasePath))
@@ -84,7 +89,8 @@ export const makeDatabaseLive = (options: DatabaseLiveOptions = {}) =>
       );
       return Context.make(DatabaseConfig, config)
         .pipe(Context.add(DatabaseReady, DatabaseReady.of({ ready: true })))
-        .pipe(Context.add(Sqlite.SqliteClient, client))
+        .pipe(Context.add(DatabaseKey, key))
+        .pipe(Context.add(EngineSqliteClientTag, client))
         .pipe(Context.add(SqlClient.SqlClient, client));
     }),
   );
