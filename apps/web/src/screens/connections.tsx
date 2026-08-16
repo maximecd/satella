@@ -1,16 +1,4 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  Collapsible,
-  Flex,
-  Heading,
-  Input,
-  Link,
-  Stack,
-  Text,
-} from "@chakra-ui/react";
+import { Alert, Box, Button, Flex, Heading, Input, Link, Stack, Text } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { ConnectorCapability, Connection } from "@optimus/engine/api";
 import { UpdateConnectionInput } from "@optimus/engine/api";
@@ -30,7 +18,6 @@ import { EmptyState } from "../components/ui/empty-state";
 import { Field } from "../components/ui/field";
 import { PasswordInput } from "../components/ui/password-input";
 import { notify } from "../components/ui/toaster";
-import { Markdown } from "../markdown";
 import {
   useConnection,
   useConnections,
@@ -41,6 +28,7 @@ import {
 import { RefreshConnectionButton } from "../refresh-connection";
 import { SelectField } from "../select-field";
 import { AddAssetsButton } from "./add-assets";
+import { SetupInstructions } from "./setup-instructions";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
@@ -248,7 +236,7 @@ function LoadedEditConnection({
         Prefer read-only credentials with no trading or withdrawal capability whenever the Connector
         allows it.
       </Text>
-      <ConnectorInstructions connector={connector} />
+      <SetupInstructions source={connector.instructions} />
       <FormError message={error} />
       <FormFrame onSubmit={(event) => void submit(event)}>
         <Field label="Name">
@@ -315,24 +303,5 @@ function LoadedEditConnection({
         }}
       />
     </>
-  );
-}
-
-function ConnectorInstructions({ connector }: { readonly connector: ConnectorCapability }) {
-  if (connector.instructions === undefined) return null;
-  const instructions = connector.instructions.replace(/^#\s+.*$/m, "").trim();
-  return (
-    <Card.Root>
-      <Card.Body>
-        <Collapsible.Root>
-          <Collapsible.Trigger asChild>
-            <Button variant="ghost">Setup instructions</Button>
-          </Collapsible.Trigger>
-          <Collapsible.Content>
-            <Markdown headingLevelStart={3}>{instructions}</Markdown>
-          </Collapsible.Content>
-        </Collapsible.Root>
-      </Card.Body>
-    </Card.Root>
   );
 }

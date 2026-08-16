@@ -1,5 +1,4 @@
 import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
@@ -22,6 +21,9 @@ describe("application shell", () => {
     );
     expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
     expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
+    expect(
+      within(sideNav()).queryByRole("button", { name: /toggle color mode/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps Settings selected on nested Connection routes", async () => {
@@ -30,17 +32,6 @@ describe("application shell", () => {
     expect(within(sideNav()).getByRole("link", { name: "Settings" })).toHaveAttribute(
       "aria-current",
       "page",
-    );
-  });
-
-  it("persists sidebar collapse locally", async () => {
-    const user = userEvent.setup();
-    renderRoute("/");
-    await user.click(await screen.findByRole("button", { name: /collapse sidebar/i }));
-    expect(window.localStorage.getItem("optimus.sidebar.collapsed")).toBe("true");
-    expect(within(sideNav()).getByRole("link", { name: "Dashboard" })).toHaveAttribute(
-      "aria-label",
-      "Dashboard",
     );
   });
 

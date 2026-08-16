@@ -2,6 +2,9 @@ import { Box, Card, Stack } from "@chakra-ui/react";
 import { useState } from "react";
 
 import { FormError, NavRow, PageHeader, PageState } from "../components";
+import { useThemePreference } from "../components/ui/color-mode";
+import { Field } from "../components/ui/field";
+import { SegmentedControl } from "../components/ui/segmented-control";
 import { notify } from "../components/ui/toaster";
 import { useSaveReportingCurrency, useSettings } from "../portfolio";
 import { SelectField } from "../select-field";
@@ -48,6 +51,11 @@ export function SettingsScreen() {
             />
           </Card.Body>
         </Card.Root>
+        <Card.Root>
+          <Card.Body>
+            <ThemeField />
+          </Card.Body>
+        </Card.Root>
         <Box as="ul" m="0" p="0">
           <NavRow
             href="/settings/connections"
@@ -62,5 +70,28 @@ export function SettingsScreen() {
         </Box>
       </Stack>
     </>
+  );
+}
+
+function ThemeField() {
+  const { theme, setTheme } = useThemePreference();
+  return (
+    <Field label="Theme" helperText="System follows this device and is the default.">
+      <SegmentedControl
+        aria-label="Theme"
+        width="full"
+        value={theme}
+        onValueChange={(details) => {
+          if (details.value === "system" || details.value === "light" || details.value === "dark") {
+            setTheme(details.value);
+          }
+        }}
+        items={[
+          { value: "system", label: "System" },
+          { value: "light", label: "Light" },
+          { value: "dark", label: "Dark" },
+        ]}
+      />
+    </Field>
   );
 }

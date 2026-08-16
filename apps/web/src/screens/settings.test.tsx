@@ -13,12 +13,17 @@ import {
 describe("settings screen", () => {
   beforeEach(() => {
     resetFinanceMocks();
+    window.localStorage.clear();
   });
 
   it("shows Reporting currency and a Connections row without diagnostic sections", async () => {
     renderRoute("/settings");
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(screen.getByLabelText("Reporting currency")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "System" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Light" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Dark" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /toggle color mode/i })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Connections/ })).toHaveAttribute(
       "href",
       "/settings/connections",
@@ -65,5 +70,17 @@ describe("settings screen", () => {
     );
     await user.click(screen.getByRole("link", { name: "Dashboard" }));
     expect(await screen.findByText(/1[.,]000[.,]00 EUR/)).toBeInTheDocument();
+  });
+
+  it("defaults Theme to System and can switch to Light or Dark", async () => {
+    const user = userEvent.setup();
+    renderRoute("/settings");
+    expect(await screen.findByRole("radio", { name: "System" })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "Dark" }));
+    expect(screen.getByRole("radio", { name: "Dark" })).toBeChecked();
+    expect(document.documentElement).toHaveClass("dark");
+    await user.click(screen.getByRole("radio", { name: "Light" }));
+    expect(screen.getByRole("radio", { name: "Light" })).toBeChecked();
+    expect(document.documentElement).toHaveClass("light");
   });
 });

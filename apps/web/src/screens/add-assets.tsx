@@ -1,8 +1,6 @@
 import {
   Box,
   Button,
-  Card,
-  Collapsible,
   Heading,
   IconButton,
   Image,
@@ -41,7 +39,6 @@ import { Field } from "../components/ui/field";
 import { InputGroup } from "../components/ui/input-group";
 import { PasswordInput } from "../components/ui/password-input";
 import { notify } from "../components/ui/toaster";
-import { Markdown } from "../markdown";
 import {
   useAddCashAccount,
   useAddManualHolding,
@@ -55,6 +52,7 @@ import {
   useManualHoldingLookup,
 } from "../portfolio";
 import { SelectField } from "../select-field";
+import { SetupInstructions } from "./setup-instructions";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
@@ -536,27 +534,13 @@ function ConnectorImportForm({
       setError(errorMessage(cause));
     }
   };
-  const instructions = connector.instructions?.replace(/^#\s+.*$/m, "").trim();
   return (
     <Stack gap="4">
       <Text as="p" color="fg.muted">
         Prefer read-only credentials with no trading or withdrawal capability whenever the Connector
         allows it.
       </Text>
-      {instructions !== undefined && instructions.length > 0 && (
-        <Card.Root>
-          <Card.Body>
-            <Collapsible.Root>
-              <Collapsible.Trigger asChild>
-                <Button variant="ghost">Setup instructions</Button>
-              </Collapsible.Trigger>
-              <Collapsible.Content>
-                <Markdown headingLevelStart={3}>{instructions}</Markdown>
-              </Collapsible.Content>
-            </Collapsible.Root>
-          </Card.Body>
-        </Card.Root>
-      )}
+      <SetupInstructions source={connector.instructions} />
       <FormError message={error} />
       <FormFrame onSubmit={(event) => void submit(event)}>
         <Field label="Name" invalid={fieldErrors.name !== undefined} errorText={fieldErrors.name}>
