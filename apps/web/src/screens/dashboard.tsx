@@ -1,16 +1,10 @@
-import { Banner } from "@astryxdesign/core/Banner";
-import { Card } from "@astryxdesign/core/Card";
-import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { Grid, GridSpan } from "@astryxdesign/core/Grid";
-import { Heading } from "@astryxdesign/core/Heading";
-import { List, ListItem } from "@astryxdesign/core/List";
-import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
-import { Stack } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
+import { Alert, Box, Card, Flex, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import type { DashboardAccountRow } from "@optimus/engine/api";
 import { useState } from "react";
 
-import { PageHeader, PageState } from "../components";
+import { NavRow, PageHeader, PageState } from "../components";
+import { EmptyState } from "../components/ui/empty-state";
+import { SegmentedControl } from "../components/ui/segmented-control";
 import { useDashboard } from "../portfolio";
 import {
   observationsInRange,
@@ -62,8 +56,9 @@ export function DashboardScreen() {
         <EmptyState
           title="No assets yet"
           description="Connect a provider or track assets manually. Optimus will show Portfolio value, allocation, and accounts here."
-          actions={<AddAssetsButton />}
-        />
+        >
+          <AddAssetsButton />
+        </EmptyState>
       </>
     );
   }
@@ -78,89 +73,96 @@ export function DashboardScreen() {
   return (
     <>
       <PageHeader title="Dashboard" action={<AddAssetsButton />} />
-      <Grid columns={{ minWidth: 360, max: 3 }} gap={4}>
-        <GridSpan columns={2}>
-          <Card padding={4}>
-            <Stack gap={4}>
-              <Stack gap={1}>
-                <Heading level={2}>Portfolio value</Heading>
-                <Text hasTabularNumbers>
+      <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap="4">
+        <Card.Root>
+          <Card.Body>
+            <Stack gap="4">
+              <Stack gap="1">
+                <Heading as="h2" size="md">
+                  Portfolio value
+                </Heading>
+                <Text fontSize="2xl" fontWeight="semibold" fontVariantNumeric="tabular-nums">
                   {valuedAmount.format(dashboard.portfolioValue)} {iso}
                 </Text>
-                <Text type="supporting">{changeLabel(change, iso)}</Text>
+                <Text color="fg.muted">{changeLabel(change, iso)}</Text>
               </Stack>
-              <Stack align="start">
+              <Box alignSelf="flex-start">
                 <SegmentedControl
-                  label="Portfolio value range"
-                  value={range}
-                  onChange={(value) => setRange(value as PortfolioValueRange)}
+                  aria-label="Portfolio value range"
                   size="sm"
-                  layout="hug"
-                >
-                  {PORTFOLIO_VALUE_RANGES.map((value) => (
-                    <SegmentedControlItem key={value} value={value} label={value} />
-                  ))}
-                </SegmentedControl>
-              </Stack>
+                  value={range}
+                  onValueChange={(details) => setRange(details.value as PortfolioValueRange)}
+                  items={[...PORTFOLIO_VALUE_RANGES]}
+                />
+              </Box>
               {history.length >= 2 ? (
                 <PortfolioValueChart points={history} currencyIso={iso} />
               ) : null}
               {dashboard.totalIncomplete ? (
-                <Banner status="warning" title="Incomplete valuation" />
+                <Alert.Root status="warning">
+                  <Alert.Indicator />
+                  <Alert.Title>Incomplete valuation</Alert.Title>
+                </Alert.Root>
               ) : null}
             </Stack>
-          </Card>
-        </GridSpan>
-        <GridSpan columns={1}>
-          <Card padding={4}>
-            <Stack gap={4}>
-              <Heading level={2}>Allocation</Heading>
-              <Stack align="start">
+          </Card.Body>
+        </Card.Root>
+        <Card.Root>
+          <Card.Body>
+            <Stack gap="4">
+              <Heading as="h2" size="md">
+                Allocation
+              </Heading>
+              <Box alignSelf="flex-start">
                 <SegmentedControl
-                  label="Allocation"
-                  value={allocationView}
-                  onChange={(value) => setAllocationView(value as "assets" | "categories")}
+                  aria-label="Allocation"
                   size="sm"
-                  layout="hug"
-                >
-                  <SegmentedControlItem value="assets" label="Assets" />
-                  <SegmentedControlItem value="categories" label="Categories" />
-                </SegmentedControl>
-              </Stack>
+                  value={allocationView}
+                  onValueChange={(details) =>
+                    setAllocationView(details.value as "assets" | "categories")
+                  }
+                  items={[
+                    { value: "assets", label: "Assets" },
+                    { value: "categories", label: "Categories" },
+                  ]}
+                />
+              </Box>
               {allocation.length > 0 ? (
                 <AllocationTreemap cells={allocation} currencyIso={iso} />
               ) : (
-                <Text type="supporting">No priced allocation to show.</Text>
+                <Text color="fg.muted">No priced allocation to show.</Text>
               )}
-              {unpriced ? <Text type="supporting">{unpriced}</Text> : null}
+              {unpriced ? <Text color="fg.muted">{unpriced}</Text> : null}
               {dashboard.negativeHoldingCount > 0 ? (
-                <Text type="supporting">Negative holdings are excluded from allocation.</Text>
+                <Text color="fg.muted">Negative holdings are excluded from allocation.</Text>
               ) : null}
             </Stack>
-          </Card>
-        </GridSpan>
-        <GridSpan columns="full">
-          <Card padding={4}>
-            <Stack gap={4}>
-              <Heading level={2}>Accounts</Heading>
-              <List density="balanced" hasDividers>
+          </Card.Body>
+        </Card.Root>
+        <Card.Root gridColumn={{ base: "auto", lg: "1 / -1" }}>
+          <Card.Body>
+            <Stack gap="4">
+              <Heading as="h2" size="md">
+                Accounts
+              </Heading>
+              <Box as="ul" m="0" p="0">
                 {dashboard.accounts.map((row) => (
-                  <ListItem
+                  <NavRow
                     key={row.accountId}
                     href={`/accounts/${row.accountId}`}
                     label={row.accountName}
                     description={rowDescription(row)}
                     endContent={
-                      <Text hasTabularNumbers>
+                      <Text fontVariantNumeric="tabular-nums">
                         {valuedAmount.format(row.total)} {iso}
                       </Text>
                     }
                   />
                 ))}
-              </List>
+              </Box>
             </Stack>
-          </Card>
-        </GridSpan>
+          </Card.Body>
+        </Card.Root>
       </Grid>
     </>
   );

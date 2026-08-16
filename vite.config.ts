@@ -38,7 +38,6 @@ export default defineConfig({
       ".plans/**",
       "AGENTS.md",
       "apps/web/src/routeTree.gen.ts",
-      "apps/web/src/themes/stone/**",
       "packages/connector-ibkr/src/instructions.md",
       "dist",
       "coverage",

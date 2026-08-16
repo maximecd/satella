@@ -1,4 +1,4 @@
-import { Text } from "@astryxdesign/core/Text";
+import { Text } from "@chakra-ui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -64,7 +64,7 @@ export function VaultGate({ children }: { readonly children: ReactNode }) {
 
   if (statusQuery.isPending) {
     return (
-      <Text type="supporting" as="p" role="status">
+      <Text color="fg.muted" as="p" role="status">
         Loading…
       </Text>
     );

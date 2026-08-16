@@ -1,7 +1,8 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { engineApi } from "../api";
 import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
 
 const sideNav = () => screen.getByRole("navigation", { name: "Side navigation" });
@@ -22,6 +23,24 @@ describe("application shell", () => {
     );
     expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
     expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
+    expect(
+      within(sideNav()).queryByRole("button", { name: /toggle color mode/i }),
+    ).not.toBeInTheDocument();
+    expect(within(sideNav()).getByRole("button", { name: "Lock" })).toBeInTheDocument();
+  });
+
+  it("locks the interface from the sidebar", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(engineApi, "lockScreen").mockResolvedValue({
+      state: "open",
+      screenLock: true,
+      pinAttemptsRemaining: 3,
+      pinEntryDisabled: false,
+      screenLockTimeoutMinutes: 15,
+    });
+    renderRoute("/");
+    await user.click(await screen.findByRole("button", { name: "Lock" }));
+    expect(await screen.findByRole("heading", { name: "Optimus is locked" })).toBeInTheDocument();
   });
 
   it("keeps Settings selected on nested Connection routes", async () => {
@@ -30,17 +49,6 @@ describe("application shell", () => {
     expect(within(sideNav()).getByRole("link", { name: "Settings" })).toHaveAttribute(
       "aria-current",
       "page",
-    );
-  });
-
-  it("persists sidebar collapse locally", async () => {
-    const user = userEvent.setup();
-    renderRoute("/");
-    await user.click(await screen.findByRole("button", { name: /collapse sidebar/i }));
-    expect(window.localStorage.getItem("optimus.sidebar.collapsed")).toBe("true");
-    expect(within(sideNav()).getByRole("link", { name: "Dashboard" })).toHaveAttribute(
-      "aria-label",
-      "Dashboard",
     );
   });
 

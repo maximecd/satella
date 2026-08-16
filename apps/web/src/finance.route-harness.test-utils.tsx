@@ -1,5 +1,3 @@
-import { LayerProvider } from "@astryxdesign/core/Layer";
-import { Theme } from "@astryxdesign/core/theme";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
@@ -7,6 +5,7 @@ import type { Account, Connection, Dashboard, PositionEdit, Settings } from "@op
 import { vi } from "vite-plus/test";
 
 import { engineApi } from "./api";
+import { Provider } from "./components/ui/provider";
 
 import {
   createMemoryPortfolioEngine,
@@ -16,7 +15,6 @@ import {
 } from "./portfolio";
 import { PortfolioFailure } from "./portfolio/failure";
 import { routeTree } from "./routeTree.gen";
-import { stoneTheme } from "./themes/stone/stoneTheme";
 
 export const account: Account = {
   id: "account-1",
@@ -286,15 +284,13 @@ export const renderRoute = (path: string) => {
     context: { queryClient },
   });
   return render(
-    <Theme theme={stoneTheme}>
-      <LayerProvider>
-        <QueryClientProvider client={queryClient}>
-          <PortfolioEngineProvider engine={engine}>
-            <RouterProvider router={router} />
-          </PortfolioEngineProvider>
-        </QueryClientProvider>
-      </LayerProvider>
-    </Theme>,
+    <Provider>
+      <QueryClientProvider client={queryClient}>
+        <PortfolioEngineProvider engine={engine}>
+          <RouterProvider router={router} />
+        </PortfolioEngineProvider>
+      </QueryClientProvider>
+    </Provider>,
   );
 };
 

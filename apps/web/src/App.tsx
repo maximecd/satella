@@ -1,29 +1,28 @@
-import { Button } from "@astryxdesign/core/Button";
-import { Heading } from "@astryxdesign/core/Heading";
-import { Stack } from "@astryxdesign/core/Stack";
-import { useToast } from "@astryxdesign/core/Toast";
+import { Button, Center, Heading, Stack } from "@chakra-ui/react";
+
+import { notify } from "./components/ui/toaster";
 
 export function App() {
-  const toast = useToast();
-
   const handleGetStarted = async () => {
     try {
       const { getHello } = await import("./api");
       const response = await getHello();
-      toast({ body: response.message });
+      notify.success(response.message);
     } catch {
-      toast({
-        body: "The engine could not be reached.",
-        isAutoHide: false,
-        type: "error",
-      });
+      notify.error("The engine could not be reached.", true);
     }
   };
 
   return (
-    <Stack align="center" justify="center" gap={4} height="100vh">
-      <Heading level={1}>Hello world</Heading>
-      <Button clickAction={handleGetStarted} label="Get started" variant="primary" />
-    </Stack>
+    <Center h="100vh">
+      <Stack align="center" gap="4">
+        <Heading as="h1" size="2xl">
+          Hello world
+        </Heading>
+        <Button colorPalette="blue" onClick={() => void handleGetStarted()}>
+          Get started
+        </Button>
+      </Stack>
+    </Center>
   );
 }

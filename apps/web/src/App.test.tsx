@@ -1,12 +1,10 @@
-import { LayerProvider } from "@astryxdesign/core/Layer";
-import { Theme } from "@astryxdesign/core/theme";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { getHello } from "./api";
 import { App } from "./App";
-import { stoneTheme } from "./themes/stone/stoneTheme";
+import { Provider } from "./components/ui/provider";
 
 vi.mock("./api", () => ({
   getHello: vi.fn(),
@@ -14,11 +12,9 @@ vi.mock("./api", () => ({
 
 function renderApp() {
   return render(
-    <Theme theme={stoneTheme}>
-      <LayerProvider>
-        <App />
-      </LayerProvider>
-    </Theme>,
+    <Provider>
+      <App />
+    </Provider>,
   );
 }
 

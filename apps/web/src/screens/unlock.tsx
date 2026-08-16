@@ -1,7 +1,4 @@
-import { Button } from "@astryxdesign/core/Button";
-import { Heading } from "@astryxdesign/core/Heading";
-import { Stack } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
+import { Button, Heading, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
@@ -26,8 +23,10 @@ export function UnlockScreen() {
     onError: (cause) => setError(errorMessage(cause)),
   });
   return (
-    <Stack gap={6} padding={8} maxWidth={640}>
-      <Heading level={1}>Unlock your Vault</Heading>
+    <Stack gap="6" p={{ base: 6, md: 8 }} maxW="xl" mx="auto">
+      <Heading as="h1" size="xl">
+        Unlock your Vault
+      </Heading>
       <Text as="p">
         Enter your Vault password. Optimus cannot recover it. An incorrect password is
         indistinguishable from damaged Vault data.
@@ -39,7 +38,7 @@ export function UnlockScreen() {
           unlock.mutate(password);
         }}
       >
-        <Stack gap={4}>
+        <Stack gap="4">
           <FormError message={error} />
           <SecretField
             label="Vault password"
@@ -48,7 +47,14 @@ export function UnlockScreen() {
             htmlName="vault-password"
             autoComplete="current-password"
           />
-          <Button label="Unlock Vault" type="submit" isDisabled={unlock.isPending} />
+          <Button
+            type="submit"
+            colorPalette="blue"
+            disabled={unlock.isPending}
+            loading={unlock.isPending}
+          >
+            Unlock Vault
+          </Button>
         </Stack>
       </form>
       <ResetOptimusControl />

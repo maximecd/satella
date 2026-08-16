@@ -1,17 +1,4 @@
-import { Banner } from "@astryxdesign/core/Banner";
-import { Button } from "@astryxdesign/core/Button";
-import { Card } from "@astryxdesign/core/Card";
-import { Collapsible } from "@astryxdesign/core/Collapsible";
-import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { Heading } from "@astryxdesign/core/Heading";
-import { Link as AstryxLink } from "@astryxdesign/core/Link";
-import { List, ListItem } from "@astryxdesign/core/List";
-import { Markdown } from "@astryxdesign/core/Markdown";
-import { Selector } from "@astryxdesign/core/Selector";
-import { Stack } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
-import { TextInput } from "@astryxdesign/core/TextInput";
-import { useToast } from "@astryxdesign/core/Toast";
+import { Alert, Box, Button, Flex, Heading, Input, Link, Stack, Text } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { ConnectorCapability, Connection } from "@optimus/engine/api";
 import { UpdateConnectionInput } from "@optimus/engine/api";
@@ -22,10 +9,15 @@ import {
   DeleteButton,
   FormError,
   FormFrame,
+  NavRow,
   PageBreadcrumbs,
   PageHeader,
   PageState,
 } from "../components";
+import { EmptyState } from "../components/ui/empty-state";
+import { Field } from "../components/ui/field";
+import { PasswordInput } from "../components/ui/password-input";
+import { notify } from "../components/ui/toaster";
 import {
   useConnection,
   useConnections,
@@ -34,7 +26,9 @@ import {
   useUpdateConnection,
 } from "../portfolio";
 import { RefreshConnectionButton } from "../refresh-connection";
+import { SelectField } from "../select-field";
 import { AddAssetsButton } from "./add-assets";
+import { SetupInstructions } from "./setup-instructions";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
@@ -53,37 +47,45 @@ export function ConnectionsListScreen() {
       />
       <PageHeader title="Connections" />
       {refreshError !== null && (
-        <Banner status="error" title="Refresh failed" description={refreshError} />
+        <Alert.Root status="error">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Refresh failed</Alert.Title>
+            <Alert.Description>{refreshError}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
       )}
       {query.data.length === 0 ? (
         <EmptyState
           title="No connections"
           description="Connect a service from Add assets to import accounts automatically."
-          actions={<AddAssetsButton />}
-        />
+        >
+          <AddAssetsButton />
+        </EmptyState>
       ) : (
-        <List density="balanced" hasDividers>
+        <Box as="ul" m="0" p="0">
           {query.data.map((connection) => (
-            <ListItem
+            <NavRow
               key={connection.id}
               href={`/settings/connections/${connection.id}`}
               label={connection.name}
               description={accountCount(connection.accounts.length)}
               endContent={
-                <Stack direction="horizontal" gap={2} align="center">
+                <Flex gap="2" align="center">
                   <RefreshConnectionButton connectionId={connection.id} onError={setRefreshError} />
-                  <Button
-                    as={RouterLink}
-                    href={`/settings/connections/${connection.id}/edit`}
-                    label="Edit"
-                    size="sm"
-                    variant="ghost"
-                  />
-                </Stack>
+                  <Button asChild size="sm" variant="ghost">
+                    <RouterLink
+                      to="/settings/connections/$connectionId/edit"
+                      params={{ connectionId: connection.id }}
+                    >
+                      Edit
+                    </RouterLink>
+                  </Button>
+                </Flex>
               }
             />
           ))}
-        </List>
+        </Box>
       )}
     </>
   );
@@ -107,37 +109,56 @@ export function ConnectionDetailScreen({ id }: { readonly id: string }) {
       <PageHeader
         title={connection.name}
         action={
-          <Stack direction="horizontal" gap={2} align="center">
+          <Flex gap="2" align="center">
             <RefreshConnectionButton connectionId={id} onError={setRefreshError} />
-            <Button as={RouterLink} href={`/settings/connections/${id}/edit`} label="Edit" />
-          </Stack>
+            <Button asChild>
+              <RouterLink
+                to="/settings/connections/$connectionId/edit"
+                params={{ connectionId: id }}
+              >
+                Edit
+              </RouterLink>
+            </Button>
+          </Flex>
         }
       />
       {refreshError !== null && (
-        <Banner status="error" title="Refresh failed" description={refreshError} />
+        <Alert.Root status="error">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Refresh failed</Alert.Title>
+            <Alert.Description>{refreshError}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
       )}
-      <Heading level={2}>Accounts</Heading>
+      <Heading as="h2" size="md">
+        Accounts
+      </Heading>
       {connection.accounts.length === 0 ? (
         <EmptyState title="No accounts" description="Imported accounts will appear here." />
       ) : (
-        <List density="balanced" hasDividers>
+        <Box as="ul" m="0" p="0">
           {connection.accounts.map((account) => (
-            <ListItem
+            <Box
+              as="li"
               key={account.id}
-              label={
-                <AstryxLink
-                  as={RouterLink}
-                  href={`/accounts/${account.id}`}
-                  isStandalone
-                  weight="semibold"
-                >
-                  {account.name}
-                </AstryxLink>
-              }
-              description={`${account.positionCount} holding${account.positionCount === 1 ? "" : "s"}`}
-            />
+              listStyle="none"
+              borderBottomWidth="1px"
+              borderColor="border"
+            >
+              <Stack gap="0.5" py="3" px="1">
+                <Link asChild fontWeight="semibold">
+                  <RouterLink to="/accounts/$accountId" params={{ accountId: account.id }}>
+                    {account.name}
+                  </RouterLink>
+                </Link>
+                <Text color="fg.muted" fontSize="sm">
+                  {`${account.positionCount} holding${account.positionCount === 1 ? "" : "s"}`}
+                </Text>
+              </Stack>
+            </Box>
           ))}
-        </List>
+        </Box>
       )}
     </>
   );
@@ -167,7 +188,6 @@ function LoadedEditConnection({
   readonly connector: ConnectorCapability;
 }) {
   const navigate = useNavigate();
-  const toast = useToast();
   const [name, setName] = useState(connection.name);
   const [credentials, setCredentials] = useState<Record<string, string>>(() =>
     Object.fromEntries(connector.credentialFields.map((field) => [field.key, ""])),
@@ -188,7 +208,7 @@ function LoadedEditConnection({
     });
     try {
       await update.mutateAsync(payload);
-      toast({ body: "Connection updated." });
+      notify.success("Connection updated.");
       await navigate({
         to: "/settings/connections/$connectionId",
         params: { connectionId: connection.id },
@@ -212,24 +232,19 @@ function LoadedEditConnection({
         title={`Edit ${connection.name}`}
         action={<RefreshConnectionButton connectionId={connection.id} />}
       />
-      <Text as="p" type="supporting">
-        Prefer read-only credentials with no trading or withdrawal capability whenever the
-        Connector allows it.
+      <Text as="p" color="fg.muted">
+        Prefer read-only credentials with no trading or withdrawal capability whenever the Connector
+        allows it.
       </Text>
-      <ConnectorInstructions connector={connector} />
+      <SetupInstructions source={connector.instructions} />
       <FormError message={error} />
       <FormFrame onSubmit={(event) => void submit(event)}>
-        <TextInput
-          label="Name"
-          value={name}
-          onChange={setName}
-          htmlName="name"
-          width="100%"
-          isRequired
-        />
+        <Field label="Name">
+          <Input name="name" value={name} onChange={(event) => setName(event.target.value)} />
+        </Field>
         {connector.credentialFields.map((field) =>
           field.kind === "select" ? (
-            <Selector
+            <SelectField
               key={field.key}
               label={field.label}
               options={[{ value: "", label: "Keep current value" }, ...(field.options ?? [])]}
@@ -237,32 +252,43 @@ function LoadedEditConnection({
               onChange={(value) =>
                 setCredentials((current) => ({ ...current, [field.key]: value }))
               }
-              htmlName={field.key}
-              description="Choose a value only if you want to change it."
-              width="100%"
+              name={field.key}
+              helperText="Choose a value only if you want to change it."
             />
           ) : (
-            <TextInput
+            <Field
               key={field.key}
               label={field.label}
-              type={field.kind === "password" ? "password" : "text"}
-              value={credentials[field.key] ?? ""}
-              onChange={(value) =>
-                setCredentials((current) => ({ ...current, [field.key]: value }))
-              }
-              htmlName={field.key}
-              description="Leave blank to keep the current value."
-              width="100%"
-            />
+              helperText="Leave blank to keep the current value."
+            >
+              {field.kind === "password" ? (
+                <PasswordInput
+                  name={field.key}
+                  value={credentials[field.key] ?? ""}
+                  onChange={(event) =>
+                    setCredentials((current) => ({ ...current, [field.key]: event.target.value }))
+                  }
+                />
+              ) : (
+                <Input
+                  name={field.key}
+                  value={credentials[field.key] ?? ""}
+                  onChange={(event) =>
+                    setCredentials((current) => ({ ...current, [field.key]: event.target.value }))
+                  }
+                />
+              )}
+            </Field>
           ),
         )}
         <Button
-          label="Save changes"
           type="submit"
-          variant="primary"
-          isDisabled={update.isPending}
-          isLoading={update.isPending}
-        />
+          colorPalette="blue"
+          disabled={update.isPending}
+          loading={update.isPending}
+        >
+          Save changes
+        </Button>
       </FormFrame>
       <DeleteButton
         entity="connection"
@@ -277,19 +303,5 @@ function LoadedEditConnection({
         }}
       />
     </>
-  );
-}
-
-function ConnectorInstructions({ connector }: { readonly connector: ConnectorCapability }) {
-  if (connector.instructions === undefined) return null;
-  const instructions = connector.instructions.replace(/^#\s+.*$/m, "").trim();
-  return (
-    <Card padding={3}>
-      <Collapsible trigger="Setup instructions" defaultIsOpen={false}>
-        <Markdown headingLevelStart={3} contentWidth="100%" autolink="gfm">
-          {instructions}
-        </Markdown>
-      </Collapsible>
-    </Card>
   );
 }

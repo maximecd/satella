@@ -1,9 +1,8 @@
-import { Icon } from "@astryxdesign/core/Icon";
-import { IconButton } from "@astryxdesign/core/IconButton";
-import { useToast } from "@astryxdesign/core/Toast";
+import { Icon, IconButton } from "@chakra-ui/react";
 import { RefreshCw } from "lucide-react";
 import type { MouseEvent } from "react";
 
+import { notify } from "./components/ui/toaster";
 import { useRefreshConnection } from "./portfolio";
 
 const errorMessage = (error: unknown) =>
@@ -16,7 +15,6 @@ export function RefreshConnectionButton({
   readonly connectionId: string;
   readonly onError?: (message: string | null) => void;
 }) {
-  const toast = useToast();
   const refresh = useRefreshConnection();
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -25,33 +23,34 @@ export function RefreshConnectionButton({
       onSuccess: (result) => {
         onError?.(null);
         if (result.failures.length > 0) {
-          toast({
-            body: `Refresh completed with ${result.failures.length} price issue${
+          notify.error(
+            `Refresh completed with ${result.failures.length} price issue${
               result.failures.length === 1 ? "" : "s"
             }.`,
-            type: "error",
-          });
+          );
           return;
         }
-        toast({ body: "Connection refreshed." });
+        notify.success("Connection refreshed.");
       },
       onError: (cause) => {
         const message = errorMessage(cause);
         onError?.(message);
         if (onError === undefined) {
-          toast({ body: message, isAutoHide: false, type: "error" });
+          notify.error(message, true);
         }
       },
     });
   };
   return (
     <IconButton
-      label="Refresh"
-      tooltip="Refresh"
+      aria-label="Refresh"
       variant="ghost"
-      icon={<Icon icon={RefreshCw} />}
-      isLoading={refresh.isPending}
+      loading={refresh.isPending}
       onClick={handleClick}
-    />
+    >
+      <Icon asChild>
+        <RefreshCw />
+      </Icon>
+    </IconButton>
   );
 }
