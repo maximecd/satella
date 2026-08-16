@@ -3,6 +3,7 @@ import { createRootRouteWithContext } from "@tanstack/react-router";
 
 import { RootLayout } from "../components";
 import { AddAssetsProvider } from "../screens/add-assets";
+import { VaultGate } from "../screens/vault-gate";
 
 export interface RouterContext {
   readonly queryClient: QueryClient;
@@ -11,7 +12,9 @@ export interface RouterContext {
 function Root() {
   return (
     <AddAssetsProvider>
-      <RootLayout />
+      <VaultGate>
+        <RootLayout />
+      </VaultGate>
     </AddAssetsProvider>
   );
 }

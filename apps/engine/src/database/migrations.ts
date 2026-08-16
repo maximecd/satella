@@ -1,7 +1,6 @@
 import { Migrator } from "effect/unstable/sql";
 import { SqlClient } from "effect/unstable/sql";
 import { SqlSchema } from "effect/unstable/sql";
-import * as Sqlite from "@effect/sql-sqlite-node/SqliteClient";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -10,6 +9,7 @@ import { chmod, readdir, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { DatabaseConfig } from "./config.js";
+import { EngineSqliteClientTag, type EngineSqliteClient } from "./encrypted-client.js";
 import {
   DatabaseBackupError,
   DatabaseHistoryError,
@@ -22,6 +22,7 @@ import { addAccountSourceDate } from "./migrations/0003_account_source_date.js";
 import { addAccountKindAndSystemRoles } from "./migrations/0004_account_kind_and_system_roles.js";
 import { unifyPortfolioDomainModel } from "./migrations/0005_unify_portfolio_domain_model.js";
 import { addReportingCurrency } from "./migrations/0006_reporting_currency.js";
+import { addVaultSecurity } from "./migrations/0007_vault_security.js";
 
 export const MIGRATIONS_TABLE = "effect_sql_migrations";
 export const PRE_MIGRATION_BACKUP_RETENTION = 5;
@@ -37,6 +38,7 @@ export const ProductionMigrations: MigrationRegistry = {
   "0004_account_kind_and_system_roles": addAccountKindAndSystemRoles,
   "0005_unify_portfolio_domain_model": unifyPortfolioDomainModel,
   "0006_reporting_currency": addReportingCurrency,
+  "0007_vault_security": addVaultSecurity,
 };
 
 export interface MigrationRunOptions {
@@ -254,7 +256,7 @@ const backupTimestamp = (date: Date) =>
 
 const createBackup = (
   config: typeof DatabaseConfig.Service,
-  sqlite: Sqlite.SqliteClient,
+  sqlite: EngineSqliteClient,
   sql: SqlClient.SqlClient,
   from: number,
   to: number,
@@ -268,6 +270,24 @@ const createBackup = (
   return Effect.gen(function* () {
     yield* quickCheck(sql);
     yield* sqlite.backup(path);
+    const envelopeBackupPath = `${path}.envelope.json`;
+    yield* Effect.tryPromise({
+      try: async () => {
+        const { copyFile } = await import("node:fs/promises");
+        await copyFile(config.envelopePath, envelopeBackupPath);
+      },
+      catch: (cause) =>
+        new DatabaseBackupError({
+          path: envelopeBackupPath,
+          cause,
+          message: `Could not copy the Vault envelope with the pre-migration backup: ${envelopeBackupPath}`,
+        }),
+    }).pipe(
+      Effect.catchIf(
+        () => true,
+        () => Effect.void,
+      ),
+    );
     const info = yield* Effect.tryPromise({
       try: () => stat(path),
       catch: (cause) =>
@@ -336,7 +356,7 @@ const pendingMigrations = (
 export const runMigrations = (options: MigrationRunOptions) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
-    const sqlite = yield* Sqlite.SqliteClient;
+    const sqlite = yield* EngineSqliteClientTag;
     const config = yield* DatabaseConfig;
     const expected = yield* parseRegistry(options.registry);
     const hasLedger = yield* tableExists(sql);

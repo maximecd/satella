@@ -1,12 +1,11 @@
 import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { DatabaseConfigFromDirectory, makeDatabaseLive } from "../database/index.js";
+import { encryptedDatabaseLayer } from "../database/database.test-utils.js";
 import type { MarketDataProvider, MarketDataRegistry, ProviderLookup } from "./market-data.js";
 import { refreshPrices } from "./market-data.js";
 import * as Finance from "./finance.test-utils.js";
@@ -18,9 +17,7 @@ const run = async <A>(program: Effect.Effect<A, unknown, SqlClient.SqlClient>) =
   return Effect.runPromise(
     Effect.scoped(
       program.pipe(
-        Effect.provide(
-          makeDatabaseLive().pipe(Layer.provide(DatabaseConfigFromDirectory(directory))),
-        ),
+        Effect.provide(encryptedDatabaseLayer(directory)),
       ),
     ),
   );

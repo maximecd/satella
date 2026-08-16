@@ -1,5 +1,4 @@
 import * as Effect from "effect/Effect";
-import { DatabaseSync } from "node:sqlite";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -8,7 +7,24 @@ import { it } from "@effect/vitest";
 import { SqlClient } from "effect/unstable/sql";
 import type { MigrationRegistry } from "./index.js";
 import { TempDirectoryError } from "./DatabaseTestLayer.js";
-import { acquireTestDirectory, scopedCustomMigrations } from "./database.test-utils.js";
+import { acquireTestDirectory, dekForDirectory, scopedCustomMigrations } from "./database.test-utils.js";
+import { makeEncryptedSqliteClient } from "./encrypted-client.js";
+import { Reactivity } from "effect/unstable/reactivity";
+
+const readEncrypted = <A, E>(
+  dataDirectory: string,
+  filename: string,
+  program: Effect.Effect<A, E, SqlClient.SqlClient>,
+) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const client = yield* makeEncryptedSqliteClient({
+        filename,
+        dek: dekForDirectory(dataDirectory),
+      });
+      return yield* program.pipe(Effect.provideService(SqlClient.SqlClient, client));
+    }).pipe(Effect.provide(Reactivity.layer)),
+  );
 
 const createRecords: MigrationRegistry = {
   "0001_create_records": Effect.gen(function* () {
@@ -59,14 +75,14 @@ describe("SQLite migration startup", () => {
         }),
       );
       expect(secondRun).toEqual([{ id: 1, value: "original" }]);
-      const history = yield* Effect.sync(() => {
-        const db = new DatabaseSync(join(directory, "optimus.sqlite"));
-        try {
-          return db.prepare("SELECT migration_id, name FROM effect_sql_migrations").all();
-        } finally {
-          db.close();
-        }
-      });
+      const history = yield* scopedCustomMigrations(
+        directory,
+        createRecords,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          return yield* sql`SELECT migration_id, name FROM effect_sql_migrations`;
+        }),
+      );
       expect(history).toEqual([{ migration_id: 1, name: "create_records" }]);
       const backups = yield* Effect.tryPromise({
         try: () => readdir(join(directory, "backups")),
@@ -97,21 +113,17 @@ describe("SQLite migration startup", () => {
         });
         const sqliteBackups = backups.filter((name) => name.endsWith(".sqlite"));
         expect(sqliteBackups).toHaveLength(1);
-        const backupState = yield* Effect.sync(() => {
-          const backup = new DatabaseSync(join(directory, "backups", sqliteBackups[0]!));
-          try {
+        const backupState = yield* readEncrypted(
+          directory,
+          join(directory, "backups", sqliteBackups[0]!),
+          Effect.gen(function* () {
+            const sql = yield* SqlClient.SqlClient;
             return {
-              rows: backup.prepare("SELECT id, value FROM records").all(),
-              rebuilt: backup
-                .prepare(
-                  "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'records_new'",
-                )
-                .all(),
+              rows: yield* sql`SELECT id, value FROM records`,
+              rebuilt: yield* sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'records_new'`,
             };
-          } finally {
-            backup.close();
-          }
-        });
+          }),
+        );
         expect(backupState.rows).toEqual([{ id: 1, value: "original" }]);
         expect(backupState.rebuilt).toEqual([]);
       }),
@@ -135,17 +147,17 @@ describe("SQLite migration startup", () => {
       expect(String(error)).toContain(
         "SQLite migrations failed; the migration transaction was rolled back",
       );
-      const state = yield* Effect.sync(() => {
-        const db = new DatabaseSync(join(directory, "optimus.sqlite"));
-        try {
+      const state = yield* readEncrypted(
+        directory,
+        join(directory, "optimus.sqlite"),
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
           return {
-            rows: db.prepare("SELECT id, value FROM records").all(),
-            history: db.prepare("SELECT migration_id, name FROM effect_sql_migrations").all(),
+            rows: yield* sql`SELECT id, value FROM records`,
+            history: yield* sql`SELECT migration_id, name FROM effect_sql_migrations`,
           };
-        } finally {
-          db.close();
-        }
-      });
+        }),
+      );
       expect(state.rows).toEqual([{ id: 1, value: "original" }]);
       expect(state.history).toEqual([{ migration_id: 1, name: "create_records" }]);
     }),

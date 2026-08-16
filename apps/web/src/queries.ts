@@ -5,6 +5,7 @@ import { engineApi } from "./api";
 export const queryKeys = {
   dashboard: ["dashboard"] as const,
   settings: ["settings"] as const,
+  vault: ["vault"] as const,
   connections: {
     all: ["connections"] as const,
     detail: (id: string) => ["connections", id] as const,
@@ -25,6 +26,13 @@ export const queryKeys = {
       ["assets", "holding", accountId, identifierType, identifierValue] as const,
   },
 };
+
+export const vaultStatusQuery = queryOptions({
+  queryKey: queryKeys.vault,
+  queryFn: engineApi.vaultStatus,
+  staleTime: 5_000,
+  retry: 1,
+});
 
 export const dashboardQuery = queryOptions({
   queryKey: queryKeys.dashboard,

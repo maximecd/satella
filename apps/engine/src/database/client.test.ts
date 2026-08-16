@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import { randomBytes } from "node:crypto";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +8,7 @@ import { join } from "node:path";
 import { describe, expect } from "vite-plus/test";
 import { it } from "@effect/vitest";
 import { SqlClient } from "effect/unstable/sql";
-import { DatabaseConfigFromDirectory, makeDatabaseLive } from "./index.js";
+import { DatabaseConfigFromDirectory, DatabaseKey, makeDatabaseLive } from "./index.js";
 import { TempDirectoryError } from "./DatabaseTestLayer.js";
 
 describe("SQLite lifecycle", () => {
@@ -26,7 +27,10 @@ describe("SQLite lifecycle", () => {
           yield* sql`SELECT 1`;
         }).pipe(
           Effect.provide(
-            makeDatabaseLive().pipe(Layer.provide(DatabaseConfigFromDirectory(directory))),
+            makeDatabaseLive().pipe(
+              Layer.provide(DatabaseConfigFromDirectory(directory)),
+              Layer.provide(Layer.succeed(DatabaseKey, DatabaseKey.of({ dek: randomBytes(32) }))),
+            ),
           ),
         ),
       );

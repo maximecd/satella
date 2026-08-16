@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as SettingsSecurityRouteImport } from './routes/settings.security'
 import { Route as SettingsConnectionsIndexRouteImport } from './routes/settings.connections.index'
 import { Route as AccountsAccountIdIndexRouteImport } from './routes/accounts.$accountId.index'
 import { Route as PositionsPositionIdEditRouteImport } from './routes/positions.$positionId.edit'
@@ -33,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsSecurityRoute = SettingsSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsConnectionsIndexRoute =
@@ -77,6 +83,7 @@ const SettingsConnectionsConnectionIdEditRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/settings/security': typeof SettingsSecurityRoute
   '/settings/': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/settings/security': typeof SettingsSecurityRoute
   '/settings': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/settings/security': typeof SettingsSecurityRoute
   '/settings/': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
+    | '/settings/security'
     | '/settings/'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/settings/security'
     | '/settings'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/settings'
+    | '/settings/security'
     | '/settings/'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
@@ -178,6 +190,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/settings/'
       preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/security': {
+      id: '/settings/security'
+      path: '/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof SettingsSecurityRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/connections/': {
@@ -233,6 +252,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface SettingsRouteChildren {
+  SettingsSecurityRoute: typeof SettingsSecurityRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
   SettingsConnectionsIndexRoute: typeof SettingsConnectionsIndexRoute
   SettingsConnectionsConnectionIdEditRoute: typeof SettingsConnectionsConnectionIdEditRoute
@@ -240,6 +260,7 @@ interface SettingsRouteChildren {
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsSecurityRoute: SettingsSecurityRoute,
   SettingsIndexRoute: SettingsIndexRoute,
   SettingsConnectionsIndexRoute: SettingsConnectionsIndexRoute,
   SettingsConnectionsConnectionIdEditRoute:

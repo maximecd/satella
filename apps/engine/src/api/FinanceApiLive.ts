@@ -2,6 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { EngineApi } from "./Api.js";
+import { VaultApiLive } from "./VaultApiLive.js";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { AccountService } from "../finance/accounts/AccountService.js";
 import { AddAssetsService } from "../finance/add-assets/AddAssetsService.js";
@@ -193,5 +194,6 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
 
 export const EngineApiLive = HttpApiBuilder.layer(EngineApi).pipe(
   Layer.provide(SystemApiLive),
+  Layer.provide(VaultApiLive),
   Layer.provide(FinanceApiLive),
 );

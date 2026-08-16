@@ -26,6 +26,7 @@
     "@coingecko/coingecko-typescript": "7.1.0",
     "@effect/platform-node": "catalog:",
     "@effect/sql-sqlite-node": "catalog:",
+    "@journeyapps/sqlcipher": "6.0.0",
     "@optimus/connector-core": "workspace:*",
     "@optimus/connector-ibkr": "workspace:*",
     "@optimus/connector-okx": "workspace:*",

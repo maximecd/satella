@@ -5,6 +5,18 @@ import { HttpApiSchema } from "effect/unstable/httpapi";
 import * as Schema from "effect/Schema";
 
 export * from "../finance/contracts.js";
+export * from "../vault/contracts.js";
+import {
+  ChangeScreenLockPinInput,
+  ChangeVaultPasswordInput,
+  InitializeVaultInput,
+  ResetVaultInput,
+  ScreenLockTimeoutInput,
+  UnlockScreenInput,
+  UnlockVaultInput,
+  VaultApiError,
+  VaultStatus,
+} from "../vault/contracts.js";
 import {
   Account,
   AddAssetsResult,
@@ -276,4 +288,75 @@ export const FinanceApi = HttpApiGroup.make("finance")
     }),
   );
 
-export const EngineApi = HttpApi.make("engine").add(SystemApi).add(FinanceApi);
+export const VaultApi = HttpApiGroup.make("vault")
+  .add(HttpApiEndpoint.get("status", "/api/vault/status", { success: VaultStatus }))
+  .add(
+    HttpApiEndpoint.post("initialize", "/api/vault/initialize", {
+      payload: InitializeVaultInput,
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("unlock", "/api/vault/unlock", {
+      payload: UnlockVaultInput,
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("close", "/api/vault/close", {
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("lockScreen", "/api/vault/lock", {
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("unlockScreen", "/api/vault/unlock-screen", {
+      payload: UnlockScreenInput,
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("unlockScreenWithPassword", "/api/vault/unlock-screen-with-password", {
+      payload: UnlockVaultInput,
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("changePassword", "/api/vault/password", {
+      payload: ChangeVaultPasswordInput,
+      success: Schema.Void,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("changePin", "/api/vault/pin", {
+      payload: ChangeScreenLockPinInput,
+      success: Schema.Void,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.patch("setScreenLockTimeout", "/api/vault/screen-lock-timeout", {
+      payload: ScreenLockTimeoutInput,
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("reset", "/api/vault/reset", {
+      payload: ResetVaultInput,
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  );
+
+export const EngineApi = HttpApi.make("engine").add(SystemApi).add(VaultApi).add(FinanceApi);

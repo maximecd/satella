@@ -256,4 +256,11 @@ export const resetFinanceMocks = () => {
     failures: [],
   });
   vi.mocked(engineApi.getConnection).mockResolvedValue(syncedConnection);
+  vi.mocked(engineApi.vaultStatus).mockResolvedValue({
+    state: "open",
+    screenLock: false,
+    pinAttemptsRemaining: 3,
+    pinEntryDisabled: false,
+    screenLockTimeoutMinutes: 15,
+  });
 };

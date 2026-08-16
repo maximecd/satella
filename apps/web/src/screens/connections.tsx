@@ -9,6 +9,7 @@ import { List, ListItem } from "@astryxdesign/core/List";
 import { Markdown } from "@astryxdesign/core/Markdown";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Stack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -226,6 +227,10 @@ function LoadedEditConnection({
         title={`Edit ${connection.name}`}
         action={<RefreshConnectionButton connectionId={connection.id} />}
       />
+      <Text as="p" type="supporting">
+        Prefer read-only credentials with no trading or withdrawal capability whenever the
+        Connector allows it.
+      </Text>
       <ConnectorInstructions connector={connector} />
       <FormError message={error} />
       <FormFrame onSubmit={(event) => void submit(event)}>

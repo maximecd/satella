@@ -513,6 +513,10 @@ function ConnectorImportForm({
   const instructions = connector.instructions?.replace(/^#\s+.*$/m, "").trim();
   return (
     <Stack gap={4}>
+      <Text as="p" type="supporting">
+        Prefer read-only credentials with no trading or withdrawal capability whenever the
+        Connector allows it.
+      </Text>
       {instructions !== undefined && instructions.length > 0 && (
         <Card padding={3}>
           <Collapsible trigger="Setup instructions" defaultIsOpen={false}>

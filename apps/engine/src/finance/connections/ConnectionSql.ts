@@ -95,8 +95,7 @@ const insertConnection = (name: string, connectorId: string, credentials: unknow
 
 /**
  * Connects an external service and imports its first complete account snapshot.
- * Credentials are persisted in config_json so the connection can be refreshed.
- * This is intentionally the temporary, unencrypted storage boundary.
+ * Credentials are persisted in config_json inside the encrypted Vault.
  */
 export const connectConnection = (
   input: ConnectConnectionInput,

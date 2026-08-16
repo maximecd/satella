@@ -15,6 +15,7 @@ import {
   runDb,
   runNodeScript,
   startEngine,
+  vaultStatusForDirectory,
 } from "./development-database.test-utils.js";
 import { FIXTURE_PRICE_HISTORY, FIXTURE_QUOTE_TIME } from "./seed.js";
 
@@ -250,7 +251,7 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
     }
   });
 
-  it("resets database state, backups, and SQLite sidecars to a fresh migrated database", async () => {
+  it("resets to no Vault so the next engine start is onboarding, not unlock", async () => {
     const checkouts = await createGitCheckouts();
     try {
       expect((await runDb(["reset", "--seed"], { cwd: checkouts.main })).code).toBe(0);
@@ -265,17 +266,12 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
       expect(reset.output).toMatch(/reset complete/i);
       expectPrintedSelection(reset.output, checkouts.main);
 
-      const names = await readdir(directory);
-      const backupNames = await readdir(join(directory, "backups"));
-      expect(names).toContain("optimus.sqlite");
+      const names = await readdir(directory).catch(() => [] as string[]);
+      expect(names).not.toContain("vault.envelope.json");
+      expect(names).not.toContain("optimus.sqlite");
       expect(names).not.toContain("optimus.sqlite-wal");
       expect(names).not.toContain("optimus.sqlite-shm");
-      expect(backupNames).not.toContain("pre-migration-old.sqlite");
-
-      const accounts = await inspectDirectory(directory, Finance.listManualAccounts());
-      const usd = await inspectDirectory(directory, Finance.getAsset("fiat:USD"));
-      expect(accounts).toEqual([]);
-      expect(usd.symbol).toBe("USD");
+      expect(await vaultStatusForDirectory(directory)).toEqual({ state: "absent" });
     } finally {
       await checkouts.dispose();
     }
@@ -309,11 +305,8 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
       await writeFile(join(dataDirectory(checkouts.main), "engine.lock"), "2147483647\n");
       const recovered = await runDb(["reset"], { cwd: checkouts.main });
       expect(recovered.code).toBe(0);
-      const accounts = await inspectDirectory(
-        dataDirectory(checkouts.main),
-        Finance.listManualAccounts(),
-      );
-      expect(accounts).toEqual([]);
+      const recoveredNames = await readdir(dataDirectory(checkouts.main)).catch(() => [] as string[]);
+      expect(recoveredNames).not.toContain("vault.envelope.json");
     } finally {
       await checkouts.dispose();
     }

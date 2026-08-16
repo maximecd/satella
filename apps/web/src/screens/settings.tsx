@@ -60,6 +60,11 @@ export function SettingsScreen() {
             description="Manage linked financial services."
             href="/settings/connections"
           />
+          <ListItem
+            label="Security"
+            description="Vault password, Screen lock, and Reset Optimus."
+            href="/settings/security"
+          />
         </List>
       </Stack>
     </>

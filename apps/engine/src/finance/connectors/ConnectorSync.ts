@@ -6,7 +6,7 @@ import type { FinanceApiError } from "../contracts.js";
 import * as ConnectorService from "../connector-service.js";
 import { connectorSyncFailure } from "../connections/ConnectionSql.js";
 import { HttpClient } from "effect/unstable/http";
-import { SqlClient } from "effect/unstable/sql";
+import { makeWithVaultSql } from "../with-vault-sql.js";
 export class ConnectorSync extends Context.Service<
   ConnectorSync,
   {
@@ -19,16 +19,17 @@ export class ConnectorSync extends Context.Service<
 >()("@optimus/engine/finance/ConnectorSync") {}
 
 export const make = Effect.gen(function* () {
-  const sql = yield* SqlClient.SqlClient;
   const http = yield* HttpClient.HttpClient;
+  const withSql = yield* makeWithVaultSql;
   return ConnectorSync.of({
     syncRegistered: Effect.fn("ConnectorSync.syncRegistered")(
       (connectionId, connectorId, credentials) =>
-        ConnectorService.syncRegisteredConnector(connectionId, connectorId, credentials).pipe(
-          Effect.provideService(SqlClient.SqlClient, sql),
-          Effect.provideService(HttpClient.HttpClient, http),
-          Effect.mapError(connectorSyncFailure),
-          Effect.asVoid,
+        withSql(
+          ConnectorService.syncRegisteredConnector(connectionId, connectorId, credentials).pipe(
+            Effect.provideService(HttpClient.HttpClient, http),
+            Effect.mapError(connectorSyncFailure),
+            Effect.asVoid,
+          ),
         ),
     ),
   });
