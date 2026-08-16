@@ -1,16 +1,9 @@
-import stylex from "@stylexjs/unplugin/vite";
 import react from "@vitejs/plugin-react";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig, mergeConfig } from "vite-plus";
 import "vite-plus/test/config";
 
 import baseConfig from "../../vite.config.ts";
-
-const stylexTestPlugin = {
-  ...stylex({ devMode: "off" }),
-  apply: undefined,
-  configureServer: undefined,
-};
 
 export default mergeConfig(
   baseConfig,
@@ -30,7 +23,7 @@ export default mergeConfig(
       setupFiles: ["./vitest.setup.ts"],
       hookTimeout: 15_000,
       testTimeout: 15_000,
-      plugins: [react(), stylexTestPlugin],
+      plugins: [react()],
       coverage: {
         include: ["src/**/*.{ts,tsx}"],
         exclude: [

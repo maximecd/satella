@@ -1,19 +1,16 @@
-import { Card } from "@astryxdesign/core/Card";
-import { List, ListItem } from "@astryxdesign/core/List";
-import { Selector } from "@astryxdesign/core/Selector";
-import { Stack } from "@astryxdesign/core/Stack";
-import { useToast } from "@astryxdesign/core/Toast";
+import { Box, Card, Stack } from "@chakra-ui/react";
 import { useState } from "react";
 
-import { FormError, PageHeader, PageState } from "../components";
+import { FormError, NavRow, PageHeader, PageState } from "../components";
+import { notify } from "../components/ui/toaster";
 import { useSaveReportingCurrency, useSettings } from "../portfolio";
+import { SelectField } from "../select-field";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
 
 export function SettingsScreen() {
   const query = useSettings();
-  const toast = useToast();
   const [saveError, setSaveError] = useState<string | null>(null);
   const save = useSaveReportingCurrency();
   if (query.isPending) return <PageState kind="pending" />;
@@ -23,45 +20,46 @@ export function SettingsScreen() {
     <>
       <PageHeader title="Settings" />
       <FormError message={saveError} />
-      <Stack gap={6}>
-        <Card padding={4}>
-          <Selector
-            label="Reporting currency"
-            description="Portfolio totals, history, and allocation use this currency."
-            options={settings.currencies.map((currency) => ({
-              value: currency.assetId,
-              label: `${currency.iso} · ${currency.name}`,
-            }))}
-            value={settings.reportingCurrency.assetId}
-            onChange={(value) => {
-              if (value === settings.reportingCurrency.assetId) return;
-              save.mutate(
-                { reportingCurrencyAssetId: value },
-                {
-                  onSuccess: () => {
-                    setSaveError(null);
-                    toast({ body: "Reporting currency saved." });
+      <Stack gap="6">
+        <Card.Root>
+          <Card.Body>
+            <SelectField
+              label="Reporting currency"
+              helperText="Portfolio totals, history, and allocation use this currency."
+              options={settings.currencies.map((currency) => ({
+                value: currency.assetId,
+                label: `${currency.iso} · ${currency.name}`,
+              }))}
+              value={settings.reportingCurrency.assetId}
+              onChange={(value) => {
+                if (value === settings.reportingCurrency.assetId) return;
+                save.mutate(
+                  { reportingCurrencyAssetId: value },
+                  {
+                    onSuccess: () => {
+                      setSaveError(null);
+                      notify.success("Reporting currency saved.");
+                    },
+                    onError: (cause) => setSaveError(errorMessage(cause)),
                   },
-                  onError: (cause) => setSaveError(errorMessage(cause)),
-                },
-              );
-            }}
-            width="100%"
-            isDisabled={save.isPending}
-          />
-        </Card>
-        <List density="balanced" hasDividers>
-          <ListItem
+                );
+              }}
+              disabled={save.isPending}
+            />
+          </Card.Body>
+        </Card.Root>
+        <Box as="ul" m="0" p="0">
+          <NavRow
+            href="/settings/connections"
             label="Connections"
             description="Manage linked financial services."
-            href="/settings/connections"
           />
-          <ListItem
+          <NavRow
+            href="/settings/security"
             label="Security"
             description="Vault password, Screen lock, and Reset Optimus."
-            href="/settings/security"
           />
-        </List>
+        </Box>
       </Stack>
     </>
   );

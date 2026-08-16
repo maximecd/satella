@@ -1,8 +1,7 @@
-import { Button } from "@astryxdesign/core/Button";
-import { Stack } from "@astryxdesign/core/Stack";
-import { TextInput } from "@astryxdesign/core/TextInput";
 import { MIN_VAULT_PASSWORD_LENGTH } from "@optimus/engine/api";
-import { useState } from "react";
+
+import { Field } from "../components/ui/field";
+import { PasswordInput } from "../components/ui/password-input";
 
 export function SecretField({
   label,
@@ -21,27 +20,21 @@ export function SecretField({
   readonly autoComplete?: string;
   readonly status?: { readonly type: "error"; readonly message: string };
 }) {
-  const [visible, setVisible] = useState(false);
   return (
-    <Stack gap={2}>
-      <TextInput
-        label={label}
-        type={visible ? "text" : "password"}
+    <Field
+      label={label}
+      helperText={description}
+      invalid={status !== undefined}
+      errorText={status?.message}
+      width="full"
+    >
+      <PasswordInput
+        name={htmlName}
+        autoComplete={autoComplete}
         value={value}
-        onChange={onChange}
-        htmlName={htmlName}
-        width="100%"
-        statusVariant="detached"
-        {...(description === undefined ? {} : { description })}
-        {...(autoComplete === undefined ? {} : { autoComplete })}
-        {...(status === undefined ? {} : { status })}
+        onChange={(event) => onChange(event.target.value)}
       />
-      <Button
-        label={visible ? "Hide" : "Show"}
-        variant="ghost"
-        onClick={() => setVisible((current) => !current)}
-      />
-    </Stack>
+    </Field>
   );
 }
 

@@ -44,7 +44,9 @@ describe("onboarding and Vault start", () => {
         pin: "2468",
       }),
     );
-    expect(await screen.findByRole("heading", { name: "Add your first asset" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Add your first asset" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add your first asset" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Go to dashboard" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Go to dashboard" }));
@@ -54,7 +56,9 @@ describe("onboarding and Vault start", () => {
   it("shows a generic unlock failure on the Vault password screen", async () => {
     const user = userEvent.setup();
     vi.mocked(engineApi.vaultStatus).mockResolvedValue({ state: "locked" });
-    vi.mocked(engineApi.unlockVault).mockRejectedValue(new Error("The Vault could not be unlocked."));
+    vi.mocked(engineApi.unlockVault).mockRejectedValue(
+      new Error("The Vault could not be unlocked."),
+    );
     renderRoute("/");
     expect(await screen.findByRole("heading", { name: "Unlock your Vault" })).toBeInTheDocument();
     await user.type(screen.getByLabelText("Vault password"), "wrong-password");

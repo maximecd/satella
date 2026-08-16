@@ -1,6 +1,4 @@
-import { Stack } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
-import { useTheme } from "@astryxdesign/core/theme";
+import { Box, Stack, Text, useToken } from "@chakra-ui/react";
 import type { AllocationCell, PortfolioHistoryPoint } from "@optimus/engine/api";
 import {
   createContext,
@@ -37,13 +35,13 @@ const chartDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "num
 const tooltipDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 const CATEGORY_TOKENS = [
-  "--color-background-blue",
-  "--color-background-teal",
-  "--color-background-green",
-  "--color-background-orange",
-  "--color-background-purple",
-  "--color-background-yellow",
-  "--color-background-red",
+  "blue.subtle",
+  "teal.subtle",
+  "green.subtle",
+  "orange.subtle",
+  "purple.subtle",
+  "yellow.subtle",
+  "red.subtle",
 ] as const;
 
 const MIN_LABEL_WIDTH = 96;
@@ -64,10 +62,7 @@ const yAxisWidthFor = (points: ReadonlyArray<PortfolioHistoryPoint>) => {
   );
 };
 
-const tooltipPortal = (): HTMLElement => {
-  const theme = document.querySelector("[data-astryx-theme]");
-  return theme instanceof HTMLElement ? theme : document.body;
-};
+const tooltipPortal = (): HTMLElement => document.body;
 const tooltipWrapperStyle = {
   position: "fixed" as const,
   inset: 0,
@@ -103,6 +98,7 @@ const cellCopy = (cell: {
 
 function ChartFrame({
   children,
+  height,
   ...props
 }: {
   readonly children: ReactNode;
@@ -110,12 +106,12 @@ function ChartFrame({
   readonly "aria-label": string;
   readonly role: "img";
 }) {
-  const rootRef = useRef<HTMLElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   return (
     <ChartRootContext.Provider value={rootRef}>
-      <Stack ref={rootRef} {...props} style={{ overflow: "visible" }}>
+      <Box ref={rootRef} overflow="visible" h={`${height}px`} {...props}>
         {children}
-      </Stack>
+      </Box>
     </ChartRootContext.Provider>
   );
 }
@@ -130,7 +126,7 @@ function ChartTooltipBubble({
   readonly coordinate: { readonly x: number; readonly y: number } | undefined;
 }) {
   const chartRef = useContext(ChartRootContext);
-  const tooltipRef = useRef<HTMLElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ left: 0, top: 0, ready: false });
   useLayoutEffect(() => {
     const tooltip = tooltipRef.current;
@@ -160,23 +156,23 @@ function ChartTooltipBubble({
     <Stack
       ref={tooltipRef}
       role="tooltip"
-      gap={0.5}
-      paddingInline={2}
-      paddingBlock={1}
+      gap="0.5"
+      px="2"
+      py="1"
+      bg="fg"
+      color="bg"
+      rounded="md"
       style={{
         position: "absolute",
         left: pos.left,
         top: pos.top,
         visibility: pos.ready ? "visible" : "hidden",
-        backgroundColor: "var(--color-text-primary)",
-        color: "var(--color-background-surface)",
-        borderRadius: "var(--radius-container)",
       }}
     >
-      <Text weight="bold" hasTabularNumbers color="inherit">
+      <Text fontWeight="bold" fontVariantNumeric="tabular-nums" color="inherit">
         {amount}
       </Text>
-      <Text type="supporting" color="inherit">
+      <Text color="inherit" fontSize="sm">
         {detail}
       </Text>
     </Stack>
@@ -228,7 +224,12 @@ export function PortfolioValueChart({
   readonly points: ReadonlyArray<PortfolioHistoryPoint>;
   readonly currencyIso: string;
 }) {
-  const { token } = useTheme();
+  const [fg, fgMuted, accent, accentMuted] = useToken("colors", [
+    "fg",
+    "fg.muted",
+    "blue.solid",
+    "blue.muted",
+  ]);
   const data = useMemo(
     () =>
       points.map((point) => ({
@@ -243,9 +244,9 @@ export function PortfolioValueChart({
     <ChartFrame height={280} aria-label="Portfolio value history" role="img">
       <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
         <AreaChart data={data} accessibilityLayer margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <XAxis dataKey="date" stroke={token("--color-text-secondary")} />
+          <XAxis dataKey="date" stroke={fgMuted ?? "currentColor"} />
           <YAxis
-            stroke={token("--color-text-secondary")}
+            stroke={fgMuted ?? "currentColor"}
             width={yAxisWidth}
             tickMargin={4}
             tickFormatter={(value: number) => compactAmount.format(value)}
@@ -255,13 +256,13 @@ export function PortfolioValueChart({
             portal={tooltipPortal()}
             isAnimationActive={false}
             wrapperStyle={tooltipWrapperStyle}
-            cursor={{ stroke: token("--color-text-primary") }}
+            cursor={{ stroke: fg ?? "currentColor" }}
           />
           <Area
             type="monotone"
             dataKey="total"
-            stroke={token("--color-accent")}
-            fill={token("--color-accent-muted")}
+            stroke={accent ?? "currentColor"}
+            fill={accentMuted ?? "transparent"}
             name="Portfolio value"
           />
         </AreaChart>
@@ -311,24 +312,24 @@ function AllocationCellShape(node: TreemapNode) {
         <Stack
           width="100%"
           height="100%"
-          padding={2}
-          gap={0.5}
+          p="2"
+          gap="0.5"
           align="center"
           justify="center"
-          style={{ overflow: "hidden", color: node.labelColor }}
+          overflow="hidden"
+          color={node.labelColor}
         >
           {showLabels ? (
             <>
-              <Text weight="bold" hasTabularNumbers justify="center" color="inherit">
-                {copy.compact}
-              </Text>
               <Text
-                type="supporting"
-                justify="center"
-                maxLines={3}
-                hasTruncateTooltip={false}
+                fontWeight="bold"
+                fontVariantNumeric="tabular-nums"
+                textAlign="center"
                 color="inherit"
               >
+                {copy.compact}
+              </Text>
+              <Text color="inherit" fontSize="sm" textAlign="center" lineClamp={3}>
                 {copy.detail}
               </Text>
             </>
@@ -348,6 +349,7 @@ export function AllocationTreemap({
   readonly cells: ReadonlyArray<AllocationCell>;
   readonly currencyIso: string;
 }) {
+  const [labelColor, ...fills] = useToken("colors", ["fg", ...CATEGORY_TOKENS]);
   const data = useMemo(
     () =>
       cells.map((cell, index) => ({
@@ -355,11 +357,11 @@ export function AllocationTreemap({
         value: cell.value,
         percent: cell.percent,
         symbol: cell.symbol,
-        fill: `var(${CATEGORY_TOKENS[index % CATEGORY_TOKENS.length]})`,
-        labelColor: "var(--color-text-primary)",
+        fill: fills[index % fills.length] ?? "transparent",
+        labelColor: labelColor ?? "currentColor",
         currencyIso,
       })),
-    [cells, currencyIso],
+    [cells, currencyIso, fills, labelColor],
   );
   return (
     <ChartFrame height={280} aria-label="Allocation" role="img">

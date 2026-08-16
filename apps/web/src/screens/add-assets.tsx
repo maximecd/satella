@@ -1,38 +1,47 @@
-import { Button } from "@astryxdesign/core/Button";
-import { Card } from "@astryxdesign/core/Card";
-import { Collapsible } from "@astryxdesign/core/Collapsible";
-import { Dialog } from "@astryxdesign/core/Dialog";
-import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { Grid } from "@astryxdesign/core/Grid";
-import { Heading } from "@astryxdesign/core/Heading";
-import { Icon } from "@astryxdesign/core/Icon";
-import { Layout, LayoutContent, LayoutFooter, LayoutHeader } from "@astryxdesign/core/Layout";
-import { List, ListItem } from "@astryxdesign/core/List";
-import { Markdown } from "@astryxdesign/core/Markdown";
-import { ProgressBar } from "@astryxdesign/core/ProgressBar";
-import { Selector } from "@astryxdesign/core/Selector";
-import { Stack } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
-import { TextInput } from "@astryxdesign/core/TextInput";
-import { Toolbar } from "@astryxdesign/core/Toolbar";
-import { useToast } from "@astryxdesign/core/Toast";
+import {
+  Box,
+  Button,
+  Card,
+  Collapsible,
+  Heading,
+  IconButton,
+  Image,
+  Input,
+  SimpleGrid,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
 import type { AssetSearchResult, ConnectorCapability } from "@optimus/engine/api";
 import { NumberFromNonEmptyString } from "@optimus/engine/api";
 import { ConnectConnectionInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
+import { ChevronLeft, Search, X } from "lucide-react";
 import {
   createContext,
   useContext,
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
   type ReactNode,
 } from "react";
 
 import { ADD_ASSETS_CATEGORIES, categoryMeta, type AddAssetsCategory } from "../add-assets";
 import { FormError, FormFrame, PageState } from "../components";
+import {
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogRoot,
+  DialogTitle,
+} from "../components/ui/dialog";
+import { EmptyState } from "../components/ui/empty-state";
+import { Field } from "../components/ui/field";
+import { InputGroup } from "../components/ui/input-group";
+import { PasswordInput } from "../components/ui/password-input";
+import { notify } from "../components/ui/toaster";
+import { Markdown } from "../markdown";
 import {
   useAddCashAccount,
   useAddManualHolding,
@@ -45,29 +54,12 @@ import {
   useManualAccounts,
   useManualHoldingLookup,
 } from "../portfolio";
+import { SelectField } from "../select-field";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
 
 const CREATE_NEW = "__new__";
-
-const connectorButtonStyle: CSSProperties = {
-  appearance: "none",
-  background: "var(--color-background-muted)",
-  border: "var(--border-width) solid var(--color-border)",
-  borderRadius: "var(--radius-element)",
-  color: "inherit",
-  cursor: "pointer",
-  font: "inherit",
-  padding: "var(--spacing-5)",
-};
-
-const connectorIconStyle: CSSProperties = {
-  aspectRatio: "1 / 1",
-  display: "block",
-  objectFit: "contain",
-  width: "var(--spacing-12)",
-};
 
 type WizardStep = "category" | "connectors" | "connect" | "manual";
 
@@ -138,15 +130,23 @@ export function useAddAssets() {
 
 export function AddAssetsButton({
   label = "Add assets",
-  variant = "primary",
+  variant = "solid",
   start,
 }: {
   readonly label?: string;
-  readonly variant?: "primary" | "secondary" | "ghost";
+  readonly variant?: "solid" | "outline" | "ghost";
   readonly start?: AddAssetsStart;
 }) {
   const { open } = useAddAssets();
-  return <Button label={label} variant={variant} onClick={() => open(start)} />;
+  return (
+    <Button
+      colorPalette={variant === "solid" ? "blue" : undefined}
+      variant={variant}
+      onClick={() => open(start)}
+    >
+      {label}
+    </Button>
+  );
 }
 
 function AddAssetsDialog({
@@ -195,95 +195,122 @@ function AddAssetsDialog({
   const progress = wizardProgress(current, history);
   const canGoBack = history.length > 1;
   return (
-    <Dialog
-      isOpen
-      onOpenChange={(open) => {
-        if (!open) onClose();
+    <DialogRoot
+      open
+      onOpenChange={(details) => {
+        if (!details.open) onClose();
       }}
-      purpose="info"
-      width="min(100%, 36rem)"
-      maxHeight="min(90vh, 48rem)"
-      aria-label="Add assets"
+      size="lg"
+      scrollBehavior="inside"
     >
-      <Layout
-        header={
-          <LayoutHeader hasDivider>
-            <Toolbar
-              label="Add assets"
-              startContent={
-                <Button
-                  label="Back"
-                  variant="ghost"
-                  isIconOnly
-                  icon={<Icon icon="chevronLeft" />}
-                  onClick={back}
-                  tooltip="Back"
-                  isDisabled={!canGoBack}
-                  style={canGoBack ? undefined : { visibility: "hidden" }}
-                />
+      <DialogContent aria-label="Add assets">
+        <DialogHeader>
+          <Stack direction="row" align="center" gap="2" w="full">
+            <IconButton
+              aria-label="Back"
+              variant="ghost"
+              onClick={back}
+              disabled={!canGoBack}
+              visibility={canGoBack ? "visible" : "hidden"}
+            >
+              <ChevronLeft />
+            </IconButton>
+            <DialogTitle flex="1" textAlign="center">
+              Add assets
+            </DialogTitle>
+            <IconButton aria-label="Close" variant="ghost" onClick={onClose}>
+              <X />
+            </IconButton>
+          </Stack>
+        </DialogHeader>
+        <DialogBody>
+          {current.step === "category" && (
+            <CategoryStep onSelect={(id) => void selectCategory(id)} />
+          )}
+          {current.step === "connectors" && current.category !== null && (
+            <ConnectorStep
+              category={current.category}
+              onConnect={(connectorId) =>
+                go({
+                  step: "connect",
+                  category: current.category,
+                  connectorId,
+                })
               }
-              centerContent={
-                <Heading level={2} justify="center">
-                  Add assets
-                </Heading>
-              }
-              endContent={
-                <Button
-                  label="Close"
-                  variant="ghost"
-                  isIconOnly
-                  icon={<Icon icon="close" color="inherit" />}
-                  onClick={onClose}
-                  tooltip="Close"
-                />
-              }
+              onManual={goManual}
             />
-          </LayoutHeader>
-        }
-        content={
-          <LayoutContent padding={6}>
-            {current.step === "category" && (
-              <CategoryStep onSelect={(id) => void selectCategory(id)} />
-            )}
-            {current.step === "connectors" && current.category !== null && (
-              <ConnectorStep
+          )}
+          {current.step === "connect" &&
+            current.category !== null &&
+            current.connectorId !== null && (
+              <ConnectStep
                 category={current.category}
-                onConnect={(connectorId) =>
-                  go({
-                    step: "connect",
-                    category: current.category,
-                    connectorId,
-                  })
-                }
-                onManual={goManual}
+                connectorId={current.connectorId}
+                onComplete={onClose}
               />
             )}
-            {current.step === "connect" &&
-              current.category !== null &&
-              current.connectorId !== null && (
-                <ConnectStep
-                  category={current.category}
-                  connectorId={current.connectorId}
-                  onComplete={onClose}
-                />
-              )}
-            {current.step === "manual" && current.category !== null && (
-              <ManualStep category={current.category} onComplete={onClose} />
-            )}
-          </LayoutContent>
-        }
-        footer={
-          <LayoutFooter padding={0}>
-            <ProgressBar
-              label="Form progress"
-              isLabelHidden
-              value={progress.value}
-              max={progress.max}
+          {current.step === "manual" && current.category !== null && (
+            <ManualStep category={current.category} onComplete={onClose} />
+          )}
+        </DialogBody>
+        <DialogFooter p="0">
+          <Box
+            role="progressbar"
+            aria-label="Form progress"
+            aria-valuemin={0}
+            aria-valuenow={progress.value}
+            aria-valuemax={progress.max}
+            bg="bg.muted"
+            h="1.5"
+            w="full"
+          >
+            <Box
+              h="full"
+              bg="blue.solid"
+              width={`${progress.max === 0 ? 0 : (progress.value / progress.max) * 100}%`}
             />
-          </LayoutFooter>
+          </Box>
+        </DialogFooter>
+      </DialogContent>
+    </DialogRoot>
+  );
+}
+
+function SearchInput({
+  label,
+  value,
+  onChange,
+  name,
+  placeholder,
+  errorText,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly name: string;
+  readonly placeholder?: string | undefined;
+  readonly errorText?: string | undefined;
+}) {
+  return (
+    <Field label={label} invalid={errorText !== undefined} errorText={errorText}>
+      <InputGroup
+        startElement={<Search size={16} />}
+        endElement={
+          value.length > 0 ? (
+            <IconButton aria-label="Clear" variant="ghost" size="xs" onClick={() => onChange("")}>
+              <X />
+            </IconButton>
+          ) : undefined
         }
-      />
-    </Dialog>
+      >
+        <Input
+          name={name}
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </InputGroup>
+    </Field>
   );
 }
 
@@ -296,29 +323,38 @@ function CategoryStep({ onSelect }: { readonly onSelect: (category: AddAssetsCat
       `${category.label} ${category.description}`.toLocaleLowerCase().includes(needle),
   );
   return (
-    <Stack gap={4}>
-      <TextInput
+    <Stack gap="4">
+      <SearchInput
         label="Search categories"
         value={search}
         onChange={setSearch}
-        htmlName="categorySearch"
-        startIcon="search"
-        hasClear
-        width="100%"
+        name="categorySearch"
       />
       {categories.length === 0 ? (
-        <EmptyState title="No categories found" description="Try a different search." isCompact />
+        <EmptyState title="No categories found" description="Try a different search." />
       ) : (
-        <List density="balanced" hasDividers header="Asset types">
+        <Stack gap="1" as="ul">
+          <Text fontWeight="medium">Asset types</Text>
           {categories.map((category) => (
-            <ListItem
-              key={category.id}
-              label={category.label}
-              description={category.description}
-              onClick={() => onSelect(category.id)}
-            />
+            <Box as="li" key={category.id} listStyle="none">
+              <Button
+                variant="ghost"
+                width="full"
+                height="auto"
+                py="3"
+                justifyContent="flex-start"
+                onClick={() => onSelect(category.id)}
+              >
+                <Stack align="flex-start" gap="0.5">
+                  <Text fontWeight="semibold">{category.label}</Text>
+                  <Text color="fg.muted" fontSize="sm" whiteSpace="normal">
+                    {category.description}
+                  </Text>
+                </Stack>
+              </Button>
+            </Box>
           ))}
-        </List>
+        </Stack>
       )}
     </Stack>
   );
@@ -347,67 +383,65 @@ function ConnectorStep({
     `${connector.name} ${connector.id}`.toLocaleLowerCase().includes(needle),
   );
   return (
-    <Stack gap={4}>
+    <Stack gap="4">
       {connectors.length > 0 && (
-        <TextInput
+        <SearchInput
           label="Search connectors"
           value={search}
           onChange={setSearch}
-          htmlName="connectorSearch"
-          startIcon="search"
-          hasClear
-          width="100%"
+          name="connectorSearch"
         />
       )}
       {connectors.length === 0 ? (
         <EmptyState
           title="No connectors for this category"
           description="Continue manually to add this asset type."
-          isCompact
-          actions={<Button label="Add manually" variant="primary" onClick={onManual} />}
-        />
+        >
+          <Button colorPalette="blue" onClick={onManual}>
+            Add manually
+          </Button>
+        </EmptyState>
       ) : filtered.length === 0 ? (
-        <EmptyState
-          title="No connectors found"
-          description="Try a different connector name."
-          isCompact
-        />
+        <EmptyState title="No connectors found" description="Try a different connector name." />
       ) : (
-        <section aria-label="Available connectors">
-          <Grid columns={3} gap={3}>
+        <Box as="section" aria-label="Available connectors">
+          <SimpleGrid columns={{ base: 2, md: 3 }} gap="3">
             {filtered.map((connector) => (
-              <button
+              <Button
                 key={connector.id}
                 type="button"
+                variant="outline"
+                height="auto"
+                py="5"
                 aria-label={`Connect ${connector.name}`}
-                style={connectorButtonStyle}
                 onClick={() => onConnect(connector.id)}
               >
-                <Stack align="center" gap={3}>
+                <Stack align="center" gap="3">
                   {connector.icon === undefined ? (
-                    <Heading level={2}>{connector.name.slice(0, 1)}</Heading>
+                    <Heading as="h2" size="lg">
+                      {connector.name.slice(0, 1)}
+                    </Heading>
                   ) : (
-                    <img
-                      src={connector.icon}
-                      alt=""
-                      aria-hidden="true"
-                      style={connectorIconStyle}
-                    />
+                    <Image src={connector.icon} alt="" aria-hidden="true" boxSize="12" />
                   )}
-                  <Text weight="semibold">{connector.name}</Text>
+                  <Text fontWeight="semibold">{connector.name}</Text>
                 </Stack>
-              </button>
+              </Button>
             ))}
-          </Grid>
-        </section>
+          </SimpleGrid>
+        </Box>
       )}
-      <List density="balanced" hasDividers header="Or add manually">
-        <ListItem
-          label="Add manually"
-          description="Enter this asset yourself instead of connecting a provider."
-          onClick={onManual}
-        />
-      </List>
+      <Stack gap="1">
+        <Text fontWeight="medium">Or add manually</Text>
+        <Button variant="ghost" height="auto" py="3" justifyContent="flex-start" onClick={onManual}>
+          <Stack align="flex-start" gap="0.5">
+            <Text fontWeight="semibold">Add manually</Text>
+            <Text color="fg.muted" fontSize="sm" whiteSpace="normal">
+              Enter this asset yourself instead of connecting a provider.
+            </Text>
+          </Stack>
+        </Button>
+      </Stack>
     </Stack>
   );
 }
@@ -457,7 +491,6 @@ function ConnectorImportForm({
   readonly suggestedName: string;
   readonly onComplete: () => void;
 }) {
-  const toast = useToast();
   const [name, setName] = useState(suggestedName);
   const [credentials, setCredentials] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -497,7 +530,7 @@ function ConnectorImportForm({
     });
     try {
       const connection = await connect.mutateAsync(payload);
-      toast({ body: `Imported accounts from ${connection.name}.` });
+      notify.success(`Imported accounts from ${connection.name}.`);
       onComplete();
     } catch (cause) {
       setError(errorMessage(cause));
@@ -505,41 +538,41 @@ function ConnectorImportForm({
   };
   const instructions = connector.instructions?.replace(/^#\s+.*$/m, "").trim();
   return (
-    <Stack gap={4}>
-      <Text as="p" type="supporting">
-        Prefer read-only credentials with no trading or withdrawal capability whenever the
-        Connector allows it.
+    <Stack gap="4">
+      <Text as="p" color="fg.muted">
+        Prefer read-only credentials with no trading or withdrawal capability whenever the Connector
+        allows it.
       </Text>
       {instructions !== undefined && instructions.length > 0 && (
-        <Card padding={3}>
-          <Collapsible trigger="Setup instructions" defaultIsOpen={false}>
-            <Markdown headingLevelStart={3} contentWidth="100%" autolink="gfm">
-              {instructions}
-            </Markdown>
-          </Collapsible>
-        </Card>
+        <Card.Root>
+          <Card.Body>
+            <Collapsible.Root>
+              <Collapsible.Trigger asChild>
+                <Button variant="ghost">Setup instructions</Button>
+              </Collapsible.Trigger>
+              <Collapsible.Content>
+                <Markdown headingLevelStart={3}>{instructions}</Markdown>
+              </Collapsible.Content>
+            </Collapsible.Root>
+          </Card.Body>
+        </Card.Root>
       )}
       <FormError message={error} />
       <FormFrame onSubmit={(event) => void submit(event)}>
-        <TextInput
-          label="Name"
-          value={name}
-          onChange={(value) => {
-            setName(value);
-            clearFieldError("name");
-          }}
-          htmlName="name"
-          width="100%"
-          isRequired
-          statusVariant="detached"
-          {...(fieldErrors.name === undefined
-            ? {}
-            : { status: { type: "error" as const, message: fieldErrors.name } })}
-        />
+        <Field label="Name" invalid={fieldErrors.name !== undefined} errorText={fieldErrors.name}>
+          <Input
+            name="name"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              clearFieldError("name");
+            }}
+          />
+        </Field>
         {connector.credentialFields.map((field) => {
           const fieldError = fieldErrors[field.key];
           return field.kind === "select" ? (
-            <Selector
+            <SelectField
               key={field.key}
               label={field.label}
               options={[...(field.options ?? [])]}
@@ -548,42 +581,49 @@ function ConnectorImportForm({
                 setCredentials((current) => ({ ...current, [field.key]: value }));
                 clearFieldError(field.key);
               }}
-              htmlName={field.key}
-              {...(field.helpText === undefined ? {} : { description: field.helpText })}
-              width="100%"
-              statusVariant="detached"
-              {...(fieldError === undefined
-                ? {}
-                : { status: { type: "error" as const, message: fieldError } })}
+              name={field.key}
+              helperText={field.helpText}
+              invalid={fieldError !== undefined}
+              errorText={fieldError}
             />
           ) : (
-            <TextInput
+            <Field
               key={field.key}
               label={field.label}
-              type={field.kind === "password" ? "password" : "text"}
-              value={credentials[field.key] ?? ""}
-              onChange={(value) => {
-                setCredentials((current) => ({ ...current, [field.key]: value }));
-                clearFieldError(field.key);
-              }}
-              htmlName={field.key}
-              {...(field.helpText === undefined ? {} : { description: field.helpText })}
-              width="100%"
-              isRequired={field.required}
-              statusVariant="detached"
-              {...(fieldError === undefined
-                ? {}
-                : { status: { type: "error" as const, message: fieldError } })}
-            />
+              helperText={field.helpText}
+              invalid={fieldError !== undefined}
+              errorText={fieldError}
+            >
+              {field.kind === "password" ? (
+                <PasswordInput
+                  name={field.key}
+                  value={credentials[field.key] ?? ""}
+                  onChange={(event) => {
+                    setCredentials((current) => ({ ...current, [field.key]: event.target.value }));
+                    clearFieldError(field.key);
+                  }}
+                />
+              ) : (
+                <Input
+                  name={field.key}
+                  value={credentials[field.key] ?? ""}
+                  onChange={(event) => {
+                    setCredentials((current) => ({ ...current, [field.key]: event.target.value }));
+                    clearFieldError(field.key);
+                  }}
+                />
+              )}
+            </Field>
           );
         })}
         <Button
-          label="Connect and import"
           type="submit"
-          variant="primary"
-          isDisabled={connect.isPending}
-          isLoading={connect.isPending}
-        />
+          colorPalette="blue"
+          disabled={connect.isPending}
+          loading={connect.isPending}
+        >
+          Connect and import
+        </Button>
       </FormFrame>
     </Stack>
   );
@@ -660,7 +700,7 @@ function AccountFields({
   return (
     <>
       {picker.listed.length > 0 && (
-        <Selector
+        <SelectField
           label="Choose an account"
           options={picker.accountOptions}
           value={picker.accountChoice}
@@ -669,27 +709,26 @@ function AccountFields({
             const next = picker.listed.find((account) => account.id === value);
             if (next !== undefined) picker.setCurrencyId(next.baseCurrencyAssetId);
           }}
-          width="100%"
         />
       )}
       {picker.creatingAccount && (
-        <TextInput
+        <Field
           label={picker.listed.length === 0 ? "Choose an account" : "Account name"}
-          value={picker.accountName}
-          onChange={(value) => {
-            picker.setAccountName(value);
-            clearFieldError("accountName");
-          }}
-          htmlName="accountName"
-          width="100%"
-          statusVariant="detached"
-          {...(fieldErrors.accountName === undefined
-            ? {}
-            : { status: { type: "error" as const, message: fieldErrors.accountName } })}
-        />
+          invalid={fieldErrors.accountName !== undefined}
+          errorText={fieldErrors.accountName}
+        >
+          <Input
+            name="accountName"
+            value={picker.accountName}
+            onChange={(event) => {
+              picker.setAccountName(event.target.value);
+              clearFieldError("accountName");
+            }}
+          />
+        </Field>
       )}
       {picker.creatingAccount && (
-        <Selector
+        <SelectField
           label="Base currency"
           options={picker.cash.map((asset) => ({
             value: asset.id,
@@ -697,7 +736,6 @@ function AccountFields({
           }))}
           value={picker.currencyId}
           onChange={picker.setCurrencyId}
-          width="100%"
         />
       )}
     </>
@@ -737,7 +775,6 @@ function HoldingsForm({
       setQuantity(String(existingQuantity));
     }
   }, [existingQuantity]);
-  const toast = useToast();
   const mutation = useAddManualHolding();
   if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
   if (picker.accounts.isError)
@@ -783,111 +820,114 @@ function HoldingsForm({
         account: picker.destination(),
         quantity: decoded,
       });
-      toast({
-        body:
-          result.positionOutcome === "updated"
-            ? `Updated ${selected.name} quantity in ${result.accountName}.`
-            : `Added ${selected.name} to ${result.accountName}.`,
-      });
+      notify.success(
+        result.positionOutcome === "updated"
+          ? `Updated ${selected.name} quantity in ${result.accountName}.`
+          : `Added ${selected.name} to ${result.accountName}.`,
+      );
       onComplete();
     } catch (cause) {
       setError(errorMessage(cause));
     }
   };
   return (
-    <Stack gap={4}>
-      <TextInput
+    <Stack gap="4">
+      <SearchInput
         label="Asset"
         value={query}
         onChange={(value) => {
           setQuery(value);
           clearFieldError("asset");
         }}
+        name="assetSearch"
         placeholder="Search by name or exact symbol"
-        htmlName="assetSearch"
-        startIcon="search"
-        hasClear
-        width="100%"
-        statusVariant="detached"
-        {...(fieldErrors.asset === undefined
-          ? {}
-          : { status: { type: "error" as const, message: fieldErrors.asset } })}
+        errorText={fieldErrors.asset}
       />
       {selected !== null && (
-        <Text type="body" weight="semibold">
+        <Text fontWeight="semibold">
           {selected.name} · {selected.symbol}
         </Text>
       )}
       {results.isFetching && (
-        <Text type="supporting" as="p" role="status">
+        <Text color="fg.muted" as="p" role="status">
           Searching…
         </Text>
       )}
       {results.isError && (
-        <Text type="supporting" as="p" role="alert">
+        <Text color="fg.muted" as="p" role="alert">
           Provider search is temporarily unavailable.
         </Text>
       )}
       {results.data && results.data.length > 0 && (
-        <List density="compact" hasDividers header="Matches">
+        <Stack gap="1">
+          <Text fontWeight="medium">Matches</Text>
           {results.data.map((result) => {
             const match = result.identifiers[0];
             return (
-              <ListItem
+              <Button
                 key={`${result.provider}:${match?.value ?? result.symbol}`}
-                label={`${result.name} · ${result.symbol}`}
-                description={`${result.provider} · ${result.assetCategory}`}
+                variant="ghost"
+                height="auto"
+                py="2"
+                justifyContent="flex-start"
                 onClick={() => {
                   if (match === undefined) return;
                   setSelected(result);
                   setQuery("");
                   clearFieldError("asset");
                 }}
-              />
+              >
+                <Stack align="flex-start" gap="0.5">
+                  <Text fontWeight="semibold">
+                    {result.name} · {result.symbol}
+                  </Text>
+                  <Text color="fg.muted" fontSize="sm">
+                    {`${result.provider} · ${result.assetCategory}`}
+                  </Text>
+                </Stack>
+              </Button>
             );
           })}
-        </List>
+        </Stack>
       )}
       {debounced.length > 0 && !results.isFetching && results.data?.length === 0 && (
         <EmptyState
           title="No provider matches found"
           description="Custom stocks and crypto are not available. Try a different symbol."
-          isCompact
         />
       )}
       <FormError message={error} />
       <form onSubmit={(event) => void submit(event)}>
-        <Stack gap={4}>
+        <Stack gap="4">
           <AccountFields
             picker={picker}
             fieldErrors={fieldErrors}
             clearFieldError={clearFieldError}
           />
-          <TextInput
+          <Field
             label="Quantity"
-            value={quantity}
-            onChange={(value) => {
-              setQuantity(value);
-              clearFieldError("quantity");
-            }}
-            htmlName="quantity"
-            width="100%"
-            statusVariant="detached"
-            {...(fieldErrors.quantity === undefined
-              ? {}
-              : { status: { type: "error" as const, message: fieldErrors.quantity } })}
-          />
+            invalid={fieldErrors.quantity !== undefined}
+            errorText={fieldErrors.quantity}
+          >
+            <Input
+              name="quantity"
+              value={quantity}
+              onChange={(event) => {
+                setQuantity(event.target.value);
+                clearFieldError("quantity");
+              }}
+            />
+          </Field>
           <Button
-            label={
-              existingQuantity === undefined || existingQuantity === null
-                ? "Add quantity"
-                : "Update quantity"
-            }
             type="submit"
-            variant="primary"
-            isDisabled={mutation.isPending}
-            isLoading={mutation.isPending}
-          />
+            colorPalette="blue"
+            disabled={mutation.isPending}
+            loading={mutation.isPending}
+          >
+            {existingQuantity === undefined || existingQuantity === null
+              ? "Add quantity"
+              : "Update quantity"}
+          </Button>
         </Stack>
       </form>
     </Stack>
@@ -899,7 +939,6 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
   const [balance, setBalance] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const toast = useToast();
   const cash = useAddCashAccount();
   if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
   if (picker.accounts.isError)
@@ -934,24 +973,24 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
         currencyAssetId: picker.currencyId,
         balance: decoded,
       });
-      toast({ body: `Updated ${result.accountName}.` });
+      notify.success(`Updated ${result.accountName}.`);
       onComplete();
     } catch (cause) {
       setError(errorMessage(cause));
     }
   };
   return (
-    <Stack gap={4}>
+    <Stack gap="4">
       <FormError message={error} />
       <form onSubmit={(event) => void submit(event)}>
-        <Stack gap={4}>
+        <Stack gap="4">
           <AccountFields
             picker={picker}
             fieldErrors={fieldErrors}
             clearFieldError={clearFieldError}
           />
           {!picker.creatingAccount && (
-            <Selector
+            <SelectField
               label="Currency"
               options={picker.cash.map((asset) => ({
                 value: asset.id,
@@ -959,30 +998,30 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
               }))}
               value={picker.currencyId}
               onChange={picker.setCurrencyId}
-              width="100%"
             />
           )}
-          <TextInput
+          <Field
             label="Balance"
-            value={balance}
-            onChange={(value) => {
-              setBalance(value);
-              clearFieldError("balance");
-            }}
-            htmlName="balance"
-            width="100%"
-            statusVariant="detached"
-            {...(fieldErrors.balance === undefined
-              ? {}
-              : { status: { type: "error" as const, message: fieldErrors.balance } })}
-          />
+            invalid={fieldErrors.balance !== undefined}
+            errorText={fieldErrors.balance}
+          >
+            <Input
+              name="balance"
+              value={balance}
+              onChange={(event) => {
+                setBalance(event.target.value);
+                clearFieldError("balance");
+              }}
+            />
+          </Field>
           <Button
-            label="Save cash"
             type="submit"
-            variant="primary"
-            isLoading={cash.isPending}
-            isDisabled={cash.isPending}
-          />
+            colorPalette="blue"
+            loading={cash.isPending}
+            disabled={cash.isPending}
+          >
+            Save cash
+          </Button>
         </Stack>
       </form>
     </Stack>
@@ -1002,7 +1041,6 @@ function GenericForm({
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const toast = useToast();
   const mutation = useAddOtherAsset();
   if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
   if (picker.accounts.isError)
@@ -1049,51 +1087,51 @@ function GenericForm({
           : (picker.listed.find((account) => account.id === picker.accountChoice)
               ?.baseCurrencyAssetId ?? picker.currencyId),
       });
-      toast({ body: `Added ${name.trim()}.` });
+      notify.success(`Added ${name.trim()}.`);
       onComplete();
     } catch (cause) {
       setError(errorMessage(cause));
     }
   };
   return (
-    <Stack gap={4}>
+    <Stack gap="4">
       <FormError message={error} />
       <form onSubmit={(event) => void submit(event)}>
-        <Stack gap={4}>
-          <TextInput
+        <Stack gap="4">
+          <Field
             label="Asset name"
-            value={name}
-            onChange={(next) => {
-              setName(next);
-              clearFieldError("name");
-            }}
-            htmlName="name"
-            width="100%"
-            statusVariant="detached"
-            {...(fieldErrors.name === undefined
-              ? {}
-              : { status: { type: "error" as const, message: fieldErrors.name } })}
-          />
+            invalid={fieldErrors.name !== undefined}
+            errorText={fieldErrors.name}
+          >
+            <Input
+              name="name"
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value);
+                clearFieldError("name");
+              }}
+            />
+          </Field>
           <AccountFields
             picker={picker}
             fieldErrors={fieldErrors}
             clearFieldError={clearFieldError}
           />
-          <TextInput
+          <Field
             label="Current value"
-            value={value}
-            onChange={(next) => {
-              setValue(next);
-              clearFieldError("value");
-            }}
-            htmlName="value"
-            width="100%"
-            statusVariant="detached"
-            {...(fieldErrors.value === undefined
-              ? {}
-              : { status: { type: "error" as const, message: fieldErrors.value } })}
-          />
-          <Selector
+            invalid={fieldErrors.value !== undefined}
+            errorText={fieldErrors.value}
+          >
+            <Input
+              name="value"
+              value={value}
+              onChange={(event) => {
+                setValue(event.target.value);
+                clearFieldError("value");
+              }}
+            />
+          </Field>
+          <SelectField
             label="Currency"
             options={picker.cash.map((asset) => ({
               value: asset.id,
@@ -1101,15 +1139,15 @@ function GenericForm({
             }))}
             value={picker.currencyId}
             onChange={picker.setCurrencyId}
-            width="100%"
           />
           <Button
-            label="Add asset"
             type="submit"
-            variant="primary"
-            isLoading={mutation.isPending}
-            isDisabled={mutation.isPending}
-          />
+            colorPalette="blue"
+            loading={mutation.isPending}
+            disabled={mutation.isPending}
+          >
+            Add asset
+          </Button>
         </Stack>
       </form>
     </Stack>

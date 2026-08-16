@@ -1,14 +1,15 @@
-import { Banner } from "@astryxdesign/core/Banner";
-import { Button } from "@astryxdesign/core/Button";
-import { Collapsible } from "@astryxdesign/core/Collapsible";
-import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { Heading } from "@astryxdesign/core/Heading";
-import { Link as AstryxLink } from "@astryxdesign/core/Link";
-import { Section } from "@astryxdesign/core/Section";
-import { Stack } from "@astryxdesign/core/Stack";
-import { Table, proportional } from "@astryxdesign/core/Table";
-import { Text } from "@astryxdesign/core/Text";
-import { Tooltip } from "@astryxdesign/core/Tooltip";
+import {
+  Alert,
+  Box,
+  Button,
+  Collapsible,
+  Flex,
+  Heading,
+  Link,
+  Stack,
+  Table,
+  Text,
+} from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { Account, Position } from "@optimus/engine/api";
 import { UpdateAccountInput } from "@optimus/engine/api";
@@ -24,6 +25,8 @@ import {
   PageState,
   ResourceCard,
 } from "../components";
+import { EmptyState } from "../components/ui/empty-state";
+import { Tooltip } from "../components/ui/tooltip";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { useAccount, useAssets, useDeleteAccount, useUpdateAccount } from "../portfolio";
 import { RefreshConnectionButton } from "../refresh-connection";
@@ -55,16 +58,6 @@ const conversionDescription = (position: Position, valuationCurrencyIso: string)
   return `Converted at 1 ${position.price.currencyIso} = ${fxRate.format(rate)} ${valuationCurrencyIso}`;
 };
 
-type PositionTableRow = Record<string, unknown> & {
-  id: string;
-  assetName: string;
-  assetSymbol: string | null;
-  quantity: number;
-  price: Position["price"];
-  reportingValue: number | null;
-  position: Position;
-};
-
 function PositionTable({
   positions,
   account,
@@ -72,106 +65,87 @@ function PositionTable({
   readonly positions: ReadonlyArray<Position>;
   readonly account: Account;
 }) {
-  if (positions.length === 0) return <EmptyState title="No positions" isCompact />;
-  const rows: PositionTableRow[] = positions.map((position) => ({
-    ...position,
-    position,
-  }));
+  if (positions.length === 0) return <EmptyState title="No positions" size="sm" />;
   return (
-    <Table
-      data={rows}
-      idKey="id"
-      density="compact"
-      dividers="rows"
-      hasHover
-      columns={[
-        {
-          key: "assetName",
-          header: "Asset",
-          width: proportional(1.5),
-          renderCell: (row) => {
+    <Table.ScrollArea>
+      <Table.Root size="sm" variant="line" interactive>
+        <Table.Header>
+          <Table.Row>
+            <Table.ColumnHeader>Asset</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">Quantity</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">Market price</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">
+              Value ({account.baseCurrencyIso})
+            </Table.ColumnHeader>
+            <Table.ColumnHeader />
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {positions.map((position) => {
+            const conversion = conversionDescription(position, account.baseCurrencyIso);
             const name = (
-              <Stack gap={0.5}>
-                <Text weight="semibold">{row.assetName}</Text>
-                {row.assetSymbol && (
-                  <Text type="supporting" as="p">
-                    {row.assetSymbol}
+              <Stack gap="0.5">
+                <Text fontWeight="semibold">{position.assetName}</Text>
+                {position.assetSymbol ? (
+                  <Text color="fg.muted" as="p">
+                    {position.assetSymbol}
                   </Text>
-                )}
+                ) : null}
               </Stack>
             );
-            return account.connectionId === null &&
-              MANUAL_ASSET_CATEGORIES.has(row.position.assetCategory) ? (
-              <AstryxLink
-                as={RouterLink}
-                href={`/assets/${row.position.assetId}/edit`}
-                isStandalone
-                weight="semibold"
-              >
-                {row.assetName}
-              </AstryxLink>
-            ) : (
-              name
-            );
-          },
-        },
-        {
-          key: "quantity",
-          header: "Quantity",
-          width: proportional(0.8),
-          align: "end",
-          renderCell: (row) => <Text hasTabularNumbers>{number.format(row.quantity)}</Text>,
-        },
-        {
-          key: "price",
-          header: "Market price",
-          width: proportional(1.3),
-          align: "end",
-          renderCell: (row) =>
-            row.price === null ? (
-              <Text type="supporting">—</Text>
-            ) : (
-              <Text hasTabularNumbers>
-                {marketPrice.format(row.price.price)} {row.price.currencyIso}
-              </Text>
-            ),
-        },
-        {
-          key: "reportingValue",
-          header: `Value (${account.baseCurrencyIso})`,
-          width: proportional(1.1),
-          align: "end",
-          renderCell: (row) => {
-            const conversion = conversionDescription(row.position, account.baseCurrencyIso);
             return (
-              <Tooltip content={conversion ?? ""} isEnabled={conversion !== undefined}>
-                <Text hasTabularNumbers>
-                  {row.reportingValue === null
-                    ? "Unpriced"
-                    : formatValuedAmount(row.reportingValue, account.baseCurrencyIso)}
-                </Text>
-              </Tooltip>
+              <Table.Row key={position.id}>
+                <Table.Cell>
+                  {account.connectionId === null &&
+                  MANUAL_ASSET_CATEGORIES.has(position.assetCategory) ? (
+                    <Link asChild fontWeight="semibold">
+                      <RouterLink to="/assets/$assetId/edit" params={{ assetId: position.assetId }}>
+                        {position.assetName}
+                      </RouterLink>
+                    </Link>
+                  ) : (
+                    name
+                  )}
+                </Table.Cell>
+                <Table.Cell textAlign="end" fontVariantNumeric="tabular-nums">
+                  {number.format(position.quantity)}
+                </Table.Cell>
+                <Table.Cell textAlign="end">
+                  {position.price === null ? (
+                    <Text color="fg.muted">—</Text>
+                  ) : (
+                    <Text fontVariantNumeric="tabular-nums">
+                      {marketPrice.format(position.price.price)} {position.price.currencyIso}
+                    </Text>
+                  )}
+                </Table.Cell>
+                <Table.Cell textAlign="end">
+                  <Tooltip content={conversion ?? ""} disabled={conversion === undefined}>
+                    <Text fontVariantNumeric="tabular-nums">
+                      {position.reportingValue === null
+                        ? "Unpriced"
+                        : formatValuedAmount(position.reportingValue, account.baseCurrencyIso)}
+                    </Text>
+                  </Tooltip>
+                </Table.Cell>
+                <Table.Cell textAlign="end">
+                  {account.connectionId === null ? (
+                    <Button asChild size="sm" variant="ghost">
+                      <RouterLink
+                        to="/positions/$positionId/edit"
+                        params={{ positionId: position.id }}
+                      >
+                        Edit
+                      </RouterLink>
+                    </Button>
+                  ) : null}
+                </Table.Cell>
+              </Table.Row>
             );
-          },
-        },
-        {
-          key: "actions",
-          header: "",
-          width: proportional(0.5),
-          align: "end",
-          renderCell: (row) =>
-            account.connectionId === null ? (
-              <Button
-                as={RouterLink}
-                href={`/positions/${row.id}/edit`}
-                label="Edit"
-                size="sm"
-                variant="ghost"
-              />
-            ) : null,
-        },
-      ]}
-    />
+          })}
+        </Table.Body>
+      </Table.Root>
+    </Table.ScrollArea>
   );
 }
 
@@ -215,46 +189,70 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
               onError={setRefreshError}
             />
           ) : (
-            <Button as={RouterLink} href={`/accounts/${id}/edit`} label="Edit account" />
+            <Button asChild>
+              <RouterLink to="/accounts/$accountId/edit" params={{ accountId: id }}>
+                Edit account
+              </RouterLink>
+            </Button>
           )
         }
       />
       {refreshError !== null && (
-        <Banner status="error" title="Refresh failed" description={refreshError} />
+        <Alert.Root status="error">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Refresh failed</Alert.Title>
+            <Alert.Description>{refreshError}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
       )}
       {account.totalIncomplete && (
-        <Banner
-          status="warning"
-          title="Total is incomplete"
-          description="Unpriced positions are excluded from this total."
-        />
+        <Alert.Root status="warning">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Total is incomplete</Alert.Title>
+            <Alert.Description>Unpriced positions are excluded from this total.</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
       )}
       <ResourceCard>
-        <Stack direction="horizontal" justify="between" align="center" gap={4} wrap="wrap">
-          <Text type="label">Valued total</Text>
-          <Text type="display-2" hasTabularNumbers>
+        <Flex justify="space-between" align="center" gap="4" wrap="wrap">
+          <Text fontWeight="medium">Valued total</Text>
+          <Text fontSize="2xl" fontWeight="semibold" fontVariantNumeric="tabular-nums">
             {formatValuedAmount(account.total, account.baseCurrencyIso)}
           </Text>
-        </Stack>
+        </Flex>
       </ResourceCard>
-      <Stack direction="horizontal" justify="between" align="center" gap={3} wrap="wrap">
-        <Heading level={2}>Positions</Heading>
+      <Flex justify="space-between" align="center" gap="3" wrap="wrap">
+        <Heading as="h2" size="md">
+          Positions
+        </Heading>
         {account.connectionId === null && <AddAssetsButton />}
-      </Stack>
+      </Flex>
       <PositionTable positions={active} account={account} />
       {zero.length > 0 && (
-        <Section variant="muted" padding={3}>
-          <Collapsible trigger={`Zero positions (${zero.length})`} defaultIsOpen={false}>
-            <PositionTable positions={zero} account={account} />
-          </Collapsible>
-        </Section>
+        <Box bg="bg.subtle" rounded="md" p="3">
+          <Collapsible.Root>
+            <Collapsible.Trigger asChild>
+              <Button variant="ghost">{`Zero positions (${zero.length})`}</Button>
+            </Collapsible.Trigger>
+            <Collapsible.Content>
+              <PositionTable positions={zero} account={account} />
+            </Collapsible.Content>
+          </Collapsible.Root>
+        </Box>
       )}
       {unpriced.length > 0 && (
-        <Section variant="muted" padding={3}>
-          <Collapsible trigger={`Unpriced positions (${unpriced.length})`} defaultIsOpen={false}>
-            <PositionTable positions={unpriced} account={account} />
-          </Collapsible>
-        </Section>
+        <Box bg="bg.subtle" rounded="md" p="3">
+          <Collapsible.Root>
+            <Collapsible.Trigger asChild>
+              <Button variant="ghost">{`Unpriced positions (${unpriced.length})`}</Button>
+            </Collapsible.Trigger>
+            <Collapsible.Content>
+              <PositionTable positions={unpriced} account={account} />
+            </Collapsible.Content>
+          </Collapsible.Root>
+        </Box>
       )}
     </>
   );

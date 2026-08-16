@@ -36,10 +36,9 @@ describe("settings screen", () => {
   it("saves Reporting currency immediately", async () => {
     const user = userEvent.setup();
     renderRoute("/settings");
-    await user.click(await screen.findByLabelText("Reporting currency"));
-    await user.click(await screen.findByRole("option", { name: /EUR/ }));
+    await user.selectOptions(await screen.findByLabelText("Reporting currency"), "fiat:EUR");
     expect((await screen.findAllByText("Reporting currency saved.")).length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("Reporting currency")).toHaveTextContent(/EUR/);
+    expect(screen.getByLabelText("Reporting currency")).toHaveDisplayValue(/EUR/);
   });
 
   it("saves Reporting currency immediately and updates Dashboard values", async () => {
@@ -60,10 +59,9 @@ describe("settings screen", () => {
     expect(await screen.findByText(/1[.,]100[.,]00 USD/)).toBeInTheDocument();
     await user.click(screen.getByRole("link", { name: "Settings" }));
     const selector = await screen.findByLabelText("Reporting currency");
-    await user.click(selector);
-    await user.click(await screen.findByRole("option", { name: /EUR/ }));
+    await user.selectOptions(selector, "fiat:EUR");
     await waitFor(() =>
-      expect(screen.getByLabelText("Reporting currency")).toHaveTextContent(/EUR/),
+      expect(screen.getByLabelText("Reporting currency")).toHaveDisplayValue(/EUR/),
     );
     await user.click(screen.getByRole("link", { name: "Dashboard" }));
     expect(await screen.findByText(/1[.,]000[.,]00 EUR/)).toBeInTheDocument();

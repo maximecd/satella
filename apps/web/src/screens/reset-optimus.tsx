@@ -1,13 +1,10 @@
-import { Button } from "@astryxdesign/core/Button";
-import { Heading } from "@astryxdesign/core/Heading";
-import { Stack } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
-import { TextInput } from "@astryxdesign/core/TextInput";
+import { Button, Heading, Input, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { engineApi } from "../api";
 import { FormError } from "../components";
+import { Field } from "../components/ui/field";
 import { vaultStatusQuery } from "../queries";
 
 const errorMessage = (error: unknown) =>
@@ -26,8 +23,10 @@ export function ResetOptimusControl() {
     onError: (cause) => setError(errorMessage(cause)),
   });
   return (
-    <Stack gap={4}>
-      <Heading level={2}>Reset Optimus</Heading>
+    <Stack gap="4">
+      <Heading as="h2" size="lg">
+        Reset Optimus
+      </Heading>
       <Text as="p">
         This permanently deletes the Vault, portfolio, Connection credentials, encrypted backups,
         and Vault metadata. You will return to first-run onboarding. This cannot be undone.
@@ -39,21 +38,23 @@ export function ResetOptimusControl() {
           reset.mutate(confirmation);
         }}
       >
-        <Stack gap={3}>
+        <Stack gap="3">
           <FormError message={error} />
-          <TextInput
-            label='Type "Reset Optimus" to confirm'
-            value={confirmation}
-            onChange={setConfirmation}
-            htmlName="reset-confirmation"
-            width="100%"
-          />
+          <Field label='Type "Reset Optimus" to confirm'>
+            <Input
+              name="reset-confirmation"
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+            />
+          </Field>
           <Button
-            label="Reset Optimus"
-            variant="destructive"
             type="submit"
-            isDisabled={reset.isPending}
-          />
+            colorPalette="red"
+            disabled={reset.isPending}
+            loading={reset.isPending}
+          >
+            Reset Optimus
+          </Button>
         </Stack>
       </form>
     </Stack>

@@ -1,7 +1,4 @@
-import { Button } from "@astryxdesign/core/Button";
-import { Heading } from "@astryxdesign/core/Heading";
-import { Stack } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
+import { Button, Heading, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
@@ -10,6 +7,7 @@ import { engineApi } from "../api";
 import { FormError } from "../components";
 import { vaultStatusQuery } from "../queries";
 import { passwordGuidance, SecretField } from "./secret-field";
+import { PinField } from "./pin-field";
 import { useAddAssets } from "./add-assets";
 import { clearFirstAssetPending, markFirstAssetPending } from "./vault-gate";
 
@@ -39,8 +37,10 @@ export function OnboardingScreen() {
 
   if (step === "welcome") {
     return (
-      <Stack gap={6} padding={8} maxWidth={640}>
-        <Heading level={1}>Welcome to Optimus</Heading>
+      <Stack gap="6" p={{ base: 6, md: 8 }} maxW="xl" mx="auto">
+        <Heading as="h1" size="xl">
+          Welcome to Optimus
+        </Heading>
         <Text as="p">
           Optimus keeps your portfolio, Connections, and credentials in one local Vault on this
           computer. Financial data stays local except when Optimus talks directly to Connectors and
@@ -50,7 +50,9 @@ export function OnboardingScreen() {
           Encryption protects copied files while the Vault is closed. It does not protect an open
           Vault from malware, administrators, or memory inspection.
         </Text>
-        <Button label="Continue" onClick={() => setStep("password")} />
+        <Button colorPalette="blue" onClick={() => setStep("password")}>
+          Continue
+        </Button>
       </Stack>
     );
   }
@@ -58,8 +60,10 @@ export function OnboardingScreen() {
   if (step === "password") {
     const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
     return (
-      <Stack gap={6} padding={8} maxWidth={640}>
-        <Heading level={1}>Create a Vault password</Heading>
+      <Stack gap="6" p={{ base: 6, md: 8 }} maxW="xl" mx="auto">
+        <Heading as="h1" size="xl">
+          Create a Vault password
+        </Heading>
         <Text as="p">{passwordGuidance(password)}</Text>
         <form
           onSubmit={(event: FormEvent) => {
@@ -76,7 +80,7 @@ export function OnboardingScreen() {
             setStep("pin");
           }}
         >
-          <Stack gap={4}>
+          <Stack gap="4">
             <FormError message={error} />
             <SecretField
               label="Vault password"
@@ -95,7 +99,9 @@ export function OnboardingScreen() {
                 ? { status: { type: "error" as const, message: "Passwords do not match." } }
                 : {})}
             />
-            <Button label="Continue" type="submit" />
+            <Button type="submit" colorPalette="blue">
+              Continue
+            </Button>
           </Stack>
         </form>
       </Stack>
@@ -105,8 +111,10 @@ export function OnboardingScreen() {
   if (step === "pin") {
     const mismatch = confirmPin.length > 0 && pin !== confirmPin;
     return (
-      <Stack gap={6} padding={8} maxWidth={640}>
-        <Heading level={1}>Create a Screen-lock PIN</Heading>
+      <Stack gap="6" p={{ base: 6, md: 8 }} maxW="xl" mx="auto">
+        <Heading as="h1" size="xl">
+          Create a Screen-lock PIN
+        </Heading>
         <Text as="p">
           Lock hides the interface behind this four-digit PIN while the Vault stays open. Background
           Refresh may continue. Lock is not Vault encryption.
@@ -126,26 +134,30 @@ export function OnboardingScreen() {
             create.mutate({ password, pin });
           }}
         >
-          <Stack gap={4}>
+          <Stack gap="4">
             <FormError message={error} />
-            <SecretField
+            <PinField
               label="Screen-lock PIN"
               value={pin}
               onChange={setPin}
               htmlName="screen-lock-pin"
-              autoComplete="off"
             />
-            <SecretField
+            <PinField
               label="Confirm Screen-lock PIN"
               value={confirmPin}
               onChange={setConfirmPin}
               htmlName="screen-lock-pin-confirm"
-              autoComplete="off"
-              {...(mismatch
-                ? { status: { type: "error" as const, message: "PINs do not match." } }
-                : {})}
+              invalid={mismatch}
+              errorText={mismatch ? "PINs do not match." : undefined}
             />
-            <Button label="Create Vault" type="submit" isDisabled={create.isPending} />
+            <Button
+              type="submit"
+              colorPalette="blue"
+              disabled={create.isPending}
+              loading={create.isPending}
+            >
+              Create Vault
+            </Button>
           </Stack>
         </form>
       </Stack>
@@ -153,24 +165,29 @@ export function OnboardingScreen() {
   }
 
   return (
-    <Stack gap={6} padding={8} maxWidth={640}>
-      <Heading level={1}>Add your first asset</Heading>
+    <Stack gap="6" p={{ base: 6, md: 8 }} maxW="xl" mx="auto">
+      <Heading as="h1" size="xl">
+        Add your first asset
+      </Heading>
       <Text as="p">You can start with the same Add assets flow you will use later, or skip.</Text>
-      <Stack direction="horizontal" gap={3}>
+      <Stack direction="row" gap="3">
         <Button
-          label="Add your first asset"
+          colorPalette="blue"
           onClick={() => {
             addAssets.open();
           }}
-        />
+        >
+          Add your first asset
+        </Button>
         <Button
-          label="Go to dashboard"
-          variant="secondary"
+          variant="outline"
           onClick={() => {
             clearFirstAssetPending();
             void queryClient.invalidateQueries({ queryKey: vaultStatusQuery.queryKey });
           }}
-        />
+        >
+          Go to dashboard
+        </Button>
       </Stack>
     </Stack>
   );

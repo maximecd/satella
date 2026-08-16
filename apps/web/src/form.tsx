@@ -1,7 +1,8 @@
-import { Button } from "@astryxdesign/core/Button";
-import { Selector } from "@astryxdesign/core/Selector";
-import { TextInput } from "@astryxdesign/core/TextInput";
+import { Button, Input } from "@chakra-ui/react";
 import { createFormHook, createFormHookContexts, revalidateLogic } from "@tanstack/react-form";
+
+import { Field } from "./components/ui/field";
+import { SelectField } from "./select-field";
 
 const { fieldContext, formContext, useFieldContext, useFormContext } = createFormHookContexts();
 
@@ -29,38 +30,41 @@ const message = (errors: ReadonlyArray<unknown>, label: string, value: string) =
   return raw;
 };
 
-function TextField({ label }: { readonly label: string; readonly number?: boolean }) {
+function TextField({ label, number }: { readonly label: string; readonly number?: boolean }) {
   const field = useFieldContext<string>();
   const form = useFormContext();
   const error = message(field.state.meta.errors, label, field.state.value);
   const isOptional = label.toLocaleLowerCase().includes("optional");
   return (
     <form.Subscribe selector={(state) => state.submissionAttempts}>
-      {(submissionAttempts) => (
-        <TextInput
-          label={label}
-          isOptional={isOptional}
-          value={field.state.value}
-          onChange={(value) => field.handleChange(value)}
-          onBlur={() => {
-            const normalized = field.state.value.trim();
-            if (normalized !== field.state.value) field.handleChange(normalized);
-            field.handleBlur();
-          }}
-          htmlName={field.name}
-          size="lg"
-          statusVariant="detached"
-          width="100%"
-          {...(submissionAttempts === 0 || error === undefined
-            ? {}
-            : { status: { type: "error" as const, message: error } })}
-        />
-      )}
+      {(submissionAttempts) => {
+        const invalid = submissionAttempts > 0 && error !== undefined;
+        return (
+          <Field
+            label={label}
+            invalid={invalid}
+            errorText={invalid ? error : undefined}
+            optionalText={isOptional ? "optional" : undefined}
+          >
+            <Input
+              name={field.name}
+              value={field.state.value}
+              inputMode={number ? "decimal" : undefined}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onBlur={() => {
+                const normalized = field.state.value.trim();
+                if (normalized !== field.state.value) field.handleChange(normalized);
+                field.handleBlur();
+              }}
+            />
+          </Field>
+        );
+      }}
     </form.Subscribe>
   );
 }
 
-function SelectField({
+function SelectFormField({
   label,
   options,
 }: {
@@ -72,20 +76,19 @@ function SelectField({
   const error = message(field.state.meta.errors, label, field.state.value);
   return (
     <form.Subscribe selector={(state) => state.submissionAttempts}>
-      {(submissionAttempts) => (
-        <Selector
-          label={label}
-          options={options}
-          value={field.state.value}
-          onChange={(value) => field.handleChange(value)}
-          size="lg"
-          statusVariant="detached"
-          width="100%"
-          {...(submissionAttempts === 0 || error === undefined
-            ? {}
-            : { status: { type: "error" as const, message: error } })}
-        />
-      )}
+      {(submissionAttempts) => {
+        const invalid = submissionAttempts > 0 && error !== undefined;
+        return (
+          <SelectField
+            label={label}
+            options={options}
+            value={field.state.value}
+            onChange={(value) => field.handleChange(value)}
+            invalid={invalid}
+            errorText={invalid ? error : undefined}
+          />
+        );
+      }}
     </form.Subscribe>
   );
 }
@@ -95,20 +98,16 @@ function SubmitButton({ label }: { readonly label: string }) {
   return (
     <form.Subscribe selector={(state) => state.isSubmitting}>
       {(isSubmitting) => (
-        <Button
-          label={label}
-          type="submit"
-          variant="primary"
-          isDisabled={isSubmitting}
-          isLoading={isSubmitting}
-        />
+        <Button type="submit" colorPalette="blue" disabled={isSubmitting} loading={isSubmitting}>
+          {label}
+        </Button>
       )}
     </form.Subscribe>
   );
 }
 
 export const { useAppForm } = createFormHook({
-  fieldComponents: { TextField, SelectField },
+  fieldComponents: { TextField, SelectField: SelectFormField },
   formComponents: { SubmitButton },
   fieldContext,
   formContext,
