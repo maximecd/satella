@@ -33,7 +33,7 @@ describe("settings", () => {
       yield* Finance.createPosition({
         accountId: account.id,
         assetId: "fiat:EUR",
-        quantity: 100,
+        quantity: "100",
       });
       const updated = yield* Finance.updateSettings({ reportingCurrencyAssetId: "fiat:EUR" });
       const native = yield* Finance.getAccount(account.id);
@@ -41,7 +41,7 @@ describe("settings", () => {
       expect(updated.reportingCurrency).toEqual({ assetId: "fiat:EUR", iso: "EUR" });
       expect(settings.reportingCurrency.iso).toBe("EUR");
       expect(native.baseCurrencyIso).toBe("EUR");
-      expect(native.total).toBe(100);
+      expect(native.total).toBe("100");
     }).pipe(Effect.provide(engineTestLayer())),
   );
 

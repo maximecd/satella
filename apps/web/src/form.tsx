@@ -30,11 +30,23 @@ const message = (errors: ReadonlyArray<unknown>, label: string, value: string) =
   return raw;
 };
 
-function TextField({ label, number }: { readonly label: string; readonly number?: boolean }) {
+function TextField({
+  label,
+  number,
+  disabled,
+  optional,
+  onValueChange,
+}: {
+  readonly label: string;
+  readonly number?: boolean;
+  readonly disabled?: boolean;
+  readonly optional?: boolean;
+  readonly onValueChange?: (value: string) => void;
+}) {
   const field = useFieldContext<string>();
   const form = useFormContext();
   const error = message(field.state.meta.errors, label, field.state.value);
-  const isOptional = label.toLocaleLowerCase().includes("optional");
+  const isOptional = optional ?? label.toLocaleLowerCase().includes("optional");
   return (
     <form.Subscribe selector={(state) => state.submissionAttempts}>
       {(submissionAttempts) => {
@@ -49,8 +61,13 @@ function TextField({ label, number }: { readonly label: string; readonly number?
             <Input
               name={field.name}
               value={field.state.value}
+              disabled={disabled}
               inputMode={number ? "decimal" : undefined}
-              onChange={(event) => field.handleChange(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value;
+                field.handleChange(value);
+                onValueChange?.(value);
+              }}
               onBlur={() => {
                 const normalized = field.state.value.trim();
                 if (normalized !== field.state.value) field.handleChange(normalized);

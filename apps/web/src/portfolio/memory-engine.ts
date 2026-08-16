@@ -1,5 +1,6 @@
 import type {
   Account,
+  AverageUnitPurchasePrice,
   AddAssetsResult,
   AddCashAccountInput,
   AddManualHoldingInput,
@@ -22,6 +23,14 @@ import type {
 
 import type { ConnectorCapabilities, PortfolioEngine, PortfolioEngineOperation } from "./engine";
 import { abortError, PortfolioFailure } from "./failure";
+import {
+  addDecimal,
+  canonicalDecimal,
+  compareDecimal,
+  divideDecimal,
+  multiplyDecimal,
+  subtractDecimal,
+} from "../financial-number";
 
 export type DashboardProjection = (dashboard: Dashboard, settings: Settings) => Dashboard;
 
@@ -51,7 +60,9 @@ export type MemoryPortfolioEngine = PortfolioEngine & {
 
 const defaultDashboard: Dashboard = {
   reportingCurrency: { assetId: "fiat:USD", iso: "USD" },
-  portfolioValue: 0,
+  portfolioValue: "0",
+  unrealizedPnl: "0",
+  unrealizedPnlPercent: null,
   totalIncomplete: false,
   unpricedAssetCount: 0,
   negativeHoldingCount: 0,
@@ -75,6 +86,26 @@ const defaultHoldingLookup: ManualHoldingLookup = { assetId: null, quantity: nul
 
 const clone = <T>(value: T): T => structuredClone(value);
 
+const providerAveragesFrom = (
+  accounts: ReadonlyArray<Account>,
+  positionEdits: ReadonlyArray<PositionEdit>,
+) => {
+  const averages = new Map<string, AverageUnitPurchasePrice>();
+  const positions = [
+    ...accounts.flatMap((account) => account.positions),
+    ...positionEdits.map(({ position }) => position),
+  ];
+  for (const position of positions) {
+    if (
+      position.assetCategory !== "cash" &&
+      position.averageUnitPurchasePrice?.source === "connection"
+    ) {
+      averages.set(position.id, clone(position.averageUnitPurchasePrice));
+    }
+  }
+  return averages;
+};
+
 const throwIfAborted = (signal?: AbortSignal) => {
   if (signal?.aborted) throw abortError();
 };
@@ -83,18 +114,84 @@ const notFound = (entity: string) => new PortfolioFailure("not_found", `${entity
 
 const nowIso = () => new Date().toISOString();
 
-const accountTotal = (positions: ReadonlyArray<Position>) => {
-  let total = 0;
+const accountTotal = (positions: ReadonlyArray<Position>, baseCurrencyAssetId: string) => {
+  let total = "0";
+  let unrealizedPnl = "0";
+  let acquisitionCost = "0";
   let incomplete = false;
   for (const position of positions) {
-    if (position.quantity === 0) continue;
+    if (compareDecimal(position.quantity, "0") === 0) continue;
     if (position.reportingValue === null) {
       incomplete = true;
       continue;
     }
-    total += position.reportingValue;
+    total = addDecimal(total, position.reportingValue);
+    if (
+      position.unrealizedPnl !== null &&
+      position.acquisitionCost !== null &&
+      position.averageUnitPurchasePrice !== null &&
+      position.averageUnitPurchasePrice.currencyAssetId === baseCurrencyAssetId
+    ) {
+      unrealizedPnl = addDecimal(unrealizedPnl, position.unrealizedPnl);
+      acquisitionCost = addDecimal(acquisitionCost, position.acquisitionCost);
+    }
   }
-  return { total, totalIncomplete: incomplete };
+  return {
+    total,
+    totalIncomplete: incomplete,
+    unrealizedPnl,
+    unrealizedPnlPercent:
+      compareDecimal(acquisitionCost, "0") === 0
+        ? null
+        : divideDecimal(unrealizedPnl, acquisitionCost),
+  };
+};
+
+const revaluePosition = (
+  position: Position,
+  baseCurrencyAssetId: string,
+  next: {
+    readonly quantity?: string | number;
+    readonly price?: Position["price"];
+    readonly averageUnitPurchasePrice?: Position["averageUnitPurchasePrice"];
+  } = {},
+): Position => {
+  const quantity = canonicalDecimal(next.quantity ?? position.quantity);
+  const price = next.price === undefined ? position.price : next.price;
+  const average =
+    next.averageUnitPurchasePrice === undefined
+      ? position.averageUnitPurchasePrice
+      : next.averageUnitPurchasePrice;
+  const acquisitionCost = average === null ? null : multiplyDecimal(quantity, average.price);
+  const reportingValue =
+    price === null
+      ? null
+      : price.currencyAssetId === baseCurrencyAssetId
+        ? multiplyDecimal(quantity, price.price)
+        : position.reportingValue;
+  let unrealizedPnl: string | null = null;
+  let unrealizedPnlPercent: string | null = null;
+  if (
+    position.assetCategory !== "cash" &&
+    compareDecimal(quantity, "0") > 0 &&
+    average !== null &&
+    compareDecimal(average.price, "0") > 0 &&
+    price !== null &&
+    price.currencyAssetId === average.currencyAssetId
+  ) {
+    unrealizedPnl = subtractDecimal(multiplyDecimal(quantity, price.price), acquisitionCost ?? "0");
+    unrealizedPnlPercent = divideDecimal(unrealizedPnl, acquisitionCost ?? "1");
+  }
+  return {
+    ...position,
+    quantity,
+    price,
+    reportingValue,
+    averageUnitPurchasePrice: average,
+    acquisitionCost,
+    unrealizedPnl,
+    unrealizedPnlPercent,
+  };
 };
 
 export const createMemoryPortfolioEngine = (
@@ -113,21 +210,27 @@ export const createMemoryPortfolioEngine = (
     holdingLookup: ManualHoldingLookup;
     refreshResult: ConnectionRefreshResult | undefined;
     addAssetsResult: AddAssetsResult | undefined;
+    providerAverages: Map<string, AverageUnitPurchasePrice>;
   };
-  const snapshot = (next: MemoryPortfolioSeed): MemoryState => ({
-    dashboard: clone(next.dashboard ?? defaultDashboard),
-    settings: clone(next.settings ?? defaultSettings),
-    projectDashboard: next.projectDashboard,
-    connections: clone([...(next.connections ?? [])]),
-    accounts: clone([...(next.accounts ?? [])]),
-    assets: clone([...(next.assets ?? [])]),
-    positionEdits: clone([...(next.positionEdits ?? [])]),
-    capabilities: clone(next.capabilities ?? defaultCapabilities),
-    searchResults: clone([...(next.searchResults ?? [])]),
-    holdingLookup: clone(next.holdingLookup ?? defaultHoldingLookup),
-    refreshResult: next.refreshResult === undefined ? undefined : clone(next.refreshResult),
-    addAssetsResult: next.addAssetsResult === undefined ? undefined : clone(next.addAssetsResult),
-  });
+  const snapshot = (next: MemoryPortfolioSeed): MemoryState => {
+    const accounts = clone([...(next.accounts ?? [])]);
+    const positionEdits = clone([...(next.positionEdits ?? [])]);
+    return {
+      dashboard: clone(next.dashboard ?? defaultDashboard),
+      settings: clone(next.settings ?? defaultSettings),
+      projectDashboard: next.projectDashboard,
+      connections: clone([...(next.connections ?? [])]),
+      accounts,
+      assets: clone([...(next.assets ?? [])]),
+      positionEdits,
+      capabilities: clone(next.capabilities ?? defaultCapabilities),
+      searchResults: clone([...(next.searchResults ?? [])]),
+      holdingLookup: clone(next.holdingLookup ?? defaultHoldingLookup),
+      refreshResult: next.refreshResult === undefined ? undefined : clone(next.refreshResult),
+      addAssetsResult: next.addAssetsResult === undefined ? undefined : clone(next.addAssetsResult),
+      providerAverages: providerAveragesFrom(accounts, positionEdits),
+    };
+  };
   const cloneState = (value: MemoryState): MemoryState => ({
     dashboard: clone(value.dashboard),
     settings: clone(value.settings),
@@ -141,6 +244,9 @@ export const createMemoryPortfolioEngine = (
     holdingLookup: clone(value.holdingLookup),
     refreshResult: value.refreshResult === undefined ? undefined : clone(value.refreshResult),
     addAssetsResult: value.addAssetsResult === undefined ? undefined : clone(value.addAssetsResult),
+    providerAverages: new Map(
+      [...value.providerAverages].map(([id, average]) => [id, clone(average)] as const),
+    ),
   });
   const defaults = snapshot(seed);
   let state = cloneState(defaults);
@@ -184,18 +290,20 @@ export const createMemoryPortfolioEngine = (
   };
 
   const syncDashboardAccounts = () => {
-    const byId = new Map(state.dashboard.accounts.map((row) => [row.accountId, row]));
     state.dashboard = {
       ...state.dashboard,
       accounts: state.accounts.map((account) => {
-        const existing = byId.get(account.id);
         return {
           accountId: account.id,
           accountName: account.name,
           connectionId: account.connectionId,
           connectionName: account.connectionName,
-          positionCount: account.positions.filter((position) => position.quantity !== 0).length,
-          total: existing?.total ?? account.total,
+          positionCount: account.positions.filter(
+            (position) => compareDecimal(position.quantity, "0") !== 0,
+          ).length,
+          total: account.total,
+          unrealizedPnl: account.unrealizedPnl,
+          unrealizedPnlPercent: account.unrealizedPnlPercent,
           totalIncomplete: account.totalIncomplete,
         };
       }),
@@ -203,7 +311,7 @@ export const createMemoryPortfolioEngine = (
   };
 
   const replaceAccount = (next: Account) => {
-    const totals = accountTotal(next.positions);
+    const totals = accountTotal(next.positions, next.baseCurrencyAssetId);
     const account = { ...next, ...totals };
     state.accounts = state.accounts.map((candidate) =>
       candidate.id === account.id ? account : candidate,
@@ -218,6 +326,8 @@ export const createMemoryPortfolioEngine = (
           name: account.name,
           connectionId: account.connectionId,
           connectionName: account.connectionName,
+          baseCurrencyAssetId: account.baseCurrencyAssetId,
+          baseCurrencyIso: account.baseCurrencyIso,
         },
       };
     });
@@ -231,8 +341,9 @@ export const createMemoryPortfolioEngine = (
                 ...summary,
                 name: account.name,
                 baseCurrencyIso: account.baseCurrencyIso,
-                positionCount: account.positions.filter((position) => position.quantity !== 0)
-                  .length,
+                positionCount: account.positions.filter(
+                  (position) => compareDecimal(position.quantity, "0") !== 0,
+                ).length,
               }
             : summary,
         ),
@@ -276,7 +387,9 @@ export const createMemoryPortfolioEngine = (
       baseCurrencyIso: currencyIso(destination.baseCurrencyAssetId ?? "fiat:USD"),
       connectorAccountId: null,
       positions: [],
-      total: 0,
+      total: "0",
+      unrealizedPnl: "0",
+      unrealizedPnlPercent: null,
       totalIncomplete: false,
       hasStalePrices: false,
       createdAt: nowIso(),
@@ -331,7 +444,7 @@ export const createMemoryPortfolioEngine = (
         input.manualPrice === undefined
           ? current.price
           : {
-              price: input.manualPrice.price,
+              price: canonicalDecimal(input.manualPrice.price),
               currencyAssetId: input.manualPrice.currencyAssetId,
               currencyIso: currencyIso(input.manualPrice.currencyAssetId),
               source: "manual",
@@ -352,16 +465,15 @@ export const createMemoryPortfolioEngine = (
           ...account,
           positions: account.positions.map((position) =>
             position.assetId === id
-              ? {
-                  ...position,
-                  assetName: next.name,
-                  assetSymbol: next.symbol,
-                  price: next.price,
-                  reportingValue:
-                    next.price === null || position.quantity === 0
-                      ? position.reportingValue
-                      : position.quantity * next.price.price,
-                }
+              ? revaluePosition(
+                  {
+                    ...position,
+                    assetName: next.name,
+                    assetSymbol: next.symbol,
+                  },
+                  account.baseCurrencyAssetId,
+                  { price: next.price },
+                )
               : position,
           ),
         });
@@ -418,20 +530,39 @@ export const createMemoryPortfolioEngine = (
       rejectIfFailed("getPositionEdit");
       return requirePositionEdit(id);
     },
-    updatePosition: async (id, quantity, signal) => {
+    updatePosition: async (id, input, signal) => {
       throwIfAborted(signal);
       rejectIfFailed("updatePosition");
       const edit = requirePositionEdit(id);
       const account = requireAccount(edit.account.id);
+      if (input.quantity !== undefined && account.connectionId !== null) {
+        throw new PortfolioFailure("read_only", "Connected quantities are read-only");
+      }
+      if (input.averageUnitPurchasePrice != null && edit.position.assetCategory === "cash") {
+        throw new PortfolioFailure(
+          "validation",
+          "Cash positions cannot have an average unit purchase price",
+        );
+      }
       const positions = account.positions.map((position) =>
         position.id === id
-          ? {
-              ...position,
-              quantity,
-              reportingValue:
-                position.price === null ? position.reportingValue : quantity * position.price.price,
-              updatedAt: nowIso(),
-            }
+          ? revaluePosition(position, account.baseCurrencyAssetId, {
+              quantity: input.quantity ?? position.quantity,
+              averageUnitPurchasePrice: (() => {
+                if (input.averageUnitPurchasePrice === undefined) {
+                  return position.averageUnitPurchasePrice;
+                }
+                if (input.averageUnitPurchasePrice === null) {
+                  return state.providerAverages.get(position.id) ?? null;
+                }
+                return {
+                  ...input.averageUnitPurchasePrice,
+                  price: canonicalDecimal(input.averageUnitPurchasePrice.price),
+                  currencyIso: currencyIso(input.averageUnitPurchasePrice.currencyAssetId),
+                  source: "manual" as const,
+                };
+              })(),
+            })
           : position,
       );
       return replaceAccount({ ...account, positions, updatedAt: nowIso() });
@@ -571,9 +702,15 @@ export const createMemoryPortfolioEngine = (
       if (next.settings !== undefined) state.settings = clone(next.settings);
       if (next.projectDashboard !== undefined) state.projectDashboard = next.projectDashboard;
       if (next.connections !== undefined) state.connections = clone([...next.connections]);
-      if (next.accounts !== undefined) state.accounts = clone([...next.accounts]);
+      if (next.accounts !== undefined) {
+        state.accounts = clone([...next.accounts]);
+        state.providerAverages = providerAveragesFrom(state.accounts, state.positionEdits);
+      }
       if (next.assets !== undefined) state.assets = clone([...next.assets]);
-      if (next.positionEdits !== undefined) state.positionEdits = clone([...next.positionEdits]);
+      if (next.positionEdits !== undefined) {
+        state.positionEdits = clone([...next.positionEdits]);
+        state.providerAverages = providerAveragesFrom(state.accounts, state.positionEdits);
+      }
       if (next.capabilities !== undefined) state.capabilities = clone(next.capabilities);
       if (next.searchResults !== undefined) state.searchResults = clone([...next.searchResults]);
       if (next.holdingLookup !== undefined) state.holdingLookup = clone(next.holdingLookup);

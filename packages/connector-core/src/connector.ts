@@ -1,13 +1,13 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
+import { canonicalDecimal } from "./financial-number.js";
+
 export const ConnectorAssetCategory = Schema.Literals([
   "stocks_etfs",
   "bonds",
   "crypto",
   "cash",
-  "derivatives",
-  "commodities",
   "other",
 ]);
 export type ConnectorAssetCategory = typeof ConnectorAssetCategory.Type;
@@ -40,7 +40,13 @@ export type ConnectorAsset = typeof ConnectorAsset.Type;
 
 export const ConnectorPosition = Schema.Struct({
   asset: ConnectorAsset,
-  quantity: Schema.Number,
+  quantity: Schema.String,
+  averageUnitPurchasePrice: Schema.optional(
+    Schema.Struct({
+      price: Schema.String,
+      currencyIso: Schema.String,
+    }),
+  ),
 });
 export type ConnectorPosition = typeof ConnectorPosition.Type;
 
@@ -131,9 +137,7 @@ export const validateConnectorOutput = (
         const positions: ConnectorPosition[] = [];
         const seenPositionAssets = new Set<string>();
         for (const position of account.positions) {
-          if (!Number.isFinite(position.quantity)) {
-            throw new Error("Connector returned a non-finite position quantity");
-          }
+          const quantity = canonicalDecimal(position.quantity);
           if (seenPositionAssets.has(position.asset.externalId)) {
             throw new Error("Connector returned duplicate positions for one account");
           }
@@ -146,7 +150,18 @@ export const validateConnectorOutput = (
             throw new Error("Connector returned conflicting definitions for one asset");
           }
           seenAssetDefinitions.set(position.asset.externalId, position.asset);
-          positions.push(position);
+          positions.push({
+            ...position,
+            quantity,
+            ...(position.averageUnitPurchasePrice === undefined
+              ? {}
+              : {
+                  averageUnitPurchasePrice: {
+                    ...position.averageUnitPurchasePrice,
+                    price: canonicalDecimal(position.averageUnitPurchasePrice.price),
+                  },
+                }),
+          });
         }
         normalized.push({ ...account, positions });
       }

@@ -11,8 +11,8 @@ export const make = Effect.gen(function* () {
     create: Effect.fn("PositionService.create")((input) =>
       withSql(Operations.createPosition(input)),
     ),
-    update: Effect.fn("PositionService.update")((id, quantity) =>
-      withSql(Operations.updatePosition(id, quantity)),
+    update: Effect.fn("PositionService.update")((id, input) =>
+      withSql(Operations.updatePosition(id, input)),
     ),
     getEdit: Effect.fn("PositionService.getEdit")((id: string) =>
       withSql(Operations.getPositionEdit(id)),

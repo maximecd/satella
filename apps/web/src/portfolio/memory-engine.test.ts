@@ -10,7 +10,7 @@ describe("memory portfolio engine", () => {
     const eur = {
       ...usd,
       reportingCurrency: { assetId: "fiat:EUR", iso: "EUR" },
-      portfolioValue: 1000,
+      portfolioValue: "1000",
     };
     const engine = createMemoryPortfolioEngine({
       dashboard: usd,
@@ -24,7 +24,7 @@ describe("memory portfolio engine", () => {
     expect(await engine.getSettings()).toEqual(next);
     expect(await engine.getDashboard()).toMatchObject({
       reportingCurrency: { assetId: "fiat:EUR", iso: "EUR" },
-      portfolioValue: 1000,
+      portfolioValue: "1000",
     });
   });
 
@@ -70,11 +70,11 @@ describe("memory portfolio engine", () => {
     const next = await engine.updateAsset("asset-1", {
       name: "Studio",
       symbol: "STUDIO",
-      manualPrice: { price: 25, currencyAssetId: "fiat:USD" },
+      manualPrice: { price: "25", currencyAssetId: "fiat:USD" },
     });
     expect(next.name).toBe("Studio");
     expect((await engine.getAsset("asset-1")).symbol).toBe("STUDIO");
-    expect((await engine.listAssets())[0]?.price?.price).toBe(25);
+    expect((await engine.listAssets())[0]?.price?.price).toBe("25");
     expect((await engine.getAccount("account-1")).positions[0]?.assetName).toBe("Studio");
   });
 
@@ -84,8 +84,8 @@ describe("memory portfolio engine", () => {
       accounts: [account],
       positionEdits: [positionEdit],
     });
-    const next = await engine.updatePosition("active-position", 1.5);
-    expect(next.positions[0]?.quantity).toBe(1.5);
-    expect((await engine.getPositionEdit("active-position")).position.quantity).toBe(1.5);
+    const next = await engine.updatePosition("active-position", { quantity: "1.5" });
+    expect(next.positions[0]?.quantity).toBe("1.5");
+    expect((await engine.getPositionEdit("active-position")).position.quantity).toBe("1.5");
   });
 });

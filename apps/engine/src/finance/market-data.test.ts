@@ -36,7 +36,7 @@ describe("market data coordinator", () => {
         return Effect.succeed({
           observations: lookups.map(({ lookupKey }) => ({
             lookupKey,
-            price: 64_021,
+            price: "64021",
             currencyIso: "USD",
             observedAt: new Date(),
           })),
@@ -99,7 +99,7 @@ describe("market data coordinator", () => {
         return Effect.succeed({
           observations: lookups.map(({ lookupKey }) => ({
             lookupKey,
-            price: 64_021,
+            price: "64021",
             currencyIso: "USD",
             observedAt: new Date(),
           })),
@@ -120,7 +120,11 @@ describe("market data coordinator", () => {
         const account = yield* Finance.createAccount({
           name: "Trading",
         });
-        yield* Finance.createPosition({ accountId: account.id, assetId: bitcoin.id, quantity: 1 });
+        yield* Finance.createPosition({
+          accountId: account.id,
+          assetId: bitcoin.id,
+          quantity: "1",
+        });
         const refreshed = yield* refreshPrices({
           registry,
           requireFresh: true,
@@ -142,7 +146,7 @@ describe("market data coordinator", () => {
 
     expect(batches[0]?.map(({ lookupKey }) => lookupKey)).toEqual(["bitcoin"]);
     expect(result.refreshed.refreshedAssetIds).toEqual([result.bitcoin.id]);
-    expect(result.valued.total).toBe(64_021);
+    expect(result.valued.total).toBe("64021");
     expect(result.valued.totalIncomplete).toBe(false);
   });
 
@@ -156,7 +160,7 @@ describe("market data coordinator", () => {
         return Effect.succeed({
           observations: lookups.map(({ lookupKey, kind }) => ({
             lookupKey,
-            price: kind === "fiat" ? 1.1 : 34,
+            price: kind === "fiat" ? "1.1" : "34",
             currencyIso: kind === "fiat" ? "USD" : "EUR",
             observedAt: new Date(),
           })),
@@ -176,7 +180,7 @@ describe("market data coordinator", () => {
         const account = yield* Finance.createAccount({
           name: "Portfolio",
         });
-        yield* Finance.createPosition({ accountId: account.id, assetId: etf.id, quantity: 2 });
+        yield* Finance.createPosition({ accountId: account.id, assetId: etf.id, quantity: "2" });
         const refreshed = yield* refreshPrices({ registry, requireFresh: true });
         const valued = yield* Finance.getAccount(account.id);
         return { etf, refreshed, valued };
@@ -188,7 +192,7 @@ describe("market data coordinator", () => {
       ["EURUSD=X"],
     ]);
     expect(result.refreshed.refreshedAssetIds).toEqual([result.etf.id, "fiat:EUR"]);
-    expect(result.valued.positions[0]?.reportingValue).toBeCloseTo(74.8);
+    expect(result.valued.positions[0]?.reportingValue).toBe("74.8");
     expect(result.valued.totalIncomplete).toBe(false);
   });
 
@@ -203,7 +207,7 @@ describe("market data coordinator", () => {
         return Effect.succeed({
           observations: lookups.map(({ lookupKey, kind }) => ({
             lookupKey,
-            price: kind === "fiat" ? 1.1 : 301,
+            price: kind === "fiat" ? "1.1" : "301",
             currencyIso: kind === "fiat" ? "USD" : "EUR",
             observedAt: new Date(),
           })),
@@ -229,7 +233,7 @@ describe("market data coordinator", () => {
         const account = yield* Finance.createAccount({
           name: "Portfolio",
         });
-        yield* Finance.createPosition({ accountId: account.id, assetId: etf.id, quantity: 1 });
+        yield* Finance.createPosition({ accountId: account.id, assetId: etf.id, quantity: "1" });
         const refreshed = yield* refreshPrices({
           registry,
           requireFresh: true,
@@ -276,7 +280,7 @@ describe("market data coordinator", () => {
             .filter(({ lookupKey }) => lookupKey === "AAPL")
             .map(({ lookupKey }) => ({
               lookupKey,
-              price: 200,
+              price: "200",
               currencyIso: "USD",
               observedAt: new Date(),
             })),
@@ -310,9 +314,9 @@ describe("market data coordinator", () => {
         const second = yield* Finance.createAccount({
           name: "Default",
         });
-        yield* Finance.createPosition({ accountId: first.id, assetId: apple.id, quantity: 1 });
-        yield* Finance.createPosition({ accountId: second.id, assetId: apple.id, quantity: 2 });
-        yield* Finance.createPosition({ accountId: first.id, assetId: unknown.id, quantity: 1 });
+        yield* Finance.createPosition({ accountId: first.id, assetId: apple.id, quantity: "1" });
+        yield* Finance.createPosition({ accountId: second.id, assetId: apple.id, quantity: "2" });
+        yield* Finance.createPosition({ accountId: first.id, assetId: unknown.id, quantity: "1" });
         const refreshed = yield* refreshPrices({ registry, requireFresh: true });
         const valued = yield* Finance.getAccount(second.id);
         const freshPass = yield* refreshPrices({ registry });
@@ -326,7 +330,7 @@ describe("market data coordinator", () => {
     expect(result.refreshed.failures).toEqual([
       expect.objectContaining({ assetId: result.unknown.id, category: "not-found" }),
     ]);
-    expect(result.valued.total).toBe(400);
+    expect(result.valued.total).toBe("400");
     expect(result.freshPass.refreshedAssetIds).toEqual([]);
     expect(batches).toHaveLength(2);
     expect(batches[1]?.map(({ lookupKey }) => lookupKey)).toEqual(["UNKNOWN"]);
@@ -353,7 +357,7 @@ describe("market data coordinator", () => {
         const account = yield* Finance.createAccount({
           name: "Default",
         });
-        yield* Finance.createPosition({ accountId: account.id, assetId: custom.id, quantity: 1 });
+        yield* Finance.createPosition({ accountId: account.id, assetId: custom.id, quantity: "1" });
         return yield* refreshPrices({ registry, requireFresh: true });
       }),
     );
@@ -372,7 +376,7 @@ describe("market data coordinator", () => {
           Effect.as({
             observations: lookups.map(({ lookupKey }) => ({
               lookupKey,
-              price: 100,
+              price: "100",
               currencyIso: "USD",
               observedAt: new Date(),
             })),
@@ -392,7 +396,7 @@ describe("market data coordinator", () => {
         const account = yield* Finance.createAccount({
           name: "Default",
         });
-        yield* Finance.createPosition({ accountId: account.id, assetId: asset.id, quantity: 1 });
+        yield* Finance.createPosition({ accountId: account.id, assetId: asset.id, quantity: "1" });
         yield* Effect.all(
           [
             refreshPrices({ registry, requireFresh: true }),

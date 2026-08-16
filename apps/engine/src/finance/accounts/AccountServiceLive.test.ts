@@ -15,7 +15,7 @@ describe("accounts", () => {
       const withBalance = yield* Finance.createPosition({
         accountId: account.id,
         assetId: "fiat:EUR",
-        quantity: 10,
+        quantity: "10",
       });
       const renamed = yield* Finance.updateAccount(account.id, {
         name: "Everyday",

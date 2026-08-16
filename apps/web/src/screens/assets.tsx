@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import type { Asset } from "@optimus/engine/api";
-import { NumberFromNonEmptyString } from "@optimus/engine/api";
+import { DecimalFromNonEmptyString } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
 
@@ -15,7 +15,7 @@ import {
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { useAsset, useAssets, useDeleteAsset, useMaintainAsset } from "../portfolio";
 
-const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "derivatives", "commodities", "other"]);
+const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "other"]);
 
 const EditAssetForm = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
@@ -52,7 +52,7 @@ function LoadedAssetScreen({
         const decoded = await Schema.decodeUnknownPromise(EditAssetForm)(value);
         const manualPrice = decoded.price.trim()
           ? {
-              price: await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(decoded.price),
+              price: await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(decoded.price),
               currencyAssetId: decoded.currencyAssetId,
             }
           : undefined;

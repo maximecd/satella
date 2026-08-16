@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
+  connectedAccount,
   renderRoute,
   resetFinanceMocks,
   seedPortfolioEngine,
@@ -18,6 +19,7 @@ describe("positions screen", () => {
     renderRoute("/positions/active-position/edit");
     expect(await screen.findByRole("heading", { name: "Edit Unpriced asset" })).toBeInTheDocument();
     expect(screen.getByLabelText("Quantity")).toHaveValue("2");
+    expect(screen.getByText("Unrealized P&L: —")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
       "href",
       "/accounts/account-1",
@@ -48,7 +50,7 @@ describe("positions screen", () => {
     const input = await screen.findByLabelText("Quantity");
     await user.clear(input);
     await user.type(input, "1.5");
-    await user.click(screen.getByRole("button", { name: "Save quantity" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(await screen.findByRole("heading", { name: "Portfolio" })).toBeInTheDocument();
     expect(screen.getByText("1.5")).toBeInTheDocument();
   });
@@ -60,8 +62,46 @@ describe("positions screen", () => {
     await user.clear(input);
 
     expect(screen.queryByText("Quantity is required.")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Save quantity" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(screen.getAllByText("Quantity is required.").length).toBeGreaterThan(0);
     expect(screen.queryByText(/Unable to decode/)).not.toBeInTheDocument();
+  });
+
+  it("allows a connected purchase price reset to be replaced manually", async () => {
+    const user = userEvent.setup();
+    const position = {
+      ...connectedAccount.positions[0]!,
+      averageUnitPurchasePrice: {
+        price: "5",
+        currencyAssetId: "fiat:USD",
+        currencyIso: "USD",
+        source: "connection" as const,
+      },
+      acquisitionCost: "5",
+      unrealizedPnl: "95",
+      unrealizedPnlPercent: "19",
+    };
+    seedPortfolioEngine({
+      accounts: [
+        {
+          ...connectedAccount,
+          positions: [position],
+          unrealizedPnl: "95",
+          unrealizedPnlPercent: "19",
+        },
+      ],
+      positionEdits: [{ ...connectedPositionEdit, position }],
+    });
+
+    renderRoute("/positions/connected-position/edit");
+    const average = await screen.findByLabelText(/Average unit purchase price/);
+    expect(average).toHaveValue("5");
+    await user.click(screen.getByRole("button", { name: "Reset purchase price" }));
+    expect(average).toHaveValue("");
+    await user.type(average, "7");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(await screen.findByRole("heading", { name: "Trading" })).toBeInTheDocument();
+    expect(screen.getAllByText(/\+93[.,]00 USD/).length).toBeGreaterThan(0);
   });
 });

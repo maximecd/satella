@@ -11,7 +11,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import type { AssetSearchResult, ConnectorCapability } from "@optimus/engine/api";
-import { NumberFromNonEmptyString } from "@optimus/engine/api";
+import { DecimalFromNonEmptyString } from "@optimus/engine/api";
 import { ConnectConnectionInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { ChevronLeft, Search, X } from "lucide-react";
@@ -53,6 +53,7 @@ import {
   useManualHoldingLookup,
 } from "../portfolio";
 import { SelectField } from "../select-field";
+import { compareDecimal } from "../financial-number";
 import { SetupInstructions } from "./setup-instructions";
 
 const errorMessage = (error: unknown) =>
@@ -750,6 +751,7 @@ function HoldingsForm({
   const [debounced, setDebounced] = useState("");
   const [selected, setSelected] = useState<AssetSearchResult | null>(null);
   const [quantity, setQuantity] = useState("");
+  const [averagePrice, setAveragePrice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -792,12 +794,23 @@ function HoldingsForm({
     if (picker.creatingAccount && picker.accountName.trim() === "") {
       nextFieldErrors.accountName = "Account name is required.";
     }
-    const decoded = await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(quantity).catch(
+    const decoded = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(quantity).catch(
       () => undefined,
     );
     if (decoded === undefined) {
       nextFieldErrors.quantity =
         quantity.trim() === "" ? "Quantity is required." : "Enter a valid quantity.";
+    }
+    const decodedAverage =
+      averagePrice.trim() === ""
+        ? undefined
+        : await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(averagePrice).catch(
+            () => undefined,
+          );
+    if (averagePrice.trim() !== "" && decodedAverage === undefined) {
+      nextFieldErrors.averagePrice = "Enter a valid average unit purchase price.";
+    } else if (decodedAverage !== undefined && compareDecimal(decodedAverage, "0") <= 0) {
+      nextFieldErrors.averagePrice = "Average unit purchase price must be greater than zero.";
     }
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0 || selected === null || identifier === undefined) {
@@ -814,6 +827,14 @@ function HoldingsForm({
         },
         account: picker.destination(),
         quantity: decoded,
+        ...(decodedAverage === undefined
+          ? {}
+          : {
+              averageUnitPurchasePrice: {
+                price: decodedAverage,
+                currencyAssetId: picker.currencyId,
+              },
+            }),
       });
       notify.success(
         result.positionOutcome === "updated"
@@ -913,6 +934,29 @@ function HoldingsForm({
               }}
             />
           </Field>
+          <Field
+            label="Average unit purchase price (optional)"
+            invalid={fieldErrors.averagePrice !== undefined}
+            errorText={fieldErrors.averagePrice}
+          >
+            <Input
+              name="averageUnitPurchasePrice"
+              value={averagePrice}
+              onChange={(event) => {
+                setAveragePrice(event.target.value);
+                clearFieldError("averagePrice");
+              }}
+            />
+          </Field>
+          <SelectField
+            label="Purchase currency"
+            options={picker.cash.map((asset) => ({
+              value: asset.id,
+              label: asset.symbol ?? asset.name,
+            }))}
+            value={picker.currencyId}
+            onChange={picker.setCurrencyId}
+          />
           <Button
             type="submit"
             colorPalette="blue"
@@ -953,7 +997,7 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
     if (picker.creatingAccount && picker.accountName.trim() === "") {
       nextFieldErrors.accountName = "Account name is required.";
     }
-    const decoded = await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(balance).catch(
+    const decoded = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(balance).catch(
       () => undefined,
     );
     if (decoded === undefined) {
@@ -1034,9 +1078,16 @@ function GenericForm({
   const picker = useManualAccountPicker();
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
+  const [averagePrice, setAveragePrice] = useState("");
+  const [valueCurrencyId, setValueCurrencyId] = useState(() => picker.currencyId);
+  const [purchaseCurrencyId, setPurchaseCurrencyId] = useState(() => picker.currencyId);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const mutation = useAddOtherAsset();
+  useEffect(() => {
+    setValueCurrencyId(picker.currencyId);
+    setPurchaseCurrencyId(picker.currencyId);
+  }, [picker.currencyId]);
   if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
   if (picker.accounts.isError)
     return <PageState kind="error" message={errorMessage(picker.accounts.error)} />;
@@ -1056,31 +1107,44 @@ function GenericForm({
     if (picker.creatingAccount && picker.accountName.trim() === "") {
       nextFieldErrors.accountName = "Account name is required.";
     }
-    const decoded = await Schema.decodeUnknownPromise(NumberFromNonEmptyString)(value).catch(
+    const decoded = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(value).catch(
       () => undefined,
     );
     if (decoded === undefined) {
       nextFieldErrors.value =
         value.trim() === "" ? "Current value is required." : "Enter a valid value.";
     }
+    const decodedAverage =
+      averagePrice.trim() === ""
+        ? undefined
+        : await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(averagePrice).catch(
+            () => undefined,
+          );
+    if (averagePrice.trim() !== "" && decodedAverage === undefined) {
+      nextFieldErrors.averagePrice = "Enter a valid average unit purchase price.";
+    } else if (decodedAverage !== undefined && compareDecimal(decodedAverage, "0") <= 0) {
+      nextFieldErrors.averagePrice = "Average unit purchase price must be greater than zero.";
+    }
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0 || decoded === undefined) return;
     try {
       await mutation.mutateAsync({
         category:
-          meta.assetCategory === "bonds" ||
-          meta.assetCategory === "derivatives" ||
-          meta.assetCategory === "commodities" ||
-          meta.assetCategory === "other"
+          meta.assetCategory === "bonds" || meta.assetCategory === "other"
             ? meta.assetCategory
             : "other",
         account: picker.destination(),
         name: name.trim(),
         value: decoded,
-        currencyAssetId: picker.creatingAccount
-          ? picker.currencyId
-          : (picker.listed.find((account) => account.id === picker.accountChoice)
-              ?.baseCurrencyAssetId ?? picker.currencyId),
+        ...(decodedAverage === undefined
+          ? {}
+          : {
+              averageUnitPurchasePrice: {
+                price: decodedAverage,
+                currencyAssetId: purchaseCurrencyId,
+              },
+            }),
+        currencyAssetId: valueCurrencyId,
       });
       notify.success(`Added ${name.trim()}.`);
       onComplete();
@@ -1132,8 +1196,31 @@ function GenericForm({
               value: asset.id,
               label: asset.symbol ?? asset.name,
             }))}
-            value={picker.currencyId}
-            onChange={picker.setCurrencyId}
+            value={valueCurrencyId}
+            onChange={setValueCurrencyId}
+          />
+          <Field
+            label="Average unit purchase price (optional)"
+            invalid={fieldErrors.averagePrice !== undefined}
+            errorText={fieldErrors.averagePrice}
+          >
+            <Input
+              name="averageUnitPurchasePrice"
+              value={averagePrice}
+              onChange={(event) => {
+                setAveragePrice(event.target.value);
+                clearFieldError("averagePrice");
+              }}
+            />
+          </Field>
+          <SelectField
+            label="Purchase currency"
+            options={picker.cash.map((asset) => ({
+              value: asset.id,
+              label: asset.symbol ?? asset.name,
+            }))}
+            value={purchaseCurrencyId}
+            onChange={setPurchaseCurrencyId}
           />
           <Button
             type="submit"

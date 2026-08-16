@@ -46,20 +46,20 @@ describe("assets", () => {
         const second = yield* Finance.createAccount({
           name: "Default",
         });
-        yield* Finance.createPosition({ accountId: first.id, assetId: asset.id, quantity: 2 });
+        yield* Finance.createPosition({ accountId: first.id, assetId: asset.id, quantity: "2" });
         const beforePrice = yield* Finance.createPosition({
           accountId: second.id,
           assetId: asset.id,
-          quantity: 3,
+          quantity: "3",
         });
-        yield* Finance.setManualPrice(asset.id, { price: 10, currencyAssetId: "fiat:USD" });
+        yield* Finance.setManualPrice(asset.id, { price: "10", currencyAssetId: "fiat:USD" });
         const pricedFirst = yield* Finance.getAccount(first.id);
         const pricedSecond = yield* Finance.getAccount(second.id);
         expect(beforePrice.totalIncomplete).toBe(true);
-        expect(pricedFirst.total).toBeCloseTo(20);
-        expect(pricedSecond.total).toBeCloseTo(30);
-        expect(pricedFirst.positions[0]?.price?.price).toBe(10);
-        expect(pricedSecond.positions[0]?.price?.price).toBe(10);
+        expect(pricedFirst.total).toBe("20");
+        expect(pricedSecond.total).toBe("30");
+        expect(pricedFirst.positions[0]?.price?.price).toBe("10");
+        expect(pricedSecond.positions[0]?.price?.price).toBe("10");
       }).pipe(Effect.provide(engineTestLayer())),
   );
 
@@ -73,11 +73,11 @@ describe("assets", () => {
       const updated = yield* Finance.maintainAsset(asset.id, {
         name: "Studio",
         symbol: "STUDIO",
-        manualPrice: { price: 25, currencyAssetId: "fiat:USD" },
+        manualPrice: { price: "25", currencyAssetId: "fiat:USD" },
       });
       expect(updated.name).toBe("Studio");
       expect(updated.symbol).toBe("STUDIO");
-      expect(updated.price?.price).toBe(25);
+      expect(updated.price?.price).toBe("25");
       expect(updated.price?.currencyAssetId).toBe("fiat:USD");
     }).pipe(Effect.provide(engineTestLayer())),
   );
@@ -92,7 +92,7 @@ describe("assets", () => {
       const emptyName = yield* Finance.maintainAsset(asset.id, { name: "   " }).pipe(Effect.flip);
       const infinitePrice = yield* Finance.maintainAsset(asset.id, {
         name: "Changed",
-        manualPrice: { price: Number.POSITIVE_INFINITY, currencyAssetId: "fiat:USD" },
+        manualPrice: { price: "Infinity", currencyAssetId: "fiat:USD" },
       }).pipe(Effect.flip);
       const missing = yield* Finance.maintainAsset("missing-asset", { name: "Ghost" }).pipe(
         Effect.flip,
@@ -126,7 +126,7 @@ describe("assets", () => {
         BEGIN SELECT RAISE(ABORT, 'asset persist failed'); END`;
       const metadataFailure = yield* Finance.maintainAsset(asset.id, {
         name: "Metadata fail",
-        manualPrice: { price: 10, currencyAssetId: "fiat:USD" },
+        manualPrice: { price: "10", currencyAssetId: "fiat:USD" },
       }).pipe(Effect.flip);
       const afterMetadataFailure = yield* Finance.getAsset(asset.id);
       yield* sql`DROP TRIGGER fail_asset_update`;
@@ -134,7 +134,7 @@ describe("assets", () => {
         BEGIN SELECT RAISE(ABORT, 'price persist failed'); END`;
       const priceFailure = yield* Finance.maintainAsset(asset.id, {
         name: "Price fail",
-        manualPrice: { price: 12, currencyAssetId: "fiat:USD" },
+        manualPrice: { price: "12", currencyAssetId: "fiat:USD" },
       }).pipe(Effect.flip);
       const afterPriceFailure = yield* Finance.getAsset(asset.id);
       expect(metadataFailure.code).toBe("database");

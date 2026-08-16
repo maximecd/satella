@@ -18,13 +18,13 @@ describe("add assets operations", () => {
           identifiers: [{ type: "isin", value: "US0378331005" }],
         },
         account: { type: "new", name: "PEA" },
-        quantity: 3,
+        quantity: "3",
       });
       const account = yield* Finance.getAccount(created.accountId);
       const accounts = yield* Finance.listManualAccounts();
       expect(created.positionOutcome).toBe("created");
       expect(account.connectionId).toBeNull();
-      expect(account.positions[0]?.quantity).toBe(3);
+      expect(account.positions[0]?.quantity).toBe("3");
       expect(account.positions[0]?.assetCategory).toBe("stocks_etfs");
       expect(accounts).toHaveLength(1);
       expect(accounts[0]?.name).toBe("PEA");
@@ -41,7 +41,7 @@ describe("add assets operations", () => {
           identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
         },
         account: { type: "new", name: "Spot" },
-        quantity: 1,
+        quantity: "1",
       });
       const second = yield* Finance.addManualHolding({
         asset: {
@@ -51,7 +51,7 @@ describe("add assets operations", () => {
           identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
         },
         account: { type: "existing", id: first.accountId },
-        quantity: 2.5,
+        quantity: "2.5",
       });
       const lookup = yield* Finance.lookupManualHolding(
         first.accountId,
@@ -61,8 +61,8 @@ describe("add assets operations", () => {
       const account = yield* Finance.getAccount(first.accountId);
       expect(second.positionOutcome).toBe("updated");
       expect(account.positions).toHaveLength(1);
-      expect(account.positions[0]?.quantity).toBe(2.5);
-      expect(lookup.quantity).toBe(2.5);
+      expect(account.positions[0]?.quantity).toBe("2.5");
+      expect(lookup.quantity).toBe("2.5");
     }).pipe(Effect.provide(engineTestLayer())),
   );
 
@@ -76,7 +76,7 @@ describe("add assets operations", () => {
           identifiers: [{ type: "isin", value: "US0378331005" }],
         },
         account: { type: "new", name: "Compte-titres" },
-        quantity: 1,
+        quantity: "1",
       });
       const second = yield* Finance.addManualHolding({
         asset: {
@@ -86,13 +86,13 @@ describe("add assets operations", () => {
           identifiers: [{ type: "isin", value: "US0378331005" }],
         },
         account: { type: "new", name: "PEA" },
-        quantity: 4,
+        quantity: "4",
       });
       const firstAccount = yield* Finance.getAccount(first.accountId);
       const secondAccount = yield* Finance.getAccount(second.accountId);
       expect(firstAccount.positions[0]?.assetId).toBe(secondAccount.positions[0]?.assetId);
-      expect(firstAccount.positions[0]?.quantity).toBe(1);
-      expect(secondAccount.positions[0]?.quantity).toBe(4);
+      expect(firstAccount.positions[0]?.quantity).toBe("1");
+      expect(secondAccount.positions[0]?.quantity).toBe("4");
     }).pipe(Effect.provide(engineTestLayer())),
   );
 
@@ -103,13 +103,13 @@ describe("add assets operations", () => {
         const created = yield* Finance.addCashAccount({
           account: { type: "new", name: "Checking" },
           currencyAssetId: "fiat:EUR",
-          balance: -25,
+          balance: "-25",
         });
         const account = yield* Finance.getAccount(created.accountId);
         expect(account.baseCurrencyIso).toBe("EUR");
         expect(account.positions[0]?.assetId).toBe("fiat:EUR");
         expect(account.positions[0]?.assetCategory).toBe("cash");
-        expect(account.positions[0]?.quantity).toBe(-25);
+        expect(account.positions[0]?.quantity).toBe("-25");
       }).pipe(Effect.provide(engineTestLayer())),
   );
 
@@ -117,14 +117,14 @@ describe("add assets operations", () => {
     Effect.gen(function* () {
       const created = yield* Finance.addOtherAsset({
         name: "Watch",
-        value: 1200,
+        value: "1200",
         currencyAssetId: "fiat:USD",
         account: { type: "new", name: "Other assets" },
       });
       const bond = yield* Finance.addOtherAsset({
         category: "bonds",
         name: "US Treasury",
-        value: 10_000,
+        value: "10000",
         currencyAssetId: "fiat:USD",
         account: { type: "new", name: "Bonds" },
       });
@@ -137,12 +137,12 @@ describe("add assets operations", () => {
           expect.objectContaining({
             accountName: "Other assets",
             connectionId: null,
-            total: 1200,
+            total: "1200",
           }),
           expect.objectContaining({
             accountName: "Bonds",
             connectionId: null,
-            total: 10_000,
+            total: "10000",
           }),
         ]),
       );
@@ -156,7 +156,7 @@ describe("add assets operations", () => {
       const before = yield* Finance.listAssets();
       const invalid = yield* Finance.addOtherAsset({
         name: "Broken",
-        value: Number.POSITIVE_INFINITY,
+        value: "Infinity",
         currencyAssetId: "fiat:USD",
         account: { type: "new", name: "Stuff" },
       }).pipe(
@@ -179,7 +179,7 @@ describe("add assets operations", () => {
           identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
         },
         account: { type: "existing", id: "trading" },
-        quantity: 1,
+        quantity: "1",
       }).pipe(
         Effect.flip,
         Effect.map((error) => error.message),
@@ -220,8 +220,8 @@ describe("add assets operations", () => {
             name: "Portfolio",
             baseCurrencyIso: "USD",
             positions: [
-              { externalAssetId: "ibkr:conid:1", quantity: 2 },
-              { externalAssetId: "ibkr:conid:2", quantity: 0.5 },
+              { externalAssetId: "ibkr:conid:1", quantity: "2" },
+              { externalAssetId: "ibkr:conid:2", quantity: "0.5" },
             ],
           },
         ],

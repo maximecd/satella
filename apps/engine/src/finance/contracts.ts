@@ -1,16 +1,9 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import * as SchemaTransformation from "effect/SchemaTransformation";
 
-export const AssetCategory = Schema.Literals([
-  "stocks_etfs",
-  "bonds",
-  "crypto",
-  "cash",
-  "derivatives",
-  "commodities",
-  "other",
-]);
+import { DecimalInput, DecimalString } from "./financial-number.js";
+
+export const AssetCategory = Schema.Literals(["stocks_etfs", "bonds", "crypto", "cash", "other"]);
 export type AssetCategory = typeof AssetCategory.Type;
 
 export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
@@ -18,20 +11,13 @@ export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
   bonds: "Bonds",
   crypto: "Crypto",
   cash: "Cash",
-  derivatives: "Derivatives",
-  commodities: "Commodities",
   other: "Other assets",
 };
 
 export const SearchableAssetCategory = Schema.Literals(["stocks_etfs", "crypto"]);
 export type SearchableAssetCategory = typeof SearchableAssetCategory.Type;
 
-export const GenericAssetCategory = Schema.Literals([
-  "bonds",
-  "derivatives",
-  "commodities",
-  "other",
-]);
+export const GenericAssetCategory = Schema.Literals(["bonds", "other"]);
 export type GenericAssetCategory = typeof GenericAssetCategory.Type;
 
 export const IdentifierInput = Schema.Struct({
@@ -41,7 +27,7 @@ export const IdentifierInput = Schema.Struct({
 export type IdentifierInput = typeof IdentifierInput.Type;
 
 export const Price = Schema.Struct({
-  price: Schema.Number,
+  price: DecimalString,
   currencyAssetId: Schema.String,
   currencyIso: Schema.String,
   source: Schema.String,
@@ -50,6 +36,20 @@ export const Price = Schema.Struct({
   isStale: Schema.Boolean,
 });
 export type Price = typeof Price.Type;
+
+export const AverageUnitPurchasePrice = Schema.Struct({
+  price: DecimalString,
+  currencyAssetId: Schema.String,
+  currencyIso: Schema.String,
+  source: Schema.Literals(["manual", "connection"]),
+});
+export type AverageUnitPurchasePrice = typeof AverageUnitPurchasePrice.Type;
+
+export const AverageUnitPurchasePriceInput = Schema.Struct({
+  price: DecimalInput,
+  currencyAssetId: Schema.String,
+});
+export type AverageUnitPurchasePriceInput = typeof AverageUnitPurchasePriceInput.Type;
 
 export const Asset = Schema.Struct({
   id: Schema.String,
@@ -70,9 +70,13 @@ export const Position = Schema.Struct({
   assetName: Schema.String,
   assetSymbol: Schema.NullOr(Schema.String),
   assetCategory: AssetCategory,
-  quantity: Schema.Number,
+  quantity: DecimalString,
   price: Schema.NullOr(Price),
-  reportingValue: Schema.NullOr(Schema.Number),
+  reportingValue: Schema.NullOr(DecimalString),
+  averageUnitPurchasePrice: Schema.NullOr(AverageUnitPurchasePrice),
+  acquisitionCost: Schema.NullOr(DecimalString),
+  unrealizedPnl: Schema.NullOr(DecimalString),
+  unrealizedPnlPercent: Schema.NullOr(DecimalString),
   createdAt: Schema.String,
   updatedAt: Schema.String,
 });
@@ -87,7 +91,9 @@ export const Account = Schema.Struct({
   baseCurrencyIso: Schema.String,
   connectorAccountId: Schema.NullOr(Schema.String),
   positions: Schema.Array(Position),
-  total: Schema.Number,
+  total: DecimalString,
+  unrealizedPnl: DecimalString,
+  unrealizedPnlPercent: Schema.NullOr(DecimalString),
   totalIncomplete: Schema.Boolean,
   hasStalePrices: Schema.Boolean,
   createdAt: Schema.String,
@@ -190,7 +196,7 @@ export const UpdateCustomAssetInput = Schema.Struct({
 export type UpdateCustomAssetInput = typeof UpdateCustomAssetInput.Type;
 
 export const SetManualPriceInput = Schema.Struct({
-  price: Schema.Number,
+  price: DecimalInput,
   currencyAssetId: Schema.String,
   observedAt: Schema.optional(Schema.String),
 });
@@ -208,6 +214,8 @@ export const PositionEditAccount = Schema.Struct({
   name: Schema.String,
   connectionId: Schema.NullOr(Schema.String),
   connectionName: Schema.NullOr(Schema.String),
+  baseCurrencyAssetId: Schema.String,
+  baseCurrencyIso: Schema.String,
 });
 export type PositionEditAccount = typeof PositionEditAccount.Type;
 
@@ -220,18 +228,23 @@ export type PositionEdit = typeof PositionEdit.Type;
 export const CreatePositionInput = Schema.Struct({
   accountId: Schema.String,
   assetId: Schema.String,
-  quantity: Schema.Number,
+  quantity: DecimalInput,
+  averageUnitPurchasePrice: Schema.optional(AverageUnitPurchasePriceInput),
 });
 export type CreatePositionInput = typeof CreatePositionInput.Type;
 
-export const UpdatePositionInput = Schema.Struct({ quantity: Schema.Number });
+export const UpdatePositionInput = Schema.Struct({
+  quantity: Schema.optional(DecimalInput),
+  averageUnitPurchasePrice: Schema.optional(Schema.NullOr(AverageUnitPurchasePriceInput)),
+});
 export type UpdatePositionInput = typeof UpdatePositionInput.Type;
 
 // HTML forms intentionally use encoded strings and decode explicitly before mutation.
-export const NumberFromNonEmptyString = Schema.String.check(Schema.isNonEmpty()).pipe(
-  Schema.decodeTo(Schema.Finite, SchemaTransformation.numberFromString),
+export const DecimalFromNonEmptyString = Schema.String.check(
+  Schema.isNonEmpty(),
+  Schema.isPattern(/^[+-]?(?:\d+\.?\d*|\.\d+)$/),
 );
-export const PositionQuantityFormInput = Schema.Struct({ quantity: NumberFromNonEmptyString });
+export const PositionQuantityFormInput = Schema.Struct({ quantity: DecimalFromNonEmptyString });
 export type PositionQuantityFormValues = typeof PositionQuantityFormInput.Encoded;
 
 export class FinanceApiError extends Schema.TaggedError<FinanceApiError>()(
@@ -283,7 +296,7 @@ export type ConnectionRefreshResult = typeof ConnectionRefreshResult.Type;
 export const PortfolioHistoryPoint = Schema.Struct({
   snapshotId: Schema.String,
   capturedAt: Schema.String,
-  total: Schema.Number,
+  total: DecimalString,
   totalIncomplete: Schema.Boolean,
 });
 export type PortfolioHistoryPoint = typeof PortfolioHistoryPoint.Type;
@@ -312,14 +325,15 @@ export type ProviderAssetInput = typeof ProviderAssetInput.Type;
 export const AddManualHoldingInput = Schema.Struct({
   asset: ProviderAssetInput,
   account: ExistingOrNewAccount,
-  quantity: Schema.Number,
+  quantity: DecimalInput,
+  averageUnitPurchasePrice: Schema.optional(AverageUnitPurchasePriceInput),
 });
 export type AddManualHoldingInput = typeof AddManualHoldingInput.Type;
 
 export const AddCashAccountInput = Schema.Struct({
   account: ExistingOrNewAccount,
   currencyAssetId: Schema.String,
-  balance: Schema.Number,
+  balance: DecimalInput,
 });
 export type AddCashAccountInput = typeof AddCashAccountInput.Type;
 
@@ -330,8 +344,9 @@ export const AddOtherAssetInput = Schema.Struct({
   ),
   account: ExistingOrNewAccount,
   name: Schema.Trim.check(Schema.isNonEmpty()),
-  value: Schema.Number,
+  value: DecimalInput,
   currencyAssetId: Schema.String,
+  averageUnitPurchasePrice: Schema.optional(AverageUnitPurchasePriceInput),
 });
 export type AddOtherAssetInput = typeof AddOtherAssetInput.Type;
 
@@ -350,7 +365,7 @@ export const LookupManualHoldingParams = Schema.Struct({
 
 export const ManualHoldingLookup = Schema.Struct({
   assetId: Schema.NullOr(Schema.String),
-  quantity: Schema.NullOr(Schema.Number),
+  quantity: Schema.NullOr(DecimalString),
 });
 export type ManualHoldingLookup = typeof ManualHoldingLookup.Type;
 
@@ -360,7 +375,9 @@ export const DashboardAccountRow = Schema.Struct({
   connectionId: Schema.NullOr(Schema.String),
   connectionName: Schema.NullOr(Schema.String),
   positionCount: Schema.Number,
-  total: Schema.Number,
+  total: DecimalString,
+  unrealizedPnl: DecimalString,
+  unrealizedPnlPercent: Schema.NullOr(DecimalString),
   totalIncomplete: Schema.Boolean,
 });
 export type DashboardAccountRow = typeof DashboardAccountRow.Type;
@@ -376,14 +393,16 @@ export const AllocationCell = Schema.Struct({
   name: Schema.String,
   symbol: Schema.NullOr(Schema.String),
   assetCategory: AssetCategory,
-  value: Schema.Number,
-  percent: Schema.Number,
+  value: DecimalString,
+  percent: DecimalString,
 });
 export type AllocationCell = typeof AllocationCell.Type;
 
 export const Dashboard = Schema.Struct({
   reportingCurrency: ReportingCurrency,
-  portfolioValue: Schema.Number,
+  portfolioValue: DecimalString,
+  unrealizedPnl: DecimalString,
+  unrealizedPnlPercent: Schema.NullOr(DecimalString),
   totalIncomplete: Schema.Boolean,
   unpricedAssetCount: Schema.Number,
   negativeHoldingCount: Schema.Number,

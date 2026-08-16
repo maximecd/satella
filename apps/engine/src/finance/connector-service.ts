@@ -20,10 +20,17 @@ import type {
 } from "./connector.js";
 import { reconcileConnector } from "./connector.js";
 import { FinanceApiError } from "./contracts.js";
+import { canonicalDecimal } from "./financial-number.js";
 import { CONNECTOR_REGISTRY } from "./connectors/registry.js";
 
 const validationFailure = (message: string) =>
   Effect.fail(new FinanceApiError({ code: "validation", message }));
+
+const normalizeDecimal = (value: string, label: string) =>
+  Effect.try({
+    try: () => canonicalDecimal(value),
+    catch: () => new FinanceApiError({ code: "validation", message: `${label} must be finite` }),
+  });
 
 const assetFingerprint = (asset: ConnectorAsset): string =>
   JSON.stringify({
@@ -76,9 +83,7 @@ export const normalizeConnectorAccounts = (
       const positions: NormalizedConnectorPosition[] = [];
 
       for (const position of account.positions) {
-        if (!Number.isFinite(position.quantity)) {
-          return yield* validationFailure("Connector returned a non-finite position quantity");
-        }
+        const quantity = yield* normalizeDecimal(position.quantity, "Connector position quantity");
         const externalAssetId = position.asset.externalId.trim();
         if (!externalAssetId)
           return yield* validationFailure("Connector returned an empty asset ID");
@@ -96,7 +101,21 @@ export const normalizeConnectorAccounts = (
         }
         if (previous === undefined)
           assets.set(externalAssetId, { fingerprint, asset: normalizedAsset });
-        positions.push({ externalAssetId, quantity: position.quantity });
+        const averageUnitPurchasePrice =
+          position.averageUnitPurchasePrice === undefined
+            ? undefined
+            : {
+                price: yield* normalizeDecimal(
+                  position.averageUnitPurchasePrice.price,
+                  "Connector average purchase price",
+                ),
+                currencyIso: position.averageUnitPurchasePrice.currencyIso,
+              };
+        positions.push({
+          externalAssetId,
+          quantity,
+          ...(averageUnitPurchasePrice === undefined ? {} : { averageUnitPurchasePrice }),
+        });
       }
 
       const baseCurrencyIso = account.baseCurrencyIso.trim().toUpperCase();

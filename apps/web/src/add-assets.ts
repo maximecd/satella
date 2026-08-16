@@ -1,12 +1,4 @@
-export const ADD_ASSETS_CATEGORIES = [
-  "stocks_etfs",
-  "bonds",
-  "crypto",
-  "cash",
-  "derivatives",
-  "commodities",
-  "other",
-] as const;
+export const ADD_ASSETS_CATEGORIES = ["stocks_etfs", "bonds", "crypto", "cash", "other"] as const;
 
 export type AddAssetsCategory = (typeof ADD_ASSETS_CATEGORIES)[number];
 
@@ -44,22 +36,6 @@ export const categoryMeta = (category: AddAssetsCategory) => {
         description: "Select or create an account, then set its currency and balance.",
         assetCategory: "cash" as const,
         flow: "cash" as const,
-        accountPrompt: "Choose an account",
-      };
-    case "derivatives":
-      return {
-        label: "Derivatives",
-        description: "Track a derivative by name and current value.",
-        assetCategory: "derivatives" as const,
-        flow: "generic" as const,
-        accountPrompt: "Choose an account",
-      };
-    case "commodities":
-      return {
-        label: "Commodities",
-        description: "Track a commodity by name and current value.",
-        assetCategory: "commodities" as const,
-        flow: "generic" as const,
         accountPrompt: "Choose an account",
       };
     case "other":

@@ -5,6 +5,13 @@ import * as Duration from "effect/Duration";
 import type { AssetCategory } from "../contracts.js";
 import { FinanceApiError as FinanceError } from "../contracts.js";
 import {
+  canonicalDecimal,
+  compareDecimal,
+  divideDecimal,
+  multiplyDecimal,
+  type DecimalInput,
+} from "../financial-number.js";
+import {
   DEFAULT_MARKET_DATA_POLICY,
   DEFAULT_REPORTING_CURRENCY,
   SUPPORTED_REPORTING_CURRENCIES,
@@ -12,12 +19,7 @@ import {
 
 export type FinanceEffect<A> = Effect.Effect<A, FinanceError, SqlClient.SqlClient>;
 
-export const MANUAL_ASSET_CATEGORIES = new Set<AssetCategory>([
-  "bonds",
-  "derivatives",
-  "commodities",
-  "other",
-]);
+export const MANUAL_ASSET_CATEGORIES = new Set<AssetCategory>(["bonds", "other"]);
 
 export interface AssetRow {
   readonly id: string;
@@ -34,7 +36,7 @@ export interface IdentifierRow {
 }
 
 export interface PriceRow {
-  readonly price: number;
+  readonly price: string;
   readonly currency_asset_id: string;
   readonly currency_iso: string;
   readonly source: string;
@@ -77,13 +79,19 @@ export interface PositionRow {
   readonly asset_name: string;
   readonly asset_symbol: string | null;
   readonly asset_category: AssetCategory;
-  readonly quantity: number;
-  readonly price: number | null;
+  readonly quantity: string;
+  readonly price: string | null;
   readonly currency_asset_id: string | null;
   readonly currency_iso: string | null;
   readonly source: string | null;
   readonly observed_at: string | null;
   readonly price_updated_at: string | null;
+  readonly manual_average_unit_purchase_price: string | null;
+  readonly manual_purchase_currency_asset_id: string | null;
+  readonly manual_purchase_currency_iso: string | null;
+  readonly connection_average_unit_purchase_price: string | null;
+  readonly connection_purchase_currency_asset_id: string | null;
+  readonly connection_purchase_currency_iso: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -113,10 +121,19 @@ export const db = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     Effect.catchDefect((cause) => Effect.fail(databaseFailure(cause))),
   );
 
-export const requireFinite = (value: number, field: string) =>
-  Number.isFinite(value)
-    ? Effect.succeed(value)
-    : Effect.fail(failure("validation", `${field} must be finite`));
+export const requireFinite = (value: DecimalInput, field: string) =>
+  Effect.try({
+    try: () => canonicalDecimal(value),
+    catch: () => failure("validation", `${field} must be a finite decimal`),
+  });
+
+export const requirePositive = (value: DecimalInput, field: string) =>
+  requireFinite(value, field).pipe(
+    Effect.filterOrFail(
+      (decimal) => compareDecimal(decimal, "0") > 0,
+      () => failure("validation", `${field} must be greater than zero`),
+    ),
+  );
 
 export const requireNonEmpty = (value: string, field: string) => {
   const result = value.trim();
@@ -173,24 +190,24 @@ export const loadFxMap = (pivotAssetId: string) =>
     const fxRows = yield* db(
       sql<{
         readonly asset_id: string;
-        readonly price: number;
+        readonly price: string;
       }>`SELECT asset_id, price FROM asset_prices WHERE currency_asset_id = ${pivotAssetId}`,
     );
     return new Map(fxRows.map(({ asset_id, price }) => [asset_id, price] as const));
   });
 
 export const convertAmount = (
-  amount: number,
+  amount: DecimalInput,
   fromCurrencyId: string,
   toCurrencyId: string,
   pivotId: string,
-  fx: ReadonlyMap<string, number>,
-): number | undefined => {
-  if (fromCurrencyId === toCurrencyId) return amount;
-  const fromRate = fromCurrencyId === pivotId ? 1 : fx.get(fromCurrencyId);
-  const toRate = toCurrencyId === pivotId ? 1 : fx.get(toCurrencyId);
+  fx: ReadonlyMap<string, string>,
+): string | undefined => {
+  if (fromCurrencyId === toCurrencyId) return canonicalDecimal(amount);
+  const fromRate = fromCurrencyId === pivotId ? "1" : fx.get(fromCurrencyId);
+  const toRate = toCurrencyId === pivotId ? "1" : fx.get(toCurrencyId);
   if (fromRate === undefined || toRate === undefined) return undefined;
-  return amount * (fromRate / toRate);
+  return divideDecimal(multiplyDecimal(amount, fromRate), toRate);
 };
 
 export const isSupportedReportingCurrency = (iso: string) =>
@@ -211,7 +228,7 @@ export const loadPrice = (assetId: string) =>
     return row === undefined
       ? null
       : {
-          price: row.price,
+          price: canonicalDecimal(row.price),
           currencyAssetId: row.currency_asset_id,
           currencyIso: row.currency_iso,
           source: row.source,

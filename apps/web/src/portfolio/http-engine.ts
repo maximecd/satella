@@ -9,6 +9,7 @@ import {
   type MaintainAssetInput,
   type UpdateAccountInput,
   type UpdateConnectionInput,
+  type UpdatePositionInput,
   type UpdateSettingsInput,
 } from "@optimus/engine/api";
 import * as Effect from "effect/Effect";
@@ -77,11 +78,8 @@ export const createHttpPortfolioEngine = (baseUrl = engineUrl()): PortfolioEngin
       run((client) => client.finance.deleteAccount({ params: { id } }), signal),
     getPositionEdit: (id, signal) =>
       run((client) => client.finance.getPositionEdit({ params: { id } }), signal),
-    updatePosition: (id, quantity, signal) =>
-      run(
-        (client) => client.finance.updatePosition({ params: { id }, payload: { quantity } }),
-        signal,
-      ),
+    updatePosition: (id, payload: UpdatePositionInput, signal) =>
+      run((client) => client.finance.updatePosition({ params: { id }, payload }), signal),
     deletePosition: (id, signal) =>
       run((client) => client.finance.deletePosition({ params: { id } }), signal),
     listConnections: (signal) => run((client) => client.finance.listConnections({}), signal),

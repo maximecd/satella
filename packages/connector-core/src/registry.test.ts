@@ -65,7 +65,7 @@ describe("connector registry", () => {
             ...account,
             positions: [
               {
-                quantity: Number.NaN,
+                quantity: "NaN",
                 asset: {
                   externalId: "asset",
                   assetCategory: "crypto",
@@ -77,6 +77,6 @@ describe("connector registry", () => {
           },
         ]),
       ),
-    ).rejects.toThrow("non-finite position quantity");
+    ).rejects.toThrow("Connector returned an invalid decimal value");
   });
 });

@@ -23,6 +23,7 @@ import { addAccountKindAndSystemRoles } from "./migrations/0004_account_kind_and
 import { unifyPortfolioDomainModel } from "./migrations/0005_unify_portfolio_domain_model.js";
 import { addReportingCurrency } from "./migrations/0006_reporting_currency.js";
 import { addVaultSecurity } from "./migrations/0007_vault_security.js";
+import { addDecimalValuesAndPurchasePrices } from "./migrations/0008_decimal_values_and_purchase_prices.js";
 
 export const MIGRATIONS_TABLE = "effect_sql_migrations";
 export const PRE_MIGRATION_BACKUP_RETENTION = 5;
@@ -39,6 +40,7 @@ export const ProductionMigrations: MigrationRegistry = {
   "0005_unify_portfolio_domain_model": unifyPortfolioDomainModel,
   "0006_reporting_currency": addReportingCurrency,
   "0007_vault_security": addVaultSecurity,
+  "0008_decimal_values_and_purchase_prices": addDecimalValuesAndPurchasePrices,
 };
 
 export interface MigrationRunOptions {

@@ -108,7 +108,7 @@ describe("IBKR Flex connector", () => {
               symbol: "USD",
               identifiers: [{ type: "iso_currency", value: "USD" }],
             },
-            quantity: 100.5,
+            quantity: "100.5",
           },
           {
             asset: {
@@ -118,7 +118,7 @@ describe("IBKR Flex connector", () => {
               symbol: "EUR",
               identifiers: [{ type: "iso_currency", value: "EUR" }],
             },
-            quantity: -2,
+            quantity: "-2",
           },
           {
             asset: {
@@ -131,7 +131,7 @@ describe("IBKR Flex connector", () => {
                 { type: "isin", value: "US0378331005" },
               ],
             },
-            quantity: 2,
+            quantity: "2",
           },
           {
             asset: {
@@ -141,7 +141,7 @@ describe("IBKR Flex connector", () => {
               symbol: "VWCE",
               identifiers: [{ type: "ibkr_conid", value: "400" }],
             },
-            quantity: 5,
+            quantity: "5",
           },
           {
             asset: {
@@ -150,34 +150,34 @@ describe("IBKR Flex connector", () => {
               name: "US Treasury",
               identifiers: [{ type: "ibkr_conid", value: "500" }],
             },
-            quantity: 10,
+            quantity: "10",
           },
           {
             asset: {
               externalId: "ibkr:conid:111",
-              assetCategory: "derivatives",
+              assetCategory: "other",
               name: "Apple call",
               identifiers: [{ type: "ibkr_conid", value: "111" }],
             },
-            quantity: -1,
+            quantity: "-1",
           },
           {
             asset: {
               externalId: "ibkr:conid:600",
-              assetCategory: "derivatives",
+              assetCategory: "other",
               name: "E-mini S&P",
               identifiers: [{ type: "ibkr_conid", value: "600" }],
             },
-            quantity: 1,
+            quantity: "1",
           },
           {
             asset: {
               externalId: "ibkr:conid:700",
-              assetCategory: "commodities",
+              assetCategory: "other",
               name: "Gold",
               identifiers: [{ type: "ibkr_conid", value: "700" }],
             },
-            quantity: 2,
+            quantity: "2",
           },
           {
             asset: {
@@ -186,7 +186,7 @@ describe("IBKR Flex connector", () => {
               name: "Forecast",
               identifiers: [{ type: "ibkr_conid", value: "800" }],
             },
-            quantity: 3,
+            quantity: "3",
           },
         ],
       },
@@ -249,7 +249,7 @@ describe("IBKR Flex connector", () => {
               symbol: "USD",
               identifiers: [{ type: "iso_currency", value: "USD" }],
             },
-            quantity: 98.5,
+            quantity: "98.5",
           },
         ],
       },
@@ -263,9 +263,9 @@ describe("IBKR Flex connector", () => {
     expect(IbkrConnector.assetCategories).toEqual([
       "stocks_etfs",
       "bonds",
+      "crypto",
       "cash",
-      "derivatives",
-      "commodities",
+      "other",
     ]);
     expect(IbkrConnector.credentialFields.map(({ key, kind }) => [key, kind])).toEqual([
       ["token", "password"],
