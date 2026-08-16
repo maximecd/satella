@@ -15,6 +15,7 @@ RULES:
 - Semantic tokens (`bg`, `fg.muted`, `border`) over raw palette/hex.
 - Toasts via `notify` / `toaster` from `src/components/ui/toaster`.
 - Compound snippets live in `src/components/ui/`.
+- Wrap lucide-react icons in `Icon` with `asChild` so they inherit Chakra size and color.
 - v3 props: `disabled` not `isDisabled`, `colorPalette` not `colorScheme`, `open` not `isOpen`.
 <!-- CHAKRA:END -->
 

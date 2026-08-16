@@ -1,4 +1,4 @@
-import { IconButton } from "@chakra-ui/react";
+import { Icon, IconButton } from "@chakra-ui/react";
 import { RefreshCw } from "lucide-react";
 import type { MouseEvent } from "react";
 
@@ -48,7 +48,9 @@ export function RefreshConnectionButton({
       loading={refresh.isPending}
       onClick={handleClick}
     >
-      <RefreshCw />
+      <Icon asChild>
+        <RefreshCw />
+      </Icon>
     </IconButton>
   );
 }

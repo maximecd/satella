@@ -1,4 +1,4 @@
-import { Accordion, HStack } from "@chakra-ui/react";
+import { Accordion, HStack, Icon } from "@chakra-ui/react";
 import { ChevronDown } from "lucide-react";
 import * as React from "react";
 
@@ -13,7 +13,9 @@ export const AccordionItemTrigger = React.forwardRef<HTMLButtonElement, Accordio
       <Accordion.ItemTrigger {...rest} ref={ref}>
         {indicatorPlacement === "start" && (
           <Accordion.ItemIndicator rotate={{ base: "-90deg", _open: "0deg" }}>
-            <ChevronDown />
+            <Icon asChild>
+              <ChevronDown />
+            </Icon>
           </Accordion.ItemIndicator>
         )}
         <HStack gap="4" flex="1" textAlign="start" width="full">
@@ -21,7 +23,9 @@ export const AccordionItemTrigger = React.forwardRef<HTMLButtonElement, Accordio
         </HStack>
         {indicatorPlacement === "end" && (
           <Accordion.ItemIndicator>
-            <ChevronDown />
+            <Icon asChild>
+              <ChevronDown />
+            </Icon>
           </Accordion.ItemIndicator>
         )}
       </Accordion.ItemTrigger>

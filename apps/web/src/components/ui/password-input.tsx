@@ -1,7 +1,14 @@
 "use client";
 
 import type { ButtonProps, GroupProps, InputProps } from "@chakra-ui/react";
-import { IconButton, Input, InputGroup, mergeRefs, useControllableState } from "@chakra-ui/react";
+import {
+  Icon,
+  IconButton,
+  Input,
+  InputGroup,
+  mergeRefs,
+  useControllableState,
+} from "@chakra-ui/react";
 import * as React from "react";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -35,7 +42,18 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
       defaultVisible,
       visible: visibleProp,
       onVisibleChange,
-      visibilityIcon = { on: <Eye />, off: <EyeOff /> },
+      visibilityIcon = {
+        on: (
+          <Icon asChild>
+            <Eye />
+          </Icon>
+        ),
+        off: (
+          <Icon asChild>
+            <EyeOff />
+          </Icon>
+        ),
+      },
       ...rest
     } = props;
 

@@ -2,6 +2,7 @@ import {
   Box,
   Button,
   Heading,
+  Icon,
   IconButton,
   Image,
   Input,
@@ -211,13 +212,17 @@ function AddAssetsDialog({
               disabled={!canGoBack}
               visibility={canGoBack ? "visible" : "hidden"}
             >
-              <ChevronLeft />
+              <Icon asChild>
+                <ChevronLeft />
+              </Icon>
             </IconButton>
             <DialogTitle flex="1" textAlign="center">
               Add assets
             </DialogTitle>
             <IconButton aria-label="Close" variant="ghost" onClick={onClose}>
-              <X />
+              <Icon asChild>
+                <X />
+              </Icon>
             </IconButton>
           </Stack>
         </DialogHeader>
@@ -292,11 +297,17 @@ function SearchInput({
   return (
     <Field label={label} invalid={errorText !== undefined} errorText={errorText}>
       <InputGroup
-        startElement={<Search size={16} />}
+        startElement={
+          <Icon asChild>
+            <Search />
+          </Icon>
+        }
         endElement={
           value.length > 0 ? (
             <IconButton aria-label="Clear" variant="ghost" size="xs" onClick={() => onChange("")}>
-              <X />
+              <Icon asChild>
+                <X />
+              </Icon>
             </IconButton>
           ) : undefined
         }

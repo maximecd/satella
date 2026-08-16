@@ -11,8 +11,7 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { Link as RouterLink, Outlet, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, Settings } from "lucide-react";
+import { Link as RouterLink, Outlet } from "@tanstack/react-router";
 import type { FormEvent, ReactNode } from "react";
 import { useState } from "react";
 
@@ -26,35 +25,12 @@ import {
   DialogRoot,
   DialogTitle,
 } from "./components/ui/dialog";
+import { Sidebar } from "./sidebar";
 
 export function RootLayout() {
-  const pathname = useLocation({ select: (location) => location.pathname });
-  const isDashboard = pathname === "/";
-  const isSettings = pathname === "/settings" || pathname.startsWith("/settings/");
-
   return (
     <Flex minH="100vh" bg="bg.muted">
-      <Flex
-        as="nav"
-        aria-label="Side navigation"
-        direction="column"
-        w={{ base: "56", md: "60" }}
-        bg="bg.panel"
-        borderRightWidth="1px"
-        borderColor="border"
-        py="4"
-        px="3"
-        gap="4"
-        flexShrink={0}
-      >
-        <Heading size="md" px="2">
-          Optimus
-        </Heading>
-        <Stack gap="1" flex="1">
-          <NavItem href="/" label="Dashboard" icon={<LayoutDashboard />} selected={isDashboard} />
-          <NavItem href="/settings" label="Settings" icon={<Settings />} selected={isSettings} />
-        </Stack>
-      </Flex>
+      <Sidebar />
       <Box flex="1" minW="0">
         <Container maxW="7xl" py={{ base: 4, md: 6 }} px={{ base: 4, md: 6 }}>
           <Stack gap="6">
@@ -63,39 +39,6 @@ export function RootLayout() {
         </Container>
       </Box>
     </Flex>
-  );
-}
-
-function NavItem({
-  href,
-  label,
-  icon,
-  selected,
-}: {
-  readonly href: string;
-  readonly label: string;
-  readonly icon: ReactNode;
-  readonly selected: boolean;
-}) {
-  return (
-    <Link
-      asChild
-      borderRadius="md"
-      px="3"
-      py="2"
-      color={selected ? "fg" : "fg.muted"}
-      bg={selected ? "bg.muted" : "transparent"}
-      fontWeight={selected ? "semibold" : "medium"}
-      _hover={{ bg: "bg.muted", textDecoration: "none" }}
-      aria-current={selected ? "page" : undefined}
-    >
-      <RouterLink to={href} activeOptions={{ exact: href === "/" }}>
-        <Flex align="center" gap="3">
-          {icon}
-          <Text>{label}</Text>
-        </Flex>
-      </RouterLink>
-    </Link>
   );
 }
 
