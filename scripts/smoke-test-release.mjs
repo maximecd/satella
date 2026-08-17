@@ -14,6 +14,9 @@ const parseArguments = (args) => {
   const values = {};
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
+    if (argument === "--") {
+      continue;
+    }
     if (argument === "--artifact" || argument === "--port") {
       const value = args[index + 1];
       if (value === undefined) throw new Error(`${argument} requires a value`);
@@ -28,9 +31,7 @@ const parseArguments = (args) => {
     }
   }
   if (values.artifact === undefined) {
-    throw new Error(
-      "Usage: pnpm release:smoke -- --artifact ./release/Optimus-1.2.3-macOS-arm64.zip",
-    );
+    throw new Error("Usage: pnpm release:smoke --artifact ./release/Optimus-1.2.3-macOS-arm64.zip");
   }
   const port = Number(values.port ?? "3001");
   if (!Number.isInteger(port) || port < 1 || port >= 65_535) {

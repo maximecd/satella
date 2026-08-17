@@ -200,40 +200,54 @@ export const stageProductionTree = async ({ root = repositoryRoot, stagingDirect
     },
   );
 
-  await execFileAsync(
-    "pnpm",
-    ["--filter", "@optimus/engine", "deploy", "--legacy", "--prod", engineDeployment],
-    { cwd: root, maxBuffer: 20 * 1024 * 1024 },
-  );
-  await copyPortableNodeModules(
-    join(engineDeployment, "node_modules"),
-    join(appDirectory, "node_modules"),
-  );
-  for (const packageName of ["connector-core", "connector-ibkr", "connector-okx"]) {
-    const source = join(root, "packages", packageName);
-    const target = join(appDirectory, "node_modules", "@optimus", packageName);
-    await mkdir(target, { recursive: true });
-    await cp(join(source, "dist"), join(target, "dist"), { recursive: true });
-    await cp(join(source, "package.json"), join(target, "package.json"));
-  }
-  for (const dependencyName of ["saxes", "xmlchars"]) {
-    await cp(
-      join(root, "node_modules", ".pnpm", "node_modules", dependencyName),
-      join(appDirectory, "node_modules", dependencyName),
-      { recursive: true, dereference: true },
+  let deployStarted = false;
+  try {
+    deployStarted = true;
+    await execFileAsync(
+      "pnpm",
+      ["--filter", "@optimus/engine", "deploy", "--legacy", "--prod", engineDeployment],
+      { cwd: root, maxBuffer: 20 * 1024 * 1024 },
     );
+    await copyPortableNodeModules(
+      join(engineDeployment, "node_modules"),
+      join(appDirectory, "node_modules"),
+    );
+    for (const packageName of ["connector-core", "connector-ibkr", "connector-okx"]) {
+      const source = join(root, "packages", packageName);
+      const target = join(appDirectory, "node_modules", "@optimus", packageName);
+      await mkdir(target, { recursive: true });
+      await cp(join(source, "dist"), join(target, "dist"), { recursive: true });
+      await cp(join(source, "package.json"), join(target, "package.json"));
+    }
+    for (const dependencyName of ["saxes", "xmlchars"]) {
+      await cp(
+        join(root, "node_modules", ".pnpm", "node_modules", dependencyName),
+        join(appDirectory, "node_modules", dependencyName),
+        { recursive: true, dereference: true },
+      );
+    }
+    const enginePackage = JSON.parse(
+      await readFile(join(engineDeployment, "package.json"), "utf8"),
+    );
+    await writeFile(
+      join(appDirectory, "resources", "engine", "package.json"),
+      JSON.stringify(enginePackage, null, 2) + "\n",
+    );
+    await writeFile(
+      join(appDirectory, "package.json"),
+      JSON.stringify(productionPackage(normalizedVersion, enginePackage), null, 2) + "\n",
+    );
+    await validateStagedResources(appDirectory);
+    return { appDirectory, engineDeployment };
+  } finally {
+    if (deployStarted) {
+      await execFileAsync("pnpm", ["install", "--frozen-lockfile"], {
+        cwd: root,
+        env: { ...process.env, CI: "true" },
+        maxBuffer: 20 * 1024 * 1024,
+      });
+    }
   }
-  const enginePackage = JSON.parse(await readFile(join(engineDeployment, "package.json"), "utf8"));
-  await writeFile(
-    join(appDirectory, "resources", "engine", "package.json"),
-    JSON.stringify(enginePackage, null, 2) + "\n",
-  );
-  await writeFile(
-    join(appDirectory, "package.json"),
-    JSON.stringify(productionPackage(normalizedVersion, enginePackage), null, 2) + "\n",
-  );
-  await validateStagedResources(appDirectory);
-  return { appDirectory, engineDeployment };
 };
 
 export const packageRelease = async ({ root = repositoryRoot, outputDirectory, version }) => {
@@ -338,6 +352,9 @@ const parseArguments = (args) => {
   const values = {};
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
+    if (argument === "--") {
+      continue;
+    }
     if (argument === "--version" || argument === "--output-dir") {
       const value = args[index + 1];
       if (value === undefined) throw new Error(`${argument} requires a value`);
@@ -352,7 +369,7 @@ const parseArguments = (args) => {
     }
   }
   if (values.version === undefined || values["output-dir"] === undefined) {
-    throw new Error("Usage: pnpm release:package -- --version 1.2.3 --output-dir ./release");
+    throw new Error("Usage: pnpm release:package --version 1.2.3 --output-dir ./release");
   }
   return { version: values.version, outputDirectory: values["output-dir"] };
 };

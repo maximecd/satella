@@ -6,3 +6,7 @@ coverage/
 *.tsbuildinfo
 .optimus-data/
 .optimus/
+release/
+.tmp-release/
+.tmp-stage/
+.tmp-engine.log
