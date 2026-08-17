@@ -16,7 +16,6 @@ permissions:
   contents: read
 
 env:
-  PNPM_VERSION: 11.21.0
   RELEASE_VERSION: ${{ inputs.version }}
 
 jobs:
@@ -68,15 +67,13 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
-      - uses: pnpm/action-setup@v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v7
+      - uses: voidzero-dev/setup-vp@v1
         with:
           node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+          cache: true
+          run-install: true
+      - run: vp check
+      - run: vp run -r typecheck
 
   test:
     name: release-test
@@ -86,20 +83,17 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
-      - uses: pnpm/action-setup@v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v7
+      - uses: voidzero-dev/setup-vp@v1
         with:
           node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          cache: true
+          run-install: true
       - name: Build connector packages required by source tests
         run: |
-          pnpm --filter @optimus/connector-core build
-          pnpm --filter @optimus/connector-ibkr build
-          pnpm --filter @optimus/connector-okx build
-      - run: pnpm test
+          vp run --filter @optimus/connector-core build
+          vp run --filter @optimus/connector-ibkr build
+          vp run --filter @optimus/connector-okx build
+      - run: vp run -r test
 
   build:
     name: release-build
@@ -109,15 +103,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
-      - uses: pnpm/action-setup@v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v7
+      - uses: voidzero-dev/setup-vp@v1
         with:
           node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+          cache: true
+          run-install: true
+      - run: vp run -r build
 
   package:
     name: package-and-smoke
@@ -132,15 +123,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
-      - uses: pnpm/action-setup@v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v7
+      - uses: voidzero-dev/setup-vp@v1
         with:
           node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+          cache: true
+          run-install: true
+      - run: vp run -r build
       - run: pnpm release:package --version "$RELEASE_VERSION" --output-dir "$RUNNER_TEMP/optimus-release"
       - run: pnpm release:smoke --artifact "$RUNNER_TEMP/optimus-release/Optimus-$RELEASE_VERSION-macOS-arm64.zip"
       - uses: actions/upload-artifact@v7

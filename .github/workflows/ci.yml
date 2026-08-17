@@ -13,9 +13,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  PNPM_VERSION: 11.21.0
-
 jobs:
   check:
     name: check
@@ -23,15 +20,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v7
+      - uses: voidzero-dev/setup-vp@v1
         with:
           node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+          cache: true
+          run-install: true
+      - run: vp check
+      - run: vp run -r typecheck
 
   test:
     name: test
@@ -39,20 +34,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v7
+      - uses: voidzero-dev/setup-vp@v1
         with:
           node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          cache: true
+          run-install: true
       - name: Build connector packages required by source tests
         run: |
-          pnpm --filter @optimus/connector-core build
-          pnpm --filter @optimus/connector-ibkr build
-          pnpm --filter @optimus/connector-okx build
-      - run: pnpm test
+          vp run --filter @optimus/connector-core build
+          vp run --filter @optimus/connector-ibkr build
+          vp run --filter @optimus/connector-okx build
+      - run: vp run -r test
 
   build:
     name: build
@@ -60,15 +52,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v7
+      - uses: voidzero-dev/setup-vp@v1
         with:
           node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+          cache: true
+          run-install: true
+      - run: vp run -r build
 
   CI:
     name: CI
