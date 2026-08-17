@@ -193,7 +193,7 @@ export const startEngine = async (options: {
     OPTIMUS_ENGINE_PORT: String(port),
     ...options.env,
   });
-  const child = spawn(process.execPath, [tsxCli, engineMain], {
+  const child = spawn(process.execPath, ["--conditions=development", tsxCli, engineMain], {
     cwd: options.cwd,
     env,
     stdio: ["ignore", "pipe", "pipe"],

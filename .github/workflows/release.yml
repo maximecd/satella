@@ -88,6 +88,11 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Build connector packages required by source tests
+        run: |
+          pnpm --filter @optimus/connector-core build
+          pnpm --filter @optimus/connector-ibkr build
+          pnpm --filter @optimus/connector-okx build
       - run: pnpm test
       - run: pnpm test:release
 
