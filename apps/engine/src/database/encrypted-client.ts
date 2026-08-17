@@ -4,7 +4,6 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import { identity } from "effect/Function";
-import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
@@ -109,8 +108,7 @@ const pragmaValue = async (db: SqlcipherDatabase, pragma: string, key = pragma) 
 const classify = (cause: unknown, message: string, operation: string) =>
   new SqlError({ reason: classifySqliteError(cause, { message, operation }) });
 
-const rawKeyPragma = (dek: Uint8Array) =>
-  `PRAGMA key = "x'${Buffer.from(dek).toString("hex")}'"`;
+const rawKeyPragma = (dek: Uint8Array) => `PRAGMA key = "x'${Buffer.from(dek).toString("hex")}'"`;
 
 const configureEncryptedConnection = async (db: SqlcipherDatabase, dek: Uint8Array) => {
   db.configure("busyTimeout", 5_000);
@@ -185,7 +183,10 @@ export const makeEncryptedSqliteClient = (options: {
                 message: `Could not open the encrypted Vault database: ${options.filename}`,
               }),
       });
-      yield* Scope.addFinalizer(scope, Effect.promise(() => closeDatabase(db).catch(() => undefined)));
+      yield* Scope.addFinalizer(
+        scope,
+        Effect.promise(() => closeDatabase(db).catch(() => undefined)),
+      );
 
       const prepareCache = yield* Cache.make({
         capacity: 200,
@@ -253,7 +254,9 @@ export const makeEncryptedSqliteClient = (options: {
       const fiber = Fiber.getCurrent()!;
       const scope = Context.getUnsafe(fiber.context, Scope.Scope);
       return Effect.as(
-        Effect.tap(restore(semaphore.take(1)), () => Scope.addFinalizer(scope, semaphore.release(1))),
+        Effect.tap(restore(semaphore.take(1)), () =>
+          Scope.addFinalizer(scope, semaphore.release(1)),
+        ),
         connection,
       );
     });

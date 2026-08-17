@@ -11,6 +11,8 @@
     "format:check": "vp fmt --check",
     "lint": "vp lint",
     "prepare": "effect-tsgo patch --typescript --skip-missing",
+    "release:package": "node scripts/package-release.mjs",
+    "release:smoke": "node scripts/smoke-test-release.mjs",
     "start": "vp run -r build && concurrently --kill-others-on-fail \"vp run --filter @optimus/engine start\" \"wait-on http://127.0.0.1:3001/api/hello && vp run --filter @optimus/desktop start\"",
     "test": "vp run -r test",
     "test:coverage": "vp run -r test:coverage",

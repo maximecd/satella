@@ -13,7 +13,9 @@ export const make = Effect.gen(function* () {
     update: Effect.fn("AccountService.update")((id, input) =>
       withSql(Operations.updateAccount(id, input)),
     ),
-    delete: Effect.fn("AccountService.delete")((id: string) => withSql(Operations.deleteAccount(id))),
+    delete: Effect.fn("AccountService.delete")((id: string) =>
+      withSql(Operations.deleteAccount(id)),
+    ),
   });
 });
 

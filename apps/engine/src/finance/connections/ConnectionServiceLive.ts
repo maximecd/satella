@@ -15,7 +15,9 @@ export const make = Effect.gen(function* () {
     get: Effect.fn("ConnectionService.get")((id: string) =>
       withSql(withHttp(Operations.getConnection(id))),
     ),
-    list: Effect.fn("ConnectionService.list")(() => withSql(withHttp(Operations.listConnections()))),
+    list: Effect.fn("ConnectionService.list")(() =>
+      withSql(withHttp(Operations.listConnections())),
+    ),
     connect: Effect.fn("ConnectionService.connect")((input) =>
       withSql(withHttp(Operations.connectConnection(input))),
     ),

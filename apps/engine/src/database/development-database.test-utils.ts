@@ -113,7 +113,9 @@ export const vaultStatusForDirectory = (directory: string) =>
       Effect.gen(function* () {
         const vault = yield* VaultService;
         return yield* vault.status();
-      }).pipe(Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(directory))))),
+      }).pipe(
+        Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(directory)))),
+      ),
     ),
   );
 
@@ -137,7 +139,9 @@ export const inspectDirectory = <A>(
         }
         const sql = yield* vault.currentSql();
         return yield* program.pipe(Effect.provideService(SqlClient.SqlClient, sql));
-      }).pipe(Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(directory))))),
+      }).pipe(
+        Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(directory)))),
+      ),
     ),
   );
 
@@ -189,7 +193,7 @@ export const startEngine = async (options: {
     OPTIMUS_ENGINE_PORT: String(port),
     ...options.env,
   });
-  const child = spawn(process.execPath, [tsxCli, engineMain], {
+  const child = spawn(process.execPath, ["--conditions=development", tsxCli, engineMain], {
     cwd: options.cwd,
     env,
     stdio: ["ignore", "pipe", "pipe"],

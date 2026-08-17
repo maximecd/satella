@@ -1,4 +1,8 @@
-import type { AnyConnector, ConnectorAssetCategory, ConnectorCredentialField } from "./connector.js";
+import type {
+  AnyConnector,
+  ConnectorAssetCategory,
+  ConnectorCredentialField,
+} from "./connector.js";
 
 export interface ConnectorCapability {
   readonly id: string;

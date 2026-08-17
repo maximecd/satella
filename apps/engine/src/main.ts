@@ -10,11 +10,12 @@ import { HttpRouter } from "effect/unstable/http";
 import { ApiErrorLogging } from "./api/ApiLogging.js";
 import { EngineApiLive } from "./api/FinanceApiLive.js";
 import { VaultFinanceAccess } from "./api/VaultAccess.js";
+import { DatabaseConfig, DatabaseConfigLive } from "./database/index.js";
 import {
-  DatabaseConfig,
-  DatabaseConfigLive,
-} from "./database/index.js";
-import { claimDatabaseOwnership, releaseDatabaseOwnership } from "./database/ownership.js";
+  claimDatabaseOwnership,
+  releaseDatabaseOwnership,
+  releaseDatabaseOwnershipSync,
+} from "./database/ownership.js";
 import { FinanceLive } from "./finance/FinanceLive.js";
 import { IdGeneratorLive } from "./IdGenerator.js";
 import { VaultLive } from "./vault/VaultLive.js";
@@ -27,6 +28,32 @@ const parsePort = (value: string | undefined, fallback: number): number => {
 
 const enginePort = parsePort(process.env["OPTIMUS_ENGINE_PORT"], 3001);
 const webOrigin = process.env["OPTIMUS_WEB_ORIGIN"];
+const parentPid = Number(process.env["OPTIMUS_ENGINE_PARENT_PID"]);
+const parentDataDirectory =
+  process.env["OPTIMUS_CANONICAL_DATA_DIR"] ?? process.env["OPTIMUS_DATA_DIR"];
+
+const parentWatch =
+  Number.isInteger(parentPid) && parentPid > 0
+    ? (() => {
+        const timer = setInterval(() => {
+          if (process.ppid === parentPid) return;
+          clearInterval(timer);
+          if (parentDataDirectory !== undefined) {
+            releaseDatabaseOwnershipSync(parentDataDirectory);
+          }
+          process.exit(0);
+        }, 1_000);
+        timer.unref();
+        return timer;
+      })()
+    : undefined;
+
+process.on("exit", () => {
+  if (parentWatch !== undefined) clearInterval(parentWatch);
+  if (parentDataDirectory !== undefined) {
+    releaseDatabaseOwnershipSync(parentDataDirectory);
+  }
+});
 
 const OwnershipLive = Layer.effectDiscard(
   Effect.gen(function* () {

@@ -96,19 +96,21 @@ describe("add assets operations", () => {
     }).pipe(Effect.provide(engineTestLayer())),
   );
 
-  it.effect("creates a cash balance on a chosen or new neutral account, including a negative balance", () =>
-    Effect.gen(function* () {
-      const created = yield* Finance.addCashAccount({
-        account: { type: "new", name: "Checking" },
-        currencyAssetId: "fiat:EUR",
-        balance: -25,
-      });
-      const account = yield* Finance.getAccount(created.accountId);
-      expect(account.baseCurrencyIso).toBe("EUR");
-      expect(account.positions[0]?.assetId).toBe("fiat:EUR");
-      expect(account.positions[0]?.assetCategory).toBe("cash");
-      expect(account.positions[0]?.quantity).toBe(-25);
-    }).pipe(Effect.provide(engineTestLayer())),
+  it.effect(
+    "creates a cash balance on a chosen or new neutral account, including a negative balance",
+    () =>
+      Effect.gen(function* () {
+        const created = yield* Finance.addCashAccount({
+          account: { type: "new", name: "Checking" },
+          currencyAssetId: "fiat:EUR",
+          balance: -25,
+        });
+        const account = yield* Finance.getAccount(created.accountId);
+        expect(account.baseCurrencyIso).toBe("EUR");
+        expect(account.positions[0]?.assetId).toBe("fiat:EUR");
+        expect(account.positions[0]?.assetCategory).toBe("cash");
+        expect(account.positions[0]?.quantity).toBe(-25);
+      }).pipe(Effect.provide(engineTestLayer())),
   );
 
   it.effect("creates an other asset in a user-chosen account", () =>

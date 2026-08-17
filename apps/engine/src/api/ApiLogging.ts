@@ -3,12 +3,18 @@ import * as Effect from "effect/Effect";
 
 import { HttpRouter } from "effect/unstable/http";
 import { HttpServerRequest } from "effect/unstable/http";
+
+const diagnosticCredentialKeys =
+  "token|query(?:[_ ]?id)?|reference(?:[_ ]?code)?|password|pin|dek|secret(?:key)?|api[_ -]?key";
+const diagnosticCredentialPattern = new RegExp(
+  `(["']?)(${diagnosticCredentialKeys})\\1\\s*[:=]\\s*` +
+    `(?:"[^"]*"|'[^']*'|(?:(?!\\s+(?:${diagnosticCredentialKeys})\\s*[:=])[^,;}\\n&])+)`,
+  "gi",
+);
+
 export const redactDiagnostic = (value: string): string =>
   value
-    .replace(
-      /(["']?)(token|query(?:[_ ]?id)?|reference(?:[_ ]?code)?|password|pin|dek|secret(?:key)?|api[_ -]?key)\1\s*[:=]\s*["']?[^,\s}"']+/gi,
-      "$2=<redacted>",
-    )
+    .replace(diagnosticCredentialPattern, "$2=<redacted>")
     .replace(/\b(token|query(?:\s+id)?|reference(?:\s+code)?)\s+[^\s,;)]*/gi, "$1 <redacted>")
     .replace(/\b(?:U|DU|F)\d{4,}\b/gi, "<account-id>")
     .replace(/\bconid\s+[^\s,;)]*/gi, "conid <redacted>")

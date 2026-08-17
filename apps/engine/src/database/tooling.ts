@@ -49,7 +49,9 @@ const withVault = <A, E>(
       }
       const sql = yield* vault.currentSql();
       return yield* program.pipe(Effect.provideService(SqlClient.SqlClient, sql));
-    }).pipe(Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(dataDirectory))))),
+    }).pipe(
+      Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(dataDirectory)))),
+    ),
   );
 
 export const resetDatabase = (location: DatabaseLocation) =>

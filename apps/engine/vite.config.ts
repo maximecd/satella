@@ -6,6 +6,17 @@ import baseConfig from "../../vite.config.ts";
 export default mergeConfig(
   baseConfig,
   defineConfig({
+    plugins: [
+      {
+        name: "optimus-connector-text-assets",
+        apply: "serve",
+        enforce: "pre",
+        transform(source, id) {
+          if (!/\.(?:md|svg)$/.test(id)) return;
+          return { code: `export default ${JSON.stringify(source)};`, map: null };
+        },
+      },
+    ],
     pack: {
       entry: ["src/main.ts"],
       outDir: "dist",

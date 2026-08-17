@@ -15,11 +15,7 @@ const run = async <A>(program: Effect.Effect<A, unknown, SqlClient.SqlClient>) =
   const directory = await mkdtemp(join(tmpdir(), "optimus-market-data-"));
   directories.push(directory);
   return Effect.runPromise(
-    Effect.scoped(
-      program.pipe(
-        Effect.provide(encryptedDatabaseLayer(directory)),
-      ),
-    ),
+    Effect.scoped(program.pipe(Effect.provide(encryptedDatabaseLayer(directory)))),
   );
 };
 

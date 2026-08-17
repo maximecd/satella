@@ -10,7 +10,7 @@ export default mergeConfig(
       format: "cjs",
       outDir: "dist",
       sourcemap: true,
-      entry: ["src/main.ts"],
+      entry: ["src/main.ts", "src/preload.ts"],
       clean: true,
       dts: false,
       deps: {

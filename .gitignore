@@ -6,3 +6,8 @@ coverage/
 *.tsbuildinfo
 .optimus-data/
 .optimus/
+# Generated release artifacts and staging files
+release/
+.tmp-release/
+.tmp-stage/
+.tmp-engine.log

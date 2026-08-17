@@ -1,14 +1,65 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { createServer } from "node:net";
 import { join } from "node:path";
+
+export const DEFAULT_ENGINE_PORT = 3001;
+
+const parsePort = (name: string, value: string | undefined, fallback: number) => {
+  if (value === undefined) return fallback;
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`${name} must be a TCP port between 1 and 65535`);
+  }
+  return port;
+};
+
+const isPortAvailable = (port: number) =>
+  new Promise<boolean>((resolve, reject) => {
+    const server = createServer();
+    server.once("error", (error: NodeJS.ErrnoException) => {
+      server.close();
+      if (error.code === "EADDRINUSE") resolve(false);
+      else reject(error);
+    });
+    server.listen({ host: "127.0.0.1", port }, () => {
+      server.close((error) => {
+        if (error) reject(error);
+        else resolve(true);
+      });
+    });
+  });
+
+export const chooseAvailableEnginePort = async (
+  preferred = DEFAULT_ENGINE_PORT,
+  isAvailable: (port: number) => Promise<boolean> = isPortAvailable,
+) => {
+  for (let port = preferred; port <= 65_535; port += 1) {
+    if (await isAvailable(port)) return port;
+  }
+  throw new Error(`No available engine port found starting at ${preferred}`);
+};
+
+export const enginePortForDevelopment = (
+  env: NodeJS.ProcessEnv = process.env,
+  fallback = DEFAULT_ENGINE_PORT,
+) => parsePort("OPTIMUS_ENGINE_PORT", env["OPTIMUS_ENGINE_PORT"], fallback);
 
 export const managedEngineCommand = (
   developmentUrl: string | undefined,
   moduleDir = __dirname,
+  options: {
+    readonly isPackaged?: boolean;
+    readonly resourcesPath?: string;
+  } = {},
 ): { readonly command: string; readonly args: ReadonlyArray<string> } | undefined => {
   if (developmentUrl !== undefined) return undefined;
+  const enginePath =
+    options.isPackaged === true && options.resourcesPath !== undefined
+      ? join(options.resourcesPath, "engine", "dist", "main.mjs")
+      : join(moduleDir, "../../engine/dist/main.mjs");
   return {
     command: process.execPath,
-    args: [join(moduleDir, "../../engine/dist/main.mjs")],
+    args: [enginePath],
   };
 };
 
@@ -19,11 +70,26 @@ export const screenLockRequest = (engineUrl: string) => ({
 
 export const managedEngineEnvironment = (
   env: NodeJS.ProcessEnv,
-  options: { readonly port: number; readonly dataDirectory: string },
+  options: {
+    readonly port: number;
+    readonly dataDirectory: string;
+    readonly parentPid?: number;
+    readonly production?: boolean;
+  },
 ): NodeJS.ProcessEnv => ({
   ...env,
+  ELECTRON_RUN_AS_NODE: "1",
   OPTIMUS_ENGINE_PORT: String(options.port),
-  OPTIMUS_DATA_DIR: env["OPTIMUS_DATA_DIR"] ?? options.dataDirectory,
+  OPTIMUS_DATA_DIR: options.dataDirectory,
+  ...(options.parentPid === undefined
+    ? {}
+    : { OPTIMUS_ENGINE_PARENT_PID: String(options.parentPid) }),
+  ...(options.production === true
+    ? {
+        OPTIMUS_CANONICAL_DATA_DIR: options.dataDirectory,
+        OPTIMUS_DATABASE_CONTEXT: "production",
+      }
+    : {}),
 });
 
 export const waitForEngineHello = async (

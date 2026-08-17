@@ -1,5 +1,4 @@
 import * as Schema from "effect/Schema";
-import { HttpApiSchema } from "effect/unstable/httpapi";
 
 import { MIN_VAULT_PASSWORD_LENGTH, SCREEN_LOCK_TIMEOUTS } from "./constants.js";
 

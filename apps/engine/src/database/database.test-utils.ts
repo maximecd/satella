@@ -37,7 +37,4 @@ export const scopedCustomMigrations = <A, E>(
   directory: string,
   migrations: MigrationRegistry,
   program: Effect.Effect<A, E, SqlClient.SqlClient>,
-) =>
-  Effect.scoped(
-    program.pipe(Effect.provide(encryptedDatabaseLayer(directory, { migrations }))),
-  );
+) => Effect.scoped(program.pipe(Effect.provide(encryptedDatabaseLayer(directory, { migrations }))));

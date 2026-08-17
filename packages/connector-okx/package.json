@@ -11,7 +11,8 @@
   "types": "dist/index.d.mts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.mts",
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
       "import": "./dist/index.mjs",
       "default": "./dist/index.mjs"
     }

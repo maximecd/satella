@@ -9,7 +9,9 @@ export const make = Effect.gen(function* () {
   const withSql = yield* makeWithVaultSql;
   return SettingsService.of({
     get: Effect.fn("SettingsService.get")(() => withSql(Operations.getSettings())),
-    update: Effect.fn("SettingsService.update")((input) => withSql(Operations.updateSettings(input))),
+    update: Effect.fn("SettingsService.update")((input) =>
+      withSql(Operations.updateSettings(input)),
+    ),
   });
 });
 

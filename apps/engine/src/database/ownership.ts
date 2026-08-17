@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
-import { readFile, unlink, writeFile } from "node:fs/promises";
+import { readFileSync, unlinkSync } from "node:fs";
+import { chmod, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { DatabaseConfigError, DatabaseOwnedError } from "./errors.js";
@@ -93,7 +94,10 @@ export const claimDatabaseOwnership = (dataDirectory: string) =>
     const contents = yield* readOwnershipFile(path);
     if (liveOwnerPid(contents) !== undefined) return;
     yield* Effect.tryPromise({
-      try: () => writeFile(path, `${process.pid}\n`, { encoding: "utf8" }),
+      try: async () => {
+        await writeFile(path, `${process.pid}\n`, { encoding: "utf8", mode: 0o600 });
+        await chmod(path, 0o600);
+      },
       catch: (cause) =>
         new DatabaseConfigError({
           reason: "filesystem",
@@ -113,3 +117,14 @@ export const releaseDatabaseOwnership = (dataDirectory: string) =>
       yield* removeOwnershipFile(path);
     }
   }).pipe(Effect.ignore);
+
+export const releaseDatabaseOwnershipSync = (dataDirectory: string) => {
+  try {
+    const path = ownershipPath(dataDirectory);
+    if (readFileSync(path, "utf8").trim() === String(process.pid)) {
+      unlinkSync(path);
+    }
+  } catch {
+    // Process-exit cleanup is best-effort and must not mask the original exit.
+  }
+};

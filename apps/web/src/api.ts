@@ -3,9 +3,9 @@ import { HttpApiClient } from "effect/unstable/httpapi";
 import { EngineApi } from "@optimus/engine/api";
 import * as Effect from "effect/Effect";
 
-const engineUrl = import.meta.env["VITE_ENGINE_URL"] ?? "http://127.0.0.1:3001";
+import { engineUrl } from "./runtime";
 
-const clientEffect = HttpApiClient.make(EngineApi, { baseUrl: engineUrl });
+const clientEffect = HttpApiClient.make(EngineApi, { baseUrl: engineUrl() });
 type EngineClient = Effect.Success<typeof clientEffect>;
 
 const request = <A, E>(operation: (client: EngineClient) => Effect.Effect<A, E>) =>

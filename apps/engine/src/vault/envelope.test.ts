@@ -89,10 +89,15 @@ describe("Vault key envelope", () => {
   it("rewraps the same database key and rejects the old Vault password", async () => {
     const dek = Buffer.alloc(32, 11);
     const original = await wrapDatabaseKey(password, dek, kdf);
-    const rewrapped = await wrapDatabaseKey(otherPassword, dek, {
-      ...kdf,
-      salt: Buffer.alloc(16, 8),
-    }, original.vaultId);
+    const rewrapped = await wrapDatabaseKey(
+      otherPassword,
+      dek,
+      {
+        ...kdf,
+        salt: Buffer.alloc(16, 8),
+      },
+      original.vaultId,
+    );
     expect(Buffer.from(await unwrapDatabaseKey(otherPassword, rewrapped))).toEqual(dek);
     await expect(unwrapDatabaseKey(password, rewrapped)).rejects.toMatchObject({
       _tag: "VaultUnlockError",
@@ -114,9 +119,9 @@ describe("Vault key envelope", () => {
     expect(Buffer.from(loaded.wrap.nonce)).toEqual(Buffer.from(first.envelope.wrap.nonce));
     await replaceEnvelope(path, second);
     const replaced = await loadEnvelope(path);
-    expect(Buffer.from(await unwrapDatabaseKey(otherPassword, replaced)).equals(Buffer.from(first.dek))).toBe(
-      true,
-    );
+    expect(
+      Buffer.from(await unwrapDatabaseKey(otherPassword, replaced)).equals(Buffer.from(first.dek)),
+    ).toBe(true);
     await expect(readFile(`${path}.tmp`)).rejects.toMatchObject({ code: "ENOENT" });
     await mkdir(directory, { recursive: true });
   });

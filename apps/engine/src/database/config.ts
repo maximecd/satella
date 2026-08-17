@@ -11,8 +11,10 @@ import { DatabaseConfigError } from "./errors.js";
 const execFileAsync = promisify(execFile);
 
 export const DATA_DIRECTORY_ENV = "OPTIMUS_DATA_DIR";
+export const CANONICAL_DATA_DIRECTORY_ENV = "OPTIMUS_CANONICAL_DATA_DIR";
 export const DATABASE_CONTEXT_ENV = "OPTIMUS_DATABASE_CONTEXT";
 export const DEVELOPMENT_DATABASE_CONTEXT = "development";
+export const PRODUCTION_DATABASE_CONTEXT = "production";
 export const WORKTREE_DATA_DIRECTORY_NAME = ".optimus";
 export const ENVELOPE_FILE_NAME = "vault.envelope.json";
 export const DATABASE_FILE_NAME = "optimus.sqlite";
@@ -121,7 +123,22 @@ const resolveGitWorktreeRoot = Effect.tryPromise({
 
 export const resolveDatabaseLocation = (
   override: string | undefined = process.env[DATA_DIRECTORY_ENV],
+  canonicalOverride: string | undefined = process.env[CANONICAL_DATA_DIRECTORY_ENV],
 ): Effect.Effect<DatabaseLocation, DatabaseConfigError> => {
+  if (process.env[DATABASE_CONTEXT_ENV] === PRODUCTION_DATABASE_CONTEXT) {
+    if (canonicalOverride === undefined) {
+      return Effect.fail(
+        new DatabaseConfigError({
+          reason: "production-not-configured",
+          path: "",
+          cause: undefined,
+          message: "Production database ownership must be supplied by the packaged desktop.",
+        }),
+      );
+    }
+    return validateOverride(canonicalOverride);
+  }
+
   if (override !== undefined) {
     return validateOverride(override);
   }
@@ -134,7 +151,6 @@ export const resolveDatabaseLocation = (
     );
   }
 
-  // TODO: Packaging must define production data ownership before production startup is enabled.
   return Effect.fail(
     new DatabaseConfigError({
       reason: "production-not-configured",
@@ -148,7 +164,7 @@ export const resolveDatabaseLocation = (
 
 const makeConfig = (override: string | undefined) =>
   Effect.gen(function* () {
-    const location = yield* resolveDatabaseLocation(override);
+    const location = yield* resolveDatabaseLocation(override, override);
     const backupDirectory = join(location.dataDirectory, "backups");
 
     yield* ensurePrivateDirectory(location.dataDirectory).pipe(
@@ -212,8 +228,17 @@ const makeConfig = (override: string | undefined) =>
     });
   });
 
-export const resolveDatabaseConfig = Effect.sync(() => process.env[DATA_DIRECTORY_ENV]).pipe(
-  Effect.flatMap(makeConfig),
+export const resolveDatabaseConfig = Effect.sync(() => ({
+  override: process.env[DATA_DIRECTORY_ENV],
+  canonicalOverride: process.env[CANONICAL_DATA_DIRECTORY_ENV],
+})).pipe(
+  Effect.flatMap(({ override, canonicalOverride }) =>
+    makeConfig(
+      process.env[DATABASE_CONTEXT_ENV] === PRODUCTION_DATABASE_CONTEXT
+        ? canonicalOverride
+        : override,
+    ),
+  ),
 );
 
 export const DatabaseConfigLive = Layer.effect(DatabaseConfig, resolveDatabaseConfig);

@@ -1,4 +1,4 @@
-import { Alert, Box, Card, Flex, Grid, Heading, Stack, Text } from "@chakra-ui/react";
+import { Alert, Box, Card, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import type { DashboardAccountRow } from "@optimus/engine/api";
 import { useState } from "react";
 

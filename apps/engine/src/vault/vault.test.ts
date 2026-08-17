@@ -96,6 +96,8 @@ describe("Vault", () => {
         expect(refused.reason).toBe("reset-confirmation");
         yield* vault.reset(RESET_CONFIRMATION);
         expect(yield* vault.status()).toEqual({ state: "absent" });
+        yield* vault.initialize({ password, pin, kdf: FAST_KDF });
+        expect((yield* vault.status()).state).toBe("open");
       }).pipe(Effect.provide(vaultLayer(directory)));
     }),
   );
