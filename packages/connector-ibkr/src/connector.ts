@@ -2,8 +2,6 @@ import { HttpClient } from "effect/unstable/http";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import iconSvg from "./icon.svg";
-import instructions from "./instructions.md";
 
 import {
   Connector,
@@ -23,6 +21,7 @@ import {
   type IbkrHttpTransport,
 } from "./client.js";
 import { parseFlexXml, type ParsedFlexDocument } from "./parser.js";
+import { ibkrIcon, ibkrInstructions } from "./metadata.js";
 import {
   IbkrFlexCredentials,
   type IbkrFlexCashReportCurrency,
@@ -30,9 +29,6 @@ import {
   type IbkrFlexStatement,
   type IbkrFlexCredentials as IbkrCredentials,
 } from "./schemas.js";
-
-const ibkrInstructions = instructions;
-const ibkrIcon = `data:image/svg+xml;base64,${Buffer.from(iconSvg).toString("base64")}`;
 
 export interface IbkrConnectorOptions<R = HttpClient.HttpClient> {
   readonly transportFactory?: (origin: string) => IbkrHttpTransport<R>;

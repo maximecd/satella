@@ -1,8 +1,6 @@
 import { HttpClient } from "effect/unstable/http";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import iconSvg from "./icon.svg";
-import instructions from "./instructions.md";
 
 import {
   Connector,
@@ -28,9 +26,7 @@ import {
   OkxFundingBalanceResponse,
   OkxTradingBalanceResponse,
 } from "./schemas.js";
-
-const okxIcon = `data:image/svg+xml;base64,${Buffer.from(iconSvg).toString("base64")}`;
-const okxInstructions = instructions;
+import { okxIcon, okxInstructions } from "./metadata.js";
 
 export interface OkxConnectorOptions<R = HttpClient.HttpClient> {
   readonly transportFactory?: (origin: string) => OkxHttpTransport<R>;
