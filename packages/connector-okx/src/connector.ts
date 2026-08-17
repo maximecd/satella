@@ -113,16 +113,6 @@ const normalizeQuantity = (value: string, currency: string): string => {
   }
 };
 
-const normalizeOptionalDecimal = (value: string | undefined, label: string): string | undefined => {
-  const trimmed = value?.trim();
-  if (trimmed === undefined || trimmed.length === 0 || trimmed === "0") return undefined;
-  try {
-    return canonicalDecimal(trimmed);
-  } catch {
-    throw new Error(`OKX returned an invalid ${label}`);
-  }
-};
-
 const normalizeCurrency = (value: string): string => {
   const currency = value.trim().toUpperCase();
   if (currency.length === 0 || !/^[A-Z0-9._-]+$/.test(currency)) {
@@ -132,66 +122,20 @@ const normalizeCurrency = (value: string): string => {
 };
 
 const mapBalances = (
-  rows: ReadonlyArray<{
-    readonly ccy: string;
-    readonly amount: string;
-    readonly spotBalance?: string;
-    readonly averageUnitPurchasePrice?: string;
-  }>,
+  rows: ReadonlyArray<{ readonly ccy: string; readonly amount: string }>,
 ): ReadonlyArray<{
   readonly asset: ReturnType<typeof connectorAsset>;
   readonly quantity: string;
-  readonly averageUnitPurchasePrice?: {
-    readonly price: string;
-    readonly currencyIso: string;
-  };
 }> => {
-  const positions = new Map<
-    string,
-    {
-      quantity: string;
-      averageUnitPurchasePrice?: { readonly price: string; readonly currencyIso: string };
-    }
-  >();
+  const quantities = new Map<string, string>();
   for (const row of rows) {
     const currency = normalizeCurrency(row.ccy);
     const quantity = normalizeQuantity(row.amount, currency);
-    const spotBalance = normalizeOptionalDecimal(row.spotBalance, `spot balance for ${currency}`);
-    const averagePrice = normalizeOptionalDecimal(
-      row.averageUnitPurchasePrice,
-      `average purchase price for ${currency}`,
-    );
-    // OKX's spot cost fields describe spotBal (net buying amount), not every
-    // balance held in the trading account. Only attach the cost basis when it
-    // unambiguously describes the imported quantity.
-    const positionAveragePrice =
-      averagePrice !== undefined && spotBalance === quantity ? averagePrice : undefined;
-    const previous = positions.get(currency);
-    if (previous?.averageUnitPurchasePrice !== undefined && positionAveragePrice !== undefined) {
-      if (previous.averageUnitPurchasePrice.price !== positionAveragePrice) {
-        throw new Error(`OKX returned conflicting average purchase prices for ${currency}`);
-      }
-    }
-    const averageUnitPurchasePrice =
-      previous?.averageUnitPurchasePrice ??
-      (positionAveragePrice === undefined
-        ? undefined
-        : { price: positionAveragePrice, currencyIso: "USD" });
-    const next = {
-      quantity: addDecimal(previous?.quantity ?? "0", quantity),
-      ...(averageUnitPurchasePrice === undefined ? {} : { averageUnitPurchasePrice }),
-    };
-    positions.set(currency, next);
+    quantities.set(currency, addDecimal(quantities.get(currency) ?? "0", quantity));
   }
-  return [...positions]
-    .filter(([, position]) => position.quantity !== "0")
-    .map(([currency, position]) => ({
-      asset: connectorAsset(currency),
-      quantity: position.quantity,
-      ...(position.averageUnitPurchasePrice === undefined
-        ? {}
-        : { averageUnitPurchasePrice: position.averageUnitPurchasePrice }),
-    }));
+  return [...quantities]
+    .filter(([, quantity]) => quantity !== "0")
+    .map(([currency, quantity]) => ({ asset: connectorAsset(currency), quantity }));
 };
 
 const mapErrorCategory = (
@@ -279,14 +223,12 @@ const buildAccounts = (
   funding: typeof OkxFundingBalanceResponse.Type,
   earn: typeof OkxEarnBalanceResponse.Type,
 ): ReadonlyArray<ConnectorAccount> => {
+  // OKX's Spot and Funding balance APIs are currency-level. They do not
+  // provide a lifetime cost basis or unrealized P&L for each trading pair, so
+  // this connector intentionally imports balances only.
   const tradingPositions = mapBalances(
     trading.data.flatMap(({ details }) =>
-      details.map(({ ccy, cashBal, spotBal, openAvgPx }) => ({
-        ccy,
-        amount: cashBal,
-        ...(spotBal === undefined ? {} : { spotBalance: spotBal }),
-        ...(openAvgPx === undefined ? {} : { averageUnitPurchasePrice: openAvgPx }),
-      })),
+      details.map(({ ccy, cashBal }) => ({ ccy, amount: cashBal })),
     ),
   );
   const fundingPositions = mapBalances(funding.data.map(({ ccy, bal }) => ({ ccy, amount: bal })));

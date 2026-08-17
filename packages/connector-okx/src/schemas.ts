@@ -41,11 +41,6 @@ export const OkxTradingBalanceResponse = Schema.Struct({
         Schema.Struct({
           ccy: Schema.String,
           cashBal: Schema.String,
-          spotBal: Schema.optional(Schema.String),
-          openAvgPx: Schema.optional(Schema.String),
-          accAvgPx: Schema.optional(Schema.String),
-          spotUpl: Schema.optional(Schema.String),
-          spotUplRatio: Schema.optional(Schema.String),
         }),
       ),
     }),

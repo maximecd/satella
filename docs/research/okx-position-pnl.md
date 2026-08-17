@@ -4,9 +4,28 @@ Research date: 2026-08-17
 
 ## Conclusion
 
-OKX can provide reliable **current-position** acquisition data and unrealized P&L for margin and derivatives. The private `GET /api/v5/account/positions` endpoint returns one row per instrument/position side with `avgPx`, `markPx`, `upl`, and `uplRatio`; it also returns derivative `realizedPnl` and its components. This is the best source for `MARGIN`, `FUTURES`, `SWAP`, and `OPTION` positions ([Get positions](https://www.okx.com/docs-v5/en/#trading-account-get-positions)).
+For the narrowed scope of **Spot and Funding**, OKX does **not** provide a usable private REST or WebSocket response containing a lifetime Spot holding keyed by trading pair with its quantity, cost basis, and unrealized P&L. The implementation should therefore report OKX Spot and Funding balances without pair-level acquisition cost or P&L.
 
-Spot is different. `GET /api/v5/account/balance` can expose `spotBal`, `openAvgPx`, `accAvgPx`, `spotUpl`, `spotUplRatio`, `totalPnl`, and `totalPnlRatio` inside each `details` entry. Those values are in USD and are keyed by `ccy`, not by spot instrument/pair. OKX does not expose a general pair-level spot holding/cost-basis position through the positions endpoint. The fields are marked as applicable to Spot/Futures account-mode and copy-trading contexts in the official response schema, so the connector must tolerate empty fields ([Get balance](https://www.okx.com/docs-v5/en/#trading-account-get-balance)).
+The Spot fields `spotBal`, `openAvgPx`, `accAvgPx`, `spotUpl`, `spotUplRatio`, `totalPnl`, and `totalPnlRatio` are exposed inside `GET /api/v5/account/balance` `details` entries, but those entries are keyed by currency (`ccy`), not by `instId` or trading pair. The private WebSocket `account` channel exposes the same account-detail shape and can be filtered by currency, not converted into a pair-level position feed ([Get balance](https://www.okx.com/docs-v5/en/#trading-account-get-balance), [Account channel](https://www.okx.com/docs-v5/en/#websocket-account-channel)).
+
+Funding is more limited: `GET /api/v5/asset/balances` returns currency balances such as `bal`, `availBal`, and `frozenBal`, with no acquisition-cost or P&L fields ([Funding account balance](https://www.okx.com/docs-v5/en/#funding-account-get-balance)).
+
+The remainder of this note preserves the earlier investigation of margin and derivatives, but those findings are **out of scope** for the current connector work.
+
+## Narrowed Spot and Funding decision
+
+| Account | What OKX exposes | Implementation decision |
+| --- | --- | --- |
+| Spot / Trading account | Currency-level `spotBal`, `openAvgPx`/`accAvgPx`, and `spotUpl`/`totalPnl` in USD; no pair key in the response | Do not import `openAvgPx` or the P&L fields as pair-level acquisition data. Keep Spot as balance-only until the connector has a supported pair-level source. |
+| Funding account | Currency-level `bal`, `availBal`, and `frozenBal` | No cost basis or P&L is available to import. |
+
+`GET /api/v5/account/positions` does not close this gap: the official request/response schema supports `MARGIN`, `FUTURES`, `SWAP`, `OPTION`, and `EVENTS`, not ordinary Spot holdings ([Get positions](https://www.okx.com/docs-v5/en/#trading-account-get-positions)). The private WebSocket `positions` channel has the same non-Spot instrument scope ([Positions channel](https://www.okx.com/docs-v5/en/#websocket-positions-channel)).
+
+Spot fills do include `instId`, `fillPx`, `fillSz`, and fees, so a client could calculate a pair-level result from trade history. That is not a lifetime exchange-maintained position, however: `GET /api/v5/trade/fills-history` only retrieves the last three months. Reconstructing a lifetime cost basis would require Optimus to retain all fills, define its own lot/cost method, and account for transfers and other balance changes ([Transaction details history](https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-transaction-details-history)).
+
+The OKX product documentation confirms that Spot cost price and P&L are calculated for an asset/token and that the Open API fields are `spotBal`, `openAvgPx`, `accAvgPx`, `spotUpl`, `spotUplRatio`, `totalPnl`, and `totalPnlRatio`; this does not add a pair-keyed API position ([Spot cost price](https://www.okx.com/en-sg/help/i-introduction-of-spot)).
+
+OKX can provide reliable **current-position** acquisition data and unrealized P&L for margin and derivatives. The private `GET /api/v5/account/positions` endpoint returns one row per instrument/position side with `avgPx`, `markPx`, `upl`, and `uplRatio`; it also returns derivative `realizedPnl` and its components. This is the best source for `MARGIN`, `FUTURES`, `SWAP`, and `OPTION` positions ([Get positions](https://www.okx.com/docs-v5/en/#trading-account-get-positions)).
 
 ## Endpoint findings
 
@@ -25,11 +44,12 @@ Spot is different. `GET /api/v5/account/balance` can expose `spotBal`, `openAvgP
 
 ## Implication for the current connector
 
-The current OKX connector calls `account/config`, `account/balance`, `asset/balances`, and `finance/savings/balance`, but its schemas retain only cash/balance amounts. Its normalized model represents currency assets, not instrument positions. Therefore:
+The current OKX connector calls `account/config`, `account/balance`, `asset/balances`, and `finance/savings/balance`. Its normalized model represents currency assets, not instrument positions. Therefore, for the current Spot and Funding scope:
 
-- For the existing currency-shaped Trading account, OKX's `details[].openAvgPx`/`spotUpl` could be imported only as a **USD, currency-level** value when the fields are present. It must not be described as pair-level acquisition cost.
-- For reliable derivatives and margin P&L, the connector needs to add `account/positions`, instrument metadata, position-side handling, and a representation for P&L currency. This is a broader model change than adding one field to the current balance mapper.
+- Do **not** map `details[].openAvgPx`, `details[].accAvgPx`, `details[].spotUpl`, or `details[].totalPnl` to `averageUnitPurchasePrice` or pair-level P&L. They are currency-level USD fields, and importing them as if they belonged to a trading pair would misstate acquisition cost.
+- Keep OKX Spot and Funding balances without pair-level cost or P&L. A future pair-level implementation would need Optimus to retain complete fills and define its own accounting, with the limitations described above.
 - Funding and Earn balances do not provide a comparable acquisition-cost field in the endpoints currently used by the connector.
+- The derivative and margin position findings remain documented above for history, but are out of scope for this implementation.
 
 ## Authentication and repository fit
 
@@ -39,10 +59,6 @@ The current client already signs GET query strings, synchronizes against `GET /a
 
 ## Recommendation
 
-Treat OKX derivatives/margin position P&L as implementable from the official position endpoint. Treat spot P&L as implementable only at the currency/USD level from account-balance details; do not promise pair-level spot cost basis unless Optimus starts retaining and accounting for the complete fill history itself.
+For the current scope, report OKX Spot and Funding as balance-only: do not promise pair-level spot cost basis or P&L, and do not import currency-level `openAvgPx` as pair P&L. A pair-level result would require Optimus to retain and account for the complete fill history, rather than relying on the three-month fills-history endpoint.
 
-The connector now implements the safe spot path: when `cashBal`, `spotBal`, and
-`openAvgPx` describe the same Trading Account currency balance, it imports
-`openAvgPx` as Optimus' USD-denominated `averageUnitPurchasePrice`. It continues
-to leave cost data unavailable for Funding/Earn balances, mismatched spot
-balances, and unsupported instrument-level derivative positions.
+The earlier recommendation that derivatives/margin P&L is implementable from `account/positions` is preserved in this note for future work, but it is explicitly out of scope here. The current connector intentionally remains balance-only for Spot and Funding.
