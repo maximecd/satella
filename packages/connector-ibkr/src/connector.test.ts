@@ -29,7 +29,7 @@ const report = `<?xml version="1.0" encoding="UTF-8"?>
         <CashReportCurrency accountId="U123456" currency="BASE_SUMMARY" endingCash="98.50" />
       </CashReport>
       <OpenPositions>
-        <OpenPosition accountId="U123456" assetCategory="STK" symbol="AAPL" description="Apple &amp; Co" conid="265598" position="2" levelOfDetail="Summary" isin="US0378331005" securityIDType="ISIN" securityID="US0378331005" />
+        <OpenPosition accountId="U123456" assetCategory="STK" symbol="AAPL" description="Apple &amp; Co" conid="265598" currency="USD" position="2" costBasisPrice="150.25" costBasisMoney="300.50" fifoPnlUnrealized="12.34" levelOfDetail="Summary" isin="US0378331005" securityIDType="ISIN" securityID="US0378331005" />
         <OpenPosition accountId="U123456" assetCategory="FUND" symbol="VWCE" description="Vanguard FTSE" conid="400" position="5" levelOfDetail="Summary" />
         <OpenPosition accountId="U123456" assetCategory="BOND" symbol="US10Y" description="US Treasury" conid="500" position="10" levelOfDetail="Summary" />
         <OpenPosition accountId="U123456" assetCategory="OPT" symbol="AAPL  260918C00200000" description="Apple call" conid="111" position="-1" levelOfDetail="Summary" multiplier="100" />
@@ -132,6 +132,7 @@ describe("IBKR Flex connector", () => {
               ],
             },
             quantity: "2",
+            averageUnitPurchasePrice: { price: "150.25", currencyIso: "USD" },
           },
           {
             asset: {

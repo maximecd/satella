@@ -29,6 +29,9 @@ export const IbkrFlexOpenPosition = Schema.Struct({
   figi: Schema.optional(Schema.String),
   position: Schema.optional(Schema.String),
   multiplier: Schema.optional(Schema.String),
+  costBasisPrice: Schema.optional(Schema.String),
+  costBasisMoney: Schema.optional(Schema.String),
+  fifoPnlUnrealized: Schema.optional(Schema.String),
   levelOfDetail: Schema.optional(Schema.String),
 });
 export type IbkrFlexOpenPosition = typeof IbkrFlexOpenPosition.Type;

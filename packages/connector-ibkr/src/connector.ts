@@ -174,6 +174,10 @@ interface PositionGroup {
   readonly identifiers: ReadonlyArray<{ readonly type: string; readonly value: string }>;
   readonly modes: Set<string>;
   quantity: string;
+  averageUnitPurchasePrice?: {
+    readonly price: string;
+    readonly currencyIso: string;
+  };
 }
 
 const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
@@ -242,6 +246,16 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
     if (mode !== "SUMMARY" && mode !== "LOT") {
       throw new Error(`IBKR Flex report returned unsupported level of detail for conid ${conid}`);
     }
+    // Cost Basis Price is an average unit price only on the Summary row. Lot
+    // rows contain lot-specific prices and must not be treated as the
+    // authoritative average for the whole Position.
+    const costBasisPrice =
+      mode === "SUMMARY" && trimOptional(row.costBasisPrice) !== undefined
+        ? {
+            price: finiteNumber(row.costBasisPrice, `cost basis price for conid ${conid}`),
+            currencyIso: currency(row.currency, `position currency for conid ${conid}`),
+          }
+        : undefined;
     const modeKey = mode;
     const externalId = `ibkr:conid:${conid}`;
     const previous = groups.get(externalId);
@@ -253,6 +267,7 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
         identifiers,
         modes: new Set([modeKey]),
         quantity,
+        ...(costBasisPrice === undefined ? {} : { averageUnitPurchasePrice: costBasisPrice }),
       });
       continue;
     }
@@ -267,6 +282,16 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
     }
     previous.modes.add(modeKey);
     previous.quantity = addDecimal(previous.quantity, quantity);
+    if (costBasisPrice !== undefined) {
+      if (
+        previous.averageUnitPurchasePrice !== undefined &&
+        (previous.averageUnitPurchasePrice.price !== costBasisPrice.price ||
+          previous.averageUnitPurchasePrice.currencyIso !== costBasisPrice.currencyIso)
+      ) {
+        throw new Error(`IBKR Flex report returned conflicting cost basis for conid ${conid}`);
+      }
+      previous.averageUnitPurchasePrice = costBasisPrice;
+    }
     if (JSON.stringify(previous.identifiers) !== JSON.stringify(identifiers)) {
       throw new Error(`IBKR Flex report returned conflicting identifiers for conid ${conid}`);
     }
@@ -297,6 +322,9 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
         identifiers: group.identifiers,
       },
       quantity: group.quantity,
+      ...(group.averageUnitPurchasePrice === undefined
+        ? {}
+        : { averageUnitPurchasePrice: group.averageUnitPurchasePrice }),
     });
   }
   return {
