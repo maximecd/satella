@@ -50,7 +50,7 @@ describe("connector reconciliation", () => {
               externalAccountId: "trading",
               name: "Trading",
               baseCurrencyIso: "USD",
-              positions: [{ externalAssetId: "okx:currency:BTC", quantity: 2 }],
+              positions: [{ externalAssetId: "okx:currency:BTC", quantity: "2" }],
             },
           ],
         });
@@ -69,7 +69,7 @@ describe("connector reconciliation", () => {
           { type: "okx_currency", value: "BTC" },
         ]),
       );
-      expect(result.account.positions.find(({ quantity }) => quantity !== 0)?.assetId).toBe(
+      expect(result.account.positions.find(({ quantity }) => quantity !== "0")?.assetId).toBe(
         result.automatic.id,
       );
     }).pipe(Effect.provide(engineTestLayer())),
@@ -104,7 +104,7 @@ describe("connector reconciliation", () => {
               externalAccountId: "trading",
               name: "Trading",
               baseCurrencyIso: "USD",
-              positions: [{ externalAssetId: "okx:currency:BTC", quantity: 1 }],
+              positions: [{ externalAssetId: "okx:currency:BTC", quantity: "1" }],
             },
           ],
         });
@@ -139,7 +139,7 @@ describe("connector reconciliation", () => {
               externalAccountId: "account-1",
               name: "Portfolio",
               baseCurrencyIso: "USD",
-              positions: [{ externalAssetId: "instrument-1", quantity: 4 }],
+              positions: [{ externalAssetId: "instrument-1", quantity: "4" }],
             },
           ],
         });
@@ -169,10 +169,10 @@ describe("connector reconciliation", () => {
         return { afterPartial, zeroResult, zeroed, removeResult, finalConnection };
       });
 
-      expect(result.afterPartial.positions[0]?.quantity).toBe(4);
+      expect(result.afterPartial.positions[0]?.quantity).toBe("4");
       expect(result.zeroResult.zeroedPositionCount).toBe(1);
       expect(result.zeroed.name).toBe("Renamed portfolio");
-      expect(result.zeroed.positions[0]?.quantity).toBe(0);
+      expect(result.zeroed.positions[0]?.quantity).toBe("0");
       expect(result.removeResult.removedAccountCount).toBe(1);
       expect(result.finalConnection.accounts).toEqual([]);
     }).pipe(Effect.provide(engineTestLayer())),

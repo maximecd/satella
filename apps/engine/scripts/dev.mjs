@@ -3,16 +3,13 @@ import { fileURLToPath } from "node:url";
 
 const engineRoot = fileURLToPath(new URL("..", import.meta.url));
 const tsx = process.platform === "win32" ? "tsx.cmd" : "tsx";
-const nodeOptions = [process.env["NODE_OPTIONS"], "--conditions=development"]
-  .filter((value) => value !== undefined && value.length > 0)
-  .join(" ");
 
 const child = spawn(
   tsx,
   ["watch", "--include", "../../packages/connector-*/dist/**/*", "src/main.ts"],
   {
     cwd: engineRoot,
-    env: { ...process.env, NODE_OPTIONS: nodeOptions, OPTIMUS_DATABASE_CONTEXT: "development" },
+    env: { ...process.env, OPTIMUS_DATABASE_CONTEXT: "development" },
     stdio: "inherit",
   },
 );

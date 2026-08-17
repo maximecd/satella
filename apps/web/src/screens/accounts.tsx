@@ -31,31 +31,44 @@ import { submitThenChangeValidation, useAppForm } from "../form";
 import { useAccount, useAssets, useDeleteAccount, useUpdateAccount } from "../portfolio";
 import { RefreshConnectionButton } from "../refresh-connection";
 import { AddAssetsButton } from "./add-assets";
+import {
+  compareDecimal,
+  divideDecimal,
+  formatAmount,
+  formatDecimal,
+  formatMarketPrice,
+  formatQuantity,
+  formatSignedAmount,
+  multiplyDecimal,
+} from "../financial-number";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
-const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 });
-const marketPrice = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
-const valuedAmount = new Intl.NumberFormat(undefined, {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-const fxRate = new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 });
-const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "derivatives", "commodities", "other"]);
+const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "other"]);
 
-const formatValuedAmount = (value: number, currencyIso: string) =>
-  `${valuedAmount.format(value)} ${currencyIso}`;
+const pnlPercent = (value: string | null) =>
+  value === null
+    ? "—"
+    : `${formatDecimal(multiplyDecimal(value, "100"), {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}%`;
 
 const conversionDescription = (position: Position, valuationCurrencyIso: string) => {
   if (
     position.price === null ||
     position.reportingValue === null ||
-    position.quantity === 0 ||
+    compareDecimal(position.quantity, "0") === 0 ||
     position.price.currencyIso === valuationCurrencyIso
   )
     return undefined;
-  const rate = position.reportingValue / (position.quantity * position.price.price);
-  return `Converted at 1 ${position.price.currencyIso} = ${fxRate.format(rate)} ${valuationCurrencyIso}`;
+  const rate = divideDecimal(
+    position.reportingValue,
+    multiplyDecimal(position.quantity, position.price.price),
+  );
+  return `Converted at 1 ${position.price.currencyIso} = ${formatDecimal(rate, {
+    maximumFractionDigits: 6,
+  })} ${valuationCurrencyIso}`;
 };
 
 function PositionTable({
@@ -77,6 +90,7 @@ function PositionTable({
             <Table.ColumnHeader textAlign="end">
               Value ({account.baseCurrencyIso})
             </Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">Unrealized P&amp;L</Table.ColumnHeader>
             <Table.ColumnHeader />
           </Table.Row>
         </Table.Header>
@@ -108,14 +122,14 @@ function PositionTable({
                   )}
                 </Table.Cell>
                 <Table.Cell textAlign="end" fontVariantNumeric="tabular-nums">
-                  {number.format(position.quantity)}
+                  {formatQuantity(position.quantity)}
                 </Table.Cell>
                 <Table.Cell textAlign="end">
                   {position.price === null ? (
                     <Text color="fg.muted">—</Text>
                   ) : (
                     <Text fontVariantNumeric="tabular-nums">
-                      {marketPrice.format(position.price.price)} {position.price.currencyIso}
+                      {formatMarketPrice(position.price.price)} {position.price.currencyIso}
                     </Text>
                   )}
                 </Table.Cell>
@@ -124,21 +138,37 @@ function PositionTable({
                     <Text fontVariantNumeric="tabular-nums">
                       {position.reportingValue === null
                         ? "Unpriced"
-                        : formatValuedAmount(position.reportingValue, account.baseCurrencyIso)}
+                        : formatAmount(position.reportingValue, account.baseCurrencyIso)}
                     </Text>
                   </Tooltip>
                 </Table.Cell>
                 <Table.Cell textAlign="end">
-                  {account.connectionId === null ? (
-                    <Button asChild size="sm" variant="ghost">
-                      <RouterLink
-                        to="/positions/$positionId/edit"
-                        params={{ positionId: position.id }}
-                      >
-                        Edit
-                      </RouterLink>
-                    </Button>
-                  ) : null}
+                  <Text
+                    fontVariantNumeric="tabular-nums"
+                    color={
+                      position.unrealizedPnl === null
+                        ? "fg.muted"
+                        : compareDecimal(position.unrealizedPnl, "0") > 0
+                          ? "green.fg"
+                          : compareDecimal(position.unrealizedPnl, "0") < 0
+                            ? "red.fg"
+                            : undefined
+                    }
+                  >
+                    {position.unrealizedPnl === null
+                      ? "—"
+                      : `${formatSignedAmount(position.unrealizedPnl, account.baseCurrencyIso)} (${pnlPercent(position.unrealizedPnlPercent)})`}
+                  </Text>
+                </Table.Cell>
+                <Table.Cell textAlign="end">
+                  <Button asChild size="sm" variant="ghost">
+                    <RouterLink
+                      to="/positions/$positionId/edit"
+                      params={{ positionId: position.id }}
+                    >
+                      Edit
+                    </RouterLink>
+                  </Button>
                 </Table.Cell>
               </Table.Row>
             );
@@ -156,11 +186,11 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   const account = query.data;
   const active = account.positions.filter(
-    (position) => position.quantity !== 0 && position.reportingValue !== null,
+    (position) => compareDecimal(position.quantity, "0") !== 0 && position.reportingValue !== null,
   );
-  const zero = account.positions.filter((position) => position.quantity === 0);
+  const zero = account.positions.filter((position) => compareDecimal(position.quantity, "0") === 0);
   const unpriced = account.positions.filter(
-    (position) => position.quantity !== 0 && position.reportingValue === null,
+    (position) => compareDecimal(position.quantity, "0") !== 0 && position.reportingValue === null,
   );
   return (
     <>
@@ -219,8 +249,27 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
         <Flex justify="space-between" align="center" gap="4" wrap="wrap">
           <Text fontWeight="medium">Valued total</Text>
           <Text fontSize="2xl" fontWeight="semibold" fontVariantNumeric="tabular-nums">
-            {formatValuedAmount(account.total, account.baseCurrencyIso)}
+            {formatAmount(account.total, account.baseCurrencyIso)}
           </Text>
+          <Stack align="flex-end" gap="0">
+            <Text fontWeight="medium">Unrealized P&amp;L</Text>
+            <Text
+              fontSize="lg"
+              fontVariantNumeric="tabular-nums"
+              color={
+                compareDecimal(account.unrealizedPnl, "0") > 0
+                  ? "green.fg"
+                  : compareDecimal(account.unrealizedPnl, "0") < 0
+                    ? "red.fg"
+                    : undefined
+              }
+            >
+              {formatSignedAmount(account.unrealizedPnl, account.baseCurrencyIso)}
+              {account.unrealizedPnlPercent === null
+                ? ""
+                : ` (${pnlPercent(account.unrealizedPnlPercent)})`}
+            </Text>
+          </Stack>
         </Flex>
       </ResourceCard>
       <Flex justify="space-between" align="center" gap="3" wrap="wrap">

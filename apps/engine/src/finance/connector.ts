@@ -4,6 +4,12 @@ import { randomUUID } from "node:crypto";
 
 import type { AssetCategory, IdentifierInput } from "./contracts.js";
 import { FinanceApiError } from "./contracts.js";
+import {
+  addDecimal,
+  canonicalDecimal,
+  compareDecimal,
+  type DecimalInput,
+} from "./financial-number.js";
 
 export interface NormalizedConnectorAsset {
   readonly externalAssetId: string;
@@ -15,11 +21,15 @@ export interface NormalizedConnectorAsset {
 
 export interface NormalizedConnectorPosition {
   readonly externalAssetId: string;
-  readonly quantity: number;
+  readonly quantity: DecimalInput;
   readonly reportedPrice?: {
-    readonly price: number;
+    readonly price: DecimalInput;
     readonly currencyIso: string;
     readonly observedAt: Date;
+  };
+  readonly averageUnitPurchasePrice?: {
+    readonly price: DecimalInput;
+    readonly currencyIso: string;
   };
 }
 
@@ -51,8 +61,11 @@ const nonEmpty = (value: string, label: string) => {
   return trimmed ? Effect.succeed(trimmed) : fail("validation", `${label} is required`);
 };
 
-const finite = (value: number, label: string) =>
-  Number.isFinite(value) ? Effect.succeed(value) : fail("validation", `${label} must be finite`);
+const normalizeFiniteDecimal = (value: DecimalInput, label: string) =>
+  Effect.try({
+    try: () => canonicalDecimal(value),
+    catch: () => new FinanceApiError({ code: "validation", message: `${label} must be finite` }),
+  });
 
 const marketDataIdentifierTypes = [
   "coingecko_coin_id",
@@ -134,12 +147,25 @@ export const mergeAssets = (sourceAssetId: string, targetAssetId: string) =>
     const sourcePositions = yield* sql<{
       readonly id: string;
       readonly account_id: string;
-      readonly quantity: number;
-    }>`SELECT id, account_id, quantity FROM positions WHERE asset_id = ${sourceAssetId}`;
+      readonly quantity: string;
+      readonly manual_average_unit_purchase_price: string | null;
+      readonly manual_purchase_currency_asset_id: string | null;
+      readonly connection_average_unit_purchase_price: string | null;
+      readonly connection_purchase_currency_asset_id: string | null;
+    }>`SELECT id, account_id, quantity,
+      manual_average_unit_purchase_price, manual_purchase_currency_asset_id,
+      connection_average_unit_purchase_price, connection_purchase_currency_asset_id
+      FROM positions WHERE asset_id = ${sourceAssetId}`;
     for (const source of sourcePositions) {
       const target = yield* sql<{
         readonly id: string;
-      }>`SELECT id FROM positions
+        readonly manual_average_unit_purchase_price: string | null;
+        readonly manual_purchase_currency_asset_id: string | null;
+        readonly connection_average_unit_purchase_price: string | null;
+        readonly connection_purchase_currency_asset_id: string | null;
+      }>`SELECT id, manual_average_unit_purchase_price, manual_purchase_currency_asset_id,
+        connection_average_unit_purchase_price, connection_purchase_currency_asset_id
+        FROM positions
         WHERE account_id = ${source.account_id} AND asset_id = ${targetAssetId}`;
       const targetPositionId = target[0]?.id;
       if (targetPositionId === undefined) {
@@ -147,12 +173,46 @@ export const mergeAssets = (sourceAssetId: string, targetAssetId: string) =>
           WHERE id = ${source.id}`;
         continue;
       }
-      yield* sql`INSERT INTO position_snapshots (snapshot_id, position_id, quantity)
-        SELECT snapshot_id, ${targetPositionId}, quantity FROM position_snapshots
-        WHERE position_id = ${source.id}
-        ON CONFLICT(snapshot_id, position_id) DO UPDATE
-          SET quantity = position_snapshots.quantity + excluded.quantity`;
-      yield* sql`UPDATE positions SET quantity = quantity + ${source.quantity},
+      const sourceSnapshots = yield* sql<{
+        readonly snapshot_id: string;
+        readonly quantity: string;
+      }>`SELECT snapshot_id, quantity FROM position_snapshots WHERE position_id = ${source.id}`;
+      for (const snapshot of sourceSnapshots) {
+        const targetSnapshot = yield* sql<{ readonly quantity: string }>`SELECT quantity
+          FROM position_snapshots WHERE snapshot_id = ${snapshot.snapshot_id}
+            AND position_id = ${targetPositionId}`;
+        const quantity =
+          targetSnapshot[0] === undefined
+            ? snapshot.quantity
+            : addDecimal(targetSnapshot[0].quantity, snapshot.quantity);
+        yield* sql`INSERT INTO position_snapshots (snapshot_id, position_id, quantity)
+          VALUES (${snapshot.snapshot_id}, ${targetPositionId}, ${quantity})
+          ON CONFLICT(snapshot_id, position_id) DO UPDATE SET quantity = excluded.quantity`;
+      }
+      const targetQuantity = yield* sql<{
+        readonly quantity: string;
+      }>`SELECT quantity FROM positions
+        WHERE id = ${targetPositionId}`;
+      const targetPosition = target[0]!;
+      const manualAverage =
+        targetPosition.manual_average_unit_purchase_price ??
+        source.manual_average_unit_purchase_price;
+      const manualCurrency =
+        targetPosition.manual_average_unit_purchase_price !== null
+          ? targetPosition.manual_purchase_currency_asset_id
+          : source.manual_purchase_currency_asset_id;
+      const connectionAverage =
+        targetPosition.connection_average_unit_purchase_price ??
+        source.connection_average_unit_purchase_price;
+      const connectionCurrency =
+        targetPosition.connection_average_unit_purchase_price !== null
+          ? targetPosition.connection_purchase_currency_asset_id
+          : source.connection_purchase_currency_asset_id;
+      yield* sql`UPDATE positions SET quantity = ${addDecimal(targetQuantity[0]!.quantity, source.quantity)},
+        manual_average_unit_purchase_price = ${manualAverage},
+        manual_purchase_currency_asset_id = ${manualCurrency},
+        connection_average_unit_purchase_price = ${connectionAverage},
+        connection_purchase_currency_asset_id = ${connectionCurrency},
         updated_at = ${new Date().toISOString()} WHERE id = ${targetPositionId}`;
       yield* sql`DELETE FROM positions WHERE id = ${source.id}`;
     }
@@ -288,8 +348,32 @@ export const reconcileConnector = (
       if (externalAccountIds.has(externalId))
         return yield* fail("validation", "Connector returned a duplicate external account ID");
       externalAccountIds.add(externalId);
-      for (const position of account.positions)
-        yield* finite(position.quantity, "Position quantity");
+      for (const position of account.positions) {
+        yield* normalizeFiniteDecimal(position.quantity, "Position quantity");
+        if (position.reportedPrice !== undefined)
+          yield* normalizeFiniteDecimal(position.reportedPrice.price, "Reported price");
+        if (position.averageUnitPurchasePrice !== undefined) {
+          const asset = output.assets.find(
+            ({ externalAssetId }) => externalAssetId === position.externalAssetId,
+          );
+          if (asset?.assetCategory === "cash") {
+            return yield* fail(
+              "validation",
+              "Cash positions cannot have an average unit purchase price",
+            );
+          }
+          const average = yield* normalizeFiniteDecimal(
+            position.averageUnitPurchasePrice.price,
+            "Average unit purchase price",
+          );
+          if (compareDecimal(average, "0") <= 0) {
+            return yield* fail(
+              "validation",
+              "Average unit purchase price must be greater than zero",
+            );
+          }
+        }
+      }
     }
 
     return yield* sql.withTransaction(
@@ -330,21 +414,38 @@ export const reconcileConnector = (
             const existingPosition = yield* sql<{ readonly id: string }>`SELECT id FROM positions
               WHERE account_id = ${accountId} AND asset_id = ${assetId}`;
             const positionId = existingPosition[0]?.id ?? randomUUID();
+            const quantity = yield* normalizeFiniteDecimal(position.quantity, "Position quantity");
             if (existingPosition[0] === undefined) {
               yield* sql`INSERT INTO positions (id, account_id, asset_id, quantity, created_at, updated_at)
-                VALUES (${positionId}, ${accountId}, ${assetId}, ${position.quantity}, ${timestamp}, ${timestamp})`;
+                VALUES (${positionId}, ${accountId}, ${assetId}, ${quantity}, ${timestamp}, ${timestamp})`;
             } else {
-              yield* sql`UPDATE positions SET quantity = ${position.quantity}, updated_at = ${timestamp}
+              yield* sql`UPDATE positions SET quantity = ${quantity}, updated_at = ${timestamp}
                 WHERE id = ${positionId}`;
             }
             if (position.reportedPrice !== undefined) {
-              yield* finite(position.reportedPrice.price, "Reported price");
+              const reportedPrice = yield* normalizeFiniteDecimal(
+                position.reportedPrice.price,
+                "Reported price",
+              );
               const priceCurrencyId = yield* ensureCash(position.reportedPrice.currencyIso);
               yield* sql`INSERT INTO asset_prices
                 (asset_id, price, currency_asset_id, source, observed_at, updated_at)
-                SELECT ${assetId}, ${position.reportedPrice.price}, ${priceCurrencyId}, ${`connector:${connectorId}`},
+                SELECT ${assetId}, ${reportedPrice}, ${priceCurrencyId}, ${`connector:${connectorId}`},
                   ${position.reportedPrice.observedAt.toISOString()}, ${timestamp}
                 WHERE NOT EXISTS (SELECT 1 FROM asset_prices WHERE asset_id = ${assetId})`;
+            }
+            if (position.averageUnitPurchasePrice !== undefined) {
+              const averagePrice = yield* normalizeFiniteDecimal(
+                position.averageUnitPurchasePrice.price,
+                "Average unit purchase price",
+              );
+              const purchaseCurrencyId = yield* ensureCash(
+                position.averageUnitPurchasePrice.currencyIso,
+              );
+              yield* sql`UPDATE positions SET
+                connection_average_unit_purchase_price = ${averagePrice},
+                connection_purchase_currency_asset_id = ${purchaseCurrencyId},
+                updated_at = ${timestamp} WHERE id = ${positionId}`;
             }
             seenPositionIds.push(positionId);
             positionCount += 1;

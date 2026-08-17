@@ -116,7 +116,7 @@ export const updateCustomAsset = (
 
 export const setManualPrice = (id: string, input: SetManualPriceInput): FinanceEffect<Asset> =>
   Effect.gen(function* () {
-    yield* requireFinite(input.price, "Price");
+    const price = yield* requireFinite(input.price, "Price");
     const asset = yield* getAsset(id);
     if (!MANUAL_ASSET_CATEGORIES.has(asset.assetCategory)) {
       return yield* Effect.fail(
@@ -128,7 +128,7 @@ export const setManualPrice = (id: string, input: SetManualPriceInput): FinanceE
     const timestamp = nowIso();
     yield* db(sql`INSERT INTO asset_prices
       (asset_id, price, currency_asset_id, source, observed_at, updated_at)
-      VALUES (${id}, ${input.price}, ${input.currencyAssetId}, 'manual', ${input.observedAt ?? timestamp}, ${timestamp})
+      VALUES (${id}, ${price}, ${input.currencyAssetId}, 'manual', ${input.observedAt ?? timestamp}, ${timestamp})
       ON CONFLICT(asset_id) DO UPDATE SET price = excluded.price,
         currency_asset_id = excluded.currency_asset_id, source = 'manual',
         observed_at = excluded.observed_at, updated_at = excluded.updated_at`);
@@ -138,9 +138,10 @@ export const setManualPrice = (id: string, input: SetManualPriceInput): FinanceE
 export const maintainAsset = (id: string, input: MaintainAssetInput): FinanceEffect<Asset> =>
   Effect.gen(function* () {
     const name = yield* requireNonEmpty(input.name, "Asset name");
-    if (input.manualPrice !== undefined) {
-      yield* requireFinite(input.manualPrice.price, "Price");
-    }
+    const manualPrice =
+      input.manualPrice === undefined
+        ? undefined
+        : yield* requireFinite(input.manualPrice.price, "Price");
     const asset = yield* getAsset(id);
     if (!MANUAL_ASSET_CATEGORIES.has(asset.assetCategory)) {
       return yield* Effect.fail(failure("read_only", "Automatic assets are read-only"));
@@ -160,7 +161,7 @@ export const maintainAsset = (id: string, input: MaintainAssetInput): FinanceEff
             const observedAt = input.manualPrice.observedAt ?? timestamp;
             yield* sql`INSERT INTO asset_prices
               (asset_id, price, currency_asset_id, source, observed_at, updated_at)
-              VALUES (${id}, ${input.manualPrice.price}, ${input.manualPrice.currencyAssetId},
+              VALUES (${id}, ${manualPrice}, ${input.manualPrice.currencyAssetId},
                 'manual', ${observedAt}, ${timestamp})
               ON CONFLICT(asset_id) DO UPDATE SET price = excluded.price,
                 currency_asset_id = excluded.currency_asset_id, source = 'manual',

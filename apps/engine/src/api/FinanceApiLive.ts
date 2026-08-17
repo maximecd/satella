@@ -157,7 +157,7 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
     )
     .handle("updatePosition", ({ params, payload }) =>
       Effect.gen(function* () {
-        return yield* (yield* PositionService).update(params.id, payload.quantity);
+        return yield* (yield* PositionService).update(params.id, payload);
       }),
     )
     .handle("deletePosition", ({ params }) =>

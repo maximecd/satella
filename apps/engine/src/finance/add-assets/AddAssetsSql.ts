@@ -8,6 +8,7 @@ import type {
   AddCashAccountInput,
   AddManualHoldingInput,
   AddOtherAssetInput,
+  AverageUnitPurchasePriceInput,
   ExistingOrNewAccount,
   GenericAssetCategory,
   IdentifierInput,
@@ -23,6 +24,7 @@ import {
   failure,
   nowIso,
   requireFinite,
+  requirePositive,
   requireNonEmpty,
   usdAssetId,
   type FinanceEffect,
@@ -90,19 +92,41 @@ export const resolveProviderAssetId = (input: {
     return id;
   });
 
-export const upsertAbsolutePosition = (accountId: string, assetId: string, quantity: number) =>
+const normalizeAverageUnitPurchasePrice = (input: AverageUnitPurchasePriceInput | undefined) =>
+  Effect.gen(function* () {
+    if (input === undefined) return undefined;
+    const price = yield* requirePositive(input.price, "Average unit purchase price");
+    yield* assertCash(input.currencyAssetId);
+    return { price, currencyAssetId: input.currencyAssetId };
+  });
+
+export const upsertAbsolutePosition = (
+  accountId: string,
+  assetId: string,
+  quantity: string,
+  averageUnitPurchasePrice?: { readonly price: string; readonly currencyAssetId: string },
+) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const timestamp = nowIso();
     const existing = yield* sql<{ readonly id: string }>`SELECT id FROM positions
       WHERE account_id = ${accountId} AND asset_id = ${assetId}`;
     if (existing[0] === undefined) {
-      yield* sql`INSERT INTO positions (id, account_id, asset_id, quantity, created_at, updated_at)
-        VALUES (${randomUUID()}, ${accountId}, ${assetId}, ${quantity}, ${timestamp}, ${timestamp})`;
+      yield* sql`INSERT INTO positions
+        (id, account_id, asset_id, quantity, manual_average_unit_purchase_price,
+         manual_purchase_currency_asset_id, created_at, updated_at)
+        VALUES (${randomUUID()}, ${accountId}, ${assetId}, ${quantity},
+          ${averageUnitPurchasePrice?.price ?? null},
+          ${averageUnitPurchasePrice?.currencyAssetId ?? null}, ${timestamp}, ${timestamp})`;
       return "created" as const;
     }
     yield* sql`UPDATE positions SET quantity = ${quantity}, updated_at = ${timestamp}
       WHERE id = ${existing[0].id}`;
+    if (averageUnitPurchasePrice !== undefined) {
+      yield* sql`UPDATE positions SET manual_average_unit_purchase_price = ${averageUnitPurchasePrice.price},
+        manual_purchase_currency_asset_id = ${averageUnitPurchasePrice.currencyAssetId},
+        updated_at = ${timestamp} WHERE id = ${existing[0].id}`;
+    }
     return "updated" as const;
   });
 
@@ -120,7 +144,7 @@ export const lookupManualHolding = (
   accountId: string,
   identifierType: string,
   identifierValue: string,
-): FinanceEffect<{ readonly assetId: string | null; readonly quantity: number | null }> =>
+): FinanceEffect<{ readonly assetId: string | null; readonly quantity: string | null }> =>
   Effect.gen(function* () {
     const account = yield* getAccount(accountId);
     yield* assertManualAccount(account);
@@ -146,14 +170,20 @@ const toAddAssetsResult = (
 
 export const addManualHolding = (input: AddManualHoldingInput): FinanceEffect<AddAssetsResult> =>
   Effect.gen(function* () {
-    yield* requireFinite(input.quantity, "Quantity");
+    const quantity = yield* requireFinite(input.quantity, "Quantity");
+    const average = yield* normalizeAverageUnitPurchasePrice(input.averageUnitPurchasePrice);
     const sql = yield* SqlClient.SqlClient;
     return yield* sql
       .withTransaction(
         Effect.gen(function* () {
           const assetId = yield* resolveProviderAssetId(input.asset);
           const accountId = yield* resolveManualAccountId(input.account);
-          const positionOutcome = yield* upsertAbsolutePosition(accountId, assetId, input.quantity);
+          const positionOutcome = yield* upsertAbsolutePosition(
+            accountId,
+            assetId,
+            quantity,
+            average,
+          );
           return toAddAssetsResult(yield* getAccount(accountId), positionOutcome);
         }),
       )
@@ -167,7 +197,7 @@ export const addManualHolding = (input: AddManualHoldingInput): FinanceEffect<Ad
 
 export const addCashAccount = (input: AddCashAccountInput): FinanceEffect<AddAssetsResult> =>
   Effect.gen(function* () {
-    yield* requireFinite(input.balance, "Balance");
+    const balance = yield* requireFinite(input.balance, "Balance");
     yield* assertCash(input.currencyAssetId);
     const sql = yield* SqlClient.SqlClient;
     return yield* sql
@@ -184,7 +214,7 @@ export const addCashAccount = (input: AddCashAccountInput): FinanceEffect<AddAss
           const positionOutcome = yield* upsertAbsolutePosition(
             accountId,
             input.currencyAssetId,
-            input.balance,
+            balance,
           );
           return toAddAssetsResult(yield* getAccount(accountId), positionOutcome);
         }),
@@ -199,7 +229,8 @@ export const addCashAccount = (input: AddCashAccountInput): FinanceEffect<AddAss
 
 export const addOtherAsset = (input: AddOtherAssetInput): FinanceEffect<AddAssetsResult> =>
   Effect.gen(function* () {
-    yield* requireFinite(input.value, "Current value");
+    const value = yield* requireFinite(input.value, "Current value");
+    const average = yield* normalizeAverageUnitPurchasePrice(input.averageUnitPurchasePrice);
     yield* assertCash(input.currencyAssetId);
     const name = yield* requireNonEmpty(input.name, "Asset name");
     const category: GenericAssetCategory = input.category ?? "other";
@@ -213,9 +244,9 @@ export const addOtherAsset = (input: AddOtherAssetInput): FinanceEffect<AddAsset
             VALUES (${assetId}, ${category}, ${name}, NULL, ${timestamp}, ${timestamp})`;
           yield* sql`INSERT INTO asset_prices
             (asset_id, price, currency_asset_id, source, observed_at, updated_at)
-            VALUES (${assetId}, ${input.value}, ${input.currencyAssetId}, 'manual', ${timestamp}, ${timestamp})`;
+            VALUES (${assetId}, ${value}, ${input.currencyAssetId}, 'manual', ${timestamp}, ${timestamp})`;
           const accountId = yield* resolveManualAccountId(input.account);
-          const positionOutcome = yield* upsertAbsolutePosition(accountId, assetId, 1);
+          const positionOutcome = yield* upsertAbsolutePosition(accountId, assetId, "1", average);
           return toAddAssetsResult(yield* getAccount(accountId), positionOutcome);
         }),
       )

@@ -52,7 +52,7 @@ describe("settings screen", () => {
     const eur = {
       ...usd,
       reportingCurrency: { assetId: "fiat:EUR" as const, iso: "EUR" },
-      portfolioValue: 1000,
+      portfolioValue: "1000",
     };
     seedPortfolioEngine({
       dashboard: usd,

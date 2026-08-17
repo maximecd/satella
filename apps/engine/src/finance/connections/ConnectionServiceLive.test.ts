@@ -88,7 +88,7 @@ describe("connections", () => {
                 symbol: "BTC",
                 identifiers: [{ type: "okx_currency", value: "BTC" }],
               },
-              quantity: 1,
+              quantity: "1",
             },
           ],
         },

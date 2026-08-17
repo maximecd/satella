@@ -1,5 +1,12 @@
 import type { PortfolioHistoryPoint } from "@optimus/engine/api";
 
+import {
+  compareDecimal,
+  divideDecimal,
+  multiplyDecimal,
+  subtractDecimal,
+} from "./financial-number";
+
 export const PORTFOLIO_VALUE_RANGES = ["7D", "1M", "3M", "YTD", "1Y", "All"] as const;
 export type PortfolioValueRange = (typeof PORTFOLIO_VALUE_RANGES)[number];
 
@@ -40,9 +47,12 @@ export const periodChange = (points: ReadonlyArray<PortfolioHistoryPoint>) => {
   const first = points[0];
   const last = points[points.length - 1];
   if (first === undefined || last === undefined || points.length < 2) return null;
-  const absolute = last.total - first.total;
+  const absolute = subtractDecimal(last.total, first.total);
   return {
     absolute,
-    percent: first.total === 0 ? null : (absolute / first.total) * 100,
+    percent:
+      compareDecimal(first.total, "0") === 0
+        ? null
+        : multiplyDecimal(divideDecimal(absolute, first.total), "100"),
   };
 };

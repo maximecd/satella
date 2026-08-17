@@ -20,6 +20,7 @@ import {
   YAxis,
   type TooltipContentProps,
 } from "recharts";
+import { canonicalDecimal } from "../financial-number";
 
 const valuedAmount = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 2,
@@ -54,7 +55,9 @@ const Y_AXIS_MAX_WIDTH = 96;
 
 const yAxisWidthFor = (points: ReadonlyArray<PortfolioHistoryPoint>) => {
   const extreme =
-    points.length === 0 ? 0 : Math.max(...points.map((point) => Math.abs(point.total)));
+    points.length === 0
+      ? 0
+      : Math.max(...points.map((point) => Math.abs(Number(canonicalDecimal(point.total)))));
   const tick = compactAmount.format(extreme === 0 ? 0 : Math.ceil(extreme * 1.15));
   return Math.min(
     Y_AXIS_MAX_WIDTH,
@@ -234,6 +237,7 @@ export function PortfolioValueChart({
     () =>
       points.map((point) => ({
         ...point,
+        total: Number(canonicalDecimal(point.total)),
         currencyIso,
         date: chartDate.format(Date.parse(point.capturedAt)),
       })),
@@ -354,8 +358,8 @@ export function AllocationTreemap({
     () =>
       cells.map((cell, index) => ({
         name: cell.name,
-        value: cell.value,
-        percent: cell.percent,
+        value: Number(canonicalDecimal(cell.value)),
+        percent: Number(canonicalDecimal(cell.percent)),
         symbol: cell.symbol,
         fill: fills[index % fills.length] ?? "transparent",
         labelColor: labelColor ?? "currentColor",

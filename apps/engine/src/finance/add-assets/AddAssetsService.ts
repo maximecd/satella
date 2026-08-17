@@ -19,7 +19,7 @@ export class AddAssetsService extends Context.Service<
       identifierType: string,
       identifierValue: string,
     ) => Effect.Effect<
-      { readonly assetId: string | null; readonly quantity: number | null },
+      { readonly assetId: string | null; readonly quantity: string | null },
       FinanceApiError
     >;
     readonly addManualHolding: (

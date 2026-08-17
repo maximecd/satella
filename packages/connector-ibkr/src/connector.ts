@@ -10,6 +10,8 @@ import {
   ConnectorAccount,
   ConnectorAuthenticationError,
   ConnectorFetchAccountsError,
+  addDecimal,
+  canonicalDecimal,
   validateConnectorOutput,
 } from "@optimus/connector-core";
 import {
@@ -94,8 +96,8 @@ const ibkrAssetCategory = (category: string) => {
   if (stocksAndEtfs.has(category)) return "stocks_etfs" as const;
   if (bonds.has(category)) return "bonds" as const;
   if (category === "CRYPTO") return "crypto" as const;
-  if (derivatives.has(category)) return "derivatives" as const;
-  if (category === "CMDTY") return "commodities" as const;
+  if (derivatives.has(category)) return "other" as const;
+  if (category === "CMDTY") return "other" as const;
   return "other" as const;
 };
 
@@ -110,11 +112,13 @@ const required = (value: string | undefined, label: string): string => {
   return result;
 };
 
-const finiteNumber = (value: string | undefined, label: string): number => {
+const finiteNumber = (value: string | undefined, label: string): string => {
   const text = required(value, label);
-  const result = Number(text);
-  if (!Number.isFinite(result)) throw new Error(`IBKR Flex report returned an invalid ${label}`);
-  return result;
+  try {
+    return canonicalDecimal(text);
+  } catch {
+    throw new Error(`IBKR Flex report returned an invalid ${label}`);
+  }
 };
 
 const accountIdMatches = (nested: string | undefined, accountId: string, field: string) => {
@@ -169,7 +173,11 @@ interface PositionGroup {
   readonly symbol?: string;
   readonly identifiers: ReadonlyArray<{ readonly type: string; readonly value: string }>;
   readonly modes: Set<string>;
-  quantity: number;
+  quantity: string;
+  averageUnitPurchasePrice?: {
+    readonly price: string;
+    readonly currencyIso: string;
+  };
 }
 
 const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
@@ -186,7 +194,7 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
       ? accountId
       : `${accountAlias} (${accountId})`;
 
-  const cashByCurrency = new Map<string, number>();
+  const cashByCurrency = new Map<string, string>();
   let baseSummaryRow: IbkrFlexCashReportCurrency | undefined;
   for (const row of statement.cashReportCurrencies) {
     accountIdMatches(row.accountId, accountId, "CashReportCurrency");
@@ -203,7 +211,7 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
       throw new Error("IBKR Flex report returned an invalid cash currency");
     }
     const amount = finiteNumber(row.endingCash, `ending cash for ${rowCurrency}`);
-    cashByCurrency.set(rowCurrency, (cashByCurrency.get(rowCurrency) ?? 0) + amount);
+    cashByCurrency.set(rowCurrency, addDecimal(cashByCurrency.get(rowCurrency) ?? "0", amount));
   }
   if (cashByCurrency.size === 0) {
     if (baseSummaryRow === undefined) {
@@ -238,6 +246,16 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
     if (mode !== "SUMMARY" && mode !== "LOT") {
       throw new Error(`IBKR Flex report returned unsupported level of detail for conid ${conid}`);
     }
+    // Cost Basis Price is an average unit price only on the Summary row. Lot
+    // rows contain lot-specific prices and must not be treated as the
+    // authoritative average for the whole Position.
+    const costBasisPrice =
+      mode === "SUMMARY" && trimOptional(row.costBasisPrice) !== undefined
+        ? {
+            price: finiteNumber(row.costBasisPrice, `cost basis price for conid ${conid}`),
+            currencyIso: currency(row.currency, `position currency for conid ${conid}`),
+          }
+        : undefined;
     const modeKey = mode;
     const externalId = `ibkr:conid:${conid}`;
     const previous = groups.get(externalId);
@@ -249,6 +267,7 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
         identifiers,
         modes: new Set([modeKey]),
         quantity,
+        ...(costBasisPrice === undefined ? {} : { averageUnitPurchasePrice: costBasisPrice }),
       });
       continue;
     }
@@ -262,7 +281,17 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
       throw new Error(`IBKR Flex report mixes Summary and Lot rows for conid ${conid}`);
     }
     previous.modes.add(modeKey);
-    previous.quantity += quantity;
+    previous.quantity = addDecimal(previous.quantity, quantity);
+    if (costBasisPrice !== undefined) {
+      if (
+        previous.averageUnitPurchasePrice !== undefined &&
+        (previous.averageUnitPurchasePrice.price !== costBasisPrice.price ||
+          previous.averageUnitPurchasePrice.currencyIso !== costBasisPrice.currencyIso)
+      ) {
+        throw new Error(`IBKR Flex report returned conflicting cost basis for conid ${conid}`);
+      }
+      previous.averageUnitPurchasePrice = costBasisPrice;
+    }
     if (JSON.stringify(previous.identifiers) !== JSON.stringify(identifiers)) {
       throw new Error(`IBKR Flex report returned conflicting identifiers for conid ${conid}`);
     }
@@ -270,7 +299,7 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
 
   const positions: ConnectorAccount["positions"][number][] = [];
   for (const [iso, quantity] of cashByCurrency) {
-    if (quantity === 0) continue;
+    if (quantity === "0") continue;
     positions.push({
       asset: {
         externalId: `ibkr:currency:${iso}`,
@@ -283,7 +312,7 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
     });
   }
   for (const [externalId, group] of groups) {
-    if (group.quantity === 0) continue;
+    if (group.quantity === "0") continue;
     positions.push({
       asset: {
         externalId,
@@ -293,6 +322,9 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
         identifiers: group.identifiers,
       },
       quantity: group.quantity,
+      ...(group.averageUnitPurchasePrice === undefined
+        ? {}
+        : { averageUnitPurchasePrice: group.averageUnitPurchasePrice }),
     });
   }
   return {
@@ -536,7 +568,7 @@ export const makeIbkrConnector = <R = HttpClient.HttpClient>(
   name: "Interactive Brokers",
   icon: ibkrIcon,
   instructions: ibkrInstructions,
-  assetCategories: ["stocks_etfs", "bonds", "cash", "derivatives", "commodities"],
+  assetCategories: ["stocks_etfs", "bonds", "crypto", "cash", "other"],
   credentialFields: [
     {
       key: "token",

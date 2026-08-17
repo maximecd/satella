@@ -22,8 +22,6 @@ export const DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CATEGORY = {
   bonds: "manual",
   crypto: "coingecko",
   cash: "yahoo-finance",
-  derivatives: "manual",
-  commodities: "manual",
   other: "manual",
 } as const;
 

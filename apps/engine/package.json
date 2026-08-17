@@ -30,6 +30,7 @@
     "@optimus/connector-core": "workspace:*",
     "@optimus/connector-ibkr": "workspace:*",
     "@optimus/connector-okx": "workspace:*",
+    "decimal.js": "10.6.0",
     "effect": "catalog:",
     "hash-wasm": "^4.12.0",
     "yahoo-finance2": "4.0.2"

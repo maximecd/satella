@@ -15,9 +15,11 @@ import { ASSET_CATEGORY_LABELS } from "../contracts.js";
 import { DEFAULT_SNAPSHOT_INTERVAL } from "../config.js";
 import { getAccount } from "../accounts/AccountSql.js";
 import { refreshPrices, type MarketDataRegistry } from "../market-data.js";
+import { addDecimal, compareDecimal, divideDecimal, multiplyDecimal } from "../financial-number.js";
 import {
   convertAmount,
   db,
+  loadFxMap,
   reportingCurrency,
   usdAssetId,
   type FinanceEffect,
@@ -99,8 +101,8 @@ interface HistoricalPositionRow {
   readonly captured_at: string;
   readonly asset_id: string | null;
   readonly asset_category: AssetCategory | null;
-  readonly quantity: number | null;
-  readonly price: number | null;
+  readonly quantity: string | null;
+  readonly price: string | null;
   readonly currency_asset_id: string | null;
 }
 
@@ -121,7 +123,7 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
       sql<{
         readonly snapshot_id: string;
         readonly asset_id: string;
-        readonly price: number;
+        readonly price: string;
       }>`SELECT snapshot_id, asset_id, price FROM asset_price_snapshots
         WHERE currency_asset_id = ${fxPivotId}`,
     );
@@ -133,7 +135,7 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
     const grouped = Map.groupBy(rows, ({ snapshot_id }) => snapshot_id);
     return [...grouped.values()].map((snapshotRows) => {
       const first = snapshotRows[0]!;
-      let total = 0;
+      let total = "0";
       let totalIncomplete = false;
       const snapshotFx = new Map(
         [...fx].flatMap(([key, price]) => {
@@ -149,14 +151,14 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
             : row.price === null || row.currency_asset_id === null
               ? undefined
               : convertAmount(
-                  row.quantity * row.price,
+                  multiplyDecimal(row.quantity, row.price),
                   row.currency_asset_id,
                   selected.assetId,
                   fxPivotId,
                   snapshotFx,
                 );
         if (converted === undefined) totalIncomplete = true;
-        else total += converted;
+        else total = addDecimal(total, converted);
       }
       return {
         snapshotId: first.snapshot_id,
@@ -173,16 +175,22 @@ const allocationCells = (
     readonly name: string;
     readonly symbol: string | null;
     readonly assetCategory: AssetCategory;
-    readonly value: number;
+    readonly value: string;
   }>,
 ): ReadonlyArray<AllocationCell> => {
-  const denominator = values.reduce((sum, cell) => sum + cell.value, 0);
+  const denominator = values.reduce((sum, cell) => addDecimal(sum, cell.value), "0");
   return values
     .map((cell) => ({
       ...cell,
-      percent: denominator === 0 ? 0 : (cell.value / denominator) * 100,
+      percent:
+        compareDecimal(denominator, "0") === 0
+          ? "0"
+          : multiplyDecimal(divideDecimal(cell.value, denominator), "100"),
     }))
-    .sort((left, right) => right.value - left.value || left.name.localeCompare(right.name));
+    .sort(
+      (left, right) =>
+        compareDecimal(right.value, left.value) || left.name.localeCompare(right.name),
+    );
 };
 
 export const getDashboard = (): FinanceEffect<Dashboard> =>
@@ -202,13 +210,18 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
         accountName: account.name,
         connectionId: account.connectionId,
         connectionName: account.connectionName,
-        positionCount: account.positions.filter((position) => position.quantity !== 0).length,
+        positionCount: account.positions.filter(
+          (position) => compareDecimal(position.quantity, "0") !== 0,
+        ).length,
         total: account.total,
+        unrealizedPnl: account.unrealizedPnl,
+        unrealizedPnlPercent: account.unrealizedPnlPercent,
         totalIncomplete: account.totalIncomplete,
       }))
       .sort(
         (left, right) =>
-          right.total - left.total || left.accountName.localeCompare(right.accountName),
+          compareDecimal(right.total, left.total) ||
+          left.accountName.localeCompare(right.accountName),
       );
     const byAsset = new Map<
       string,
@@ -216,9 +229,9 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
         name: string;
         symbol: string | null;
         assetCategory: AssetCategory;
-        value: number;
+        value: string;
         unpriced: boolean;
-        quantity: number;
+        quantity: string;
       }
     >();
     for (const account of valued) {
@@ -227,20 +240,28 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
           name: position.assetName,
           symbol: position.assetSymbol,
           assetCategory: position.assetCategory,
-          value: 0,
+          value: "0",
           unpriced: false,
-          quantity: 0,
+          quantity: "0",
         };
-        current.quantity += position.quantity;
-        if (position.quantity !== 0 && position.reportingValue === null) current.unpriced = true;
-        current.value += position.reportingValue ?? 0;
+        current.quantity = addDecimal(current.quantity, position.quantity);
+        if (compareDecimal(position.quantity, "0") !== 0 && position.reportingValue === null)
+          current.unpriced = true;
+        if (position.reportingValue !== null)
+          current.value = addDecimal(current.value, position.reportingValue);
         byAsset.set(position.assetId, current);
       }
     }
-    const meaningful = [...byAsset.entries()].filter(([, asset]) => asset.quantity !== 0);
+    const meaningful = [...byAsset.entries()].filter(
+      ([, asset]) => compareDecimal(asset.quantity, "0") !== 0,
+    );
     const unpricedAssetCount = meaningful.filter(([, asset]) => asset.unpriced).length;
-    const negativeHoldingCount = meaningful.filter(([, asset]) => asset.value < 0).length;
-    const positive = meaningful.filter(([, asset]) => !asset.unpriced && asset.value > 0);
+    const negativeHoldingCount = meaningful.filter(
+      ([, asset]) => compareDecimal(asset.value, "0") < 0,
+    ).length;
+    const positive = meaningful.filter(
+      ([, asset]) => !asset.unpriced && compareDecimal(asset.value, "0") > 0,
+    );
     const assetAllocation = allocationCells(
       positive.map(([assetId, asset]) => ({
         key: assetId,
@@ -257,12 +278,44 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
         name: ASSET_CATEGORY_LABELS[assetCategory],
         symbol: null,
         assetCategory,
-        value: assets.reduce((sum, [, asset]) => sum + asset.value, 0),
+        value: assets.reduce((sum, [, asset]) => addDecimal(sum, asset.value), "0"),
       })),
     );
+    const fxPivotId = yield* usdAssetId;
+    const fx = yield* loadFxMap(fxPivotId);
+    let unrealizedPnl = "0";
+    let acquisitionCostInReportingCurrency = "0";
+    for (const account of valued) {
+      for (const position of account.positions) {
+        if (
+          position.unrealizedPnl === null ||
+          position.acquisitionCost === null ||
+          position.averageUnitPurchasePrice === null
+        )
+          continue;
+        const acquisitionCost = convertAmount(
+          position.acquisitionCost,
+          position.averageUnitPurchasePrice.currencyAssetId,
+          selected.assetId,
+          fxPivotId,
+          fx,
+        );
+        if (acquisitionCost === undefined) continue;
+        unrealizedPnl = addDecimal(unrealizedPnl, position.unrealizedPnl);
+        acquisitionCostInReportingCurrency = addDecimal(
+          acquisitionCostInReportingCurrency,
+          acquisitionCost,
+        );
+      }
+    }
     return {
       reportingCurrency: selected,
-      portfolioValue: accounts.reduce((sum, account) => sum + account.total, 0),
+      portfolioValue: accounts.reduce((sum, account) => addDecimal(sum, account.total), "0"),
+      unrealizedPnl,
+      unrealizedPnlPercent:
+        compareDecimal(acquisitionCostInReportingCurrency, "0") === 0
+          ? null
+          : divideDecimal(unrealizedPnl, acquisitionCostInReportingCurrency),
       totalIncomplete: accounts.some((account) => account.totalIncomplete),
       unpricedAssetCount,
       negativeHoldingCount,

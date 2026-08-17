@@ -47,16 +47,16 @@ describe("accounts screen", () => {
           connectionId: null,
           connectionName: null,
           name: "Portfolio",
-          total: 68,
+          total: "68",
           totalIncomplete: false,
           positions: [
             {
               ...connectedAccount.positions[0]!,
               accountId: "account-1",
               assetName: "EUR ETF",
-              quantity: 2,
+              quantity: "2",
               price: {
-                price: 34,
+                price: "34",
                 currencyAssetId: "fiat:EUR",
                 currencyIso: "EUR",
                 source: "yahoo-finance",
@@ -64,7 +64,7 @@ describe("accounts screen", () => {
                 updatedAt: "2026-08-11T00:00:00.000Z",
                 isStale: true,
               },
-              reportingValue: 68,
+              reportingValue: "68",
             },
           ],
         },

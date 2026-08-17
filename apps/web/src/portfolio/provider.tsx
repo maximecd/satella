@@ -13,6 +13,7 @@ import type {
   Settings,
   UpdateAccountInput,
   UpdateConnectionInput,
+  UpdatePositionInput,
   UpdateSettingsInput,
 } from "@optimus/engine/api";
 import type { ReactNode } from "react";
@@ -201,8 +202,8 @@ export const usePositionEdit = (id: string) => {
 export const useUpdatePosition = (id: string, accountId: string) => {
   const engine = usePortfolioEngine();
   const queryClient = useQueryClient();
-  return useMutation<Account, PortfolioFailure, number>({
-    mutationFn: (quantity) => engine.updatePosition(id, quantity),
+  return useMutation<Account, PortfolioFailure, UpdatePositionInput>({
+    mutationFn: (input) => engine.updatePosition(id, input),
     onSuccess: async (account) => {
       queryClient.setQueryData(accountQueryKey(accountId), account);
       await invalidate(queryClient, [

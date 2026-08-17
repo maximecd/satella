@@ -14,14 +14,16 @@ import {
 } from "../portfolio-history";
 import { AddAssetsButton } from "./add-assets";
 import { AllocationTreemap, PortfolioValueChart } from "./dashboard-charts";
+import {
+  compareDecimal,
+  formatAmount,
+  formatDecimal,
+  formatSignedAmount,
+  multiplyDecimal,
+} from "../financial-number";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "The request failed.";
-
-const valuedAmount = new Intl.NumberFormat(undefined, {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
 
 const rowDescription = (row: DashboardAccountRow) => {
   const holdings = `${row.positionCount} holding${row.positionCount === 1 ? "" : "s"}`;
@@ -35,11 +37,26 @@ const rowDescription = (row: DashboardAccountRow) => {
 
 const changeLabel = (change: ReturnType<typeof periodChange>, currencyIso: string): string => {
   if (change === null) return "Not enough history";
-  const absolute = `${change.absolute >= 0 ? "+" : ""}${valuedAmount.format(change.absolute)} ${currencyIso}`;
+  const absolute = `${compareDecimal(change.absolute, "0") >= 0 ? "+" : ""}${formatAmount(change.absolute, currencyIso)}`;
   if (change.percent === null) return absolute;
-  const sign = change.percent >= 0 ? "+" : "";
-  return `${absolute} (${sign}${change.percent.toFixed(2)}%)`;
+  const sign = compareDecimal(change.percent, "0") >= 0 ? "+" : "";
+  return `${absolute} (${sign}${formatDecimal(change.percent, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)`;
 };
+
+const pnlColor = (value: string) =>
+  compareDecimal(value, "0") > 0
+    ? "green.fg"
+    : compareDecimal(value, "0") < 0
+      ? "red.fg"
+      : "fg.muted";
+
+const pnlPercent = (value: string | null) =>
+  value === null
+    ? ""
+    : ` (${compareDecimal(value, "0") > 0 ? "+" : ""}${formatDecimal(
+        multiplyDecimal(value, "100"),
+        { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+      )}%)`;
 
 export function DashboardScreen() {
   const query = useDashboard();
@@ -82,9 +99,31 @@ export function DashboardScreen() {
                   Portfolio value
                 </Heading>
                 <Text fontSize="2xl" fontWeight="semibold" fontVariantNumeric="tabular-nums">
-                  {valuedAmount.format(dashboard.portfolioValue)} {iso}
+                  {formatAmount(dashboard.portfolioValue, iso)}
                 </Text>
-                <Text color="fg.muted">{changeLabel(change, iso)}</Text>
+                <Text fontWeight="medium">Unrealized P&amp;L</Text>
+                <Text
+                  fontSize="lg"
+                  fontVariantNumeric="tabular-nums"
+                  color={pnlColor(dashboard.unrealizedPnl)}
+                >
+                  {formatSignedAmount(dashboard.unrealizedPnl, iso)}
+                  {dashboard.unrealizedPnlPercent === null
+                    ? ""
+                    : ` (${compareDecimal(dashboard.unrealizedPnlPercent, "0") > 0 ? "+" : ""}${formatDecimal(
+                        multiplyDecimal(dashboard.unrealizedPnlPercent, "100"),
+                        {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        },
+                      )}%)`}
+                </Text>
+                <Text color="fg.muted">
+                  <Text as="span" fontWeight="medium">
+                    Portfolio value change:
+                  </Text>{" "}
+                  <Text as="span">{changeLabel(change, iso)}</Text>
+                </Text>
               </Stack>
               <Box alignSelf="flex-start">
                 <SegmentedControl
@@ -153,9 +192,13 @@ export function DashboardScreen() {
                     label={row.accountName}
                     description={rowDescription(row)}
                     endContent={
-                      <Text fontVariantNumeric="tabular-nums">
-                        {valuedAmount.format(row.total)} {iso}
-                      </Text>
+                      <Stack align="flex-end" gap="0" fontVariantNumeric="tabular-nums">
+                        <Text>{formatAmount(row.total, iso)}</Text>
+                        <Text color={pnlColor(row.unrealizedPnl)} fontSize="sm">
+                          P&amp;L {formatSignedAmount(row.unrealizedPnl, iso)}
+                          {pnlPercent(row.unrealizedPnlPercent)}
+                        </Text>
+                      </Stack>
                     }
                   />
                 ))}

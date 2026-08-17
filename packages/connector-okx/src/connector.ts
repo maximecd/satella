@@ -9,6 +9,8 @@ import {
   ConnectorAccount,
   ConnectorAuthenticationError,
   ConnectorFetchAccountsError,
+  addDecimal,
+  canonicalDecimal,
   validateConnectorOutput,
 } from "@optimus/connector-core";
 import {
@@ -100,15 +102,15 @@ const connectorAsset = (currency: string) => {
   };
 };
 
-const normalizeQuantity = (value: string, currency: string): number => {
+const normalizeQuantity = (value: string, currency: string): string => {
   if (value.trim() === "") {
     throw new Error(`OKX returned an invalid ${currency} balance`);
   }
-  const quantity = Number(value);
-  if (!Number.isFinite(quantity)) {
+  try {
+    return canonicalDecimal(value);
+  } catch {
     throw new Error(`OKX returned an invalid ${currency} balance`);
   }
-  return quantity;
 };
 
 const normalizeCurrency = (value: string): string => {
@@ -123,16 +125,16 @@ const mapBalances = (
   rows: ReadonlyArray<{ readonly ccy: string; readonly amount: string }>,
 ): ReadonlyArray<{
   readonly asset: ReturnType<typeof connectorAsset>;
-  readonly quantity: number;
+  readonly quantity: string;
 }> => {
-  const quantities = new Map<string, number>();
+  const quantities = new Map<string, string>();
   for (const row of rows) {
     const currency = normalizeCurrency(row.ccy);
     const quantity = normalizeQuantity(row.amount, currency);
-    quantities.set(currency, (quantities.get(currency) ?? 0) + quantity);
+    quantities.set(currency, addDecimal(quantities.get(currency) ?? "0", quantity));
   }
   return [...quantities]
-    .filter(([, quantity]) => quantity !== 0)
+    .filter(([, quantity]) => quantity !== "0")
     .map(([currency, quantity]) => ({ asset: connectorAsset(currency), quantity }));
 };
 
@@ -221,6 +223,9 @@ const buildAccounts = (
   funding: typeof OkxFundingBalanceResponse.Type,
   earn: typeof OkxEarnBalanceResponse.Type,
 ): ReadonlyArray<ConnectorAccount> => {
+  // OKX's Spot and Funding balance APIs are currency-level. They do not
+  // provide a lifetime cost basis or unrealized P&L for each trading pair, so
+  // this connector intentionally imports balances only.
   const tradingPositions = mapBalances(
     trading.data.flatMap(({ details }) =>
       details.map(({ ccy, cashBal }) => ({ ccy, amount: cashBal })),

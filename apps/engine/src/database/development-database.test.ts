@@ -50,37 +50,37 @@ const expectCanonicalFixture = async (directory: string) => {
     connectionId: null,
     connectorAccountId: null,
     baseCurrencyIso: "USD",
-    total: 20_787.5,
+    total: "20787.5",
   });
   expect(euroCash).toMatchObject({
     id: "seed:account:demo-euro-cash",
     connectionId: null,
     connectorAccountId: null,
     baseCurrencyIso: "EUR",
-    total: 8_000,
+    total: "8000",
   });
   expect(brokerage?.positions).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ assetId: "fiat:USD", quantity: 12_500, assetCategory: "cash" }),
+      expect.objectContaining({ assetId: "fiat:USD", quantity: "12500", assetCategory: "cash" }),
       expect.objectContaining({
         assetId: "seed:asset:aapl",
-        quantity: 12.5,
+        quantity: "12.5",
         assetCategory: "stocks_etfs",
       }),
       expect.objectContaining({
         assetId: "seed:asset:msft",
-        quantity: 4,
+        quantity: "4",
         assetCategory: "stocks_etfs",
       }),
       expect.objectContaining({
         assetId: "seed:asset:voo",
-        quantity: 7.25,
+        quantity: "7.25",
         assetCategory: "stocks_etfs",
       }),
     ]),
   );
   expect(euroCash?.positions).toEqual([
-    expect.objectContaining({ assetId: "fiat:EUR", quantity: 8_000, assetCategory: "cash" }),
+    expect.objectContaining({ assetId: "fiat:EUR", quantity: "8000", assetCategory: "cash" }),
   ]);
   expect(apple).toMatchObject({
     id: "seed:asset:aapl",
@@ -88,7 +88,7 @@ const expectCanonicalFixture = async (directory: string) => {
     symbol: "AAPL",
     assetCategory: "stocks_etfs",
     price: expect.objectContaining({
-      price: 200,
+      price: "200",
       currencyIso: "USD",
       source: "manual",
       observedAt: FIXTURE_QUOTE_TIME,
@@ -109,7 +109,7 @@ const expectCanonicalFixture = async (directory: string) => {
       { type: "yahoo_symbol", value: "MSFT" },
     ]),
     price: expect.objectContaining({
-      price: 450,
+      price: "450",
       source: "manual",
       observedAt: FIXTURE_QUOTE_TIME,
     }),
@@ -123,13 +123,13 @@ const expectCanonicalFixture = async (directory: string) => {
       { type: "yahoo_symbol", value: "VOO" },
     ]),
     price: expect.objectContaining({
-      price: 550,
+      price: "550",
       source: "manual",
       observedAt: FIXTURE_QUOTE_TIME,
     }),
   });
   expect(euro?.price).toMatchObject({
-    price: 1.1,
+    price: "1.1",
     currencyIso: "USD",
     source: "manual",
     observedAt: FIXTURE_QUOTE_TIME,
@@ -139,14 +139,14 @@ const expectCanonicalFixture = async (directory: string) => {
   expect(history[0]).toEqual(
     expect.objectContaining({
       capturedAt: "2025-08-15T00:00:00.000Z",
-      total: 28_167.5,
+      total: "28167.5",
       totalIncomplete: false,
     }),
   );
   expect(history.at(-1)).toEqual(
     expect.objectContaining({
       capturedAt: "2026-08-14T00:00:00.000Z",
-      total: 29_587.5,
+      total: "29587.5",
       totalIncomplete: false,
     }),
   );
@@ -328,7 +328,7 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
           yield* Finance.createPosition({
             accountId: account.id,
             assetId: "fiat:USD",
-            quantity: 42,
+            quantity: "42",
           });
           return account;
         }),
@@ -362,12 +362,12 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
           );
           expect(apple).toBeDefined();
           if (apple === undefined) return;
-          yield* Finance.updatePosition(apple.id, 1);
+          yield* Finance.updatePosition(apple.id, "1");
           const euro = yield* Finance.getAccount("seed:account:demo-euro-cash");
           const cash = euro.positions.find((position) => position.assetId === "fiat:EUR");
           expect(cash).toBeDefined();
           if (cash === undefined) return;
-          yield* Finance.updatePosition(cash.id, 1);
+          yield* Finance.updatePosition(cash.id, "1");
           yield* Finance.updateAccount("seed:account:demo-euro-cash", {
             name: "Renamed",
             baseCurrencyAssetId: "fiat:EUR",
@@ -383,7 +383,7 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
       );
       expect(personalAfter?.id).toBe(personal.id);
       expect(personalAfter?.positions).toEqual([
-        expect.objectContaining({ assetId: "fiat:USD", quantity: 42 }),
+        expect.objectContaining({ assetId: "fiat:USD", quantity: "42" }),
       ]);
     } finally {
       await checkouts.dispose();

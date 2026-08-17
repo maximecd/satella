@@ -17,6 +17,7 @@ import type {
   Settings,
   UpdateAccountInput,
   UpdateConnectionInput,
+  UpdatePositionInput,
   UpdateSettingsInput,
 } from "@optimus/engine/api";
 
@@ -46,7 +47,11 @@ export type PortfolioEngine = {
   ) => Promise<Account>;
   readonly deleteAccount: (id: string, signal?: AbortSignal) => Promise<void>;
   readonly getPositionEdit: (id: string, signal?: AbortSignal) => Promise<PositionEdit>;
-  readonly updatePosition: (id: string, quantity: number, signal?: AbortSignal) => Promise<Account>;
+  readonly updatePosition: (
+    id: string,
+    input: UpdatePositionInput,
+    signal?: AbortSignal,
+  ) => Promise<Account>;
   readonly deletePosition: (id: string, signal?: AbortSignal) => Promise<void>;
   readonly listConnections: (signal?: AbortSignal) => Promise<ReadonlyArray<Connection>>;
   readonly getConnection: (id: string, signal?: AbortSignal) => Promise<Connection>;

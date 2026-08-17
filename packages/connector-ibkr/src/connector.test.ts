@@ -29,7 +29,7 @@ const report = `<?xml version="1.0" encoding="UTF-8"?>
         <CashReportCurrency accountId="U123456" currency="BASE_SUMMARY" endingCash="98.50" />
       </CashReport>
       <OpenPositions>
-        <OpenPosition accountId="U123456" assetCategory="STK" symbol="AAPL" description="Apple &amp; Co" conid="265598" position="2" levelOfDetail="Summary" isin="US0378331005" securityIDType="ISIN" securityID="US0378331005" />
+        <OpenPosition accountId="U123456" assetCategory="STK" symbol="AAPL" description="Apple &amp; Co" conid="265598" currency="USD" position="2" costBasisPrice="150.25" costBasisMoney="300.50" fifoPnlUnrealized="12.34" levelOfDetail="Summary" isin="US0378331005" securityIDType="ISIN" securityID="US0378331005" />
         <OpenPosition accountId="U123456" assetCategory="FUND" symbol="VWCE" description="Vanguard FTSE" conid="400" position="5" levelOfDetail="Summary" />
         <OpenPosition accountId="U123456" assetCategory="BOND" symbol="US10Y" description="US Treasury" conid="500" position="10" levelOfDetail="Summary" />
         <OpenPosition accountId="U123456" assetCategory="OPT" symbol="AAPL  260918C00200000" description="Apple call" conid="111" position="-1" levelOfDetail="Summary" multiplier="100" />
@@ -108,7 +108,7 @@ describe("IBKR Flex connector", () => {
               symbol: "USD",
               identifiers: [{ type: "iso_currency", value: "USD" }],
             },
-            quantity: 100.5,
+            quantity: "100.5",
           },
           {
             asset: {
@@ -118,7 +118,7 @@ describe("IBKR Flex connector", () => {
               symbol: "EUR",
               identifiers: [{ type: "iso_currency", value: "EUR" }],
             },
-            quantity: -2,
+            quantity: "-2",
           },
           {
             asset: {
@@ -131,7 +131,8 @@ describe("IBKR Flex connector", () => {
                 { type: "isin", value: "US0378331005" },
               ],
             },
-            quantity: 2,
+            quantity: "2",
+            averageUnitPurchasePrice: { price: "150.25", currencyIso: "USD" },
           },
           {
             asset: {
@@ -141,7 +142,7 @@ describe("IBKR Flex connector", () => {
               symbol: "VWCE",
               identifiers: [{ type: "ibkr_conid", value: "400" }],
             },
-            quantity: 5,
+            quantity: "5",
           },
           {
             asset: {
@@ -150,34 +151,34 @@ describe("IBKR Flex connector", () => {
               name: "US Treasury",
               identifiers: [{ type: "ibkr_conid", value: "500" }],
             },
-            quantity: 10,
+            quantity: "10",
           },
           {
             asset: {
               externalId: "ibkr:conid:111",
-              assetCategory: "derivatives",
+              assetCategory: "other",
               name: "Apple call",
               identifiers: [{ type: "ibkr_conid", value: "111" }],
             },
-            quantity: -1,
+            quantity: "-1",
           },
           {
             asset: {
               externalId: "ibkr:conid:600",
-              assetCategory: "derivatives",
+              assetCategory: "other",
               name: "E-mini S&P",
               identifiers: [{ type: "ibkr_conid", value: "600" }],
             },
-            quantity: 1,
+            quantity: "1",
           },
           {
             asset: {
               externalId: "ibkr:conid:700",
-              assetCategory: "commodities",
+              assetCategory: "other",
               name: "Gold",
               identifiers: [{ type: "ibkr_conid", value: "700" }],
             },
-            quantity: 2,
+            quantity: "2",
           },
           {
             asset: {
@@ -186,7 +187,7 @@ describe("IBKR Flex connector", () => {
               name: "Forecast",
               identifiers: [{ type: "ibkr_conid", value: "800" }],
             },
-            quantity: 3,
+            quantity: "3",
           },
         ],
       },
@@ -249,7 +250,7 @@ describe("IBKR Flex connector", () => {
               symbol: "USD",
               identifiers: [{ type: "iso_currency", value: "USD" }],
             },
-            quantity: 98.5,
+            quantity: "98.5",
           },
         ],
       },
@@ -263,9 +264,9 @@ describe("IBKR Flex connector", () => {
     expect(IbkrConnector.assetCategories).toEqual([
       "stocks_etfs",
       "bonds",
+      "crypto",
       "cash",
-      "derivatives",
-      "commodities",
+      "other",
     ]);
     expect(IbkrConnector.credentialFields.map(({ key, kind }) => [key, kind])).toEqual([
       ["token", "password"],

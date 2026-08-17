@@ -19,20 +19,20 @@ describe("positions", () => {
       const withPosition = yield* Finance.createPosition({
         accountId: account.id,
         assetId: custom.id,
-        quantity: -2,
+        quantity: "-2",
       });
       const position = withPosition.positions[0]!;
-      const zeroed = yield* Finance.updatePosition(position.id, 0);
+      const zeroed = yield* Finance.updatePosition(position.id, "0");
       const invalidMessage = yield* Finance.createPosition({
         accountId: account.id,
         assetId: "fiat:USD",
-        quantity: Number.POSITIVE_INFINITY,
+        quantity: "Infinity",
       }).pipe(
         Effect.flip,
         Effect.map((error) => error.message),
       );
-      expect(zeroed.positions[0]?.quantity).toBe(0);
-      expect(invalidMessage).toContain("Quantity must be finite");
+      expect(zeroed.positions[0]?.quantity).toBe("0");
+      expect(invalidMessage).toContain("Quantity must be a finite decimal");
     }).pipe(Effect.provide(engineTestLayer())),
   );
 
@@ -42,28 +42,28 @@ describe("positions", () => {
       const timestamp = new Date().toISOString();
       yield* sql`INSERT INTO asset_prices
           (asset_id, price, currency_asset_id, source, observed_at, updated_at)
-          VALUES ('fiat:EUR', 1.25, 'fiat:USD', 'test', ${timestamp}, ${timestamp})`;
+          VALUES ('fiat:EUR', '1.25', 'fiat:USD', 'test', ${timestamp}, ${timestamp})`;
       const asset = yield* Finance.createAsset({
         assetCategory: "other",
         name: "USD investment",
         identifiers: [],
       });
       yield* Finance.setManualPrice(asset.id, {
-        price: 10,
+        price: "10",
         currencyAssetId: "fiat:USD",
       });
       const account = yield* Finance.createAccount({
         name: "EUR portfolio",
         baseCurrencyAssetId: "fiat:EUR",
       });
-      yield* Finance.createPosition({ accountId: account.id, assetId: asset.id, quantity: 2 });
+      yield* Finance.createPosition({ accountId: account.id, assetId: asset.id, quantity: "2" });
       const valued = yield* Finance.getAccount(account.id);
       expect(valued.baseCurrencyIso).toBe("EUR");
       expect(valued.positions[0]?.price).toEqual(
-        expect.objectContaining({ price: 10, currencyIso: "USD" }),
+        expect.objectContaining({ price: "10", currencyIso: "USD" }),
       );
-      expect(valued.positions[0]?.reportingValue).toBeCloseTo(16);
-      expect(valued.total).toBeCloseTo(16);
+      expect(valued.positions[0]?.reportingValue).toBe("16");
+      expect(valued.total).toBe("16");
       expect(valued.totalIncomplete).toBe(false);
     }).pipe(Effect.provide(engineTestLayer())),
   );
@@ -79,7 +79,7 @@ describe("positions", () => {
       const withPosition = yield* Finance.createPosition({
         accountId: manual.id,
         assetId: collectible.id,
-        quantity: 3,
+        quantity: "3",
       });
       const manualPosition = withPosition.positions[0]!;
       const manualEdit = yield* Finance.getPositionEdit(manualPosition.id);
@@ -98,12 +98,14 @@ describe("positions", () => {
 
       expect(manualEdit.position.id).toBe(manualPosition.id);
       expect(manualEdit.position.assetName).toBe("Collectible");
-      expect(manualEdit.position.quantity).toBe(3);
+      expect(manualEdit.position.quantity).toBe("3");
       expect(manualEdit.account).toEqual({
         id: manual.id,
         name: "Brokerage",
         connectionId: null,
         connectionName: null,
+        baseCurrencyAssetId: "fiat:USD",
+        baseCurrencyIso: "USD",
       });
       expect(connectedEdit.position.id).toBe("synced-position");
       expect(connectedEdit.account).toEqual({
@@ -111,6 +113,8 @@ describe("positions", () => {
         name: "Trading",
         connectionId: "synced",
         connectionName: "OKX",
+        baseCurrencyAssetId: "fiat:USD",
+        baseCurrencyIso: "USD",
       });
       expect(missing.code).toBe("not_found");
       expect(missing.message).toContain("Position was not found");

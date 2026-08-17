@@ -13,6 +13,7 @@ import {
 import { mergeConnectorAssetDuplicates } from "./connector.js";
 import type { AssetSearchResult } from "./contracts.js";
 import { FinanceApiError } from "./contracts.js";
+import { canonicalDecimal } from "./financial-number.js";
 
 export type MarketDataProviderId = "yahoo-finance" | "coingecko";
 
@@ -25,7 +26,7 @@ export interface ProviderLookup {
 
 export interface ProviderObservation {
   readonly lookupKey: string;
-  readonly price: number;
+  readonly price: string;
   readonly currencyIso: string;
   readonly observedAt: Date;
 }
@@ -165,7 +166,7 @@ export const makeYahooFinanceProvider = (
           }
           observations.push({
             lookupKey: lookup.lookupKey,
-            price: quote.regularMarketPrice,
+            price: canonicalDecimal(String(quote.regularMarketPrice)),
             currencyIso: currency,
             observedAt: quote.regularMarketTime,
           });
@@ -216,7 +217,7 @@ export const makeCoinGeckoProvider = (client = makeCoinGeckoClient()): MarketDat
             }
             observations.push({
               lookupKey: lookup.lookupKey,
-              price,
+              price: canonicalDecimal(String(price)),
               currencyIso: reportingCurrency,
               observedAt: new Date(timestamp * 1000),
             });
@@ -258,7 +259,7 @@ export const makeCoinGeckoProvider = (client = makeCoinGeckoClient()): MarketDat
             }
             observations.push({
               lookupKey: lookup.lookupKey,
-              price,
+              price: canonicalDecimal(String(price)),
               currencyIso: reportingCurrency,
               observedAt: new Date(timestamp * 1000),
             });

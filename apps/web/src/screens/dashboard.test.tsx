@@ -99,7 +99,7 @@ describe("dashboard screen", () => {
       dashboard: {
         ...dashboard,
         assetAllocation: dashboard.assetAllocation.map((cell) =>
-          cell.key === "apple" ? { ...cell, value: 800.25 } : cell,
+          cell.key === "apple" ? { ...cell, value: "800.25" } : cell,
         ),
       },
     });
