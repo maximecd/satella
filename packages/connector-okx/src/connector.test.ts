@@ -57,7 +57,14 @@ describe("OKX connector", () => {
               data: [
                 {
                   details: [
-                    { ccy: "BTC", cashBal: "1.5" },
+                    {
+                      ccy: "BTC",
+                      cashBal: "1.5",
+                      spotBal: "1.5",
+                      openAvgPx: "30000",
+                      spotUpl: "1500",
+                      spotUplRatio: "0.0333333333333333",
+                    },
                     { ccy: "USD", cashBal: "0" },
                   ],
                 },
@@ -114,6 +121,7 @@ describe("OKX connector", () => {
               identifiers: [{ type: "okx_currency", value: "BTC" }],
             },
             quantity: "1.5",
+            averageUnitPurchasePrice: { price: "30000", currencyIso: "USD" },
           },
         ],
       },
