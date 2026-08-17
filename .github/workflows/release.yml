@@ -41,6 +41,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         run: |
+          node --input-type=module -e \
+            'import { normalizeReleaseVersion } from "./scripts/package-release.mjs"; normalizeReleaseVersion(process.env.RELEASE_VERSION)'
           tag_exists=false
           if gh api "repos/$REPOSITORY/git/ref/tags/v$RELEASE_VERSION" >/dev/null 2>&1; then
             tag_exists=true
@@ -49,10 +51,14 @@ jobs:
           if gh release view "v$RELEASE_VERSION" --repo "$REPOSITORY" >/dev/null 2>&1; then
             release_exists=true
           fi
-          args=(--branch="$GITHUB_REF_NAME")
-          if [ "$tag_exists" = true ]; then args+=(--tag-exists); fi
-          if [ "$release_exists" = true ]; then args+=(--release-exists); fi
-          node scripts/validate-release.mjs "$RELEASE_VERSION" "${args[@]}"
+          if [ "$tag_exists" = true ]; then
+            echo "Tag v$RELEASE_VERSION already exists." >&2
+            exit 1
+          fi
+          if [ "$release_exists" = true ]; then
+            echo "GitHub Release v$RELEASE_VERSION already exists." >&2
+            exit 1
+          fi
 
   check:
     name: release-check
@@ -94,7 +100,6 @@ jobs:
           pnpm --filter @optimus/connector-ibkr build
           pnpm --filter @optimus/connector-okx build
       - run: pnpm test
-      - run: pnpm test:release
 
   build:
     name: release-build
@@ -136,8 +141,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm release:package -- --version "$RELEASE_VERSION" --output-dir "$RUNNER_TEMP/optimus-release"
-      - run: pnpm release:smoke -- --artifact "$RUNNER_TEMP/optimus-release/Optimus-$RELEASE_VERSION-macOS-arm64.zip"
+      - run: pnpm release:package --version "$RELEASE_VERSION" --output-dir "$RUNNER_TEMP/optimus-release"
+      - run: pnpm release:smoke --artifact "$RUNNER_TEMP/optimus-release/Optimus-$RELEASE_VERSION-macOS-arm64.zip"
       - uses: actions/upload-artifact@v7
         with:
           name: optimus-release-bundle

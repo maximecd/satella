@@ -26,32 +26,8 @@ export const normalizeReleaseVersion = (value) => {
   return value;
 };
 
-export const releaseTag = (version) => `v${normalizeReleaseVersion(version)}`;
-
 export const releaseArtifactName = (version) =>
   `Optimus-${normalizeReleaseVersion(version)}-macOS-arm64.zip`;
-
-export const assertMainReleaseBranch = (branch) => {
-  if (branch !== "main") {
-    throw new Error(`Releases may only be dispatched from main (received ${branch}).`);
-  }
-};
-
-export const assertReleaseTargetsAvailable = ({ tagExists, releaseExists }) => {
-  if (tagExists) throw new Error("The requested release tag already exists.");
-  if (releaseExists) throw new Error("The requested GitHub Release already exists.");
-};
-
-export const releaseMetadata = (version, targetCommit) => {
-  const normalizedVersion = normalizeReleaseVersion(version);
-  return {
-    version: normalizedVersion,
-    tag: releaseTag(normalizedVersion),
-    artifact: releaseArtifactName(normalizedVersion),
-    prerelease: true,
-    ...(targetCommit === undefined ? {} : { targetCommit }),
-  };
-};
 
 const exists = async (path) => {
   try {

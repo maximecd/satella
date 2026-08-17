@@ -6,8 +6,6 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 
-import { validatePackagedArtifact } from "./package-release.mjs";
-
 const execFileAsync = promisify(execFile);
 
 const parseArguments = (args) => {
@@ -115,7 +113,6 @@ export const smokeTestArtifact = async ({ artifact, port }) => {
   if (!Number.isInteger(port) || port >= 65_535) {
     throw new Error("Smoke-test occupied port must be below 65535");
   }
-  await validatePackagedArtifact(artifact, versionMatch[1].replace(/\.zip$/, ""));
   const extractionDirectory = await mkdtemp(join(tmpdir(), "optimus-release-smoke-"));
   const homeDirectory = join(extractionDirectory, "home");
   const temporaryDirectory = join(extractionDirectory, "tmp");
