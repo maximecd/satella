@@ -4,7 +4,7 @@ Project-specific guidance for AI coding agents.
 
 ## Project status
 
-Optimus is pre-production with no released installations or compatibility obligations. Prefer the clean target design; schema resets and breaking technical changes are acceptable without migration or backward-compatibility work.
+Satella has no released installations yet. Until the first alpha is published, prefer the clean target design; schema resets and breaking technical changes are acceptable without migration work. The first alpha establishes the permanent migration lineage. From that release onward, preserve existing Vault data across updates by appending migrations; internal APIs and implementation details may still break freely.
 
 <!-- CHAKRA:START -->
 Chakra UI v3 in `apps/web`. Wrap the tree in `Provider` from `src/components/ui/provider`.

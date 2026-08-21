@@ -1,6 +1,6 @@
-# Optimus Finance
+# Satella Finance
 
-Optimus presents a unified view of a person's financial holdings across synced custodians and manually entered accounts.
+Satella presents a unified view of a person's financial holdings across synced custodians and manually entered accounts.
 
 ## Portfolio
 
@@ -71,11 +71,11 @@ _Avoid_: Provider
 ## Privacy
 
 **Vault**:
-One person's locally stored Optimus data, including their portfolio, custodians, and credentials.
+One person's locally stored Satella data, including their portfolio, custodians, and credentials.
 _Avoid_: Database, account
 
 **Vault password**:
-The secret chosen by the person to unlock their vault. Optimus cannot recover a forgotten vault password.
+The secret chosen by the person to unlock their vault. Satella cannot recover a forgotten vault password.
 _Avoid_: Login password, account password
 
 **Locked vault**:
@@ -91,5 +91,13 @@ The four-digit code used to dismiss the screen lock. After three failed attempts
 _Avoid_: Vault password
 
 **Vault reset**:
-The irreversible deletion of a vault, including its portfolio and connector credentials, after which Optimus returns to first-time onboarding.
+The irreversible deletion of a vault, including its portfolio and connector credentials, after which Satella returns to first-time onboarding.
 _Avoid_: Password reset, account reset
+
+**Vault export**:
+A portable encrypted copy of a complete vault, including its Screen-lock settings, saved as one `.satella-vault` file and protected by the vault's current Vault password.
+_Avoid_: Data export, portfolio export, backup
+
+**Vault restore**:
+The validated replacement of the local vault from a Vault export. It is available before unlock and leaves the current vault untouched unless the exported vault can be unlocked and passes integrity checks.
+_Avoid_: Import, rollback
