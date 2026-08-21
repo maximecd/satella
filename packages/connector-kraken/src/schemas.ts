@@ -12,6 +12,23 @@ export const KrakenBalanceResponse = Schema.Struct({
   result: Schema.NullOr(Schema.Record(Schema.String, Schema.String)),
 });
 
+/** `/0/private/Earn/Strategies` lists the earn products with their lock type. */
+export const KrakenEarnStrategiesResponse = Schema.Struct({
+  error: Schema.Array(Schema.String),
+  result: Schema.NullOr(
+    Schema.Struct({
+      items: Schema.Array(
+        Schema.Struct({
+          id: Schema.String,
+          lock_type: Schema.Struct({
+            type: Schema.Literals(["flex", "bonded", "instant", "timed"]),
+          }),
+        }),
+      ),
+    }),
+  ),
+});
+
 /** `/0/private/Earn/Allocations` lists one entry per Earn strategy allocation. */
 export const KrakenEarnAllocationsResponse = Schema.Struct({
   error: Schema.Array(Schema.String),

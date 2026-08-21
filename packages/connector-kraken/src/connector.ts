@@ -23,15 +23,23 @@ import {
   KrakenBalanceResponse,
   KrakenCredentials,
   KrakenEarnAllocationsResponse,
+  KrakenEarnStrategiesResponse,
 } from "./schemas.js";
 import iconSvg from "./icon.svg";
 import instructions from "./instructions.md";
 
 const BALANCE_PATH = "/0/private/Balance";
 const EARN_ALLOCATIONS_PATH = "/0/private/Earn/Allocations";
+const EARN_STRATEGIES_PATH = "/0/private/Earn/Strategies";
 
-/** Balances held under these suffixes are yield-bearing and belong in the Earn account. */
-const YIELD_EXTENSIONS = new Set(["S", "M", "B", "F"]);
+/** Balances held under these suffixes are staked and sit outside the spot wallet. */
+const STAKED_EXTENSIONS = new Set(["S", "B"]);
+
+/**
+ * Reward variants (.M opt-in rewards, .F Kraken Rewards auto-earn) remain
+ * spendable wallet equity, so they stay in the Spot account.
+ */
+const REWARD_EXTENSIONS = new Set(["F", "M"]);
 
 /** Kraken renames a handful of well-known assets away from their common symbols. */
 const SYMBOL_RENAMES = new Map([
@@ -116,10 +124,16 @@ const krakenAssetKey = (code: string): KrakenAssetKey => {
     stripped = stripped.slice(1);
   }
   const common = SYMBOL_RENAMES.get(stripped) ?? stripped;
-  const yieldBearing = extension !== undefined && YIELD_EXTENSIONS.has(extension);
   const tokenized = extension === "T";
-  const displayedExtension =
-    extension === undefined || yieldBearing || tokenized ? "" : `.${extension}`;
+  let displayedExtension = "";
+  if (
+    extension !== undefined &&
+    !STAKED_EXTENSIONS.has(extension) &&
+    !REWARD_EXTENSIONS.has(extension) &&
+    !tokenized
+  ) {
+    displayedExtension = `.${extension}`;
+  }
   const display = `${common}${displayedExtension}`;
   return {
     rawCode: normalized,
@@ -239,12 +253,26 @@ function transportErrorCategory(
 
 const buildAccounts = (
   balance: typeof KrakenBalanceResponse.Type,
+  strategies: typeof KrakenEarnStrategiesResponse.Type,
   allocations: typeof KrakenEarnAllocationsResponse.Type,
 ): ReadonlyArray<ConnectorAccount> => {
   // Kraken's private balance endpoints carry no lifetime acquisition cost, so
   // this connector intentionally imports balances without purchase prices.
-  // Earn positions are keyed by common symbol so allocation rows and migrated
-  // staking rows of the same asset merge into one position.
+  //
+  // Double-counting rules: "flex" (Kraken Rewards) strategies earn on spot
+  // balances that remain inside /private/Balance, so their allocations are
+  // skipped entirely; bonded, instant and timed allocations move out of the
+  // spot wallet and are only reported here. Earn positions are keyed by
+  // common symbol so allocation rows and migrated staking rows of the same
+  // asset merge into one position.
+  const lockTypeByStrategyId = new Map<string, string>();
+  const strategiesResult = strategies.result;
+  if (strategiesResult !== null) {
+    for (const item of strategiesResult.items) {
+      lockTypeByStrategyId.set(item.id, item.lock_type.type);
+    }
+  }
+
   const earn = new Map<string, AccumulatedPosition>();
   const allocatedSymbols = new Set<string>();
   const addEarnQuantity = (code: string, amount: string): void => {
@@ -261,6 +289,9 @@ const buildAccounts = (
   const allocationsResult = allocations.result;
   if (allocationsResult !== null) {
     for (const item of allocationsResult.items) {
+      const lockType =
+        item.strategy_id === undefined ? undefined : lockTypeByStrategyId.get(item.strategy_id);
+      if (lockType === "flex") continue;
       allocatedSymbols.add(krakenAssetKey(item.native_asset).symbol);
       addEarnQuantity(item.native_asset, item.amount_allocated.total.native);
     }
@@ -272,11 +303,11 @@ const buildAccounts = (
     for (const [code, amount] of Object.entries(balanceResult)) {
       const separator = code.indexOf(".");
       const extension = separator === -1 ? undefined : code.slice(separator + 1);
-      if (extension !== undefined && YIELD_EXTENSIONS.has(extension)) {
-        // Yield-bearing balances are owned by the Earn side of the ledger.
-        // When Kraken already reports the asset through Earn allocations, the
-        // allocation total wins and the migrated balance row is skipped so
-        // funds are not counted twice.
+      if (extension !== undefined && STAKED_EXTENSIONS.has(extension)) {
+        // Staked balances are owned by the Earn side of the ledger. When
+        // Kraken already reports the asset through a non-flex Earn
+        // allocation, that total wins and the migrated balance row is
+        // skipped so funds are not counted twice.
         if (allocatedSymbols.has(krakenAssetKey(code).symbol)) continue;
         addEarnQuantity(code, amount);
         continue;
@@ -355,15 +386,21 @@ const authenticateWith = <R>(
                 schema: KrakenEarnAllocationsResponse,
                 extraParameters: { hide_zero_allocations: "true" },
               }),
+              strategies: client.request({
+                credentials,
+                path: EARN_STRATEGIES_PATH,
+                schema: KrakenEarnStrategiesResponse,
+              }),
             },
-            { concurrency: 2 },
+            { concurrency: 3 },
           ).pipe(Effect.mapError((cause) => fetchFailure(cause)));
           const checked = yield* Effect.all({
             balance: ensureFetchSuccess(responses.balance),
             allocations: ensureFetchSuccess(responses.allocations),
+            strategies: ensureFetchSuccess(responses.strategies),
           });
           return yield* Effect.try({
-            try: () => buildAccounts(checked.balance, checked.allocations),
+            try: () => buildAccounts(checked.balance, checked.strategies, checked.allocations),
             catch: (cause) => fetchFailure(cause),
           }).pipe(Effect.flatMap(validateConnectorOutput));
         }),

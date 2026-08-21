@@ -58,6 +58,21 @@ describe("Kraken connector", () => {
                 "ETH2.S": "0.4000000000",
                 "ADA.F": "1.5",
                 "TSLA.T": "3",
+                SOL: "2",
+              },
+            }),
+          );
+        }
+        if (request.path === "/0/private/Earn/Strategies") {
+          return Effect.succeed(
+            response({
+              error: [],
+              result: {
+                items: [
+                  { id: "ES-ETH", lock_type: { type: "bonded" } },
+                  { id: "ES-DOT", lock_type: { type: "flex" } },
+                  { id: "ES-SOL", lock_type: { type: "instant" } },
+                ],
               },
             }),
           );
@@ -76,7 +91,12 @@ describe("Kraken connector", () => {
                   {
                     strategy_id: "ES-DOT",
                     native_asset: "DOT",
-                    amount_allocated: { total: { native: "2" } },
+                    amount_allocated: { total: { native: "5" } },
+                  },
+                  {
+                    strategy_id: "ES-SOL",
+                    native_asset: "SOL",
+                    amount_allocated: { total: { native: "1" } },
                   },
                 ],
               },
@@ -122,6 +142,16 @@ describe("Kraken connector", () => {
           },
           {
             asset: {
+              externalId: "kraken:currency:ADA.F",
+              assetCategory: "crypto",
+              name: "ADA",
+              symbol: "ADA",
+              identifiers: [{ type: "kraken_currency", value: "ADA.F" }],
+            },
+            quantity: "1.5",
+          },
+          {
+            asset: {
               externalId: "kraken:currency:TSLA.T",
               assetCategory: "stocks_etfs",
               name: "TSLA",
@@ -129,6 +159,16 @@ describe("Kraken connector", () => {
               identifiers: [{ type: "kraken_currency", value: "TSLA.T" }],
             },
             quantity: "3",
+          },
+          {
+            asset: {
+              externalId: "kraken:currency:SOL",
+              assetCategory: "crypto",
+              name: "SOL",
+              symbol: "SOL",
+              identifiers: [{ type: "kraken_currency", value: "SOL" }],
+            },
+            quantity: "2",
           },
         ],
       },
@@ -149,32 +189,25 @@ describe("Kraken connector", () => {
           },
           {
             asset: {
-              externalId: "kraken:currency:DOT",
+              externalId: "kraken:currency:SOL",
               assetCategory: "crypto",
-              name: "DOT",
-              symbol: "DOT",
-              identifiers: [{ type: "kraken_currency", value: "DOT" }],
+              name: "SOL",
+              symbol: "SOL",
+              identifiers: [{ type: "kraken_currency", value: "SOL" }],
             },
-            quantity: "2",
-          },
-          {
-            asset: {
-              externalId: "kraken:currency:ADA.F",
-              assetCategory: "crypto",
-              name: "ADA",
-              symbol: "ADA",
-              identifiers: [{ type: "kraken_currency", value: "ADA.F" }],
-            },
-            quantity: "1.5",
+            quantity: "1",
           },
         ],
       },
     ]);
-    expect(requests.map(({ path }) => path)).toEqual([
-      "/0/private/Balance",
-      "/0/private/Balance",
-      "/0/private/Earn/Allocations",
-    ]);
+    expect(requests).toHaveLength(4);
+    expect(requests[0]?.path).toBe("/0/private/Balance");
+    expect(
+      requests
+        .slice(1)
+        .map(({ path }) => path)
+        .sort(),
+    ).toEqual(["/0/private/Balance", "/0/private/Earn/Allocations", "/0/private/Earn/Strategies"]);
     expect(new URLSearchParams(requests[0]?.body ?? "").get("hide_zero_allocations")).toBeNull();
     for (const request of requests) {
       expect(request.headers["API-Key"]).toBe("api-key");
@@ -188,7 +221,10 @@ describe("Kraken connector", () => {
         expect(current).toBeGreaterThan(previous);
       }
     });
-    expect(new URLSearchParams(requests[2]?.body ?? "").get("hide_zero_allocations")).toBe("true");
+    const allocationsRequest = requests.find(({ path }) => path === "/0/private/Earn/Allocations");
+    expect(new URLSearchParams(allocationsRequest?.body ?? "").get("hide_zero_allocations")).toBe(
+      "true",
+    );
   });
 
   it("merges staking-suffix balances into one Earn position per asset", async () => {
@@ -198,9 +234,12 @@ describe("Kraken connector", () => {
           return Effect.succeed(
             response({
               error: [],
-              result: { "ADA.S": "1", "ADA.F": "0.5" },
+              result: { "ADA.S": "1", "ADA.B": "0.25", "ADA.F": "0.5" },
             }),
           );
+        }
+        if (request.path === "/0/private/Earn/Strategies") {
+          return Effect.succeed(response({ error: [], result: { items: [] } }));
         }
         if (request.path === "/0/private/Earn/Allocations") {
           return Effect.succeed(response({ error: [], result: { items: [] } }));
@@ -217,6 +256,23 @@ describe("Kraken connector", () => {
 
     expect(accounts).toEqual([
       {
+        externalId: "spot",
+        name: "Spot",
+        baseCurrencyIso: "USD",
+        positions: [
+          {
+            asset: {
+              externalId: "kraken:currency:ADA.F",
+              assetCategory: "crypto",
+              name: "ADA",
+              symbol: "ADA",
+              identifiers: [{ type: "kraken_currency", value: "ADA.F" }],
+            },
+            quantity: "0.5",
+          },
+        ],
+      },
+      {
         externalId: "earn",
         name: "Earn",
         baseCurrencyIso: "USD",
@@ -229,7 +285,7 @@ describe("Kraken connector", () => {
               symbol: "ADA",
               identifiers: [{ type: "kraken_currency", value: "ADA.S" }],
             },
-            quantity: "1.5",
+            quantity: "1.25",
           },
         ],
       },
@@ -249,6 +305,9 @@ describe("Kraken connector", () => {
       request: (request) => {
         if (request.path === "/0/private/Balance") {
           return Effect.succeed(response({ error: [], result: {} }));
+        }
+        if (request.path === "/0/private/Earn/Strategies") {
+          return Effect.succeed(response({ error: [], result: { items: [] } }));
         }
         if (request.path === "/0/private/Earn/Allocations") {
           return Effect.succeed(response({ error: ["EGeneral:Permission denied"], result: null }));
