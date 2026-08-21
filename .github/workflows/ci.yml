@@ -43,6 +43,7 @@ jobs:
         run: |
           vp run --filter @optimus/connector-core build
           vp run --filter @optimus/connector-ibkr build
+          vp run --filter @optimus/connector-kraken build
           vp run --filter @optimus/connector-okx build
       - run: vp run -r test
 
