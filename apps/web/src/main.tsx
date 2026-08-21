@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createRouter, RouterProvider } from "@tanstack/react-router";
+import { createBrowserHistory, createHashHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 
 import { Provider } from "./components/ui/provider";
 import { createHttpPortfolioEngine, PortfolioEngineProvider } from "./portfolio";
@@ -13,7 +13,10 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000 }, mutations: { retry: false } },
 });
 
-const router = createRouter({ routeTree, context: { queryClient } });
+const history =
+  window.location.protocol === "file:" ? createHashHistory() : createBrowserHistory();
+
+const router = createRouter({ routeTree, context: { queryClient }, history });
 
 declare module "@tanstack/react-router" {
   interface Register {

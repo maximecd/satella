@@ -23,6 +23,8 @@ export function Sidebar() {
       py="4"
       px="3"
       gap="4"
+      h="full"
+      overflowY="auto"
       flexShrink={0}
     >
       <Heading size="md" px="2">

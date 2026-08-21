@@ -44,7 +44,7 @@ export const InputGroup = React.forwardRef<HTMLDivElement, InputGroupProps>(
     const child = React.Children.only<React.ReactElement<InputElementProps>>(children);
 
     return (
-      <Group ref={ref} {...rest}>
+      <Group ref={ref} w="full" {...rest}>
         {startAddon && <InputAddon {...startAddonProps}>{startAddon}</InputAddon>}
         {startElement && (
           <InputElement pointerEvents="none" {...startElementProps}>
