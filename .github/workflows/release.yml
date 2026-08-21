@@ -128,6 +128,7 @@ jobs:
           node-version-file: .nvmrc
           cache: true
           run-install: true
+      - uses: pnpm/action-setup@v4
       - run: vp run -r build
       - run: pnpm release:package --version "$RELEASE_VERSION" --output-dir "$RUNNER_TEMP/optimus-release"
       - run: pnpm release:smoke --artifact "$RUNNER_TEMP/optimus-release/Optimus-$RELEASE_VERSION-macOS-arm64.zip"
