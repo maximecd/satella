@@ -16,7 +16,7 @@ import {
   DatabaseMigrationError,
   DatabaseValidationError,
 } from "./errors.js";
-import { initialFinanceModel } from "./migrations/0001_initial_finance_model.js";
+import { initialFinanceModel } from "./migrations/20260821194600_initial_finance_model.js";
 
 export const MIGRATIONS_TABLE = "effect_sql_migrations";
 export const PRE_MIGRATION_BACKUP_RETENTION = 5;
@@ -26,7 +26,7 @@ export type MigrationRegistry = Readonly<
 >;
 
 export const ProductionMigrations = {
-  "0001_initial_finance_model": initialFinanceModel,
+  "20260821194600_initial_finance_model": initialFinanceModel,
 } satisfies MigrationRegistry;
 
 export interface MigrationRunOptions {

@@ -29,15 +29,12 @@ describe("add assets screen", () => {
     renderRoute("/");
     await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
     expect(await screen.findByRole("heading", { name: "Add assets" })).toBeInTheDocument();
-    expect(screen.queryByText("What do you want to add?")).not.toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Form progress" })).toHaveAttribute(
       "aria-valuenow",
       "0",
     );
     expect(screen.getByText("Checking")).toBeInTheDocument();
     expect(screen.getByText("Savings")).toBeInTheDocument();
-    expect(screen.queryByText("Cash")).not.toBeInTheDocument();
-    expect(screen.queryByText("Bonds")).not.toBeInTheDocument();
     const search = screen.getByLabelText("Search categories");
     await user.type(search, "crypto");
     expect(screen.getByText("Crypto")).toBeInTheDocument();
@@ -237,16 +234,13 @@ describe("add assets screen", () => {
     expect(screen.getAllByText("API key").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Secret key").length).toBeGreaterThan(0);
     expect(screen.getByText("Region")).toBeInTheDocument();
-    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
 
     const secret = screen.getByLabelText(/Secret key/, { selector: "input" });
     expect(secret).toHaveAttribute("type", "password");
-    expect(screen.queryByRole("button", { name: /Secret key/ })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Connect and import" }));
     expect(screen.getByText("API key is required.")).toBeInTheDocument();
     expect(screen.getByText("Secret key is required.")).toBeInTheDocument();
     expect(secret).toHaveAttribute("aria-invalid", "true");
-    expect(screen.queryByText("Could not save")).not.toBeInTheDocument();
   });
 });

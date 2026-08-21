@@ -31,14 +31,15 @@ export const createAccount = (input: {
   Effect.gen(function* () {
     const custodianId =
       input.custodianId ?? (yield* createCustodian({ name: `${input.name} bank` })).id;
-    return yield* insertAccount({
+    const created = {
       name: input.name,
       custodianId,
       accountType: input.accountType ?? "brokerage",
-      ...(input.baseCurrencyAssetId === undefined
-        ? {}
-        : { baseCurrencyAssetId: input.baseCurrencyAssetId }),
-    });
+    };
+    if (input.baseCurrencyAssetId !== undefined) {
+      Object.assign(created, { baseCurrencyAssetId: input.baseCurrencyAssetId });
+    }
+    return yield* insertAccount(created);
   });
 
 export const seedSyncedCustodian = (input: {

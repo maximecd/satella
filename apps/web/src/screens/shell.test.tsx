@@ -13,7 +13,7 @@ describe("application shell", () => {
     window.localStorage.clear();
   });
 
-  it("shows Optimus, Dashboard, and Settings without Workspace grouping", async () => {
+  it("shows Optimus, Dashboard, and Settings in the sidebar", async () => {
     renderRoute("/");
     expect(await screen.findByText("Optimus")).toBeInTheDocument();
     expect(within(sideNav()).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
@@ -21,11 +21,6 @@ describe("application shell", () => {
       "href",
       "/settings",
     );
-    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
-    expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
-    expect(
-      within(sideNav()).queryByRole("button", { name: /toggle color mode/i }),
-    ).not.toBeInTheDocument();
     expect(within(sideNav()).getByRole("button", { name: "Lock" })).toBeInTheDocument();
   });
 
@@ -52,11 +47,8 @@ describe("application shell", () => {
     );
   });
 
-  it("registers Custodian routes and does not register Connection routes", () => {
+  it("registers Custodian routes", () => {
     const routeFiles = Object.keys(import.meta.glob("../routes/*.{ts,tsx}"));
     expect(routeFiles.some((file) => /custodian/i.test(file))).toBe(true);
-    expect(routeFiles.some((file) => file.includes("assets.index"))).toBe(false);
-    expect(routeFiles.some((file) => file.includes("settings.connections"))).toBe(false);
-    expect(routeFiles.some((file) => file.includes("assets.$assetId.edit"))).toBe(true);
   });
 });

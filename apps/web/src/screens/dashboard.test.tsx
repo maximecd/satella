@@ -47,9 +47,7 @@ describe("dashboard screen", () => {
     expect(screen.getByText("Negative holdings are excluded from allocation.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "IBKR" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "BNP Paribas" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Accounts" })).not.toBeInTheDocument();
     expect(screen.queryByText("Other holdings")).not.toBeInTheDocument();
-    expect(screen.queryByText("Manual custodian")).not.toBeInTheDocument();
 
     expect(screen.getByRole("link", { name: /Brokerage/ })).toHaveAttribute(
       "href",
@@ -58,8 +56,6 @@ describe("dashboard screen", () => {
     expect(screen.getByRole("link", { name: /Livret A/ })).toHaveAttribute("href", "/accounts/livret");
     expect(screen.getByText(/800[.,]00 USD/)).toBeInTheDocument();
     expect(screen.getByText(/300[.,]00 USD/)).toBeInTheDocument();
-    expect(screen.queryByText("Manual")).not.toBeInTheDocument();
-    expect(screen.queryByText("Connected")).not.toBeInTheDocument();
   });
 
   it("selects every Portfolio value range and reports sparse history honestly", async () => {

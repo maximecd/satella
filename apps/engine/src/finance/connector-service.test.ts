@@ -1,4 +1,3 @@
-import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
 import { describe, expect } from "vite-plus/test";
 import { it } from "@effect/vitest";

@@ -77,8 +77,8 @@ export const listCustodians = (): FinanceEffect<ReadonlyArray<Custodian>> =>
 export const connectorSyncFailure = (error: ConnectorSyncError): FinanceApiError => {
   if (error instanceof FinanceError) return error;
   const category =
-    typeof error === "object" && error !== null && "category" in error
-      ? String(error.category)
+    error instanceof ConnectorAuthenticationError || error instanceof ConnectorFetchAccountsError
+      ? error.category
       : "unknown";
   if (error instanceof ConnectorAuthenticationError) {
     return failure("validation", `Connector authentication failed (${category})`);

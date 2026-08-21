@@ -54,7 +54,6 @@ describe("unrealized P&L", () => {
 
   it.effect("keeps manual authority through quantity changes and connector refreshes", () =>
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
       const asset = yield* Finance.createAsset({
         assetCategory: "other",
         name: "Connected fund",

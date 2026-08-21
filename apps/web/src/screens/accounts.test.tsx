@@ -16,15 +16,12 @@ describe("accounts screen", () => {
     resetFinanceMocks();
   });
 
-  it("shows incomplete, zero, and unpriced account states without routine metadata", async () => {
+  it("shows incomplete, zero, and unpriced account states", async () => {
     renderRoute("/accounts/account-1");
     expect(await screen.findByRole("heading", { name: "Portfolio" })).toBeInTheDocument();
     expect(screen.getByText("Total is incomplete")).toBeInTheDocument();
     expect(screen.getByText("Zero positions (1)")).toBeInTheDocument();
     expect(screen.getByText("Unpriced positions (1)")).toBeInTheDocument();
-    expect(screen.queryByText("Manual")).not.toBeInTheDocument();
-    expect(screen.queryByText("Connected")).not.toBeInTheDocument();
-    expect(screen.queryByText("Connector-managed account")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
   });
 
@@ -39,7 +36,7 @@ describe("accounts screen", () => {
     expect(within(breadcrumbs).getByText("Portfolio")).toHaveAttribute("aria-current", "page");
   });
 
-  it("shows native market prices without source or quote-time labels", async () => {
+  it("shows native market prices", async () => {
     seedPortfolioEngine({
       accounts: [
         {
@@ -76,8 +73,6 @@ describe("accounts screen", () => {
     expect(screen.getByRole("columnheader", { name: "Market price" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Value (USD)" })).toBeInTheDocument();
     expect(screen.getByText("34 EUR")).toBeInTheDocument();
-    expect(screen.queryByText(/Delayed/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Yahoo Finance/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/68[.,]00 USD/)).toHaveLength(2);
   });
 

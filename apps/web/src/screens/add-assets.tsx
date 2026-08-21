@@ -10,7 +10,7 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import type { AssetSearchResult, ConnectorCapability } from "@optimus/engine/api";
+import type { AddManualHoldingInput, AssetSearchResult, ConnectorCapability } from "@optimus/engine/api";
 import { DecimalFromNonEmptyString } from "@optimus/engine/api";
 import { ConnectCustodianInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
@@ -19,7 +19,6 @@ import {
   createContext,
   useContext,
   useEffect,
-  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -652,17 +651,11 @@ function useCashAssets() {
 
 function useManualCustodianPicker() {
   const custodians = useManualCustodians();
-  const [custodianChoice, setCustodianChoice] = useState(CREATE_NEW);
+  const [custodianChoiceOverride, setCustodianChoiceOverride] = useState<string>();
   const [custodianName, setCustodianName] = useState("");
-  const didInit = useRef(false);
-  useEffect(() => {
-    if (didInit.current || custodians.data === undefined) return;
-    didInit.current = true;
-    const first = custodians.data[0];
-    if (first === undefined) return;
-    setCustodianChoice(first.id);
-  }, [custodians.data]);
   const listed = custodians.data ?? [];
+  const first = listed[0];
+  const custodianChoice = custodianChoiceOverride ?? first?.id ?? CREATE_NEW;
   const creatingCustodian = listed.length === 0 || custodianChoice === CREATE_NEW;
   const custodianOptions = [
     ...listed.map((custodian) => ({ value: custodian.id, label: custodian.name })),
@@ -677,7 +670,7 @@ function useManualCustodianPicker() {
     listed,
     creatingCustodian,
     custodianChoice,
-    setCustodianChoice,
+    setCustodianChoice: setCustodianChoiceOverride,
     custodianName,
     setCustodianName,
     custodianOptions,
@@ -730,16 +723,20 @@ function CustodianFields({
 function useHoldingAccountPicker(custodianId: string, accountType: "brokerage" | "crypto_wallet") {
   const accounts = useManualAccounts();
   const { assets, cash } = useCashAssets();
-  const [accountChoice, setAccountChoice] = useState(CREATE_NEW);
+  const [accountChoiceOverride, setAccountChoiceOverride] = useState<string>();
   const [accountName, setAccountName] = useState("");
   const [currencyId, setCurrencyId] = useState("fiat:USD");
+  const [scope, setScope] = useState(`${custodianId}:${accountType}`);
+  const nextScope = `${custodianId}:${accountType}`;
+  if (scope !== nextScope) {
+    setScope(nextScope);
+    setAccountChoiceOverride(undefined);
+  }
   const listed = (accounts.data ?? []).filter(
     (account) => account.custodianId === custodianId && account.accountType === accountType,
   );
+  const accountChoice = accountChoiceOverride ?? CREATE_NEW;
   const creatingAccount = listed.length === 0 || accountChoice === CREATE_NEW;
-  useEffect(() => {
-    setAccountChoice(CREATE_NEW);
-  }, [custodianId, accountType]);
   const accountOptions = [
     ...listed.map((account) => ({
       value: account.id,
@@ -763,7 +760,7 @@ function useHoldingAccountPicker(custodianId: string, accountType: "brokerage" |
     listed,
     creatingAccount,
     accountChoice,
-    setAccountChoice,
+    setAccountChoice: setAccountChoiceOverride,
     accountName,
     setAccountName,
     currencyId,
@@ -832,7 +829,7 @@ function HoldingsForm({
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [selected, setSelected] = useState<AssetSearchResult | null>(null);
-  const [quantity, setQuantity] = useState("");
+  const [quantityDraft, setQuantityDraft] = useState<{ key: string; value: string }>();
   const [averagePrice, setAveragePrice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -840,7 +837,8 @@ function HoldingsForm({
     const timeout = setTimeout(() => setDebounced(query.trim()), 300);
     return () => clearTimeout(timeout);
   }, [query]);
-  const searchCategory = meta.assetCategory === "crypto" ? "crypto" : "stocks_etfs";
+  const searchCategory: "crypto" | "stocks_etfs" =
+    meta.assetCategory === "crypto" ? "crypto" : "stocks_etfs";
   const results = useAssetSearch(debounced, searchCategory);
   const identifier = selected?.identifiers[0];
   const lookup = useManualHoldingLookup(
@@ -849,11 +847,18 @@ function HoldingsForm({
     identifier?.value ?? "",
   );
   const existingQuantity = lookup.data?.quantity;
-  useEffect(() => {
-    if (existingQuantity !== undefined && existingQuantity !== null) {
-      setQuantity(String(existingQuantity));
-    }
-  }, [existingQuantity]);
+  const holdingKey = JSON.stringify([
+    accountPicker.creatingAccount ? "" : accountPicker.accountChoice,
+    identifier?.type ?? "",
+    identifier?.value ?? "",
+  ]);
+  const quantity =
+    quantityDraft?.key === holdingKey
+      ? quantityDraft.value
+      : existingQuantity === undefined || existingQuantity === null
+        ? ""
+        : String(existingQuantity);
+  const setQuantity = (value: string) => setQuantityDraft({ key: holdingKey, value });
   const mutation = useAddManualHolding();
   if (
     custodianPicker.custodians.isPending ||
@@ -910,7 +915,7 @@ function HoldingsForm({
     }
     if (decoded === undefined) return;
     try {
-      const input = {
+      const input: AddManualHoldingInput = {
         asset: {
           assetCategory: searchCategory,
           name: selected.name,

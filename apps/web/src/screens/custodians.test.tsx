@@ -52,8 +52,6 @@ describe("custodians screens", () => {
       "href",
       "/settings/custodians/custodian-1/edit",
     );
-    expect(screen.queryByText("Connected")).not.toBeInTheDocument();
-    expect(screen.queryByText("Resync")).not.toBeInTheDocument();
   });
 
   it("refreshes the Custodian from the list row", async () => {

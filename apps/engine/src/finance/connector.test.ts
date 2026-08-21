@@ -86,7 +86,6 @@ describe("connector reconciliation", () => {
   it.effect("reuses an existing automatic asset when a connector symbol matches", () =>
     Effect.gen(function* () {
       const result = yield* Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
         const bitcoin = yield* Finance.createAsset({
           assetCategory: "crypto",
           name: "Bitcoin",
@@ -130,7 +129,6 @@ describe("connector reconciliation", () => {
   it.effect("upserts stable identities and reconciles absence only after complete output", () =>
     Effect.gen(function* () {
       const result = yield* Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
         yield* Finance.seedSyncedCustodian({
           id: "synced",
           name: "Broker",
