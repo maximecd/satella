@@ -36,9 +36,11 @@ import {
   divideDecimal,
   formatAmount,
   formatDecimal,
-  formatMarketPrice,
+  formatFxAmount,
+  formatMarketPriceAmount,
   formatQuantity,
   formatSignedAmount,
+  formatWholeAmount,
   multiplyDecimal,
 } from "../financial-number";
 
@@ -68,9 +70,10 @@ const conversionDescription = (position: Position, valuationCurrencyIso: string)
     position.reportingValue,
     multiplyDecimal(position.quantity, position.price.price),
   );
-  return `Converted at 1 ${position.price.currencyIso} = ${formatDecimal(rate, {
-    maximumFractionDigits: 6,
-  })} ${valuationCurrencyIso}`;
+  return `Converted at ${formatWholeAmount("1", position.price.currencyIso)} = ${formatFxAmount(
+    rate,
+    valuationCurrencyIso,
+  )}`;
 };
 
 function PositionTable({
@@ -131,7 +134,7 @@ function PositionTable({
                     <Text color="fg.muted">—</Text>
                   ) : (
                     <Text fontVariantNumeric="tabular-nums">
-                      {formatMarketPrice(position.price.price)} {position.price.currencyIso}
+                      {formatMarketPriceAmount(position.price.price, position.price.currencyIso)}
                     </Text>
                   )}
                 </Table.Cell>

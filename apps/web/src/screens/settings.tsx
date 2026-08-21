@@ -6,6 +6,7 @@ import { useThemePreference } from "../components/ui/color-mode";
 import { Field } from "../components/ui/field";
 import { SegmentedControl } from "../components/ui/segmented-control";
 import { notify } from "../components/ui/toaster";
+import { currencySymbol } from "../financial-number";
 import { useSaveReportingCurrency, useSettings } from "../portfolio";
 import { SelectField } from "../select-field";
 
@@ -31,7 +32,7 @@ export function SettingsScreen() {
               helperText="Portfolio totals, history, and allocation use this currency."
               options={settings.currencies.map((currency) => ({
                 value: currency.assetId,
-                label: `${currency.iso} · ${currency.name}`,
+                label: `${currencySymbol(currency.iso) ?? currency.iso} · ${currency.name}`,
               }))}
               value={settings.reportingCurrency.assetId}
               onChange={(value) => {

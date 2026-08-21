@@ -38,7 +38,7 @@ describe("settings screen", () => {
     renderRoute("/settings");
     await user.selectOptions(await screen.findByLabelText("Reporting currency"), "fiat:EUR");
     expect((await screen.findAllByText("Reporting currency saved.")).length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("Reporting currency")).toHaveDisplayValue(/EUR/);
+    expect(screen.getByLabelText("Reporting currency")).toHaveDisplayValue(/€|EUR/);
   });
 
   it("saves Reporting currency immediately and updates Dashboard values", async () => {
@@ -56,15 +56,15 @@ describe("settings screen", () => {
         nextSettings.reportingCurrency.iso === "EUR" ? eur : usd,
     });
     renderRoute("/");
-    expect(await screen.findByText(/1[.,]100[.,]00 USD/)).toBeInTheDocument();
+    expect(await screen.findByText(/(\$1[.,]100[.,]00|1[.,]100[.,]00 \$)/)).toBeInTheDocument();
     await user.click(screen.getByRole("link", { name: "Settings" }));
     const selector = await screen.findByLabelText("Reporting currency");
     await user.selectOptions(selector, "fiat:EUR");
     await waitFor(() =>
-      expect(screen.getByLabelText("Reporting currency")).toHaveDisplayValue(/EUR/),
+      expect(screen.getByLabelText("Reporting currency")).toHaveDisplayValue(/€|EUR/),
     );
     await user.click(screen.getByRole("link", { name: "Dashboard" }));
-    expect(await screen.findByText(/1[.,]000[.,]00 EUR/)).toBeInTheDocument();
+    expect(await screen.findByText(/(€1[.,]000[.,]00|1[.,]000[.,]00 €)/)).toBeInTheDocument();
   });
 
   it("defaults Theme to System and can switch to Light or Dark", async () => {

@@ -101,6 +101,6 @@ describe("positions screen", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(await screen.findByRole("heading", { name: "Trading" })).toBeInTheDocument();
-    expect(screen.getAllByText(/\+93[.,]00 USD/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/\+\$93[.,]00|\+93[.,]00 \$/).length).toBeGreaterThan(0);
   });
 });

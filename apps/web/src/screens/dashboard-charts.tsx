@@ -22,17 +22,10 @@ import {
   YAxis,
   type TooltipContentProps,
 } from "recharts";
-import { canonicalDecimal } from "../financial-number";
+import { canonicalDecimal, formatAmount, formatWholeAmount } from "../financial-number";
 
-const valuedAmount = new Intl.NumberFormat(undefined, {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
 const compactAmount = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 2,
-});
-const wholeAmount = new Intl.NumberFormat(undefined, {
-  maximumFractionDigits: 0,
 });
 const chartDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const tooltipDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
@@ -99,8 +92,8 @@ const cellCopy = (cell: {
   readonly percent: number;
   readonly currencyIso: string;
 }) => {
-  const amount = `${valuedAmount.format(cell.value)} ${cell.currencyIso}`;
-  const compact = `${wholeAmount.format(cell.value)} ${cell.currencyIso}`;
+  const amount = formatAmount(cell.value, cell.currencyIso);
+  const compact = formatWholeAmount(cell.value, cell.currencyIso);
   const percent = `${Math.round(cell.percent)}%`;
   const title = cell.symbol === null ? cell.name : `${cell.name} (${cell.symbol})`;
   const detail = `${cell.name} • ${percent}`;
@@ -205,7 +198,7 @@ function HistoryTooltipContent({ active, payload, coordinate }: TooltipContentPr
   const currencyIso = point.currencyIso ?? "";
   return (
     <ChartTooltipBubble
-      amount={`${valuedAmount.format(point.total)} ${currencyIso}`.trim()}
+      amount={formatAmount(point.total, currencyIso)}
       detail={tooltipDate.format(Date.parse(point.capturedAt))}
       coordinate={coordinate}
     />
