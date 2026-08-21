@@ -86,11 +86,19 @@ describe("positions", () => {
 
       const sql = yield* SqlClient.SqlClient;
       const timestamp = new Date().toISOString();
-      yield* sql`INSERT INTO connections (id, name, connector_id, config_json, created_at, updated_at)
-        VALUES ('synced', 'OKX', 'okx', '{}', ${timestamp}, ${timestamp})`;
-      yield* sql`INSERT INTO accounts
-        (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
-        VALUES ('synced-account', 'synced', 'Trading', 'fiat:USD', 'trading', ${timestamp}, ${timestamp})`;
+      yield* Finance.seedSyncedCustodian({
+        id: "synced",
+        name: "OKX",
+        connectorId: "okx",
+        accounts: [
+          {
+            id: "synced-account",
+            name: "Trading",
+            connectorAccountId: "trading",
+            accountType: "crypto_wallet",
+          },
+        ],
+      });
       yield* sql`INSERT INTO positions (id, account_id, asset_id, quantity, created_at, updated_at)
         VALUES ('synced-position', 'synced-account', ${collectible.id}, 1, ${timestamp}, ${timestamp})`;
       const connectedEdit = yield* Finance.getPositionEdit("synced-position");
@@ -102,8 +110,11 @@ describe("positions", () => {
       expect(manualEdit.account).toEqual({
         id: manual.id,
         name: "Brokerage",
-        connectionId: null,
-        connectionName: null,
+        custodianId: manual.custodianId,
+        custodianName: manual.custodianName,
+        isDefaultCustodian: false,
+        accountType: "brokerage",
+        connectorAccountId: null,
         baseCurrencyAssetId: "fiat:USD",
         baseCurrencyIso: "USD",
       });
@@ -111,8 +122,11 @@ describe("positions", () => {
       expect(connectedEdit.account).toEqual({
         id: "synced-account",
         name: "Trading",
-        connectionId: "synced",
-        connectionName: "OKX",
+        custodianId: "synced",
+        custodianName: "OKX",
+        isDefaultCustodian: false,
+        accountType: "crypto_wallet",
+        connectorAccountId: "trading",
         baseCurrencyAssetId: "fiat:USD",
         baseCurrencyIso: "USD",
       });

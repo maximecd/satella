@@ -96,7 +96,7 @@ const derivatives = new Set([
 
 const ibkrAssetCategory = (category: string) => {
   if (stocksAndEtfs.has(category)) return "stocks_etfs" as const;
-  if (bonds.has(category)) return "bonds" as const;
+  if (bonds.has(category)) return "other" as const;
   if (category === "CRYPTO") return "crypto" as const;
   if (derivatives.has(category)) return "other" as const;
   if (category === "CMDTY") return "other" as const;
@@ -592,7 +592,7 @@ const createIbkrConnector = <R>(
   name: "Interactive Brokers",
   icon: ibkrIcon,
   instructions: ibkrInstructions,
-  assetCategories: ["stocks_etfs", "bonds", "crypto", "cash", "other"],
+  assetCategories: ["stocks_etfs", "crypto", "cash", "other"],
   credentialFields: [
     {
       key: "token",

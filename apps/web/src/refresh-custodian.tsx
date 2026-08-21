@@ -3,23 +3,23 @@ import { RefreshCw } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { notify } from "./components/ui/toaster";
-import { useRefreshConnection } from "./portfolio";
+import { useRefreshCustodian } from "./portfolio";
 
 const errorMessage = (cause: unknown) =>
   cause instanceof Error ? cause.message : "The request failed.";
 
-export function RefreshConnectionButton({
-  connectionId,
+export function RefreshCustodianButton({
+  custodianId,
   onError,
 }: {
-  readonly connectionId: string;
+  readonly custodianId: string;
   readonly onError?: (message: string | null) => void;
 }) {
-  const refresh = useRefreshConnection();
+  const refresh = useRefreshCustodian();
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    refresh.mutate(connectionId, {
+    refresh.mutate(custodianId, {
       onSuccess: (result) => {
         onError?.(null);
         if (result.failures.length > 0) {
@@ -30,7 +30,7 @@ export function RefreshConnectionButton({
           );
           return;
         }
-        notify.success("Connection refreshed.");
+        notify.success("Custodian refreshed.");
       },
       onError: (cause) => {
         const message = errorMessage(cause);

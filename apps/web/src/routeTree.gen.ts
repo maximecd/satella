@@ -13,13 +13,13 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsSecurityRouteImport } from './routes/settings.security'
-import { Route as SettingsConnectionsIndexRouteImport } from './routes/settings.connections.index'
+import { Route as SettingsCustodiansIndexRouteImport } from './routes/settings.custodians.index'
 import { Route as AccountsAccountIdIndexRouteImport } from './routes/accounts.$accountId.index'
 import { Route as PositionsPositionIdEditRouteImport } from './routes/positions.$positionId.edit'
 import { Route as AssetsAssetIdEditRouteImport } from './routes/assets.$assetId.edit'
 import { Route as AccountsAccountIdEditRouteImport } from './routes/accounts.$accountId.edit'
-import { Route as SettingsConnectionsConnectionIdIndexRouteImport } from './routes/settings.connections.$connectionId.index'
-import { Route as SettingsConnectionsConnectionIdEditRouteImport } from './routes/settings.connections.$connectionId.edit'
+import { Route as SettingsCustodiansCustodianIdIndexRouteImport } from './routes/settings.custodians.$custodianId.index'
+import { Route as SettingsCustodiansCustodianIdEditRouteImport } from './routes/settings.custodians.$custodianId.edit'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -41,12 +41,11 @@ const SettingsSecurityRoute = SettingsSecurityRouteImport.update({
   path: '/security',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsConnectionsIndexRoute =
-  SettingsConnectionsIndexRouteImport.update({
-    id: '/connections/',
-    path: '/connections/',
-    getParentRoute: () => SettingsRoute,
-  } as any)
+const SettingsCustodiansIndexRoute = SettingsCustodiansIndexRouteImport.update({
+  id: '/custodians/',
+  path: '/custodians/',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const AccountsAccountIdIndexRoute = AccountsAccountIdIndexRouteImport.update({
   id: '/accounts/$accountId/',
   path: '/accounts/$accountId/',
@@ -67,16 +66,16 @@ const AccountsAccountIdEditRoute = AccountsAccountIdEditRouteImport.update({
   path: '/accounts/$accountId/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsConnectionsConnectionIdIndexRoute =
-  SettingsConnectionsConnectionIdIndexRouteImport.update({
-    id: '/connections/$connectionId/',
-    path: '/connections/$connectionId/',
+const SettingsCustodiansCustodianIdIndexRoute =
+  SettingsCustodiansCustodianIdIndexRouteImport.update({
+    id: '/custodians/$custodianId/',
+    path: '/custodians/$custodianId/',
     getParentRoute: () => SettingsRoute,
   } as any)
-const SettingsConnectionsConnectionIdEditRoute =
-  SettingsConnectionsConnectionIdEditRouteImport.update({
-    id: '/connections/$connectionId/edit',
-    path: '/connections/$connectionId/edit',
+const SettingsCustodiansCustodianIdEditRoute =
+  SettingsCustodiansCustodianIdEditRouteImport.update({
+    id: '/custodians/$custodianId/edit',
+    path: '/custodians/$custodianId/edit',
     getParentRoute: () => SettingsRoute,
   } as any)
 
@@ -89,9 +88,9 @@ export interface FileRoutesByFullPath {
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
   '/positions/$positionId/edit': typeof PositionsPositionIdEditRoute
   '/accounts/$accountId': typeof AccountsAccountIdIndexRoute
-  '/settings/connections': typeof SettingsConnectionsIndexRoute
-  '/settings/connections/$connectionId/edit': typeof SettingsConnectionsConnectionIdEditRoute
-  '/settings/connections/$connectionId': typeof SettingsConnectionsConnectionIdIndexRoute
+  '/settings/custodians': typeof SettingsCustodiansIndexRoute
+  '/settings/custodians/$custodianId/edit': typeof SettingsCustodiansCustodianIdEditRoute
+  '/settings/custodians/$custodianId': typeof SettingsCustodiansCustodianIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -101,9 +100,9 @@ export interface FileRoutesByTo {
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
   '/positions/$positionId/edit': typeof PositionsPositionIdEditRoute
   '/accounts/$accountId': typeof AccountsAccountIdIndexRoute
-  '/settings/connections': typeof SettingsConnectionsIndexRoute
-  '/settings/connections/$connectionId/edit': typeof SettingsConnectionsConnectionIdEditRoute
-  '/settings/connections/$connectionId': typeof SettingsConnectionsConnectionIdIndexRoute
+  '/settings/custodians': typeof SettingsCustodiansIndexRoute
+  '/settings/custodians/$custodianId/edit': typeof SettingsCustodiansCustodianIdEditRoute
+  '/settings/custodians/$custodianId': typeof SettingsCustodiansCustodianIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -115,9 +114,9 @@ export interface FileRoutesById {
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
   '/positions/$positionId/edit': typeof PositionsPositionIdEditRoute
   '/accounts/$accountId/': typeof AccountsAccountIdIndexRoute
-  '/settings/connections/': typeof SettingsConnectionsIndexRoute
-  '/settings/connections/$connectionId/edit': typeof SettingsConnectionsConnectionIdEditRoute
-  '/settings/connections/$connectionId/': typeof SettingsConnectionsConnectionIdIndexRoute
+  '/settings/custodians/': typeof SettingsCustodiansIndexRoute
+  '/settings/custodians/$custodianId/edit': typeof SettingsCustodiansCustodianIdEditRoute
+  '/settings/custodians/$custodianId/': typeof SettingsCustodiansCustodianIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -130,9 +129,9 @@ export interface FileRouteTypes {
     | '/assets/$assetId/edit'
     | '/positions/$positionId/edit'
     | '/accounts/$accountId'
-    | '/settings/connections'
-    | '/settings/connections/$connectionId/edit'
-    | '/settings/connections/$connectionId'
+    | '/settings/custodians'
+    | '/settings/custodians/$custodianId/edit'
+    | '/settings/custodians/$custodianId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -142,9 +141,9 @@ export interface FileRouteTypes {
     | '/assets/$assetId/edit'
     | '/positions/$positionId/edit'
     | '/accounts/$accountId'
-    | '/settings/connections'
-    | '/settings/connections/$connectionId/edit'
-    | '/settings/connections/$connectionId'
+    | '/settings/custodians'
+    | '/settings/custodians/$custodianId/edit'
+    | '/settings/custodians/$custodianId'
   id:
     | '__root__'
     | '/'
@@ -155,9 +154,9 @@ export interface FileRouteTypes {
     | '/assets/$assetId/edit'
     | '/positions/$positionId/edit'
     | '/accounts/$accountId/'
-    | '/settings/connections/'
-    | '/settings/connections/$connectionId/edit'
-    | '/settings/connections/$connectionId/'
+    | '/settings/custodians/'
+    | '/settings/custodians/$custodianId/edit'
+    | '/settings/custodians/$custodianId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -199,11 +198,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSecurityRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/connections/': {
-      id: '/settings/connections/'
-      path: '/connections'
-      fullPath: '/settings/connections'
-      preLoaderRoute: typeof SettingsConnectionsIndexRouteImport
+    '/settings/custodians/': {
+      id: '/settings/custodians/'
+      path: '/custodians'
+      fullPath: '/settings/custodians'
+      preLoaderRoute: typeof SettingsCustodiansIndexRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/accounts/$accountId/': {
@@ -234,18 +233,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountsAccountIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/connections/$connectionId/': {
-      id: '/settings/connections/$connectionId/'
-      path: '/connections/$connectionId'
-      fullPath: '/settings/connections/$connectionId'
-      preLoaderRoute: typeof SettingsConnectionsConnectionIdIndexRouteImport
+    '/settings/custodians/$custodianId/': {
+      id: '/settings/custodians/$custodianId/'
+      path: '/custodians/$custodianId'
+      fullPath: '/settings/custodians/$custodianId'
+      preLoaderRoute: typeof SettingsCustodiansCustodianIdIndexRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/connections/$connectionId/edit': {
-      id: '/settings/connections/$connectionId/edit'
-      path: '/connections/$connectionId/edit'
-      fullPath: '/settings/connections/$connectionId/edit'
-      preLoaderRoute: typeof SettingsConnectionsConnectionIdEditRouteImport
+    '/settings/custodians/$custodianId/edit': {
+      id: '/settings/custodians/$custodianId/edit'
+      path: '/custodians/$custodianId/edit'
+      fullPath: '/settings/custodians/$custodianId/edit'
+      preLoaderRoute: typeof SettingsCustodiansCustodianIdEditRouteImport
       parentRoute: typeof SettingsRoute
     }
   }
@@ -254,19 +253,19 @@ declare module '@tanstack/react-router' {
 interface SettingsRouteChildren {
   SettingsSecurityRoute: typeof SettingsSecurityRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
-  SettingsConnectionsIndexRoute: typeof SettingsConnectionsIndexRoute
-  SettingsConnectionsConnectionIdEditRoute: typeof SettingsConnectionsConnectionIdEditRoute
-  SettingsConnectionsConnectionIdIndexRoute: typeof SettingsConnectionsConnectionIdIndexRoute
+  SettingsCustodiansIndexRoute: typeof SettingsCustodiansIndexRoute
+  SettingsCustodiansCustodianIdEditRoute: typeof SettingsCustodiansCustodianIdEditRoute
+  SettingsCustodiansCustodianIdIndexRoute: typeof SettingsCustodiansCustodianIdIndexRoute
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsSecurityRoute: SettingsSecurityRoute,
   SettingsIndexRoute: SettingsIndexRoute,
-  SettingsConnectionsIndexRoute: SettingsConnectionsIndexRoute,
-  SettingsConnectionsConnectionIdEditRoute:
-    SettingsConnectionsConnectionIdEditRoute,
-  SettingsConnectionsConnectionIdIndexRoute:
-    SettingsConnectionsConnectionIdIndexRoute,
+  SettingsCustodiansIndexRoute: SettingsCustodiansIndexRoute,
+  SettingsCustodiansCustodianIdEditRoute:
+    SettingsCustodiansCustodianIdEditRoute,
+  SettingsCustodiansCustodianIdIndexRoute:
+    SettingsCustodiansCustodianIdIndexRoute,
 }
 
 const SettingsRouteWithChildren = SettingsRoute._addFileChildren(

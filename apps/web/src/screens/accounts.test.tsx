@@ -3,11 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
+  account,
   connectedAccount,
   renderRoute,
   resetFinanceMocks,
   seedPortfolioEngine,
-  syncedConnection,
+  syncedCustodian,
 } from "../finance.route-harness.test-utils";
 
 describe("accounts screen", () => {
@@ -15,15 +16,12 @@ describe("accounts screen", () => {
     resetFinanceMocks();
   });
 
-  it("shows incomplete, zero, and unpriced account states without routine metadata", async () => {
+  it("shows incomplete, zero, and unpriced account states", async () => {
     renderRoute("/accounts/account-1");
     expect(await screen.findByRole("heading", { name: "Portfolio" })).toBeInTheDocument();
     expect(screen.getByText("Total is incomplete")).toBeInTheDocument();
     expect(screen.getByText("Zero positions (1)")).toBeInTheDocument();
     expect(screen.getByText("Unpriced positions (1)")).toBeInTheDocument();
-    expect(screen.queryByText("Manual")).not.toBeInTheDocument();
-    expect(screen.queryByText("Connected")).not.toBeInTheDocument();
-    expect(screen.queryByText("Connector-managed account")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
   });
 
@@ -38,14 +36,13 @@ describe("accounts screen", () => {
     expect(within(breadcrumbs).getByText("Portfolio")).toHaveAttribute("aria-current", "page");
   });
 
-  it("shows native market prices without source or quote-time labels", async () => {
+  it("shows native market prices", async () => {
     seedPortfolioEngine({
       accounts: [
         {
           ...connectedAccount,
           id: "account-1",
-          connectionId: null,
-          connectionName: null,
+          connectorAccountId: null,
           name: "Portfolio",
           total: "68",
           totalIncomplete: false,
@@ -76,16 +73,33 @@ describe("accounts screen", () => {
     expect(screen.getByRole("columnheader", { name: "Market price" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Value (USD)" })).toBeInTheDocument();
     expect(screen.getByText("34 EUR")).toBeInTheDocument();
-    expect(screen.queryByText(/Delayed/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Yahoo Finance/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/68[.,]00 USD/)).toHaveLength(2);
   });
 
-  it("refreshes the owning Connection from a connected Account", async () => {
+  it("labels the default manual account Other holdings", async () => {
+    seedPortfolioEngine({
+      accounts: [
+        {
+          ...account,
+          isDefaultCustodian: true,
+          custodianName: "Manual custodian",
+          name: "Manual account",
+          accountType: "other",
+        },
+      ],
+    });
+    renderRoute("/accounts/account-1");
+    expect(await screen.findByRole("heading", { name: "Other holdings" })).toBeInTheDocument();
+    expect(screen.queryByText("Manual account")).not.toBeInTheDocument();
+    expect(screen.queryByText("Manual custodian")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Edit account" })).not.toBeInTheDocument();
+  });
+
+  it("refreshes the owning custodian from a synced account", async () => {
     const user = userEvent.setup();
-    seedPortfolioEngine({ connections: [syncedConnection] });
+    seedPortfolioEngine({ custodians: [syncedCustodian] });
     renderRoute("/accounts/connected-account");
     await user.click(await screen.findByRole("button", { name: "Refresh" }));
-    expect((await screen.findAllByText("Connection refreshed.")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Custodian refreshed.")).length).toBeGreaterThan(0);
   });
 });

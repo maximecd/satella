@@ -54,7 +54,6 @@ describe("unrealized P&L", () => {
 
   it.effect("keeps manual authority through quantity changes and connector refreshes", () =>
     Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
       const asset = yield* Finance.createAsset({
         assetCategory: "other",
         name: "Connected fund",
@@ -65,12 +64,19 @@ describe("unrealized P&L", () => {
         price: "12",
         currencyAssetId: "fiat:USD",
       });
-      const timestamp = new Date().toISOString();
-      yield* sql`INSERT INTO connections (id, name, connector_id, config_json, created_at, updated_at)
-        VALUES ('connection-1', 'Custodian', 'fixture', '{}', ${timestamp}, ${timestamp})`;
-      yield* sql`INSERT INTO accounts
-        (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
-        VALUES ('connected-account', 'connection-1', 'Custody', 'fiat:USD', 'custody', ${timestamp}, ${timestamp})`;
+      yield* Finance.seedSyncedCustodian({
+        id: "connection-1",
+        name: "Custodian",
+        connectorId: "fixture",
+        accounts: [
+          {
+            id: "connected-account",
+            name: "Custody",
+            connectorAccountId: "custody",
+            accountType: "brokerage",
+          },
+        ],
+      });
 
       const connectorAsset = {
         externalAssetId: "fixture:fund",
@@ -110,7 +116,7 @@ describe("unrealized P&L", () => {
       let account = yield* Finance.getAccount("connected-account");
       let position = account.positions[0]!;
       expect(position.averageUnitPurchasePrice).toEqual(
-        expect.objectContaining({ price: "5", source: "connection" }),
+        expect.objectContaining({ price: "5", source: "synced" }),
       );
       expect(position.acquisitionCost).toBe("10");
 
@@ -118,7 +124,7 @@ describe("unrealized P&L", () => {
       account = yield* Finance.getAccount("connected-account");
       position = account.positions[0]!;
       expect(position.averageUnitPurchasePrice).toEqual(
-        expect.objectContaining({ price: "6", source: "connection" }),
+        expect.objectContaining({ price: "6", source: "synced" }),
       );
       expect(position.acquisitionCost).toBe("18");
 
@@ -143,7 +149,7 @@ describe("unrealized P&L", () => {
       account = yield* Finance.getAccount("connected-account");
       position = account.positions[0]!;
       expect(position.averageUnitPurchasePrice).toEqual(
-        expect.objectContaining({ price: "8", source: "connection" }),
+        expect.objectContaining({ price: "8", source: "synced" }),
       );
       expect(position.acquisitionCost).toBe("40");
     }).pipe(Effect.provide(engineTestLayer())),

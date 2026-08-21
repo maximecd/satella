@@ -2,37 +2,16 @@ import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
 
 /**
- * Resets the pre-production finance tables around exact decimal text values
- * and authoritative Position purchase prices. Vault security is intentionally
- * left intact because it is not part of the finance domain reset.
+ * Target finance schema. Pre-production history is discarded; this is the
+ * single initial migration. Business rules (cash-account constraints, synced
+ * read-only, other-asset placement) are validated in the engine, not here.
  */
-export const addDecimalValuesAndPurchasePrices = Effect.gen(function* () {
+export const initialFinanceModel = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
-
-  yield* sql`DROP TRIGGER IF EXISTS app_settings_reporting_currency_is_cash_insert`;
-  yield* sql`DROP TRIGGER IF EXISTS app_settings_reporting_currency_is_cash_update`;
-  yield* sql`DROP TRIGGER IF EXISTS accounts_validate_insert`;
-  yield* sql`DROP TRIGGER IF EXISTS accounts_validate_update`;
-  yield* sql`DROP TRIGGER IF EXISTS asset_prices_currency_is_cash_insert`;
-  yield* sql`DROP TRIGGER IF EXISTS asset_prices_currency_is_cash_update`;
-  yield* sql`DROP TRIGGER IF EXISTS positions_purchase_currency_is_cash_insert`;
-  yield* sql`DROP TRIGGER IF EXISTS positions_purchase_currency_is_cash_update`;
-
-  yield* sql`DROP TABLE IF EXISTS app_settings`;
-  yield* sql`DROP TABLE IF EXISTS asset_price_snapshots`;
-  yield* sql`DROP TABLE IF EXISTS position_snapshots`;
-  yield* sql`DROP TABLE IF EXISTS snapshots`;
-  yield* sql`DROP TABLE IF EXISTS positions`;
-  yield* sql`DROP TABLE IF EXISTS connector_asset_mappings`;
-  yield* sql`DROP TABLE IF EXISTS accounts`;
-  yield* sql`DROP TABLE IF EXISTS connections`;
-  yield* sql`DROP TABLE IF EXISTS asset_prices`;
-  yield* sql`DROP TABLE IF EXISTS asset_identifiers`;
-  yield* sql`DROP TABLE IF EXISTS assets`;
 
   yield* sql`CREATE TABLE assets (
     id TEXT PRIMARY KEY,
-    asset_category TEXT NOT NULL CHECK (asset_category IN ('stocks_etfs', 'bonds', 'crypto', 'cash', 'other')),
+    asset_category TEXT NOT NULL CHECK (asset_category IN ('stocks_etfs', 'crypto', 'cash', 'other')),
     name TEXT NOT NULL CHECK (length(trim(name)) > 0),
     symbol TEXT,
     created_at TEXT NOT NULL,
@@ -48,34 +27,41 @@ export const addDecimalValuesAndPurchasePrices = Effect.gen(function* () {
   ) STRICT`;
   yield* sql`CREATE INDEX asset_identifiers_asset_id ON asset_identifiers(asset_id)`;
 
-  yield* sql`CREATE TABLE connections (
+  yield* sql`CREATE TABLE custodians (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL CHECK (length(trim(name)) > 0),
-    connector_id TEXT NOT NULL,
-    config_json TEXT NOT NULL CHECK (json_valid(config_json)),
+    connector_id TEXT,
+    config_json TEXT CHECK (config_json IS NULL OR json_valid(config_json)),
     last_synced_at TEXT,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    CHECK (
+      (connector_id IS NULL AND config_json IS NULL)
+      OR (connector_id IS NOT NULL AND config_json IS NOT NULL)
+    )
   ) STRICT`;
 
   yield* sql`CREATE TABLE accounts (
     id TEXT PRIMARY KEY,
-    connection_id TEXT REFERENCES connections(id) ON DELETE CASCADE,
+    custodian_id TEXT NOT NULL REFERENCES custodians(id),
     name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    account_type TEXT NOT NULL CHECK (
+      account_type IN ('checking', 'savings', 'brokerage', 'crypto_wallet', 'other')
+    ),
     base_currency_asset_id TEXT NOT NULL REFERENCES assets(id),
     connector_account_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   ) STRICT`;
   yield* sql`CREATE UNIQUE INDEX accounts_connector_identity
-    ON accounts(connection_id, connector_account_id)
+    ON accounts(custodian_id, connector_account_id)
     WHERE connector_account_id IS NOT NULL`;
 
   yield* sql`CREATE TABLE connector_asset_mappings (
-    connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+    custodian_id TEXT NOT NULL REFERENCES custodians(id) ON DELETE CASCADE,
     external_asset_id TEXT NOT NULL,
     asset_id TEXT NOT NULL REFERENCES assets(id),
-    PRIMARY KEY(connection_id, external_asset_id)
+    PRIMARY KEY(custodian_id, external_asset_id)
   ) STRICT`;
 
   yield* sql`CREATE TABLE positions (
@@ -87,10 +73,10 @@ export const addDecimalValuesAndPurchasePrices = Effect.gen(function* () {
       manual_average_unit_purchase_price IS NULL OR length(trim(manual_average_unit_purchase_price)) > 0
     ),
     manual_purchase_currency_asset_id TEXT REFERENCES assets(id),
-    connection_average_unit_purchase_price TEXT CHECK (
-      connection_average_unit_purchase_price IS NULL OR length(trim(connection_average_unit_purchase_price)) > 0
+    synced_average_unit_purchase_price TEXT CHECK (
+      synced_average_unit_purchase_price IS NULL OR length(trim(synced_average_unit_purchase_price)) > 0
     ),
-    connection_purchase_currency_asset_id TEXT REFERENCES assets(id),
+    synced_purchase_currency_asset_id TEXT REFERENCES assets(id),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     CHECK (
@@ -98,8 +84,8 @@ export const addDecimalValuesAndPurchasePrices = Effect.gen(function* () {
       OR (manual_average_unit_purchase_price IS NOT NULL AND manual_purchase_currency_asset_id IS NOT NULL)
     ),
     CHECK (
-      (connection_average_unit_purchase_price IS NULL AND connection_purchase_currency_asset_id IS NULL)
-      OR (connection_average_unit_purchase_price IS NOT NULL AND connection_purchase_currency_asset_id IS NOT NULL)
+      (synced_average_unit_purchase_price IS NULL AND synced_purchase_currency_asset_id IS NULL)
+      OR (synced_average_unit_purchase_price IS NOT NULL AND synced_purchase_currency_asset_id IS NOT NULL)
     ),
     UNIQUE(account_id, asset_id)
   ) STRICT`;
@@ -138,6 +124,15 @@ export const addDecimalValuesAndPurchasePrices = Effect.gen(function* () {
     reporting_currency_asset_id TEXT NOT NULL REFERENCES assets(id)
   ) STRICT`;
 
+  yield* sql`CREATE TABLE vault_security (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    pin_salt TEXT NOT NULL,
+    pin_hash TEXT NOT NULL,
+    screen_lock_timeout_minutes INTEGER NOT NULL CHECK (screen_lock_timeout_minutes IN (5, 15, 30, 60)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  ) STRICT`;
+
   const timestamp = "1970-01-01T00:00:00.000Z";
   const currencies = [
     ["USD", "US dollar"],
@@ -160,28 +155,38 @@ export const addDecimalValuesAndPurchasePrices = Effect.gen(function* () {
   }
   yield* sql`INSERT INTO app_settings (id, reporting_currency_asset_id) VALUES (1, 'fiat:USD')`;
 
+  yield* sql`INSERT INTO custodians (id, name, connector_id, config_json, created_at, updated_at)
+    VALUES ('custodian:manual', 'Manual custodian', NULL, NULL, ${timestamp}, ${timestamp})`;
+  yield* sql`INSERT INTO accounts
+    (id, custodian_id, name, account_type, base_currency_asset_id, connector_account_id, created_at, updated_at)
+    VALUES ('account:manual', 'custodian:manual', 'Manual account', 'other', 'fiat:USD', NULL, ${timestamp}, ${timestamp})`;
+
   yield* sql`CREATE TRIGGER accounts_validate_insert
     BEFORE INSERT ON accounts
     BEGIN
       SELECT CASE
         WHEN (SELECT asset_category FROM assets WHERE id = NEW.base_currency_asset_id) <> 'cash'
           THEN RAISE(ABORT, 'account base currency must be cash')
-        WHEN NEW.connection_id IS NULL AND NEW.connector_account_id IS NOT NULL
+        WHEN (SELECT connector_id FROM custodians WHERE id = NEW.custodian_id) IS NULL
+          AND NEW.connector_account_id IS NOT NULL
           THEN RAISE(ABORT, 'manual account cannot have connector identity')
-        WHEN NEW.connection_id IS NOT NULL AND NEW.connector_account_id IS NULL
-          THEN RAISE(ABORT, 'connected account requires connector identity')
+        WHEN (SELECT connector_id FROM custodians WHERE id = NEW.custodian_id) IS NOT NULL
+          AND NEW.connector_account_id IS NULL
+          THEN RAISE(ABORT, 'synced account requires connector identity')
       END;
     END`;
   yield* sql`CREATE TRIGGER accounts_validate_update
-    BEFORE UPDATE OF connection_id, base_currency_asset_id, connector_account_id ON accounts
+    BEFORE UPDATE OF custodian_id, base_currency_asset_id, connector_account_id ON accounts
     BEGIN
       SELECT CASE
         WHEN (SELECT asset_category FROM assets WHERE id = NEW.base_currency_asset_id) <> 'cash'
           THEN RAISE(ABORT, 'account base currency must be cash')
-        WHEN NEW.connection_id IS NULL AND NEW.connector_account_id IS NOT NULL
+        WHEN (SELECT connector_id FROM custodians WHERE id = NEW.custodian_id) IS NULL
+          AND NEW.connector_account_id IS NOT NULL
           THEN RAISE(ABORT, 'manual account cannot have connector identity')
-        WHEN NEW.connection_id IS NOT NULL AND NEW.connector_account_id IS NULL
-          THEN RAISE(ABORT, 'connected account requires connector identity')
+        WHEN (SELECT connector_id FROM custodians WHERE id = NEW.custodian_id) IS NOT NULL
+          AND NEW.connector_account_id IS NULL
+          THEN RAISE(ABORT, 'synced account requires connector identity')
       END;
     END`;
   yield* sql`CREATE TRIGGER asset_prices_currency_is_cash_insert
@@ -200,17 +205,17 @@ export const addDecimalValuesAndPurchasePrices = Effect.gen(function* () {
     BEFORE INSERT ON positions
     WHEN (NEW.manual_purchase_currency_asset_id IS NOT NULL AND
       (SELECT asset_category FROM assets WHERE id = NEW.manual_purchase_currency_asset_id) <> 'cash')
-      OR (NEW.connection_purchase_currency_asset_id IS NOT NULL AND
-      (SELECT asset_category FROM assets WHERE id = NEW.connection_purchase_currency_asset_id) <> 'cash')
+      OR (NEW.synced_purchase_currency_asset_id IS NOT NULL AND
+      (SELECT asset_category FROM assets WHERE id = NEW.synced_purchase_currency_asset_id) <> 'cash')
     BEGIN
       SELECT RAISE(ABORT, 'purchase price currency must be cash');
     END`;
   yield* sql`CREATE TRIGGER positions_purchase_currency_is_cash_update
-    BEFORE UPDATE OF manual_purchase_currency_asset_id, connection_purchase_currency_asset_id ON positions
+    BEFORE UPDATE OF manual_purchase_currency_asset_id, synced_purchase_currency_asset_id ON positions
     WHEN (NEW.manual_purchase_currency_asset_id IS NOT NULL AND
       (SELECT asset_category FROM assets WHERE id = NEW.manual_purchase_currency_asset_id) <> 'cash')
-      OR (NEW.connection_purchase_currency_asset_id IS NOT NULL AND
-      (SELECT asset_category FROM assets WHERE id = NEW.connection_purchase_currency_asset_id) <> 'cash')
+      OR (NEW.synced_purchase_currency_asset_id IS NOT NULL AND
+      (SELECT asset_category FROM assets WHERE id = NEW.synced_purchase_currency_asset_id) <> 'cash')
     BEGIN
       SELECT RAISE(ABORT, 'purchase price currency must be cash');
     END`;

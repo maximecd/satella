@@ -10,9 +10,13 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import type { AssetSearchResult, ConnectorCapability } from "@optimus/engine/api";
+import type {
+  AddManualHoldingInput,
+  AssetSearchResult,
+  ConnectorCapability,
+} from "@optimus/engine/api";
 import { DecimalFromNonEmptyString } from "@optimus/engine/api";
-import { ConnectConnectionInput } from "@optimus/engine/api";
+import { ConnectCustodianInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { ChevronLeft, Search, X } from "lucide-react";
 import {
@@ -45,10 +49,11 @@ import {
   useAddOtherAsset,
   useAssetSearch,
   useAssets,
-  useConnectConnection,
-  useConnections,
+  useConnectCustodian,
+  useCustodians,
   useConnectorCapabilities,
   useManualAccounts,
+  useManualCustodians,
   useManualHoldingLookup,
 } from "../portfolio";
 import { SelectField } from "../select-field";
@@ -167,8 +172,12 @@ function AddAssetsDialog({
     setHistory((frames) => frames.slice(0, -1));
   };
   const selectCategory = async (category: AddAssetsCategory) => {
-    if (category === "other") {
-      go(otherFrame());
+    if (categoryMeta(category).skipConnectors) {
+      go({
+        step: "manual",
+        category,
+        connectorId: null,
+      });
       return;
     }
     const meta = categoryMeta(category);
@@ -466,7 +475,7 @@ function ConnectStep({
 }) {
   const meta = categoryMeta(category);
   const capabilities = useConnectorCapabilities();
-  const listed = useConnections();
+  const listed = useCustodians();
   if (capabilities.isPending || listed.isPending) return <PageState kind="pending" />;
   if (capabilities.isError)
     return <PageState kind="error" message={errorMessage(capabilities.error)} />;
@@ -478,7 +487,7 @@ function ConnectStep({
     return <PageState kind="error" message="That connector is not available." />;
   }
   const existingCount = (listed.data ?? []).filter(
-    (connection) => connection.connectorId === connector.id,
+    (custodian) => custodian.connectorId === connector.id,
   ).length;
   const suggestedName =
     existingCount === 0 ? connector.name : `${connector.name} ${existingCount + 1}`;
@@ -519,7 +528,7 @@ function ConnectorImportForm({
       return next;
     });
   };
-  const connect = useConnectConnection();
+  const connect = useConnectCustodian();
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
@@ -532,14 +541,14 @@ function ConnectorImportForm({
     }
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0) return;
-    const payload = await Schema.decodeUnknownPromise(ConnectConnectionInput)({
+    const payload = await Schema.decodeUnknownPromise(ConnectCustodianInput)({
       name: name.trim(),
       connectorId: connector.id,
       credentials,
     });
     try {
-      const connection = await connect.mutateAsync(payload);
-      notify.success(`Imported accounts from ${connection.name}.`);
+      const custodian = await connect.mutateAsync(payload);
+      notify.success(`Imported accounts from ${custodian.name}.`);
       onComplete();
     } catch (cause) {
       setError(errorMessage(cause));
@@ -633,21 +642,103 @@ function ManualStep({
 }) {
   const meta = categoryMeta(category);
   if (meta.flow === "holdings") return <HoldingsForm category={category} onComplete={onComplete} />;
-  if (meta.flow === "cash") return <CashForm onComplete={onComplete} />;
-  return <GenericForm category={category} onComplete={onComplete} />;
+  if (meta.flow === "cash") return <CashForm category={category} onComplete={onComplete} />;
+  return <GenericForm onComplete={onComplete} />;
 }
 
-function useManualAccountPicker() {
-  const accounts = useManualAccounts();
+function useCashAssets() {
   const assets = useAssets();
+  const cash = assets.data?.filter((asset) => asset.assetCategory === "cash") ?? [];
+  return { assets, cash };
+}
+
+function useManualCustodianPicker() {
+  const custodians = useManualCustodians();
+  const [custodianChoiceOverride, setCustodianChoiceOverride] = useState<string>();
+  const [custodianName, setCustodianName] = useState("");
+  const listed = custodians.data ?? [];
+  const first = listed[0];
+  const custodianChoice = custodianChoiceOverride ?? first?.id ?? CREATE_NEW;
+  const creatingCustodian = listed.length === 0 || custodianChoice === CREATE_NEW;
+  const custodianOptions = [
+    ...listed.map((custodian) => ({ value: custodian.id, label: custodian.name })),
+    { value: CREATE_NEW, label: "Create new" },
+  ];
+  const destination = () =>
+    creatingCustodian
+      ? { type: "new" as const, name: custodianName.trim() }
+      : { type: "existing" as const, id: custodianChoice };
+  return {
+    custodians,
+    listed,
+    creatingCustodian,
+    custodianChoice,
+    setCustodianChoice: setCustodianChoiceOverride,
+    custodianName,
+    setCustodianName,
+    custodianOptions,
+    destination,
+    selectedId: creatingCustodian ? "" : custodianChoice,
+  };
+}
+
+function CustodianFields({
+  picker,
+  label,
+  fieldErrors,
+  clearFieldError,
+}: {
+  readonly picker: ReturnType<typeof useManualCustodianPicker>;
+  readonly label: string;
+  readonly fieldErrors: Record<string, string>;
+  readonly clearFieldError: (key: string) => void;
+}) {
+  return (
+    <>
+      {picker.listed.length > 0 && (
+        <SelectField
+          label={`Choose a ${label.toLocaleLowerCase()}`}
+          options={picker.custodianOptions}
+          value={picker.custodianChoice}
+          onChange={picker.setCustodianChoice}
+        />
+      )}
+      {picker.creatingCustodian && (
+        <Field
+          label={picker.listed.length === 0 ? label : `${label} name`}
+          invalid={fieldErrors.custodianName !== undefined}
+          errorText={fieldErrors.custodianName}
+        >
+          <Input
+            name="custodianName"
+            value={picker.custodianName}
+            onChange={(event) => {
+              picker.setCustodianName(event.target.value);
+              clearFieldError("custodianName");
+            }}
+          />
+        </Field>
+      )}
+    </>
+  );
+}
+
+function useHoldingAccountPicker(custodianId: string, accountType: "brokerage" | "crypto_wallet") {
+  const accounts = useManualAccounts();
+  const { assets, cash } = useCashAssets();
   const [accountChoiceOverride, setAccountChoiceOverride] = useState<string>();
   const [accountName, setAccountName] = useState("");
-  const [currencyIdOverride, setCurrencyIdOverride] = useState<string>();
-  const firstAccount = accounts.data?.[0];
-  const accountChoice = accountChoiceOverride ?? firstAccount?.id ?? CREATE_NEW;
-  const currencyId = currencyIdOverride ?? firstAccount?.baseCurrencyAssetId ?? "fiat:USD";
-  const cash = assets.data?.filter((asset) => asset.assetCategory === "cash") ?? [];
-  const listed = accounts.data ?? [];
+  const [currencyId, setCurrencyId] = useState("fiat:USD");
+  const [scope, setScope] = useState(`${custodianId}:${accountType}`);
+  const nextScope = `${custodianId}:${accountType}`;
+  if (scope !== nextScope) {
+    setScope(nextScope);
+    setAccountChoiceOverride(undefined);
+  }
+  const listed = (accounts.data ?? []).filter(
+    (account) => account.custodianId === custodianId && account.accountType === accountType,
+  );
+  const accountChoice = accountChoiceOverride ?? CREATE_NEW;
   const creatingAccount = listed.length === 0 || accountChoice === CREATE_NEW;
   const accountOptions = [
     ...listed.map((account) => ({
@@ -658,7 +749,12 @@ function useManualAccountPicker() {
   ];
   const destination = () =>
     creatingAccount
-      ? { type: "new" as const, name: accountName.trim(), baseCurrencyAssetId: currencyId }
+      ? {
+          type: "new" as const,
+          name: accountName.trim(),
+          accountType,
+          baseCurrencyAssetId: currencyId,
+        }
       : { type: "existing" as const, id: accountChoice };
   return {
     accounts,
@@ -671,18 +767,18 @@ function useManualAccountPicker() {
     accountName,
     setAccountName,
     currencyId,
-    setCurrencyId: setCurrencyIdOverride,
+    setCurrencyId,
     accountOptions,
     destination,
   };
 }
 
-function AccountFields({
+function HoldingAccountFields({
   picker,
   fieldErrors,
   clearFieldError,
 }: {
-  readonly picker: ReturnType<typeof useManualAccountPicker>;
+  readonly picker: ReturnType<typeof useHoldingAccountPicker>;
   readonly fieldErrors: Record<string, string>;
   readonly clearFieldError: (key: string) => void;
 }) {
@@ -702,7 +798,7 @@ function AccountFields({
       )}
       {picker.creatingAccount && (
         <Field
-          label={picker.listed.length === 0 ? "Choose an account" : "Account name"}
+          label={picker.listed.length === 0 ? "Account name" : "Account name"}
           invalid={fieldErrors.accountName !== undefined}
           errorText={fieldErrors.accountName}
         >
@@ -716,17 +812,6 @@ function AccountFields({
           />
         </Field>
       )}
-      {picker.creatingAccount && (
-        <SelectField
-          label="Base currency"
-          options={picker.cash.map((asset) => ({
-            value: asset.id,
-            label: asset.symbol ?? asset.name,
-          }))}
-          value={picker.currencyId}
-          onChange={picker.setCurrencyId}
-        />
-      )}
     </>
   );
 }
@@ -739,7 +824,11 @@ function HoldingsForm({
   readonly onComplete: () => void;
 }) {
   const meta = categoryMeta(category);
-  const picker = useManualAccountPicker();
+  const custodianPicker = useManualCustodianPicker();
+  const accountPicker = useHoldingAccountPicker(
+    custodianPicker.selectedId,
+    meta.accountType === "crypto_wallet" ? "crypto_wallet" : "brokerage",
+  );
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [selected, setSelected] = useState<AssetSearchResult | null>(null);
@@ -756,13 +845,13 @@ function HoldingsForm({
   const results = useAssetSearch(debounced, searchCategory);
   const identifier = selected?.identifiers[0];
   const lookup = useManualHoldingLookup(
-    picker.creatingAccount ? "" : picker.accountChoice,
+    accountPicker.creatingAccount ? "" : accountPicker.accountChoice,
     identifier?.type ?? "",
     identifier?.value ?? "",
   );
   const existingQuantity = lookup.data?.quantity;
   const holdingKey = JSON.stringify([
-    picker.creatingAccount ? "" : picker.accountChoice,
+    accountPicker.creatingAccount ? "" : accountPicker.accountChoice,
     identifier?.type ?? "",
     identifier?.value ?? "",
   ]);
@@ -774,9 +863,16 @@ function HoldingsForm({
         : String(existingQuantity);
   const setQuantity = (value: string) => setQuantityDraft({ key: holdingKey, value });
   const mutation = useAddManualHolding();
-  if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
-  if (picker.accounts.isError)
-    return <PageState kind="error" message={errorMessage(picker.accounts.error)} />;
+  if (
+    custodianPicker.custodians.isPending ||
+    accountPicker.accounts.isPending ||
+    accountPicker.assets.isPending
+  )
+    return <PageState kind="pending" />;
+  if (custodianPicker.custodians.isError)
+    return <PageState kind="error" message={errorMessage(custodianPicker.custodians.error)} />;
+  if (accountPicker.accounts.isError)
+    return <PageState kind="error" message={errorMessage(accountPicker.accounts.error)} />;
   const clearFieldError = (key: string) => {
     setFieldErrors((current) => {
       if (current[key] === undefined) return current;
@@ -792,7 +888,10 @@ function HoldingsForm({
     if (selected === null || identifier === undefined) {
       nextFieldErrors.asset = "Select an asset.";
     }
-    if (picker.creatingAccount && picker.accountName.trim() === "") {
+    if (custodianPicker.creatingCustodian && custodianPicker.custodianName.trim() === "") {
+      nextFieldErrors.custodianName = `${meta.custodianLabel} name is required.`;
+    }
+    if (accountPicker.creatingAccount && accountPicker.accountName.trim() === "") {
       nextFieldErrors.accountName = "Account name is required.";
     }
     const decoded = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(quantity).catch(
@@ -819,21 +918,22 @@ function HoldingsForm({
     }
     if (decoded === undefined) return;
     try {
-      const input = {
+      const input: AddManualHoldingInput = {
         asset: {
           assetCategory: searchCategory,
           name: selected.name,
           symbol: selected.symbol,
           identifiers: [{ type: identifier.type, value: identifier.value }],
         },
-        account: picker.destination(),
+        custodian: custodianPicker.destination(),
+        account: accountPicker.destination(),
         quantity: decoded,
       };
       if (decodedAverage !== undefined) {
         Object.assign(input, {
           averageUnitPurchasePrice: {
             price: decodedAverage,
-            currencyAssetId: picker.currencyId,
+            currencyAssetId: accountPicker.currencyId,
           },
         });
       }
@@ -917,8 +1017,14 @@ function HoldingsForm({
       <FormError message={error} />
       <form onSubmit={(event) => void submit(event)}>
         <Stack gap="4">
-          <AccountFields
-            picker={picker}
+          <CustodianFields
+            picker={custodianPicker}
+            label={meta.custodianLabel ?? "Custodian"}
+            fieldErrors={fieldErrors}
+            clearFieldError={clearFieldError}
+          />
+          <HoldingAccountFields
+            picker={accountPicker}
             fieldErrors={fieldErrors}
             clearFieldError={clearFieldError}
           />
@@ -952,12 +1058,12 @@ function HoldingsForm({
           </Field>
           <SelectField
             label="Purchase currency"
-            options={picker.cash.map((asset) => ({
+            options={accountPicker.cash.map((asset) => ({
               value: asset.id,
               label: asset.symbol ?? asset.name,
             }))}
-            value={picker.currencyId}
-            onChange={picker.setCurrencyId}
+            value={accountPicker.currencyId}
+            onChange={accountPicker.setCurrencyId}
           />
           <Button
             type="submit"
@@ -975,15 +1081,25 @@ function HoldingsForm({
   );
 }
 
-function CashForm({ onComplete }: { readonly onComplete: () => void }) {
-  const picker = useManualAccountPicker();
+function CashForm({
+  category,
+  onComplete,
+}: {
+  readonly category: AddAssetsCategory;
+  readonly onComplete: () => void;
+}) {
+  const meta = categoryMeta(category);
+  const custodianPicker = useManualCustodianPicker();
+  const { assets, cash: currencies } = useCashAssets();
+  const [accountName, setAccountName] = useState("");
+  const [currencyId, setCurrencyId] = useState("fiat:USD");
   const [balance, setBalance] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const cash = useAddCashAccount();
-  if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
-  if (picker.accounts.isError)
-    return <PageState kind="error" message={errorMessage(picker.accounts.error)} />;
+  if (custodianPicker.custodians.isPending || assets.isPending) return <PageState kind="pending" />;
+  if (custodianPicker.custodians.isError)
+    return <PageState kind="error" message={errorMessage(custodianPicker.custodians.error)} />;
   const clearFieldError = (key: string) => {
     setFieldErrors((current) => {
       if (current[key] === undefined) return current;
@@ -996,9 +1112,10 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
     event.preventDefault();
     setError(null);
     const nextFieldErrors: Record<string, string> = {};
-    if (picker.creatingAccount && picker.accountName.trim() === "") {
-      nextFieldErrors.accountName = "Account name is required.";
+    if (custodianPicker.creatingCustodian && custodianPicker.custodianName.trim() === "") {
+      nextFieldErrors.custodianName = "Bank name is required.";
     }
+    if (accountName.trim() === "") nextFieldErrors.accountName = "Account name is required.";
     const decoded = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(balance).catch(
       () => undefined,
     );
@@ -1010,11 +1127,13 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
     if (Object.keys(nextFieldErrors).length > 0 || decoded === undefined) return;
     try {
       const result = await cash.mutateAsync({
-        account: picker.destination(),
-        currencyAssetId: picker.currencyId,
+        accountType: meta.accountType === "savings" ? "savings" : "checking",
+        custodian: custodianPicker.destination(),
+        name: accountName.trim(),
+        currencyAssetId: currencyId,
         balance: decoded,
       });
-      notify.success(`Updated ${result.accountName}.`);
+      notify.success(`Added ${result.accountName}.`);
       onComplete();
     } catch (cause) {
       setError(errorMessage(cause));
@@ -1025,22 +1144,35 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
       <FormError message={error} />
       <form onSubmit={(event) => void submit(event)}>
         <Stack gap="4">
-          <AccountFields
-            picker={picker}
+          <CustodianFields
+            picker={custodianPicker}
+            label="Bank"
             fieldErrors={fieldErrors}
             clearFieldError={clearFieldError}
           />
-          {!picker.creatingAccount && (
-            <SelectField
-              label="Currency"
-              options={picker.cash.map((asset) => ({
-                value: asset.id,
-                label: asset.symbol ?? asset.name,
-              }))}
-              value={picker.currencyId}
-              onChange={picker.setCurrencyId}
+          <Field
+            label="Account name"
+            invalid={fieldErrors.accountName !== undefined}
+            errorText={fieldErrors.accountName}
+          >
+            <Input
+              name="accountName"
+              value={accountName}
+              onChange={(event) => {
+                setAccountName(event.target.value);
+                clearFieldError("accountName");
+              }}
             />
-          )}
+          </Field>
+          <SelectField
+            label="Currency"
+            options={currencies.map((asset) => ({
+              value: asset.id,
+              label: asset.symbol ?? asset.name,
+            }))}
+            value={currencyId}
+            onChange={setCurrencyId}
+          />
           <Field
             label="Balance"
             invalid={fieldErrors.balance !== undefined}
@@ -1061,7 +1193,7 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
             loading={cash.isPending}
             disabled={cash.isPending}
           >
-            Save cash
+            Save account
           </Button>
         </Stack>
       </form>
@@ -1069,49 +1201,17 @@ function CashForm({ onComplete }: { readonly onComplete: () => void }) {
   );
 }
 
-function GenericForm({
-  category,
-  onComplete,
-}: {
-  readonly category: AddAssetsCategory;
-  readonly onComplete: () => void;
-}) {
-  const meta = categoryMeta(category);
-  const picker = useManualAccountPicker();
+function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
+  const { assets, cash } = useCashAssets();
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [averagePrice, setAveragePrice] = useState("");
-  const [currencySelection, setCurrencySelection] = useState<{
-    readonly baseCurrencyId: string;
-    readonly valueCurrencyId: string;
-    readonly purchaseCurrencyId: string;
-  }>();
+  const [valueCurrencyId, setValueCurrencyId] = useState("fiat:USD");
+  const [purchaseCurrencyId, setPurchaseCurrencyId] = useState("fiat:USD");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const mutation = useAddOtherAsset();
-  const selectedCurrencies =
-    currencySelection?.baseCurrencyId === picker.currencyId
-      ? currencySelection
-      : {
-          baseCurrencyId: picker.currencyId,
-          valueCurrencyId: picker.currencyId,
-          purchaseCurrencyId: picker.currencyId,
-        };
-  const valueCurrencyId = selectedCurrencies.valueCurrencyId;
-  const purchaseCurrencyId = selectedCurrencies.purchaseCurrencyId;
-  const setValueCurrencyId = (nextValue: string) =>
-    setCurrencySelection({
-      ...selectedCurrencies,
-      valueCurrencyId: nextValue,
-    });
-  const setPurchaseCurrencyId = (nextValue: string) =>
-    setCurrencySelection({
-      ...selectedCurrencies,
-      purchaseCurrencyId: nextValue,
-    });
-  if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
-  if (picker.accounts.isError)
-    return <PageState kind="error" message={errorMessage(picker.accounts.error)} />;
+  if (assets.isPending) return <PageState kind="pending" />;
   const clearFieldError = (key: string) => {
     setFieldErrors((current) => {
       if (current[key] === undefined) return current;
@@ -1125,9 +1225,6 @@ function GenericForm({
     setError(null);
     const nextFieldErrors: Record<string, string> = {};
     if (name.trim() === "") nextFieldErrors.name = "Asset name is required.";
-    if (picker.creatingAccount && picker.accountName.trim() === "") {
-      nextFieldErrors.accountName = "Account name is required.";
-    }
     const decoded = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(value).catch(
       () => undefined,
     );
@@ -1150,11 +1247,6 @@ function GenericForm({
     if (Object.keys(nextFieldErrors).length > 0 || decoded === undefined) return;
     try {
       const input = {
-        category:
-          meta.assetCategory === "bonds" || meta.assetCategory === "other"
-            ? meta.assetCategory
-            : "other",
-        account: picker.destination(),
         name: name.trim(),
         value: decoded,
         currencyAssetId: valueCurrencyId,
@@ -1193,11 +1285,6 @@ function GenericForm({
               }}
             />
           </Field>
-          <AccountFields
-            picker={picker}
-            fieldErrors={fieldErrors}
-            clearFieldError={clearFieldError}
-          />
           <Field
             label="Current value"
             invalid={fieldErrors.value !== undefined}
@@ -1214,7 +1301,7 @@ function GenericForm({
           </Field>
           <SelectField
             label="Currency"
-            options={picker.cash.map((asset) => ({
+            options={cash.map((asset) => ({
               value: asset.id,
               label: asset.symbol ?? asset.name,
             }))}
@@ -1237,7 +1324,7 @@ function GenericForm({
           </Field>
           <SelectField
             label="Purchase currency"
-            options={picker.cash.map((asset) => ({
+            options={cash.map((asset) => ({
               value: asset.id,
               label: asset.symbol ?? asset.name,
             }))}

@@ -2,7 +2,7 @@ import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
 import { randomUUID } from "node:crypto";
 
-import type { AssetCategory, IdentifierInput } from "./contracts.js";
+import type { AccountType, AssetCategory, IdentifierInput } from "./contracts.js";
 import { FinanceApiError } from "./contracts.js";
 import {
   addDecimal,
@@ -55,6 +55,12 @@ export interface ReconciliationResult {
 
 const fail = (code: FinanceApiError["code"], message: string) =>
   Effect.fail(new FinanceApiError({ code, message }));
+
+const accountTypeForConnector = (connectorId: string): AccountType => {
+  if (connectorId === "okx") return "crypto_wallet";
+  if (connectorId === "ibkr") return "brokerage";
+  return "other";
+};
 
 const nonEmpty = (value: string, label: string) => {
   const trimmed = value.trim();
@@ -150,21 +156,21 @@ export const mergeAssets = (sourceAssetId: string, targetAssetId: string) =>
       readonly quantity: string;
       readonly manual_average_unit_purchase_price: string | null;
       readonly manual_purchase_currency_asset_id: string | null;
-      readonly connection_average_unit_purchase_price: string | null;
-      readonly connection_purchase_currency_asset_id: string | null;
+      readonly synced_average_unit_purchase_price: string | null;
+      readonly synced_purchase_currency_asset_id: string | null;
     }>`SELECT id, account_id, quantity,
       manual_average_unit_purchase_price, manual_purchase_currency_asset_id,
-      connection_average_unit_purchase_price, connection_purchase_currency_asset_id
+      synced_average_unit_purchase_price, synced_purchase_currency_asset_id
       FROM positions WHERE asset_id = ${sourceAssetId}`;
     for (const source of sourcePositions) {
       const target = yield* sql<{
         readonly id: string;
         readonly manual_average_unit_purchase_price: string | null;
         readonly manual_purchase_currency_asset_id: string | null;
-        readonly connection_average_unit_purchase_price: string | null;
-        readonly connection_purchase_currency_asset_id: string | null;
+        readonly synced_average_unit_purchase_price: string | null;
+        readonly synced_purchase_currency_asset_id: string | null;
       }>`SELECT id, manual_average_unit_purchase_price, manual_purchase_currency_asset_id,
-        connection_average_unit_purchase_price, connection_purchase_currency_asset_id
+        synced_average_unit_purchase_price, synced_purchase_currency_asset_id
         FROM positions
         WHERE account_id = ${source.account_id} AND asset_id = ${targetAssetId}`;
       const targetPositionId = target[0]?.id;
@@ -201,18 +207,18 @@ export const mergeAssets = (sourceAssetId: string, targetAssetId: string) =>
         targetPosition.manual_average_unit_purchase_price !== null
           ? targetPosition.manual_purchase_currency_asset_id
           : source.manual_purchase_currency_asset_id;
-      const connectionAverage =
-        targetPosition.connection_average_unit_purchase_price ??
-        source.connection_average_unit_purchase_price;
-      const connectionCurrency =
-        targetPosition.connection_average_unit_purchase_price !== null
-          ? targetPosition.connection_purchase_currency_asset_id
-          : source.connection_purchase_currency_asset_id;
+      const syncedAverage =
+        targetPosition.synced_average_unit_purchase_price ??
+        source.synced_average_unit_purchase_price;
+      const syncedCurrency =
+        targetPosition.synced_average_unit_purchase_price !== null
+          ? targetPosition.synced_purchase_currency_asset_id
+          : source.synced_purchase_currency_asset_id;
       yield* sql`UPDATE positions SET quantity = ${addDecimal(targetQuantity[0]!.quantity, source.quantity)},
         manual_average_unit_purchase_price = ${manualAverage},
         manual_purchase_currency_asset_id = ${manualCurrency},
-        connection_average_unit_purchase_price = ${connectionAverage},
-        connection_purchase_currency_asset_id = ${connectionCurrency},
+        synced_average_unit_purchase_price = ${syncedAverage},
+        synced_purchase_currency_asset_id = ${syncedCurrency},
         updated_at = ${new Date().toISOString()} WHERE id = ${targetPositionId}`;
       yield* sql`DELETE FROM positions WHERE id = ${source.id}`;
     }
@@ -266,7 +272,7 @@ export const mergeConnectorAssetDuplicates = () =>
   });
 
 const resolveAsset = (
-  connectionId: string,
+  custodianId: string,
   asset: NormalizedConnectorAsset,
   repairMappedAsset: boolean,
 ) =>
@@ -275,7 +281,7 @@ const resolveAsset = (
     const mapped = yield* sql<{
       readonly asset_id: string;
     }>`SELECT asset_id FROM connector_asset_mappings
-      WHERE connection_id = ${connectionId} AND external_asset_id = ${asset.externalAssetId}`;
+      WHERE custodian_id = ${custodianId} AND external_asset_id = ${asset.externalAssetId}`;
     if (mapped[0] !== undefined) {
       // Older connector syncs could create a symbol-only asset before a
       // matching automatic asset existed. On a complete result, merge it
@@ -315,8 +321,8 @@ const resolveAsset = (
     } else {
       yield* attachConnectorIdentifiers(assetId, asset.identifiers);
     }
-    yield* sql`INSERT INTO connector_asset_mappings (connection_id, external_asset_id, asset_id)
-      VALUES (${connectionId}, ${asset.externalAssetId}, ${assetId})`;
+    yield* sql`INSERT INTO connector_asset_mappings (custodian_id, external_asset_id, asset_id)
+      VALUES (${custodianId}, ${asset.externalAssetId}, ${assetId})`;
     return assetId;
   });
 
@@ -325,15 +331,15 @@ const resolveAsset = (
  * only for a successful complete result; partial output never zeros or removes.
  */
 export const reconcileConnector = (
-  connectionId: string,
+  custodianId: string,
   output: NormalizedConnectorOutput,
 ): Effect.Effect<ReconciliationResult, FinanceApiError, SqlClient.SqlClient> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const owner = yield* sql<{
       readonly connector_id: string;
-    }>`SELECT connector_id FROM connections WHERE id = ${connectionId}`;
-    if (owner[0] === undefined) return yield* fail("not_found", "Connection was not found");
+    }>`SELECT connector_id FROM custodians WHERE id = ${custodianId}`;
+    if (owner[0] === undefined) return yield* fail("not_found", "Custodian was not found");
     const connectorId = owner[0].connector_id;
     const externalAssetIds = new Set<string>();
     for (const asset of output.assets) {
@@ -382,7 +388,7 @@ export const reconcileConnector = (
         for (const asset of output.assets)
           assets.set(
             asset.externalAssetId,
-            yield* resolveAsset(connectionId, asset, output.complete),
+            yield* resolveAsset(custodianId, asset, output.complete),
           );
         const seenPositionIds: string[] = [];
         const seenAccountIds: string[] = [];
@@ -392,12 +398,12 @@ export const reconcileConnector = (
           const currencyId = yield* ensureCash(account.baseCurrencyIso);
           const timestamp = new Date().toISOString();
           const existing = yield* sql<{ readonly id: string }>`SELECT id FROM accounts
-            WHERE connection_id = ${connectionId} AND connector_account_id = ${account.externalAccountId}`;
+            WHERE custodian_id = ${custodianId} AND connector_account_id = ${account.externalAccountId}`;
           const accountId = existing[0]?.id ?? randomUUID();
           if (existing[0] === undefined) {
             yield* sql`INSERT INTO accounts
-              (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
-              VALUES (${accountId}, ${connectionId}, ${name}, ${currencyId}, ${account.externalAccountId}, ${timestamp}, ${timestamp})`;
+              (id, custodian_id, name, account_type, base_currency_asset_id, connector_account_id, created_at, updated_at)
+              VALUES (${accountId}, ${custodianId}, ${name}, ${accountTypeForConnector(connectorId)}, ${currencyId}, ${account.externalAccountId}, ${timestamp}, ${timestamp})`;
           } else {
             yield* sql`UPDATE accounts SET name = ${name},
               base_currency_asset_id = ${currencyId},
@@ -443,8 +449,8 @@ export const reconcileConnector = (
                 position.averageUnitPurchasePrice.currencyIso,
               );
               yield* sql`UPDATE positions SET
-                connection_average_unit_purchase_price = ${averagePrice},
-                connection_purchase_currency_asset_id = ${purchaseCurrencyId},
+                synced_average_unit_purchase_price = ${averagePrice},
+                synced_purchase_currency_asset_id = ${purchaseCurrencyId},
                 updated_at = ${timestamp} WHERE id = ${positionId}`;
             }
             seenPositionIds.push(positionId);
@@ -459,11 +465,11 @@ export const reconcileConnector = (
               ? yield* sql<{
                   readonly id: string;
                 }>`SELECT p.id FROM positions p JOIN accounts a ON a.id = p.account_id
-                WHERE a.connection_id = ${connectionId}`
+                WHERE a.custodian_id = ${custodianId}`
               : yield* sql<{
                   readonly id: string;
                 }>`SELECT p.id FROM positions p JOIN accounts a ON a.id = p.account_id
-                WHERE a.connection_id = ${connectionId} AND p.id NOT IN ${sql.in(seenPositionIds)}`;
+                WHERE a.custodian_id = ${custodianId} AND p.id NOT IN ${sql.in(seenPositionIds)}`;
           zeroedPositionCount = missingPositions.length;
           for (const { id } of missingPositions)
             yield* sql`UPDATE positions SET quantity = 0, updated_at = ${new Date().toISOString()} WHERE id = ${id}`;
@@ -471,16 +477,16 @@ export const reconcileConnector = (
             seenAccountIds.length === 0
               ? yield* sql<{
                   readonly id: string;
-                }>`SELECT id FROM accounts WHERE connection_id = ${connectionId}`
+                }>`SELECT id FROM accounts WHERE custodian_id = ${custodianId}`
               : yield* sql<{
                   readonly id: string;
-                }>`SELECT id FROM accounts WHERE connection_id = ${connectionId}
+                }>`SELECT id FROM accounts WHERE custodian_id = ${custodianId}
                 AND id NOT IN ${sql.in(seenAccountIds)}`;
           removedAccountCount = missingAccounts.length;
           for (const { id } of missingAccounts) yield* sql`DELETE FROM accounts WHERE id = ${id}`;
         }
-        yield* sql`UPDATE connections SET last_synced_at = ${new Date().toISOString()},
-          updated_at = ${new Date().toISOString()} WHERE id = ${connectionId}`;
+        yield* sql`UPDATE custodians SET last_synced_at = ${new Date().toISOString()},
+          updated_at = ${new Date().toISOString()} WHERE id = ${custodianId}`;
         return {
           accountCount: output.accounts.length,
           positionCount,

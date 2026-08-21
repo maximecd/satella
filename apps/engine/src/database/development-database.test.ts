@@ -30,14 +30,14 @@ const loadManualPortfolio = (directory: string) =>
     Effect.gen(function* () {
       const accounts = yield* Finance.listManualAccounts();
       const assets = yield* Finance.listAssets();
-      const connections = yield* Finance.listConnections();
+      const custodians = yield* Finance.listCustodians();
       const history = yield* Finance.getPortfolioHistory();
-      return { accounts, assets, connections, history };
+      return { accounts, assets, custodians, history };
     }),
   );
 
 const expectCanonicalFixture = async (directory: string) => {
-  const { accounts, assets, connections, history } = await loadManualPortfolio(directory);
+  const { accounts, assets, custodians, history } = await loadManualPortfolio(directory);
   const brokerage = accounts.find((account) => account.name === "Demo Brokerage");
   const euroCash = accounts.find((account) => account.name === "Demo Euro Cash");
   const apple = assets.find((asset) => asset.symbol === "AAPL");
@@ -47,14 +47,16 @@ const expectCanonicalFixture = async (directory: string) => {
 
   expect(brokerage).toMatchObject({
     id: "seed:account:demo-brokerage",
-    connectionId: null,
+    custodianId: "seed:custodian:demo",
+    isDefaultCustodian: false,
     connectorAccountId: null,
     baseCurrencyIso: "USD",
     total: "20787.5",
   });
   expect(euroCash).toMatchObject({
     id: "seed:account:demo-euro-cash",
-    connectionId: null,
+    custodianId: "seed:custodian:demo",
+    isDefaultCustodian: false,
     connectorAccountId: null,
     baseCurrencyIso: "EUR",
     total: "8000",
@@ -134,7 +136,10 @@ const expectCanonicalFixture = async (directory: string) => {
     source: "manual",
     observedAt: FIXTURE_QUOTE_TIME,
   });
-  expect(connections).toEqual([]);
+  expect(custodians.some((custodian) => custodian.id === "seed:custodian:demo")).toBe(true);
+  expect(custodians.find((custodian) => custodian.id === "seed:custodian:demo")?.name).toBe(
+    "Demo custodian",
+  );
   expect(history).toHaveLength(FIXTURE_PRICE_HISTORY.length);
   expect(history[0]).toEqual(
     expect.objectContaining({

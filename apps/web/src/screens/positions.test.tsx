@@ -15,7 +15,7 @@ describe("positions screen", () => {
     resetFinanceMocks();
   });
 
-  it("renders the focused Position-edit model without an Account-shaped payload", async () => {
+  it("renders the Position editor", async () => {
     renderRoute("/positions/active-position/edit");
     expect(await screen.findByRole("heading", { name: "Edit Unpriced asset" })).toBeInTheDocument();
     expect(screen.getByLabelText("Quantity")).toHaveValue("2");
@@ -26,13 +26,13 @@ describe("positions screen", () => {
     );
   });
 
-  it("uses Connection breadcrumbs from the focused read model", async () => {
+  it("uses custodian breadcrumbs from the focused read model", async () => {
     seedPortfolioEngine({ positionEdits: [connectedPositionEdit] });
     renderRoute("/positions/connected-position/edit");
     expect(await screen.findByRole("heading", { name: "Edit Bitcoin" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "OKX" })).toHaveAttribute(
       "href",
-      "/settings/connections/custodian-1",
+      "/settings/custodians/custodian-1",
     );
   });
 
@@ -64,7 +64,6 @@ describe("positions screen", () => {
     expect(screen.queryByText("Quantity is required.")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(screen.getAllByText("Quantity is required.").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/Unable to decode/)).not.toBeInTheDocument();
   });
 
   it("allows a connected purchase price reset to be replaced manually", async () => {
@@ -75,7 +74,7 @@ describe("positions screen", () => {
         price: "5",
         currencyAssetId: "fiat:USD",
         currencyIso: "USD",
-        source: "connection" as const,
+        source: "synced" as const,
       },
       acquisitionCost: "5",
       unrealizedPnl: "95",

@@ -144,11 +144,11 @@ export const normalizeConnectorAccounts = (
   });
 
 export const reconcileConnectorAccounts = (
-  connectionId: string,
+  custodianId: string,
   accounts: ReadonlyArray<ConnectorAccount>,
 ): Effect.Effect<ReconciliationResult, FinanceApiError, SqlClient.SqlClient> =>
   normalizeConnectorAccounts(accounts).pipe(
-    Effect.flatMap((output) => reconcileConnector(connectionId, output)),
+    Effect.flatMap((output) => reconcileConnector(custodianId, output)),
   );
 
 export type ConnectorSyncError =
@@ -158,21 +158,21 @@ export type ConnectorSyncError =
 
 /** Authenticates a connector, fetches its complete account tree, and reconciles it atomically. */
 export const syncConnector = <Credentials, R>(
-  connectionId: string,
+  custodianId: string,
   connector: Connector<Credentials, R>,
   credentials: Credentials,
 ): Effect.Effect<ReconciliationResult, ConnectorSyncError, R | SqlClient.SqlClient> =>
   connector.authenticate(credentials).pipe(
     Effect.flatMap((authenticated: AuthenticatedConnector<R>) => authenticated.fetchAccounts()),
     Effect.flatMap((accounts: ReadonlyArray<ConnectorAccount>) =>
-      reconcileConnectorAccounts(connectionId, accounts),
+      reconcileConnectorAccounts(custodianId, accounts),
     ),
   );
 
 /** Runs a connector selected from the compiled registry without exposing the registry to callers. */
 export const syncRegisteredConnectorFrom = (
   registry: ConnectorRegistry,
-  connectionId: string,
+  custodianId: string,
   connectorId: string,
   credentials: ConnectorCredentials,
 ): Effect.Effect<
@@ -189,11 +189,11 @@ export const syncRegisteredConnectorFrom = (
       }),
     );
   }
-  return syncConnector(connectionId, connector, credentials);
+  return syncConnector(custodianId, connector, credentials);
 };
 
 export const syncRegisteredConnector = (
-  connectionId: string,
+  custodianId: string,
   connectorId: string,
   credentials: ConnectorCredentials,
-) => syncRegisteredConnectorFrom(CONNECTOR_REGISTRY, connectionId, connectorId, credentials);
+) => syncRegisteredConnectorFrom(CONNECTOR_REGISTRY, custodianId, connectorId, credentials);

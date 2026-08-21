@@ -42,7 +42,7 @@ export function OnboardingScreen() {
           Welcome to Optimus
         </Heading>
         <Text as="p">
-          Optimus keeps your portfolio, Connections, and credentials in one local Vault on this
+          Optimus keeps your portfolio, custodians, and credentials in one local Vault on this
           computer. Financial data stays local except when Optimus talks directly to Connectors and
           market-data sources you configure.
         </Text>

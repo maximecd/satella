@@ -4,10 +4,10 @@ import { FinanceApi } from "./Api.js";
 
 describe("finance API routes", () => {
   it.each([
-    ["getConnection", "/api/connections/:id"],
-    ["refreshConnection", "/api/connections/:id/refresh"],
-    ["updateConnection", "/api/connections/:id"],
-    ["deleteConnection", "/api/connections/:id"],
+    ["getCustodian", "/api/custodians/:id"],
+    ["refreshCustodian", "/api/custodians/:id/refresh"],
+    ["updateCustodian", "/api/custodians/:id"],
+    ["deleteCustodian", "/api/custodians/:id"],
     ["getAccount", "/api/accounts/:id"],
     ["updateAccount", "/api/accounts/:id"],
     ["deleteAccount", "/api/accounts/:id"],
@@ -27,12 +27,14 @@ describe("finance API routes", () => {
     ["getSettings", "/api/settings"],
     ["updateSettings", "/api/settings"],
     ["listManualAccounts", "/api/manual-accounts"],
+    ["listManualCustodians", "/api/manual-custodians"],
     ["lookupManualHolding", "/api/manual-holdings/lookup"],
     ["addManualHolding", "/api/add-assets/holding"],
     ["addCashAccount", "/api/add-assets/cash"],
     ["addOtherAsset", "/api/add-assets/other"],
-    ["listConnections", "/api/connections"],
-    ["connectConnection", "/api/connections"],
+    ["listCustodians", "/api/custodians"],
+    ["createCustodian", "/api/custodians"],
+    ["connectCustodian", "/api/custodians/connect"],
   ] as const)("declares %s at %s", (name, path) => {
     expect(FinanceApi.endpoints[name].path).toBe(path);
   });

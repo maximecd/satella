@@ -96,9 +96,13 @@ describe("engine Vault process", () => {
     expect(initialized.status).toBeLessThan(300);
     expect(initialized.body).toMatchObject({ state: "open", screenLock: false });
 
-    const created = await json(port, "/api/accounts", {
+    const created = await json(port, "/api/add-assets/other", {
       method: "POST",
-      body: JSON.stringify({ name: MARKER }),
+      body: JSON.stringify({
+        name: MARKER,
+        value: "1",
+        currencyAssetId: "fiat:USD",
+      }),
     });
     expect(created.status).toBe(201);
 

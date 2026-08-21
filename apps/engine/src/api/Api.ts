@@ -26,11 +26,12 @@ import {
   Asset,
   AssetSearchResult,
   ConnectorCapabilities,
-  ConnectConnectionInput,
+  ConnectCustodianInput,
   CreateAccountInput,
   CreateAssetInput,
+  CreateCustodianInput,
   CreatePositionInput,
-  Connection,
+  Custodian,
   Dashboard,
   FinanceApiError,
   LookupManualHoldingParams,
@@ -40,12 +41,12 @@ import {
   PortfolioHistoryPoint,
   PositionEdit,
   SetManualPriceInput,
-  ConnectionRefreshResult,
+  CustodianRefreshResult,
   SearchAssetsParams,
   Settings,
   SnapshotResult,
   UpdateAccountInput,
-  UpdateConnectionInput,
+  UpdateCustodianInput,
   UpdatePositionInput,
   UpdateSettingsInput,
 } from "../finance/contracts.js";
@@ -80,6 +81,12 @@ export const FinanceApi = HttpApiGroup.make("finance")
     }),
   )
   .add(
+    HttpApiEndpoint.get("listManualCustodians", "/api/manual-custodians", {
+      success: Schema.Array(Custodian),
+      error: FinanceApiError,
+    }),
+  )
+  .add(
     HttpApiEndpoint.get("lookupManualHolding", "/api/manual-holdings/lookup", {
       query: LookupManualHoldingParams,
       success: ManualHoldingLookup,
@@ -108,42 +115,49 @@ export const FinanceApi = HttpApiGroup.make("finance")
     }),
   )
   .add(
-    HttpApiEndpoint.get("listConnections", "/api/connections", {
-      success: Schema.Array(Connection),
+    HttpApiEndpoint.get("listCustodians", "/api/custodians", {
+      success: Schema.Array(Custodian),
       error: FinanceApiError,
     }),
   )
   .add(
-    HttpApiEndpoint.get("getConnection", "/api/connections/:id", {
+    HttpApiEndpoint.get("getCustodian", "/api/custodians/:id", {
       params: EntityIdParams,
-      success: Connection,
+      success: Custodian,
       error: FinanceApiError,
     }),
   )
   .add(
-    HttpApiEndpoint.post("connectConnection", "/api/connections", {
-      payload: ConnectConnectionInput,
-      success: created(Connection),
+    HttpApiEndpoint.post("createCustodian", "/api/custodians", {
+      payload: CreateCustodianInput,
+      success: created(Custodian),
       error: FinanceApiError,
     }),
   )
   .add(
-    HttpApiEndpoint.post("refreshConnection", "/api/connections/:id/refresh", {
+    HttpApiEndpoint.post("connectCustodian", "/api/custodians/connect", {
+      payload: ConnectCustodianInput,
+      success: created(Custodian),
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("refreshCustodian", "/api/custodians/:id/refresh", {
       params: EntityIdParams,
-      success: ConnectionRefreshResult,
+      success: CustodianRefreshResult,
       error: FinanceApiError,
     }),
   )
   .add(
-    HttpApiEndpoint.patch("updateConnection", "/api/connections/:id", {
+    HttpApiEndpoint.patch("updateCustodian", "/api/custodians/:id", {
       params: EntityIdParams,
-      payload: UpdateConnectionInput,
-      success: Connection,
+      payload: UpdateCustodianInput,
+      success: Custodian,
       error: FinanceApiError,
     }),
   )
   .add(
-    HttpApiEndpoint.delete("deleteConnection", "/api/connections/:id", {
+    HttpApiEndpoint.delete("deleteCustodian", "/api/custodians/:id", {
       params: EntityIdParams,
       success: Schema.Void,
       error: FinanceApiError,

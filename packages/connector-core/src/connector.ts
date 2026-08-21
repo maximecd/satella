@@ -3,13 +3,7 @@ import * as Schema from "effect/Schema";
 
 import { canonicalDecimal } from "./financial-number.js";
 
-export const ConnectorAssetCategory = Schema.Literals([
-  "stocks_etfs",
-  "bonds",
-  "crypto",
-  "cash",
-  "other",
-]);
+export const ConnectorAssetCategory = Schema.Literals(["stocks_etfs", "crypto", "cash", "other"]);
 export type ConnectorAssetCategory = typeof ConnectorAssetCategory.Type;
 
 export const ConnectorAssetIdentifier = Schema.Struct({

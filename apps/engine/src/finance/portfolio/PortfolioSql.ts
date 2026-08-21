@@ -8,6 +8,7 @@ import type {
   AssetCategory,
   Dashboard,
   DashboardAccountRow,
+  DashboardCustodianGroup,
   PortfolioHistoryPoint,
   SnapshotResult,
 } from "../contracts.js";
@@ -206,25 +207,58 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
       }>`SELECT id FROM accounts ORDER BY created_at, id`,
     );
     const valued = yield* Effect.forEach(rows, (row) => getAccount(row.id, selected.assetId));
-    const accounts: DashboardAccountRow[] = valued
-      .map((account) => ({
-        accountId: account.id,
-        accountName: account.name,
-        connectionId: account.connectionId,
-        connectionName: account.connectionName,
-        positionCount: account.positions.filter(
-          (position) => compareDecimal(position.quantity, "0") !== 0,
-        ).length,
-        total: account.total,
-        unrealizedPnl: account.unrealizedPnl,
-        unrealizedPnlPercent: account.unrealizedPnlPercent,
-        totalIncomplete: account.totalIncomplete,
-      }))
-      .sort(
-        (left, right) =>
-          compareDecimal(right.total, left.total) ||
-          left.accountName.localeCompare(right.accountName),
-      );
+    const custodianConnectors = new Map(
+      (yield* db(
+        sql<{
+          readonly id: string;
+          readonly connector_id: string | null;
+        }>`SELECT id, connector_id FROM custodians`,
+      )).map((row) => [row.id, row.connector_id] as const),
+    );
+    const accountRows: DashboardAccountRow[] = valued.map((account) => ({
+      accountId: account.id,
+      accountName: account.name,
+      accountType: account.accountType,
+      positionCount: account.positions.filter(
+        (position) => compareDecimal(position.quantity, "0") !== 0,
+      ).length,
+      total: account.total,
+      unrealizedPnl: account.unrealizedPnl,
+      unrealizedPnlPercent: account.unrealizedPnlPercent,
+      totalIncomplete: account.totalIncomplete,
+    }));
+    const byCustodian = Map.groupBy(valued, (account) => account.custodianId);
+    const custodians: DashboardCustodianGroup[] = [...byCustodian].flatMap(
+      ([custodianId, accounts]) => {
+        const first = accounts[0]!;
+        const meaningful =
+          !first.isDefaultCustodian ||
+          accounts.some((account) =>
+            account.positions.some((position) => compareDecimal(position.quantity, "0") !== 0),
+          );
+        if (!meaningful) return [];
+        const groupAccounts = accountRows
+          .filter((row) => accounts.some((account) => account.id === row.accountId))
+          .sort(
+            (left, right) =>
+              compareDecimal(right.total, left.total) ||
+              left.accountName.localeCompare(right.accountName),
+          );
+        return [
+          {
+            custodianId,
+            name: first.custodianName,
+            isDefault: first.isDefaultCustodian,
+            connectorId: custodianConnectors.get(custodianId) ?? null,
+            accounts: groupAccounts,
+          },
+        ];
+      },
+    );
+    custodians.sort((left, right) => {
+      if (left.isDefault !== right.isDefault) return left.isDefault ? 1 : -1;
+      return left.name.localeCompare(right.name);
+    });
     const byAsset = new Map<
       string,
       {
@@ -312,17 +346,17 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
     }
     return {
       reportingCurrency: selected,
-      portfolioValue: accounts.reduce((sum, account) => addDecimal(sum, account.total), "0"),
+      portfolioValue: valued.reduce((sum, account) => addDecimal(sum, account.total), "0"),
       unrealizedPnl,
       unrealizedPnlPercent:
         compareDecimal(acquisitionCostInReportingCurrency, "0") === 0
           ? null
           : divideDecimal(unrealizedPnl, acquisitionCostInReportingCurrency),
-      totalIncomplete: accounts.some((account) => account.totalIncomplete),
+      totalIncomplete: valued.some((account) => account.totalIncomplete),
       unpricedAssetCount,
       negativeHoldingCount,
       hasMeaningfulAssets: meaningful.length > 0,
-      accounts,
+      custodians,
       assetAllocation,
       categoryAllocation,
       history,

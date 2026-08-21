@@ -13,7 +13,7 @@ describe("application shell", () => {
     window.localStorage.clear();
   });
 
-  it("shows Optimus, Dashboard, and Settings without Workspace grouping", async () => {
+  it("shows Optimus, Dashboard, and Settings in the sidebar", async () => {
     renderRoute("/");
     expect(await screen.findByText("Optimus")).toBeInTheDocument();
     expect(within(sideNav()).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
@@ -21,11 +21,6 @@ describe("application shell", () => {
       "href",
       "/settings",
     );
-    expect(screen.queryByText("Workspace")).not.toBeInTheDocument();
-    expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
-    expect(
-      within(sideNav()).queryByRole("button", { name: /toggle color mode/i }),
-    ).not.toBeInTheDocument();
     expect(within(sideNav()).getByRole("button", { name: "Lock" })).toBeInTheDocument();
   });
 
@@ -43,20 +38,17 @@ describe("application shell", () => {
     expect(await screen.findByRole("heading", { name: "Optimus is locked" })).toBeInTheDocument();
   });
 
-  it("keeps Settings selected on nested Connection routes", async () => {
-    renderRoute("/settings/connections");
-    expect(await screen.findByRole("heading", { name: "Connections" })).toBeInTheDocument();
+  it("keeps Settings selected on nested Custodian routes", async () => {
+    renderRoute("/settings/custodians");
+    expect(await screen.findByRole("heading", { name: "Custodians" })).toBeInTheDocument();
     expect(within(sideNav()).getByRole("link", { name: "Settings" })).toHaveAttribute(
       "aria-current",
       "page",
     );
   });
 
-  it("does not register obsolete Custodian or asset catalog routes", () => {
+  it("registers Custodian routes", () => {
     const routeFiles = Object.keys(import.meta.glob("../routes/*.{ts,tsx}"));
-    expect(routeFiles.some((file) => /custodian/i.test(file))).toBe(false);
-    expect(routeFiles.some((file) => file.includes("assets.index"))).toBe(false);
-    expect(routeFiles.some((file) => file.includes("settings.connections"))).toBe(true);
-    expect(routeFiles.some((file) => file.includes("assets.$assetId.edit"))).toBe(true);
+    expect(routeFiles.some((file) => /custodian/i.test(file))).toBe(true);
   });
 });

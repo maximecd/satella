@@ -11,6 +11,9 @@ export const make = Effect.gen(function* () {
     listManualAccounts: Effect.fn("AddAssetsService.listManualAccounts")(() =>
       withSql(Operations.listManualAccounts()),
     ),
+    listManualCustodians: Effect.fn("AddAssetsService.listManualCustodians")(() =>
+      withSql(Operations.listManualCustodians()),
+    ),
     lookupManualHolding: Effect.fn("AddAssetsService.lookupManualHolding")(
       (accountId, identifierType, identifierValue) =>
         withSql(Operations.lookupManualHolding(accountId, identifierType, identifierValue)),

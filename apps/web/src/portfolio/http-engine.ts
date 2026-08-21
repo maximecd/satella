@@ -5,10 +5,10 @@ import {
   type AddCashAccountInput,
   type AddManualHoldingInput,
   type AddOtherAssetInput,
-  type ConnectConnectionInput,
+  type ConnectCustodianInput,
   type MaintainAssetInput,
   type UpdateAccountInput,
-  type UpdateConnectionInput,
+  type UpdateCustodianInput,
   type UpdatePositionInput,
   type UpdateSettingsInput,
 } from "@optimus/engine/api";
@@ -82,18 +82,20 @@ export const createHttpPortfolioEngine = (baseUrl = engineUrl()): PortfolioEngin
       run((client) => client.finance.updatePosition({ params: { id }, payload }), signal),
     deletePosition: (id, signal) =>
       run((client) => client.finance.deletePosition({ params: { id } }), signal),
-    listConnections: (signal) => run((client) => client.finance.listConnections({}), signal),
-    getConnection: (id, signal) =>
-      run((client) => client.finance.getConnection({ params: { id } }), signal),
-    updateConnection: (id, payload: UpdateConnectionInput, signal) =>
-      run((client) => client.finance.updateConnection({ params: { id }, payload }), signal),
-    deleteConnection: (id, signal) =>
-      run((client) => client.finance.deleteConnection({ params: { id } }), signal),
-    refreshConnection: (id, signal) =>
-      run((client) => client.finance.refreshConnection({ params: { id } }), signal),
+    listCustodians: (signal) => run((client) => client.finance.listCustodians({}), signal),
+    getCustodian: (id, signal) =>
+      run((client) => client.finance.getCustodian({ params: { id } }), signal),
+    updateCustodian: (id, payload: UpdateCustodianInput, signal) =>
+      run((client) => client.finance.updateCustodian({ params: { id }, payload }), signal),
+    deleteCustodian: (id, signal) =>
+      run((client) => client.finance.deleteCustodian({ params: { id } }), signal),
+    refreshCustodian: (id, signal) =>
+      run((client) => client.finance.refreshCustodian({ params: { id } }), signal),
     connectorCapabilities: (signal) =>
       run((client) => client.finance.connectorCapabilities({}), signal),
     listManualAccounts: (signal) => run((client) => client.finance.listManualAccounts({}), signal),
+    listManualCustodians: (signal) =>
+      run((client) => client.finance.listManualCustodians({}), signal),
     lookupManualHolding: (accountId, identifierType, identifierValue, signal) =>
       run(
         (client) =>
@@ -104,8 +106,8 @@ export const createHttpPortfolioEngine = (baseUrl = engineUrl()): PortfolioEngin
       ),
     searchAssets: (query, assetCategory: SearchableAssetCategory, signal) =>
       run((client) => client.finance.searchAssets({ query: { query, assetCategory } }), signal),
-    connectConnection: (payload: ConnectConnectionInput, signal) =>
-      run((client) => client.finance.connectConnection({ payload }), signal),
+    connectCustodian: (payload: ConnectCustodianInput, signal) =>
+      run((client) => client.finance.connectCustodian({ payload }), signal),
     addManualHolding: (payload: AddManualHoldingInput, signal) =>
       run((client) => client.finance.addManualHolding({ payload }), signal),
     addCashAccount: (payload: AddCashAccountInput, signal) =>

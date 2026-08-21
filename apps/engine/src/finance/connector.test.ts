@@ -12,6 +12,7 @@ describe("connector reconciliation", () => {
     Effect.gen(function* () {
       const result = yield* Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
+        const timestamp = new Date().toISOString();
         const automatic = yield* Finance.createAsset({
           assetCategory: "crypto",
           name: "Bitcoin",
@@ -24,15 +25,22 @@ describe("connector reconciliation", () => {
           symbol: "BTC",
           identifiers: [{ type: "okx_currency", value: "BTC" }],
         });
-        const timestamp = new Date().toISOString();
-        yield* sql`INSERT INTO connections (id, name, connector_id, config_json, created_at, updated_at)
-            VALUES ('synced', 'Broker', 'okx', '{}', ${timestamp}, ${timestamp})`;
-        yield* sql`INSERT INTO accounts
-            (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
-            VALUES ('trading', 'synced', 'Trading', 'fiat:USD', 'trading', ${timestamp}, ${timestamp})`;
+        yield* Finance.seedSyncedCustodian({
+          id: "synced",
+          name: "Broker",
+          connectorId: "okx",
+          accounts: [
+            {
+              id: "trading",
+              name: "Trading",
+              connectorAccountId: "trading",
+              accountType: "crypto_wallet",
+            },
+          ],
+        });
         yield* sql`INSERT INTO positions (id, account_id, asset_id, quantity, created_at, updated_at)
             VALUES ('btc-position', 'trading', ${legacy.id}, 1, ${timestamp}, ${timestamp})`;
-        yield* sql`INSERT INTO connector_asset_mappings (connection_id, external_asset_id, asset_id)
+        yield* sql`INSERT INTO connector_asset_mappings (custodian_id, external_asset_id, asset_id)
             VALUES ('synced', 'okx:currency:BTC', ${legacy.id})`;
         yield* reconcileConnector("synced", {
           complete: true,
@@ -78,16 +86,17 @@ describe("connector reconciliation", () => {
   it.effect("reuses an existing automatic asset when a connector symbol matches", () =>
     Effect.gen(function* () {
       const result = yield* Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
         const bitcoin = yield* Finance.createAsset({
           assetCategory: "crypto",
           name: "Bitcoin",
           symbol: "BTC",
           identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
         });
-        const timestamp = new Date().toISOString();
-        yield* sql`INSERT INTO connections (id, name, connector_id, config_json, created_at, updated_at)
-            VALUES ('synced', 'Broker', 'okx', '{}', ${timestamp}, ${timestamp})`;
+        yield* Finance.seedSyncedCustodian({
+          id: "synced",
+          name: "Broker",
+          connectorId: "okx",
+        });
         yield* reconcileConnector("synced", {
           complete: true,
           assets: [
@@ -108,8 +117,8 @@ describe("connector reconciliation", () => {
             },
           ],
         });
-        const connection = yield* Finance.getConnection("synced");
-        const account = yield* Finance.getAccount(connection.accounts[0]!.id);
+        const custodian = yield* Finance.getCustodian("synced");
+        const account = yield* Finance.getAccount(custodian.accounts[0]!.id);
         return { bitcoin, account };
       });
 
@@ -120,10 +129,11 @@ describe("connector reconciliation", () => {
   it.effect("upserts stable identities and reconciles absence only after complete output", () =>
     Effect.gen(function* () {
       const result = yield* Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
-        const timestamp = new Date().toISOString();
-        yield* sql`INSERT INTO connections (id, name, connector_id, config_json, created_at, updated_at)
-            VALUES ('synced', 'Broker', 'fixture', '{}', ${timestamp}, ${timestamp})`;
+        yield* Finance.seedSyncedCustodian({
+          id: "synced",
+          name: "Broker",
+          connectorId: "fixture",
+        });
         const asset = {
           externalAssetId: "instrument-1",
           assetCategory: "stocks_etfs" as const,
@@ -143,7 +153,7 @@ describe("connector reconciliation", () => {
             },
           ],
         });
-        const created = yield* Finance.getConnection("synced");
+        const created = yield* Finance.getCustodian("synced");
         const accountId = created.accounts[0]!.id;
         yield* reconcileConnector("synced", { complete: false, assets: [], accounts: [] });
         const afterPartial = yield* Finance.getAccount(accountId);
@@ -165,8 +175,8 @@ describe("connector reconciliation", () => {
           assets: [],
           accounts: [],
         });
-        const finalConnection = yield* Finance.getConnection("synced");
-        return { afterPartial, zeroResult, zeroed, removeResult, finalConnection };
+        const finalCustodian = yield* Finance.getCustodian("synced");
+        return { afterPartial, zeroResult, zeroed, removeResult, finalCustodian };
       });
 
       expect(result.afterPartial.positions[0]?.quantity).toBe("4");
@@ -174,7 +184,7 @@ describe("connector reconciliation", () => {
       expect(result.zeroed.name).toBe("Renamed portfolio");
       expect(result.zeroed.positions[0]?.quantity).toBe("0");
       expect(result.removeResult.removedAccountCount).toBe(1);
-      expect(result.finalConnection.accounts).toEqual([]);
+      expect(result.finalCustodian.accounts).toEqual([]);
     }).pipe(Effect.provide(engineTestLayer())),
   );
 });

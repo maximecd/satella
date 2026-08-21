@@ -30,8 +30,8 @@ export function ResetOptimusControl() {
         Reset Optimus
       </Heading>
       <Text as="p">
-        This permanently deletes the Vault, portfolio, Connection credentials, encrypted backups,
-        and Vault metadata. You will return to first-run onboarding. This cannot be undone.
+        This permanently deletes the Vault, portfolio, custodian credentials, encrypted backups, and
+        Vault metadata. You will return to first-run onboarding. This cannot be undone.
       </Text>
       <form
         onSubmit={(event: FormEvent) => {

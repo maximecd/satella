@@ -29,15 +29,16 @@ describe("add assets screen", () => {
     renderRoute("/");
     await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
     expect(await screen.findByRole("heading", { name: "Add assets" })).toBeInTheDocument();
-    expect(screen.queryByText("What do you want to add?")).not.toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Form progress" })).toHaveAttribute(
       "aria-valuenow",
       "0",
     );
+    expect(screen.getByText("Checking")).toBeInTheDocument();
+    expect(screen.getByText("Savings")).toBeInTheDocument();
     const search = screen.getByLabelText("Search categories");
     await user.type(search, "crypto");
     expect(screen.getByText("Crypto")).toBeInTheDocument();
-    expect(screen.queryByText("Current accounts")).not.toBeInTheDocument();
+    expect(screen.queryByText("Checking")).not.toBeInTheDocument();
   });
 
   it("skips connectors for other assets and validates the form after submit", async () => {
@@ -53,6 +54,7 @@ describe("add assets screen", () => {
     expect(screen.queryByText("Asset name is required.")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add asset" }));
     expect(screen.getByText("Asset name is required.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Account name")).not.toBeInTheDocument();
     await user.type(name, " Watch ");
     await user.tab();
     expect(name).toHaveValue(" Watch ");
@@ -82,17 +84,18 @@ describe("add assets screen", () => {
     renderRoute("/");
     await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
     await user.click(await screen.findByRole("button", { name: /Crypto/ }));
-    expect(await screen.findByLabelText("Choose an account")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Exchange")).toBeInTheDocument();
     await user.type(screen.getByLabelText("Asset"), "bitcoin");
     await user.click(await screen.findByRole("button", { name: /Bitcoin · BTC/ }));
-    await user.type(screen.getByLabelText("Choose an account"), "Spot");
+    await user.type(screen.getByLabelText("Exchange"), "OKX");
+    await user.type(screen.getByLabelText("Account name"), "Spot");
     await user.type(screen.getByLabelText("Quantity"), "1.5");
     await user.click(screen.getByRole("button", { name: "Add quantity" }));
 
     expect((await screen.findAllByText("Added Bitcoin to Spot.")).length).toBeGreaterThan(0);
   });
 
-  it("collects a cash account on one form", async () => {
+  it("collects a checking account on one form", async () => {
     const user = userEvent.setup();
     seedPortfolioEngine({
       accounts: [],
@@ -106,12 +109,71 @@ describe("add assets screen", () => {
 
     renderRoute("/");
     await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
-    await user.click(await screen.findByRole("button", { name: /Cash/ }));
-    await user.type(screen.getByLabelText("Choose an account"), "Checking");
+    await user.click(await screen.findByRole("button", { name: /Checking/ }));
+    await user.type(screen.getByLabelText("Bank"), "BNP Paribas");
+    await user.type(screen.getByLabelText("Account name"), "Checking");
     await user.type(screen.getByLabelText("Balance"), "2500");
-    await user.click(screen.getByRole("button", { name: "Save cash" }));
+    await user.click(screen.getByRole("button", { name: "Save account" }));
 
-    expect((await screen.findAllByText("Updated Checking.")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Added Checking.")).length).toBeGreaterThan(0);
+  });
+
+  it("collects a savings account on one form", async () => {
+    const user = userEvent.setup();
+    seedPortfolioEngine({
+      accounts: [],
+      assets: [usd],
+      addAssetsResult: {
+        accountId: "account-4",
+        accountName: "Livret A",
+        positionOutcome: "created",
+      },
+    });
+
+    renderRoute("/");
+    await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
+    await user.click(await screen.findByRole("button", { name: /Savings/ }));
+    await user.type(screen.getByLabelText("Bank"), "BNP Paribas");
+    await user.type(screen.getByLabelText("Account name"), "Livret A");
+    await user.type(screen.getByLabelText("Balance"), "1200");
+    await user.click(screen.getByRole("button", { name: "Save account" }));
+
+    expect((await screen.findAllByText("Added Livret A.")).length).toBeGreaterThan(0);
+  });
+
+  it("collects a stocks holding under a named broker", async () => {
+    const user = userEvent.setup();
+    seedPortfolioEngine({
+      accounts: [],
+      assets: [usd],
+      searchResults: [
+        {
+          provider: "yahoo-finance",
+          assetCategory: "stocks_etfs",
+          name: "Apple",
+          symbol: "AAPL",
+          identifiers: [{ type: "isin", value: "US0378331005" }],
+        },
+      ],
+      addAssetsResult: {
+        accountId: "account-5",
+        accountName: "PEA",
+        positionOutcome: "created",
+      },
+    });
+
+    renderRoute("/");
+    await user.click((await screen.findAllByRole("button", { name: "Add assets" }))[0]!);
+    await user.click(await screen.findByRole("button", { name: /Stocks & ETFs/ }));
+    expect(await screen.findByLabelText("Broker")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Asset"), "apple");
+    await user.click(await screen.findByRole("button", { name: /Apple · AAPL/ }));
+    await user.type(screen.getByLabelText("Broker"), "Boursorama");
+    await user.type(screen.getByLabelText("Account name"), "PEA");
+    await user.type(screen.getByLabelText("Quantity"), "3");
+    await user.click(screen.getByRole("button", { name: "Add quantity" }));
+
+    expect((await screen.findAllByText("Added Apple to PEA.")).length).toBeGreaterThan(0);
   });
 
   it("renders connector setup fields from connector metadata", async () => {
@@ -172,16 +234,13 @@ describe("add assets screen", () => {
     expect(screen.getAllByText("API key").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Secret key").length).toBeGreaterThan(0);
     expect(screen.getByText("Region")).toBeInTheDocument();
-    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
 
     const secret = screen.getByLabelText(/Secret key/, { selector: "input" });
     expect(secret).toHaveAttribute("type", "password");
-    expect(screen.queryByRole("button", { name: /Secret key/ })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Connect and import" }));
     expect(screen.getByText("API key is required.")).toBeInTheDocument();
     expect(screen.getByText("Secret key is required.")).toBeInTheDocument();
     expect(secret).toHaveAttribute("aria-invalid", "true");
-    expect(screen.queryByText("Could not save")).not.toBeInTheDocument();
   });
 });

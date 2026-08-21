@@ -6,9 +6,9 @@ import type {
   AddOtherAssetInput,
   Asset,
   AssetSearchResult,
-  ConnectConnectionInput,
-  Connection,
-  ConnectionRefreshResult,
+  ConnectCustodianInput,
+  Custodian,
+  CustodianRefreshResult,
   ConnectorCapability,
   Dashboard,
   MaintainAssetInput,
@@ -16,7 +16,7 @@ import type {
   PositionEdit,
   Settings,
   UpdateAccountInput,
-  UpdateConnectionInput,
+  UpdateCustodianInput,
   UpdatePositionInput,
   UpdateSettingsInput,
 } from "@optimus/engine/api";
@@ -53,20 +53,18 @@ export type PortfolioEngine = {
     signal?: AbortSignal,
   ) => Promise<Account>;
   readonly deletePosition: (id: string, signal?: AbortSignal) => Promise<void>;
-  readonly listConnections: (signal?: AbortSignal) => Promise<ReadonlyArray<Connection>>;
-  readonly getConnection: (id: string, signal?: AbortSignal) => Promise<Connection>;
-  readonly updateConnection: (
+  readonly listCustodians: (signal?: AbortSignal) => Promise<ReadonlyArray<Custodian>>;
+  readonly getCustodian: (id: string, signal?: AbortSignal) => Promise<Custodian>;
+  readonly updateCustodian: (
     id: string,
-    input: UpdateConnectionInput,
+    input: UpdateCustodianInput,
     signal?: AbortSignal,
-  ) => Promise<Connection>;
-  readonly deleteConnection: (id: string, signal?: AbortSignal) => Promise<void>;
-  readonly refreshConnection: (
-    id: string,
-    signal?: AbortSignal,
-  ) => Promise<ConnectionRefreshResult>;
+  ) => Promise<Custodian>;
+  readonly deleteCustodian: (id: string, signal?: AbortSignal) => Promise<void>;
+  readonly refreshCustodian: (id: string, signal?: AbortSignal) => Promise<CustodianRefreshResult>;
   readonly connectorCapabilities: (signal?: AbortSignal) => Promise<ConnectorCapabilities>;
   readonly listManualAccounts: (signal?: AbortSignal) => Promise<ReadonlyArray<Account>>;
+  readonly listManualCustodians: (signal?: AbortSignal) => Promise<ReadonlyArray<Custodian>>;
   readonly lookupManualHolding: (
     accountId: string,
     identifierType: string,
@@ -78,10 +76,10 @@ export type PortfolioEngine = {
     assetCategory: SearchableAssetCategory,
     signal?: AbortSignal,
   ) => Promise<ReadonlyArray<AssetSearchResult>>;
-  readonly connectConnection: (
-    input: ConnectConnectionInput,
+  readonly connectCustodian: (
+    input: ConnectCustodianInput,
     signal?: AbortSignal,
-  ) => Promise<Connection>;
+  ) => Promise<Custodian>;
   readonly addManualHolding: (
     input: AddManualHoldingInput,
     signal?: AbortSignal,

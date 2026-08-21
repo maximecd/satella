@@ -6,13 +6,13 @@ import type {
   AddManualHoldingInput,
   AddOtherAssetInput,
   Asset,
-  ConnectConnectionInput,
-  Connection,
-  ConnectionRefreshResult,
+  ConnectCustodianInput,
+  Custodian,
+  CustodianRefreshResult,
   MaintainAssetInput,
   Settings,
   UpdateAccountInput,
-  UpdateConnectionInput,
+  UpdateCustodianInput,
   UpdatePositionInput,
   UpdateSettingsInput,
 } from "@optimus/engine/api";
@@ -24,11 +24,12 @@ import type { PortfolioFailure } from "./failure";
 
 const dashboardQueryKey = ["dashboard"] as const;
 const settingsQueryKey = ["settings"] as const;
-const connectionsQueryKey = ["connections"] as const;
-const connectionQueryKey = (id: string) => ["connections", id] as const;
+const custodiansQueryKey = ["custodians"] as const;
+const custodianQueryKey = (id: string) => ["custodians", id] as const;
 const capabilitiesQueryKey = ["connectors", "capabilities"] as const;
 const accountsQueryKey = ["accounts"] as const;
 const manualAccountsQueryKey = ["accounts", "manual"] as const;
+const manualCustodiansQueryKey = ["custodians", "manual"] as const;
 const accountQueryKey = (id: string) => ["accounts", id] as const;
 const positionEditQueryKey = (id: string) => ["positions", id, "account"] as const;
 const assetsQueryKey = ["assets"] as const;
@@ -161,6 +162,16 @@ export const useManualAccounts = () => {
   });
 };
 
+export const useManualCustodians = () => {
+  const engine = usePortfolioEngine();
+  return useQuery({
+    queryKey: manualCustodiansQueryKey,
+    queryFn: ({ signal }) => engine.listManualCustodians(signal),
+    staleTime: 15_000,
+    retry: 1,
+  });
+};
+
 export const useUpdateAccount = (id: string) => {
   const engine = usePortfolioEngine();
   const queryClient = useQueryClient();
@@ -170,8 +181,9 @@ export const useUpdateAccount = (id: string) => {
       queryClient.setQueryData(accountQueryKey(id), account);
       await invalidate(queryClient, [
         dashboardQueryKey,
-        connectionsQueryKey,
+        custodiansQueryKey,
         manualAccountsQueryKey,
+        manualCustodiansQueryKey,
       ]);
     },
   });
@@ -184,7 +196,7 @@ export const useDeleteAccount = (id: string) => {
     mutationFn: () => engine.deleteAccount(id),
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: accountQueryKey(id) });
-      await invalidate(queryClient, [dashboardQueryKey, accountsQueryKey, connectionsQueryKey]);
+      await invalidate(queryClient, [dashboardQueryKey, accountsQueryKey, custodiansQueryKey]);
     },
   });
 };
@@ -227,21 +239,21 @@ export const useDeletePosition = (id: string, accountId: string) => {
   });
 };
 
-export const useConnections = () => {
+export const useCustodians = () => {
   const engine = usePortfolioEngine();
   return useQuery({
-    queryKey: connectionsQueryKey,
-    queryFn: ({ signal }) => engine.listConnections(signal),
+    queryKey: custodiansQueryKey,
+    queryFn: ({ signal }) => engine.listCustodians(signal),
     staleTime: 15_000,
     retry: 1,
   });
 };
 
-export const useConnection = (id: string) => {
+export const useCustodian = (id: string) => {
   const engine = usePortfolioEngine();
   return useQuery({
-    queryKey: connectionQueryKey(id),
-    queryFn: ({ signal }) => engine.getConnection(id, signal),
+    queryKey: custodianQueryKey(id),
+    queryFn: ({ signal }) => engine.getCustodian(id, signal),
     staleTime: 15_000,
     retry: 1,
   });
@@ -257,45 +269,46 @@ export const useConnectorCapabilities = () => {
   });
 };
 
-export const useUpdateConnection = (id: string) => {
+export const useUpdateCustodian = (id: string) => {
   const engine = usePortfolioEngine();
   const queryClient = useQueryClient();
-  return useMutation<Connection, PortfolioFailure, UpdateConnectionInput>({
-    mutationFn: (input) => engine.updateConnection(id, input),
-    onSuccess: async (connection) => {
-      queryClient.setQueryData(connectionQueryKey(id), connection);
-      await invalidate(queryClient, [connectionsQueryKey, dashboardQueryKey, accountsQueryKey]);
+  return useMutation<Custodian, PortfolioFailure, UpdateCustodianInput>({
+    mutationFn: (input) => engine.updateCustodian(id, input),
+    onSuccess: async (custodian) => {
+      queryClient.setQueryData(custodianQueryKey(id), custodian);
+      await invalidate(queryClient, [custodiansQueryKey, dashboardQueryKey, accountsQueryKey]);
     },
   });
 };
 
-export const useDeleteConnection = (id: string) => {
+export const useDeleteCustodian = (id: string) => {
   const engine = usePortfolioEngine();
   const queryClient = useQueryClient();
   return useMutation<void, PortfolioFailure, void>({
-    mutationFn: () => engine.deleteConnection(id),
+    mutationFn: () => engine.deleteCustodian(id),
     onSuccess: async () => {
-      queryClient.removeQueries({ queryKey: connectionQueryKey(id) });
+      queryClient.removeQueries({ queryKey: custodianQueryKey(id) });
       await invalidate(queryClient, [
-        connectionsQueryKey,
+        custodiansQueryKey,
         dashboardQueryKey,
         accountsQueryKey,
         assetsQueryKey,
+        manualCustodiansQueryKey,
       ]);
     },
   });
 };
 
-export const useRefreshConnection = () => {
+export const useRefreshCustodian = () => {
   const engine = usePortfolioEngine();
   const queryClient = useQueryClient();
-  return useMutation<ConnectionRefreshResult, PortfolioFailure, string>({
-    mutationFn: (connectionId) => engine.refreshConnection(connectionId),
+  return useMutation<CustodianRefreshResult, PortfolioFailure, string>({
+    mutationFn: (custodianId) => engine.refreshCustodian(custodianId),
     onSuccess: async (result) => {
-      queryClient.setQueryData(connectionQueryKey(result.connection.id), result.connection);
+      queryClient.setQueryData(custodianQueryKey(result.custodian.id), result.custodian);
       await invalidate(queryClient, [
         dashboardQueryKey,
-        connectionsQueryKey,
+        custodiansQueryKey,
         accountsQueryKey,
         assetsQueryKey,
       ]);
@@ -330,15 +343,15 @@ export const useManualHoldingLookup = (
   });
 };
 
-export const useConnectConnection = () => {
+export const useConnectCustodian = () => {
   const engine = usePortfolioEngine();
   const queryClient = useQueryClient();
-  return useMutation<Connection, PortfolioFailure, ConnectConnectionInput>({
-    mutationFn: (input) => engine.connectConnection(input),
+  return useMutation<Custodian, PortfolioFailure, ConnectCustodianInput>({
+    mutationFn: (input) => engine.connectCustodian(input),
     onSuccess: async () => {
       await invalidate(queryClient, [
         dashboardQueryKey,
-        connectionsQueryKey,
+        custodiansQueryKey,
         accountsQueryKey,
         assetsQueryKey,
       ]);
@@ -352,7 +365,13 @@ export const useAddManualHolding = () => {
   return useMutation<AddAssetsResult, PortfolioFailure, AddManualHoldingInput>({
     mutationFn: (input) => engine.addManualHolding(input),
     onSuccess: async () => {
-      await invalidate(queryClient, [dashboardQueryKey, accountsQueryKey, assetsQueryKey]);
+      await invalidate(queryClient, [
+        dashboardQueryKey,
+        accountsQueryKey,
+        assetsQueryKey,
+        manualCustodiansQueryKey,
+        manualAccountsQueryKey,
+      ]);
     },
   });
 };
@@ -368,6 +387,8 @@ export const useAddCashAccount = () => {
         accountsQueryKey,
         assetsQueryKey,
         settingsQueryKey,
+        manualCustodiansQueryKey,
+        manualAccountsQueryKey,
       ]);
     },
   });

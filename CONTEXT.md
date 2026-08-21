@@ -1,11 +1,11 @@
 # Optimus Finance
 
-Optimus presents a unified view of a person's financial holdings across connected services and manually entered accounts.
+Optimus presents a unified view of a person's financial holdings across synced custodians and manually entered accounts.
 
 ## Portfolio
 
 **Account**:
-An untyped financial container that holds assets, such as a PEA, current account, savings account, brokerage account, or wallet. Its name conveys its purpose; it does not constrain which assets it may contain.
+A typed financial container held at a custodian — such as a checking account, savings account, brokerage account, or crypto wallet. Its name conveys its purpose; its type constrains which assets it may hold.
 
 **Asset**:
 Something of financial value held in one or more accounts.
@@ -15,7 +15,7 @@ The current quantity of one Asset held in one Account.
 _Avoid_: Transaction, holding history
 
 **Asset category**:
-An intrinsic classification of an asset as Stocks & ETFs, Bonds, Crypto, Cash, or Other assets. The same categories organize Add assets and portfolio allocation.
+An intrinsic classification of an asset as Stocks & ETFs, Crypto, Cash, or Other assets. Portfolio allocation uses these categories. Add assets offers Checking and Savings for cash accounts, then Stocks & ETFs, Crypto, and Other assets.
 _Avoid_: Asset class, account kind
 
 **Portfolio value**:
@@ -33,24 +33,27 @@ The current quantity of a non-Cash Position multiplied by its Average unit purch
 _Avoid_: Tax basis, cost basis
 
 **Average unit purchase price**:
-The authoritative unit price paid for a Position, expressed in its chosen purchase currency. A manual value takes precedence over a Connection-supplied value; it may be unavailable when neither exists.
+The authoritative unit price paid for a Position, expressed in its chosen purchase currency. A manual value takes precedence over a synced connector value; it may be unavailable when neither exists.
 _Avoid_: PRU, average cost basis
 
 **Unrealized P&L**:
 The current value of a positive non-Cash Position in its Acquisition-cost currency minus its Acquisition cost, then expressed in the Reporting currency at the current exchange rate. It includes both Asset-price and currency movements; Cash has zero Unrealized P&L, and realized gains or losses, dividends, fees, and taxes are excluded.
 _Avoid_: Performance, return, total return, all-time return
 
-## Connections
+## Custodians
 
-**Connection**:
-A configured link between Optimus and an external financial service that can contain one or more accounts.
-_Avoid_: Custodian, provider, institution
+**Custodian**:
+A bank, broker, or other institution that holds one or more accounts. A custodian is either manual or synced; a synced custodian is linked to a connector and its accounts and holdings are read-only.
+_Avoid_: Custody, connection, institution, provider
+
+**Manual custodian**:
+The default custodian created with a vault, holding accounts not tied to a real institution. It is usually hidden in the interface.
 
 **Connector**:
-The technical integration used to create and refresh a connection. This is an internal term and should not normally appear in user-facing copy.
+The technical integration used to create and refresh a synced custodian. This is an internal term and should not normally appear in user-facing copy.
 
 **Refresh**:
-A request for the latest accounts, holdings, and prices from a connection. Refreshing from an account page refreshes the entire connection that owns the account.
+A request for the latest accounts, holdings, and prices from a synced custodian. Refreshing from an account page refreshes the entire custodian that owns the account.
 _Avoid_: Resync
 
 **Market-data source**:
@@ -60,7 +63,7 @@ _Avoid_: Provider
 ## Privacy
 
 **Vault**:
-One person's locally stored Optimus data, including their portfolio, connections, and credentials.
+One person's locally stored Optimus data, including their portfolio, custodians, and credentials.
 _Avoid_: Database, account
 
 **Vault password**:
@@ -68,7 +71,7 @@ The secret chosen by the person to unlock their vault. Optimus cannot recover a 
 _Avoid_: Login password, account password
 
 **Locked vault**:
-A vault whose portfolio, connections, and credentials are unavailable until its vault password is supplied.
+a vault whose portfolio, custodians, and credentials are unavailable until its vault password is supplied.
 _Avoid_: Logged out
 
 **Screen lock**:
@@ -80,5 +83,5 @@ The four-digit code used to dismiss the screen lock. After three failed attempts
 _Avoid_: Vault password
 
 **Vault reset**:
-The irreversible deletion of a vault, including its portfolio and connection credentials, after which Optimus returns to first-time onboarding.
+The irreversible deletion of a vault, including its portfolio and connector credentials, after which Optimus returns to first-time onboarding.
 _Avoid_: Password reset, account reset
