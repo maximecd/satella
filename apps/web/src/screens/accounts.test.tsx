@@ -72,8 +72,8 @@ describe("accounts screen", () => {
     expect(await screen.findByText("Valuation currency USD", { exact: false })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Market price" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Value (USD)" })).toBeInTheDocument();
-    expect(screen.getByText("34 EUR")).toBeInTheDocument();
-    expect(screen.getAllByText(/68[.,]00 USD/)).toHaveLength(2);
+    expect(screen.getByText(/(€34|34 €)/)).toBeInTheDocument();
+    expect(screen.getAllByText(/(\$68[.,]00|68[.,]00 \$)/)).toHaveLength(2);
   });
 
   it("labels the default manual account Other holdings", async () => {

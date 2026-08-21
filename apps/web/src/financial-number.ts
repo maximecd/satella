@@ -69,16 +69,104 @@ export const formatDecimal = (
   }`;
 };
 
-export const formatAmount = (value: DecimalValue, currencyIso: string) =>
-  `${formatDecimal(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currencyIso}`;
-
 export const formatSignedAmount = (value: DecimalValue, currencyIso: string) =>
   `${compareDecimal(value, "0") > 0 ? "+" : ""}${formatAmount(value, currencyIso)}`;
 
 export const formatQuantity = (value: DecimalValue) => formatDecimal(value);
 
+type CurrencyToken =
+  | { readonly kind: "currency"; readonly text: string }
+  | { readonly kind: "sign" }
+  | { readonly kind: "number" };
+
+const currencyTokens = new Map<string, readonly CurrencyToken[] | null>();
+
+// A fiat currency has a displayable symbol when the locale's narrow-symbol
+// rendering differs from its ISO code; otherwise amounts keep the code suffix.
+// Tokens are derived from a negative sample so the sign's true position in the
+// pattern is preserved (for example "-$1.234,56" versus "$-1.234,56").
+const currencyLayout = (currencyIso: string): readonly CurrencyToken[] | null => {
+  const cached = currencyTokens.get(currencyIso);
+  if (cached !== undefined) return cached;
+  let tokens: readonly CurrencyToken[] | null = null;
+  try {
+    const formatter = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currencyIso,
+      currencyDisplay: "narrowSymbol",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const symbol = formatter
+      .formatToParts(1234.56)
+      .find((part) => part.type === "currency")
+      ?.value?.trim();
+    if (symbol && symbol.length > 0 && !symbol.match(new RegExp(`^${currencyIso}$`, "i"))) {
+      tokens = [];
+      for (const part of formatter.formatToParts(-1234.56)) {
+        if (part.type === "minusSign" || part.type === "plusSign") {
+          if (tokens[tokens.length - 1]?.kind !== "sign") tokens = [...tokens, { kind: "sign" }];
+        } else if (part.type === "currency") {
+          tokens = [...tokens, { kind: "currency", text: symbol }];
+        } else if (tokens[tokens.length - 1]?.kind !== "number") {
+          tokens = [...tokens, { kind: "number" }];
+        }
+      }
+    }
+  } catch {
+    tokens = null;
+  }
+  currencyTokens.set(currencyIso, tokens);
+  return tokens;
+};
+
+const renderCurrencyAmount = (numberText: string, currencyIso: string) => {
+  const tokens = currencyLayout(currencyIso);
+  if (tokens === null) return `${numberText} ${currencyIso}`;
+  const negative = numberText.startsWith(minusSign);
+  const unsigned = negative
+    ? numberText.slice(minusSign.length)
+    : numberText.startsWith("+")
+      ? numberText.slice(1)
+      : numberText;
+  return tokens
+    .map((token) =>
+      token.kind === "currency"
+        ? token.text
+        : token.kind === "sign"
+          ? negative
+            ? minusSign
+            : ""
+          : unsigned,
+    )
+    .join("")
+    .trim();
+};
+
+export const formatAmount = (value: DecimalValue, currencyIso: string) =>
+  renderCurrencyAmount(
+    formatDecimal(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    currencyIso,
+  );
+
+export const formatWholeAmount = (value: DecimalValue, currencyIso: string) =>
+  renderCurrencyAmount(formatDecimal(value, { maximumFractionDigits: 0 }), currencyIso);
+
 export const formatMarketPrice = (value: DecimalValue) =>
   formatDecimal(value, { maximumFractionDigits: 4 });
 
+export const currencySymbol = (currencyIso: string): string | null => {
+  const tokens = currencyLayout(currencyIso);
+  if (tokens === null) return null;
+  const token = tokens.find((entry) => entry.kind === "currency");
+  return token !== undefined && token.kind === "currency" ? token.text : null;
+};
+
+export const formatMarketPriceAmount = (value: DecimalValue, currencyIso: string) =>
+  renderCurrencyAmount(formatMarketPrice(value), currencyIso);
+
 export const formatFxRate = (value: DecimalValue) =>
   formatDecimal(value, { maximumFractionDigits: 6 });
+
+export const formatFxAmount = (value: DecimalValue, currencyIso: string) =>
+  renderCurrencyAmount(formatFxRate(value), currencyIso);

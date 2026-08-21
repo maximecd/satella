@@ -33,13 +33,13 @@ describe("dashboard screen", () => {
     renderRoute("/");
 
     expect(await screen.findByRole("heading", { name: "Portfolio value" })).toBeInTheDocument();
-    expect(screen.getByText(/1[.,]100[.,]00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/(\$1[.,]100[.,]00|1[.,]100[.,]00 \$)/)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "1M" })).toBeChecked();
-    expect(screen.getByText(/\+90[.,]00 USD \(\+8[.,]91%\)/)).toBeInTheDocument();
+    expect(screen.getByText(/(\+\$90[.,]00|\+90[.,]00 \$) \(\+8[.,]91%\)/)).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Portfolio value history" })).toBeInTheDocument();
     expect(screen.getByText("Incomplete valuation")).toBeInTheDocument();
     const apple = await screen.findByRole("img", {
-      name: /Apple \(AAPL\), 800[.,]00 USD, 80%/,
+      name: /Apple \(AAPL\), (\$800[.,]00|800[.,]00 \$), 80%/,
     });
     apple.focus();
     expect(apple).toHaveFocus();
@@ -57,27 +57,27 @@ describe("dashboard screen", () => {
       "href",
       "/accounts/livret",
     );
-    expect(screen.getByText(/800[.,]00 USD/)).toBeInTheDocument();
-    expect(screen.getByText(/300[.,]00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/(\$800[.,]00|800[.,]00 \$)/)).toBeInTheDocument();
+    expect(screen.getByText(/(\$300[.,]00|300[.,]00 \$)/)).toBeInTheDocument();
   });
 
   it("selects every Portfolio value range and reports sparse history honestly", async () => {
     const user = userEvent.setup();
     seedPortfolioEngine({ dashboard: populatedDashboardFor() });
     renderRoute("/");
-    expect(await screen.findByText(/\+90[.,]00 USD/)).toBeInTheDocument();
+    expect(await screen.findByText(/\+\$90[.,]00|\+90[.,]00 \$/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "7D" }));
     expect(screen.getByText("Not enough history")).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "3M" }));
-    expect(screen.getByText(/\+90[.,]00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/\+\$90[.,]00|\+90[.,]00 \$/)).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "YTD" }));
-    expect(screen.getByText(/\+90[.,]00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/\+\$90[.,]00|\+90[.,]00 \$/)).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "1Y" }));
-    expect(screen.getByText(/\+90[.,]00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/\+\$90[.,]00|\+90[.,]00 \$/)).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "All" }));
-    expect(screen.getByText(/\+90[.,]00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/\+\$90[.,]00|\+90[.,]00 \$/)).toBeInTheDocument();
   });
 
   it("toggles allocation between Assets and Asset categories", async () => {
@@ -85,12 +85,12 @@ describe("dashboard screen", () => {
     seedPortfolioEngine({ dashboard: populatedDashboardFor() });
     renderRoute("/");
     expect(
-      await screen.findByRole("img", { name: /Apple \(AAPL\), 800[.,]00 USD, 80%/ }),
+      await screen.findByRole("img", { name: /Apple \(AAPL\), (\$800[.,]00|800[.,]00 \$), 80%/ }),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "Categories" }));
     expect(
-      screen.getByRole("img", { name: /Stocks & ETFs, 800[.,]00 USD, 80%/ }),
+      screen.getByRole("img", { name: /Stocks & ETFs, (\$800[.,]00|800[.,]00 \$), 80%/ }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: /Apple \(AAPL\)/ })).not.toBeInTheDocument();
   });
@@ -108,13 +108,13 @@ describe("dashboard screen", () => {
     });
     renderRoute("/");
     const apple = await screen.findByRole("img", {
-      name: /Apple \(AAPL\), 800[.,]25 USD, 80%/,
+      name: /Apple \(AAPL\), (\$800[.,]25|800[.,]25 \$), 80%/,
     });
     await user.hover(apple);
     const tooltip = await screen.findByRole("tooltip");
     expect(tooltip).toHaveTextContent("Apple • 80%");
-    expect(tooltip).toHaveTextContent(/800[.,]25 USD/);
-    expect(apple).toHaveTextContent(/800 USD/);
+    expect(tooltip).toHaveTextContent(/(\$800[.,]25|800[.,]25 \$)/);
+    expect(apple).toHaveTextContent(/(\$800|800 \$)/);
     expect(apple).not.toHaveTextContent(/800[.,]\d/);
   });
 

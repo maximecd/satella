@@ -22,6 +22,14 @@ _Avoid_: Asset class, account kind
 The current combined value of all holdings expressed in the reporting currency. It is not investment performance because deposits and withdrawals are not yet modeled as cash flows.
 _Avoid_: Performance, return
 
+**Fiat currency**:
+A government-issued currency modeled as a Cash asset identified by its ISO code. Accounts and the reporting currency are denominated in one.
+_Avoid_: Fiat asset, real currency
+
+**Currency symbol**:
+The short sign (for example $ or €) shown next to an amount instead of its ISO code when displaying a Fiat currency.
+_Avoid_: Currency sign, ticker
+
 **Reporting currency**:
 The single currency used to express portfolio-wide totals, history, and allocation. USD is the default, and the user may change it in Settings.
 _Avoid_: Default currency, base currency
