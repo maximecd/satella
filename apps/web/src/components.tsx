@@ -29,9 +29,9 @@ import { Sidebar } from "./sidebar";
 
 export function RootLayout() {
   return (
-    <Flex minH="100vh" bg="bg.muted">
+    <Flex h="100vh" bg="bg.muted">
       <Sidebar />
-      <Box flex="1" minW="0">
+      <Box flex="1" minW="0" overflowY="auto">
         <Container maxW="7xl" py={{ base: 4, md: 6 }} px={{ base: 4, md: 6 }}>
           <Stack gap="6">
             <Outlet />
