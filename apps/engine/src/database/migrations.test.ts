@@ -6,6 +6,7 @@ import { describe, expect } from "vite-plus/test";
 import { it } from "@effect/vitest";
 import { SqlClient } from "effect/unstable/sql";
 import type { MigrationRegistry } from "./index.js";
+import { ProductionMigrations } from "./migrations.js";
 import { TempDirectoryError } from "./DatabaseTestLayer.js";
 import {
   acquireTestDirectory,
@@ -59,6 +60,10 @@ const rebuildRecords: MigrationRegistry = {
 };
 
 describe("SQLite migration startup", () => {
+  it("ships a single squashed finance-model migration", () => {
+    expect(Object.keys(ProductionMigrations)).toEqual(["0001_initial_finance_model"]);
+  });
+
   it.effect("creates the database ledger and runs migrations once across restart", () =>
     Effect.gen(function* () {
       const directory = yield* acquireTestDirectory;

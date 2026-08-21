@@ -8,7 +8,7 @@ import { AccountService } from "../finance/accounts/AccountService.js";
 import { AddAssetsService } from "../finance/add-assets/AddAssetsService.js";
 import { AssetService } from "../finance/assets/AssetService.js";
 import { ConnectorCatalog } from "../finance/connectors/ConnectorCatalog.js";
-import { ConnectionService } from "../finance/connections/ConnectionService.js";
+import { CustodianService } from "../finance/custodians/CustodianService.js";
 import { MarketDataService } from "../finance/market-data/MarketDataService.js";
 import { PortfolioService } from "../finance/portfolio/PortfolioService.js";
 import { PositionService } from "../finance/positions/PositionService.js";
@@ -36,6 +36,11 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
         return yield* (yield* AddAssetsService).listManualAccounts();
       }),
     )
+    .handle("listManualCustodians", () =>
+      Effect.gen(function* () {
+        return yield* (yield* AddAssetsService).listManualCustodians();
+      }),
+    )
     .handle("lookupManualHolding", ({ query }) =>
       Effect.gen(function* () {
         return yield* (yield* AddAssetsService).lookupManualHolding(
@@ -60,34 +65,39 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
         return yield* (yield* AddAssetsService).addOtherAsset(payload);
       }),
     )
-    .handle("listConnections", () =>
+    .handle("listCustodians", () =>
       Effect.gen(function* () {
-        return yield* (yield* ConnectionService).list();
+        return yield* (yield* CustodianService).list();
       }),
     )
-    .handle("getConnection", ({ params }) =>
+    .handle("getCustodian", ({ params }) =>
       Effect.gen(function* () {
-        return yield* (yield* ConnectionService).get(params.id);
+        return yield* (yield* CustodianService).get(params.id);
       }),
     )
-    .handle("connectConnection", ({ payload }) =>
+    .handle("createCustodian", ({ payload }) =>
       Effect.gen(function* () {
-        return yield* (yield* ConnectionService).connect(payload);
+        return yield* (yield* CustodianService).create(payload);
       }),
     )
-    .handle("refreshConnection", ({ params }) =>
+    .handle("connectCustodian", ({ payload }) =>
       Effect.gen(function* () {
-        return yield* (yield* ConnectionService).refresh(params.id);
+        return yield* (yield* CustodianService).connect(payload);
       }),
     )
-    .handle("updateConnection", ({ params, payload }) =>
+    .handle("refreshCustodian", ({ params }) =>
       Effect.gen(function* () {
-        return yield* (yield* ConnectionService).update(params.id, payload);
+        return yield* (yield* CustodianService).refresh(params.id);
       }),
     )
-    .handle("deleteConnection", ({ params }) =>
+    .handle("updateCustodian", ({ params, payload }) =>
       Effect.gen(function* () {
-        return yield* (yield* ConnectionService).delete(params.id);
+        return yield* (yield* CustodianService).update(params.id, payload);
+      }),
+    )
+    .handle("deleteCustodian", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* CustodianService).delete(params.id);
       }),
     )
     .handle("getAccount", ({ params }) =>

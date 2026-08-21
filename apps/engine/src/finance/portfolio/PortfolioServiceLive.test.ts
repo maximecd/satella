@@ -123,12 +123,13 @@ describe("portfolio dashboard", () => {
       const eurDashboard = yield* Finance.getDashboard();
       const nativeAfter = yield* Finance.getAccount(livret.id);
 
+      const dashboardAccounts = usdDashboard.custodians.flatMap((group) => group.accounts);
       expect(usdDashboard.reportingCurrency.iso).toBe("USD");
       expect(usdDashboard.portfolioValue).toBe("1110");
-      expect(usdDashboard.accounts[0]?.accountName).toBe("Brokerage");
-      expect(usdDashboard.accounts[0]?.total).toBe("1000");
-      expect(usdDashboard.accounts[1]?.accountName).toBe("Livret A");
-      expect(usdDashboard.accounts[1]?.total).toBe("110");
+      expect(dashboardAccounts[0]?.accountName).toBe("Brokerage");
+      expect(dashboardAccounts[0]?.total).toBe("1000");
+      expect(dashboardAccounts[1]?.accountName).toBe("Livret A");
+      expect(dashboardAccounts[1]?.total).toBe("110");
       expect(nativeLivret.total).toBe("100");
       expect(nativeLivret.baseCurrencyIso).toBe("EUR");
       expect(eurDashboard.reportingCurrency.iso).toBe("EUR");
@@ -197,10 +198,9 @@ describe("portfolio dashboard", () => {
           percent: "100",
         }),
       ]);
-      expect(dashboard.accounts.map(({ accountName }) => accountName)).toEqual([
-        "Trading",
-        "Growth",
-      ]);
+      expect(dashboard.custodians.flatMap((group) => group.accounts).map(({ accountName }) => accountName).sort()).toEqual(
+        ["Growth", "Trading"],
+      );
     }).pipe(Effect.provide(engineTestLayer())),
   );
 

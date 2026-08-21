@@ -5,7 +5,13 @@ import * as Schema from "effect/Schema";
 import { SqlClient } from "effect/unstable/sql";
 import type { Account, CreatePositionInput, PositionEdit } from "../contracts.js";
 import { UpdatePositionInput } from "../contracts.js";
-import { getAccount, assertManualAccountOwner, loadPosition } from "../accounts/AccountSql.js";
+import { DEFAULT_MANUAL_CUSTODIAN_ID } from "../config.js";
+import {
+  getAccount,
+  assertManualAccountOwner,
+  assertAccountAcceptsAsset,
+  loadPosition,
+} from "../accounts/AccountSql.js";
 import { getAsset } from "../assets/AssetSql.js";
 import {
   db,
@@ -26,6 +32,8 @@ export const createPosition = (input: CreatePositionInput): FinanceEffect<Accoun
   Effect.gen(function* () {
     yield* assertManualAccountOwner(input.accountId);
     const asset = yield* getAsset(input.assetId);
+    const account = yield* getAccount(input.accountId);
+    yield* assertAccountAcceptsAsset(account, asset.assetCategory, input.assetId);
     const quantity = yield* requireFinite(input.quantity, "Quantity");
     const average = input.averageUnitPurchasePrice;
     if (average !== undefined && asset.assetCategory === "cash") {
@@ -126,13 +134,13 @@ export const getPositionEdit = (id: string): FinanceEffect<PositionEdit> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const account = yield* firstOrNotFound(
-      yield* db(sql<AccountRow>`SELECT a.id, a.connection_id, c.name AS connection_name,
-        a.name, a.base_currency_asset_id,
+      yield* db(sql<AccountRow>`SELECT a.id, a.custodian_id, c.name AS custodian_name,
+        c.connector_id AS custodian_connector_id, a.account_type, a.name, a.base_currency_asset_id,
         COALESCE(ai.identifier_value, ba.symbol, ba.name) AS base_currency_iso,
         a.connector_account_id, a.created_at, a.updated_at
         FROM positions p
         JOIN accounts a ON a.id = p.account_id
-        LEFT JOIN connections c ON c.id = a.connection_id
+        JOIN custodians c ON c.id = a.custodian_id
         JOIN assets ba ON ba.id = a.base_currency_asset_id
         LEFT JOIN asset_identifiers ai ON ai.asset_id = ba.id AND ai.identifier_type = 'iso_currency'
         WHERE p.id = ${id}`),
@@ -150,10 +158,10 @@ export const getPositionEdit = (id: string): FinanceEffect<PositionEdit> =>
         p.manual_purchase_currency_asset_id,
         COALESCE(manual_purchase_identifier.identifier_value, manual_purchase_currency.symbol,
           manual_purchase_currency.name) AS manual_purchase_currency_iso,
-        p.connection_average_unit_purchase_price,
-        p.connection_purchase_currency_asset_id,
-        COALESCE(connection_purchase_identifier.identifier_value, connection_purchase_currency.symbol,
-          connection_purchase_currency.name) AS connection_purchase_currency_iso,
+        p.synced_average_unit_purchase_price,
+        p.synced_purchase_currency_asset_id,
+        COALESCE(synced_purchase_identifier.identifier_value, synced_purchase_currency.symbol,
+          synced_purchase_currency.name) AS synced_purchase_currency_iso,
         p.created_at, p.updated_at
         FROM positions p JOIN assets a ON a.id = p.asset_id
         LEFT JOIN asset_prices ap ON ap.asset_id = a.id
@@ -165,11 +173,11 @@ export const getPositionEdit = (id: string): FinanceEffect<PositionEdit> =>
         LEFT JOIN asset_identifiers manual_purchase_identifier
           ON manual_purchase_identifier.asset_id = manual_purchase_currency.id
           AND manual_purchase_identifier.identifier_type = 'iso_currency'
-        LEFT JOIN assets connection_purchase_currency
-          ON connection_purchase_currency.id = p.connection_purchase_currency_asset_id
-        LEFT JOIN asset_identifiers connection_purchase_identifier
-          ON connection_purchase_identifier.asset_id = connection_purchase_currency.id
-          AND connection_purchase_identifier.identifier_type = 'iso_currency'
+      LEFT JOIN assets synced_purchase_currency
+        ON synced_purchase_currency.id = p.synced_purchase_currency_asset_id
+      LEFT JOIN asset_identifiers synced_purchase_identifier
+        ON synced_purchase_identifier.asset_id = synced_purchase_currency.id
+        AND synced_purchase_identifier.identifier_type = 'iso_currency'
         WHERE p.id = ${id}`),
       "Position",
     );
@@ -180,8 +188,11 @@ export const getPositionEdit = (id: string): FinanceEffect<PositionEdit> =>
       account: {
         id: account.id,
         name: account.name,
-        connectionId: account.connection_id,
-        connectionName: account.connection_name,
+        custodianId: account.custodian_id,
+        custodianName: account.custodian_name,
+        isDefaultCustodian: account.custodian_id === DEFAULT_MANUAL_CUSTODIAN_ID,
+        accountType: account.account_type,
+        connectorAccountId: account.connector_account_id,
         baseCurrencyAssetId: account.base_currency_asset_id,
         baseCurrencyIso: account.base_currency_iso,
       },

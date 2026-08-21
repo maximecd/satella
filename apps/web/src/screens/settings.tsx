@@ -58,9 +58,9 @@ export function SettingsScreen() {
         </Card.Root>
         <Box as="ul" m="0" p="0">
           <NavRow
-            href="/settings/connections"
-            label="Connections"
-            description="Manage linked financial services."
+            href="/settings/custodians"
+            label="Custodians"
+            description="Manage banks, brokers, and linked services."
           />
           <NavRow
             href="/settings/security"

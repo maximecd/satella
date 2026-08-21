@@ -13,7 +13,7 @@ const dashboard = {
   unpricedAssetCount: 0,
   negativeHoldingCount: 0,
   hasMeaningfulAssets: false,
-  accounts: [],
+  custodians: [],
   assetAllocation: [],
   categoryAllocation: [],
   history: [],

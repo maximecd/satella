@@ -1,5 +1,5 @@
 import { Alert, Box, Card, Grid, Heading, Stack, Text } from "@chakra-ui/react";
-import type { DashboardAccountRow } from "@optimus/engine/api";
+import type { DashboardAccountRow, DashboardCustodianGroup } from "@optimus/engine/api";
 import { useState } from "react";
 
 import { NavRow, PageHeader, PageState } from "../components";
@@ -25,13 +25,14 @@ import {
 const errorMessage = (cause: unknown) =>
   cause instanceof Error ? cause.message : "The request failed.";
 
+const groupLabel = (group: DashboardCustodianGroup) =>
+  group.isDefault ? "Other holdings" : group.name;
+
 const rowDescription = (row: DashboardAccountRow) => {
   const holdings = `${row.positionCount} holding${row.positionCount === 1 ? "" : "s"}`;
-  const parts = [
-    row.connectionName,
-    holdings,
-    row.totalIncomplete ? "Incomplete valuation" : null,
-  ].filter((part): part is string => part !== null);
+  const parts = [holdings, row.totalIncomplete ? "Incomplete valuation" : null].filter(
+    (part): part is string => part !== null,
+  );
   return parts.join(" · ");
 };
 
@@ -184,29 +185,33 @@ export function DashboardScreen() {
         </Card.Root>
         <Card.Root gridColumn={{ base: "auto", lg: "1 / -1" }}>
           <Card.Body>
-            <Stack gap="4">
-              <Heading as="h2" size="md">
-                Accounts
-              </Heading>
-              <Box as="ul" m="0" p="0">
-                {dashboard.accounts.map((row) => (
-                  <NavRow
-                    key={row.accountId}
-                    href={`/accounts/${row.accountId}`}
-                    label={row.accountName}
-                    description={rowDescription(row)}
-                    endContent={
-                      <Stack align="flex-end" gap="0" fontVariantNumeric="tabular-nums">
-                        <Text>{formatAmount(row.total, iso)}</Text>
-                        <Text color={pnlColor(row.unrealizedPnl)} fontSize="sm">
-                          P&amp;L {formatSignedAmount(row.unrealizedPnl, iso)}
-                          {pnlPercent(row.unrealizedPnlPercent)}
-                        </Text>
-                      </Stack>
-                    }
-                  />
-                ))}
-              </Box>
+            <Stack gap="6">
+              {dashboard.custodians.map((group) => (
+                <Stack key={group.custodianId} gap="2">
+                  <Heading as="h2" size="md">
+                    {groupLabel(group)}
+                  </Heading>
+                  <Box as="ul" m="0" p="0">
+                    {group.accounts.map((row) => (
+                      <NavRow
+                        key={row.accountId}
+                        href={`/accounts/${row.accountId}`}
+                        label={group.isDefault ? "Other holdings" : row.accountName}
+                        description={rowDescription(row)}
+                        endContent={
+                          <Stack align="flex-end" gap="0" fontVariantNumeric="tabular-nums">
+                            <Text>{formatAmount(row.total, iso)}</Text>
+                            <Text color={pnlColor(row.unrealizedPnl)} fontSize="sm">
+                              P&amp;L {formatSignedAmount(row.unrealizedPnl, iso)}
+                              {pnlPercent(row.unrealizedPnlPercent)}
+                            </Text>
+                          </Stack>
+                        }
+                      />
+                    ))}
+                  </Box>
+                </Stack>
+              ))}
             </Stack>
           </Card.Body>
         </Card.Root>

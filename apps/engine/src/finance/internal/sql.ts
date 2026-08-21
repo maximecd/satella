@@ -2,7 +2,7 @@ import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
 import * as Duration from "effect/Duration";
 
-import type { AssetCategory } from "../contracts.js";
+import type { AccountType, AssetCategory } from "../contracts.js";
 import { FinanceApiError as FinanceError } from "../contracts.js";
 import {
   canonicalDecimal,
@@ -19,7 +19,7 @@ import {
 
 export type FinanceEffect<A> = Effect.Effect<A, FinanceError, SqlClient.SqlClient>;
 
-export const MANUAL_ASSET_CATEGORIES = new Set<AssetCategory>(["bonds", "other"]);
+export const MANUAL_ASSET_CATEGORIES = new Set<AssetCategory>(["other"]);
 const supportedReportingCurrencies = new Set<string>(SUPPORTED_REPORTING_CURRENCIES);
 
 export interface AssetRow {
@@ -45,10 +45,10 @@ export interface PriceRow {
   readonly updated_at: string;
 }
 
-export interface ConnectionRow {
+export interface CustodianRow {
   readonly id: string;
   readonly name: string;
-  readonly connector_id: string;
+  readonly connector_id: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -56,6 +56,7 @@ export interface ConnectionRow {
 export interface AccountSummaryRow {
   readonly id: string;
   readonly name: string;
+  readonly account_type: AccountType;
   readonly base_currency_iso: string;
   readonly connector_account_id: string | null;
   readonly position_count: number;
@@ -63,8 +64,10 @@ export interface AccountSummaryRow {
 
 export interface AccountRow {
   readonly id: string;
-  readonly connection_id: string | null;
-  readonly connection_name: string | null;
+  readonly custodian_id: string;
+  readonly custodian_name: string;
+  readonly custodian_connector_id: string | null;
+  readonly account_type: AccountType;
   readonly name: string;
   readonly base_currency_asset_id: string;
   readonly base_currency_iso: string;
@@ -90,9 +93,9 @@ export interface PositionRow {
   readonly manual_average_unit_purchase_price: string | null;
   readonly manual_purchase_currency_asset_id: string | null;
   readonly manual_purchase_currency_iso: string | null;
-  readonly connection_average_unit_purchase_price: string | null;
-  readonly connection_purchase_currency_asset_id: string | null;
-  readonly connection_purchase_currency_iso: string | null;
+  readonly synced_average_unit_purchase_price: string | null;
+  readonly synced_purchase_currency_asset_id: string | null;
+  readonly synced_purchase_currency_iso: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }

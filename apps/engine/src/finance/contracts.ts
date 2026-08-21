@@ -3,12 +3,11 @@ import * as Schema from "effect/Schema";
 
 import { DecimalInput, DecimalString } from "./financial-number.js";
 
-export const AssetCategory = Schema.Literals(["stocks_etfs", "bonds", "crypto", "cash", "other"]);
+export const AssetCategory = Schema.Literals(["stocks_etfs", "crypto", "cash", "other"]);
 export type AssetCategory = typeof AssetCategory.Type;
 
 export const ASSET_CATEGORY_LABELS = {
   stocks_etfs: "Stocks & ETFs",
-  bonds: "Bonds",
   crypto: "Crypto",
   cash: "Cash",
   other: "Other assets",
@@ -17,8 +16,20 @@ export const ASSET_CATEGORY_LABELS = {
 export const SearchableAssetCategory = Schema.Literals(["stocks_etfs", "crypto"]);
 export type SearchableAssetCategory = typeof SearchableAssetCategory.Type;
 
-export const GenericAssetCategory = Schema.Literals(["bonds", "other"]);
-export type GenericAssetCategory = typeof GenericAssetCategory.Type;
+export const AccountType = Schema.Literals([
+  "checking",
+  "savings",
+  "brokerage",
+  "crypto_wallet",
+  "other",
+]);
+export type AccountType = typeof AccountType.Type;
+
+export const CashAccountType = Schema.Literals(["checking", "savings"]);
+export type CashAccountType = typeof CashAccountType.Type;
+
+export const HoldingAccountType = Schema.Literals(["brokerage", "crypto_wallet"]);
+export type HoldingAccountType = typeof HoldingAccountType.Type;
 
 export const IdentifierInput = Schema.Struct({
   type: Schema.Trim.check(Schema.isNonEmpty()),
@@ -41,7 +52,7 @@ export const AverageUnitPurchasePrice = Schema.Struct({
   price: DecimalString,
   currencyAssetId: Schema.String,
   currencyIso: Schema.String,
-  source: Schema.Literals(["manual", "connection"]),
+  source: Schema.Literals(["manual", "synced"]),
 });
 export type AverageUnitPurchasePrice = typeof AverageUnitPurchasePrice.Type;
 
@@ -84,8 +95,10 @@ export type Position = typeof Position.Type;
 
 export const Account = Schema.Struct({
   id: Schema.String,
-  connectionId: Schema.NullOr(Schema.String),
-  connectionName: Schema.NullOr(Schema.String),
+  custodianId: Schema.String,
+  custodianName: Schema.String,
+  isDefaultCustodian: Schema.Boolean,
+  accountType: AccountType,
   name: Schema.String,
   baseCurrencyAssetId: Schema.String,
   baseCurrencyIso: Schema.String,
@@ -104,21 +117,23 @@ export type Account = typeof Account.Type;
 export const AccountSummary = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
+  accountType: AccountType,
   baseCurrencyIso: Schema.String,
   connectorAccountId: Schema.NullOr(Schema.String),
   positionCount: Schema.Number,
 });
 export type AccountSummary = typeof AccountSummary.Type;
 
-export const Connection = Schema.Struct({
+export const Custodian = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
-  connectorId: Schema.String,
+  connectorId: Schema.NullOr(Schema.String),
+  isDefault: Schema.Boolean,
   accounts: Schema.Array(AccountSummary),
   createdAt: Schema.String,
   updatedAt: Schema.String,
 });
-export type Connection = typeof Connection.Type;
+export type Custodian = typeof Custodian.Type;
 
 export const ConnectorCapability = Schema.Struct({
   id: Schema.String,
@@ -156,21 +171,28 @@ export const EntityIdPath = Schema.Struct({ id: Schema.String });
 export const ConnectorCredentials = Schema.Record(Schema.String, Schema.String);
 export type ConnectorCredentials = typeof ConnectorCredentials.Type;
 
-export const ConnectConnectionInput = Schema.Struct({
+export const ConnectCustodianInput = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
   connectorId: Schema.Trim.check(Schema.isNonEmpty()),
   credentials: ConnectorCredentials,
 });
-export type ConnectConnectionInput = typeof ConnectConnectionInput.Type;
+export type ConnectCustodianInput = typeof ConnectCustodianInput.Type;
 
-export const UpdateConnectionInput = Schema.Struct({
+export const CreateCustodianInput = Schema.Struct({
+  name: Schema.Trim.check(Schema.isNonEmpty()),
+});
+export type CreateCustodianInput = typeof CreateCustodianInput.Type;
+
+export const UpdateCustodianInput = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
   credentials: Schema.optional(ConnectorCredentials),
 });
-export type UpdateConnectionInput = typeof UpdateConnectionInput.Type;
+export type UpdateCustodianInput = typeof UpdateCustodianInput.Type;
 
 export const CreateAccountInput = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
+  custodianId: Schema.String,
+  accountType: AccountType,
   baseCurrencyAssetId: Schema.optional(Schema.String),
 });
 export type CreateAccountInput = typeof CreateAccountInput.Type;
@@ -215,8 +237,11 @@ export type MaintainAssetInput = typeof MaintainAssetInput.Type;
 export const PositionEditAccount = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
-  connectionId: Schema.NullOr(Schema.String),
-  connectionName: Schema.NullOr(Schema.String),
+  custodianId: Schema.String,
+  custodianName: Schema.String,
+  isDefaultCustodian: Schema.Boolean,
+  accountType: AccountType,
+  connectorAccountId: Schema.NullOr(Schema.String),
   baseCurrencyAssetId: Schema.String,
   baseCurrencyIso: Schema.String,
 });
@@ -290,11 +315,11 @@ export const PriceRefreshResult = Schema.Struct({
 });
 export type PriceRefreshResult = typeof PriceRefreshResult.Type;
 
-export const ConnectionRefreshResult = Schema.Struct({
-  connection: Connection,
+export const CustodianRefreshResult = Schema.Struct({
+  custodian: Custodian,
   failures: Schema.Array(PriceRefreshFailure),
 });
-export type ConnectionRefreshResult = typeof ConnectionRefreshResult.Type;
+export type CustodianRefreshResult = typeof CustodianRefreshResult.Type;
 
 export const PortfolioHistoryPoint = Schema.Struct({
   snapshotId: Schema.String,
@@ -304,7 +329,7 @@ export const PortfolioHistoryPoint = Schema.Struct({
 });
 export type PortfolioHistoryPoint = typeof PortfolioHistoryPoint.Type;
 
-export const ExistingOrNewAccount = Schema.Union([
+export const ExistingOrNewCustodian = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("existing"),
     id: Schema.String,
@@ -312,10 +337,23 @@ export const ExistingOrNewAccount = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("new"),
     name: Schema.Trim.check(Schema.isNonEmpty()),
+  }),
+]);
+export type ExistingOrNewCustodian = typeof ExistingOrNewCustodian.Type;
+
+export const ExistingOrNewHoldingAccount = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("existing"),
+    id: Schema.String,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("new"),
+    name: Schema.Trim.check(Schema.isNonEmpty()),
+    accountType: HoldingAccountType,
     baseCurrencyAssetId: Schema.optional(Schema.String),
   }),
 ]);
-export type ExistingOrNewAccount = typeof ExistingOrNewAccount.Type;
+export type ExistingOrNewHoldingAccount = typeof ExistingOrNewHoldingAccount.Type;
 
 export const ProviderAssetInput = Schema.Struct({
   assetCategory: SearchableAssetCategory,
@@ -327,25 +365,23 @@ export type ProviderAssetInput = typeof ProviderAssetInput.Type;
 
 export const AddManualHoldingInput = Schema.Struct({
   asset: ProviderAssetInput,
-  account: ExistingOrNewAccount,
+  custodian: ExistingOrNewCustodian,
+  account: ExistingOrNewHoldingAccount,
   quantity: DecimalInput,
   averageUnitPurchasePrice: Schema.optional(AverageUnitPurchasePriceInput),
 });
 export type AddManualHoldingInput = typeof AddManualHoldingInput.Type;
 
 export const AddCashAccountInput = Schema.Struct({
-  account: ExistingOrNewAccount,
+  accountType: CashAccountType,
+  custodian: ExistingOrNewCustodian,
+  name: Schema.Trim.check(Schema.isNonEmpty()),
   currencyAssetId: Schema.String,
   balance: DecimalInput,
 });
 export type AddCashAccountInput = typeof AddCashAccountInput.Type;
 
 export const AddOtherAssetInput = Schema.Struct({
-  category: GenericAssetCategory.pipe(
-    Schema.optional,
-    Schema.withDecodingDefaultType(Effect.succeed("other" as const)),
-  ),
-  account: ExistingOrNewAccount,
   name: Schema.Trim.check(Schema.isNonEmpty()),
   value: DecimalInput,
   currencyAssetId: Schema.String,
@@ -375,8 +411,7 @@ export type ManualHoldingLookup = typeof ManualHoldingLookup.Type;
 export const DashboardAccountRow = Schema.Struct({
   accountId: Schema.String,
   accountName: Schema.String,
-  connectionId: Schema.NullOr(Schema.String),
-  connectionName: Schema.NullOr(Schema.String),
+  accountType: AccountType,
   positionCount: Schema.Number,
   total: DecimalString,
   unrealizedPnl: DecimalString,
@@ -384,6 +419,15 @@ export const DashboardAccountRow = Schema.Struct({
   totalIncomplete: Schema.Boolean,
 });
 export type DashboardAccountRow = typeof DashboardAccountRow.Type;
+
+export const DashboardCustodianGroup = Schema.Struct({
+  custodianId: Schema.String,
+  name: Schema.String,
+  isDefault: Schema.Boolean,
+  connectorId: Schema.NullOr(Schema.String),
+  accounts: Schema.Array(DashboardAccountRow),
+});
+export type DashboardCustodianGroup = typeof DashboardCustodianGroup.Type;
 
 export const ReportingCurrency = Schema.Struct({
   assetId: Schema.String,
@@ -410,7 +454,7 @@ export const Dashboard = Schema.Struct({
   unpricedAssetCount: Schema.Number,
   negativeHoldingCount: Schema.Number,
   hasMeaningfulAssets: Schema.Boolean,
-  accounts: Schema.Array(DashboardAccountRow),
+  custodians: Schema.Array(DashboardCustodianGroup),
   assetAllocation: Schema.Array(AllocationCell),
   categoryAllocation: Schema.Array(AllocationCell),
   history: Schema.Array(PortfolioHistoryPoint),

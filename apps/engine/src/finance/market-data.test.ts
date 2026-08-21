@@ -62,14 +62,22 @@ describe("market data coordinator", () => {
           identifiers: [],
         });
         const timestamp = new Date().toISOString();
-        yield* sql`INSERT INTO connections (id, name, connector_id, config_json, created_at, updated_at)
-          VALUES ('okx', 'OKX', 'okx', '{}', ${timestamp}, ${timestamp})`;
-        yield* sql`INSERT INTO accounts
-          (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
-          VALUES ('trading', 'okx', 'Trading', 'fiat:USD', 'trading', ${timestamp}, ${timestamp})`;
+        yield* Finance.seedSyncedCustodian({
+          id: "okx",
+          name: "OKX",
+          connectorId: "okx",
+          accounts: [
+            {
+              id: "trading",
+              name: "Trading",
+              connectorAccountId: "trading",
+              accountType: "crypto_wallet",
+            },
+          ],
+        });
         yield* sql`INSERT INTO positions (id, account_id, asset_id, quantity, created_at, updated_at)
           VALUES ('btc-position', 'trading', ${duplicate.id}, 1, ${timestamp}, ${timestamp})`;
-        yield* sql`INSERT INTO connector_asset_mappings (connection_id, external_asset_id, asset_id)
+        yield* sql`INSERT INTO connector_asset_mappings (custodian_id, external_asset_id, asset_id)
           VALUES ('okx', 'okx:currency:BTC', ${duplicate.id})`;
         const refreshed = yield* refreshPrices({ registry, requireFresh: true });
         return {

@@ -37,12 +37,13 @@ describe("connector service bridge", () => {
   it.effect("keeps nested connector accounts until atomic reconciliation", () =>
     Effect.gen(function* () {
       const result = yield* Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
-        const timestamp = new Date().toISOString();
-        yield* sql`INSERT INTO connections (id, name, connector_id, config_json, created_at, updated_at)
-            VALUES ('okx', 'OKX', 'okx', '{}', ${timestamp}, ${timestamp})`;
+        yield* Finance.seedSyncedCustodian({
+          id: "okx",
+          name: "OKX",
+          connectorId: "okx",
+        });
         const reconciliation = yield* reconcileConnectorAccounts("okx", accounts);
-        return { reconciliation, connection: yield* Finance.getConnection("okx") };
+        return { reconciliation, custodian: yield* Finance.getCustodian("okx") };
       });
       expect(result.reconciliation).toEqual({
         accountCount: 2,
@@ -50,12 +51,12 @@ describe("connector service bridge", () => {
         zeroedPositionCount: 0,
         removedAccountCount: 0,
       });
-      expect(result.connection.accounts.map(({ name }) => name).sort()).toEqual([
+      expect(result.custodian.accounts.map(({ name }) => name).sort()).toEqual([
         "Funding",
         "Trading",
       ]);
       expect(
-        result.connection.accounts.map(({ connectorAccountId }) => connectorAccountId).sort(),
+        result.custodian.accounts.map(({ connectorAccountId }) => connectorAccountId).sort(),
       ).toEqual(["funding", "trading"]);
     }).pipe(Effect.provide(engineTestLayer())),
   );

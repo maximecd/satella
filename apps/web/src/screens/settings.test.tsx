@@ -16,7 +16,7 @@ describe("settings screen", () => {
     window.localStorage.clear();
   });
 
-  it("shows Reporting currency and a Connections row without diagnostic sections", async () => {
+  it("shows Reporting currency and a Custodians row without diagnostic sections", async () => {
     renderRoute("/settings");
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(screen.getByLabelText("Reporting currency")).toBeInTheDocument();
@@ -24,9 +24,9 @@ describe("settings screen", () => {
     expect(screen.getByRole("radio", { name: "Light" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Dark" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /toggle color mode/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Connections/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Custodians/ })).toHaveAttribute(
       "href",
-      "/settings/connections",
+      "/settings/custodians",
     );
     expect(screen.getByRole("link", { name: /Security/ })).toHaveAttribute(
       "href",
@@ -34,7 +34,7 @@ describe("settings screen", () => {
     );
     expect(screen.queryByText("Institutions & wallets")).not.toBeInTheDocument();
     expect(screen.queryByText("Advanced data")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Custodians/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Connections/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 

@@ -5,7 +5,6 @@ import { canonicalDecimal } from "./financial-number.js";
 
 export const ConnectorAssetCategory = Schema.Literals([
   "stocks_etfs",
-  "bonds",
   "crypto",
   "cash",
   "other",

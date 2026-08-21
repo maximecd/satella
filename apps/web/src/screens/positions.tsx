@@ -65,6 +65,8 @@ function LoadedEditPosition({
   const remove = useDeletePosition(position.id, account.id);
   const initialAverage = position.averageUnitPurchasePrice;
   const canEditPurchasePrice = position.assetCategory !== "cash";
+  const isManual = account.connectorAccountId === null;
+  const accountLabel = account.isDefaultCustodian ? "Other holdings" : account.name;
   const form = useAppForm({
     defaultValues: {
       quantity: position.quantity,
@@ -84,7 +86,7 @@ function LoadedEditPosition({
         return;
       }
       const payload: PositionUpdatePayload = {};
-      if (account.connectionId === null) Object.assign(payload, { quantity });
+      if (isManual) Object.assign(payload, { quantity });
       if (canEditPurchasePrice) {
         if (resetRequested || averageText === "") {
           if (resetRequested || initialAverage?.source === "manual") {
@@ -102,11 +104,11 @@ function LoadedEditPosition({
             setError("Average unit purchase price must be greater than zero.");
             return;
           }
-          const unchangedConnectionValue =
-            initialAverage?.source === "connection" &&
+          const unchangedSyncedValue =
+            initialAverage?.source === "synced" &&
             initialAverage.price === price &&
             initialAverage.currencyAssetId === value.purchaseCurrencyAssetId;
-          if (!unchangedConnectionValue) {
+          if (!unchangedSyncedValue) {
             Object.assign(payload, {
               averageUnitPurchasePrice: {
                 price,
@@ -134,20 +136,20 @@ function LoadedEditPosition({
     <>
       <PageBreadcrumbs
         items={
-          account.connectionId === null
+          account.connectorAccountId === null
             ? [
                 { label: "Dashboard", href: "/" },
-                { label: account.name, href: `/accounts/${account.id}` },
+                { label: accountLabel, href: `/accounts/${account.id}` },
                 { label: "Edit" },
               ]
             : [
                 { label: "Settings", href: "/settings" },
-                { label: "Connections", href: "/settings/connections" },
+                { label: "Custodians", href: "/settings/custodians" },
                 {
-                  label: account.connectionName ?? "Connection",
-                  href: `/settings/connections/${account.connectionId}`,
+                  label: account.custodianName,
+                  href: `/settings/custodians/${account.custodianId}`,
                 },
-                { label: account.name, href: `/accounts/${account.id}` },
+                { label: accountLabel, href: `/accounts/${account.id}` },
                 { label: "Edit" },
               ]
         }
@@ -157,9 +159,9 @@ function LoadedEditPosition({
         subtitle={
           !canEditPurchasePrice
             ? "Cash positions are excluded from Unrealized P&L."
-            : account.connectionId === null
+            : isManual
               ? "Set quantity to zero to preserve the position and its history."
-              : "Quantity is supplied by the Connection; purchase price remains editable."
+              : `Quantity is supplied by ${account.custodianName}; purchase price remains editable.`
         }
       />
       <FormError message={error} />
@@ -173,7 +175,7 @@ function LoadedEditPosition({
           <form.AppField
             name="quantity"
             children={(field) => (
-              <field.TextField label="Quantity" number disabled={account.connectionId !== null} />
+              <field.TextField label="Quantity" number disabled={!isManual} />
             )}
           />
           {canEditPurchasePrice ? (
@@ -195,10 +197,10 @@ function LoadedEditPosition({
                   <field.SelectField label="Purchase currency" options={currencyOptions} />
                 )}
               />
-              {initialAverage?.source === "connection" ? (
+              {initialAverage?.source === "synced" ? (
                 <Text color="fg.muted" fontSize="sm">
-                  Current value supplied by {account.connectionName ?? "the Connection"}; editing it
-                  creates a manual override.
+                  Current value supplied by {account.custodianName}; editing it creates a manual
+                  override.
                 </Text>
               ) : null}
               {position.acquisitionCost !== null ? (
@@ -261,7 +263,7 @@ function LoadedEditPosition({
           </Stack>
         </FormFrame>
       </form.AppForm>
-      {account.connectionId === null ? (
+      {isManual ? (
         <DeleteButton
           entity="position"
           isPending={remove.isPending}

@@ -17,9 +17,11 @@ export const SUPPORTED_REPORTING_CURRENCIES = [
 ] as const;
 export type SupportedReportingCurrency = (typeof SUPPORTED_REPORTING_CURRENCIES)[number];
 
+export const DEFAULT_MANUAL_CUSTODIAN_ID = "custodian:manual";
+export const DEFAULT_MANUAL_ACCOUNT_ID = "account:manual";
+
 export const DEFAULT_MARKET_DATA_PROVIDER_BY_ASSET_CATEGORY = {
   stocks_etfs: "yahoo-finance",
-  bonds: "manual",
   crypto: "coingecko",
   cash: "yahoo-finance",
   other: "manual",

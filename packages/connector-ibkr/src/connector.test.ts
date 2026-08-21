@@ -147,7 +147,7 @@ describe("IBKR Flex connector", () => {
           {
             asset: {
               externalId: "ibkr:conid:500",
-              assetCategory: "bonds",
+              assetCategory: "other",
               name: "US Treasury",
               identifiers: [{ type: "ibkr_conid", value: "500" }],
             },
@@ -261,13 +261,7 @@ describe("IBKR Flex connector", () => {
     expect(() => parseFlexXml('<!DOCTYPE x [<!ENTITY y "z">]><FlexQueryResponse />')).toThrow(
       "DTD",
     );
-    expect(IbkrConnector.assetCategories).toEqual([
-      "stocks_etfs",
-      "bonds",
-      "crypto",
-      "cash",
-      "other",
-    ]);
+    expect(IbkrConnector.assetCategories).toEqual(["stocks_etfs", "crypto", "cash", "other"]);
     expect(IbkrConnector.credentialFields.map(({ key, kind }) => [key, kind])).toEqual([
       ["token", "password"],
       ["queryId", "text"],

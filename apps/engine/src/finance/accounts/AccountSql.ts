@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 import * as Effect from "effect/Effect";
 
 import { SqlClient } from "effect/unstable/sql";
-import type { Account, CreateAccountInput, Position, UpdateAccountInput } from "../contracts.js";
+import type {
+  Account,
+  AccountType,
+  CreateAccountInput,
+  Position,
+  UpdateAccountInput,
+} from "../contracts.js";
+import { DEFAULT_MANUAL_ACCOUNT_ID, DEFAULT_MANUAL_CUSTODIAN_ID } from "../config.js";
 import {
   addDecimal,
   canonicalDecimal,
@@ -27,20 +34,47 @@ import {
   type PositionRow,
 } from "../internal/sql.js";
 
+const CASH_ACCOUNT_TYPES = new Set<AccountType>(["checking", "savings"]);
+
+export const isCashAccountType = (accountType: AccountType) => CASH_ACCOUNT_TYPES.has(accountType);
+
 export const assertManualAccountOwner = (accountId: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const row = yield* firstOrNotFound(
       yield* db(
         sql<{
-          readonly connection_id: string | null;
-        }>`SELECT connection_id FROM accounts WHERE id = ${accountId}`,
+          readonly connector_id: string | null;
+        }>`SELECT c.connector_id FROM accounts a
+          JOIN custodians c ON c.id = a.custodian_id WHERE a.id = ${accountId}`,
       ),
       "Account",
     );
-    if (row.connection_id !== null) {
+    if (row.connector_id !== null) {
       return yield* Effect.fail(
-        failure("read_only", "Connector-managed accounts and positions are read-only"),
+        failure("read_only", "Accounts under synced custodians are read-only"),
+      );
+    }
+  });
+
+export const assertAccountAcceptsAsset = (
+  account: Account,
+  assetCategory: string,
+  assetId: string,
+) =>
+  Effect.gen(function* () {
+    if (!isCashAccountType(account.accountType)) return;
+    if (assetCategory !== "cash") {
+      return yield* Effect.fail(
+        failure("validation", "Checking and savings accounts can only hold cash"),
+      );
+    }
+    const otherCurrency = account.positions.find(
+      (position) => position.assetCategory === "cash" && position.assetId !== assetId,
+    );
+    if (otherCurrency !== undefined || assetId !== account.baseCurrencyAssetId) {
+      return yield* Effect.fail(
+        failure("validation", "Checking and savings accounts hold exactly one currency"),
       );
     }
   });
@@ -78,14 +112,14 @@ export const loadPosition = (
             currencyIso: row.manual_purchase_currency_iso,
             source: "manual" as const,
           }
-        : row.connection_average_unit_purchase_price !== null &&
-            row.connection_purchase_currency_asset_id !== null &&
-            row.connection_purchase_currency_iso !== null
+        : row.synced_average_unit_purchase_price !== null &&
+            row.synced_purchase_currency_asset_id !== null &&
+            row.synced_purchase_currency_iso !== null
           ? {
-              price: canonicalDecimal(row.connection_average_unit_purchase_price),
-              currencyAssetId: row.connection_purchase_currency_asset_id,
-              currencyIso: row.connection_purchase_currency_iso,
-              source: "connection" as const,
+              price: canonicalDecimal(row.synced_average_unit_purchase_price),
+              currencyAssetId: row.synced_purchase_currency_asset_id,
+              currencyIso: row.synced_purchase_currency_iso,
+              source: "synced" as const,
             }
           : null;
   const acquisitionCost =
@@ -169,12 +203,12 @@ export const getAccount = (id: string, valuationCurrencyAssetId?: string): Finan
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const account = yield* firstOrNotFound(
-      yield* db(sql<AccountRow>`SELECT a.id, a.connection_id, c.name AS connection_name,
-        a.name, a.base_currency_asset_id,
+      yield* db(sql<AccountRow>`SELECT a.id, a.custodian_id, c.name AS custodian_name,
+        c.connector_id AS custodian_connector_id, a.account_type, a.name, a.base_currency_asset_id,
         COALESCE(ai.identifier_value, ba.symbol, ba.name) AS base_currency_iso,
         a.connector_account_id, a.created_at, a.updated_at
         FROM accounts a
-        LEFT JOIN connections c ON c.id = a.connection_id
+        JOIN custodians c ON c.id = a.custodian_id
         JOIN assets ba ON ba.id = a.base_currency_asset_id
         LEFT JOIN asset_identifiers ai ON ai.asset_id = ba.id AND ai.identifier_type = 'iso_currency'
         WHERE a.id = ${id}`),
@@ -191,10 +225,10 @@ export const getAccount = (id: string, valuationCurrencyAssetId?: string): Finan
       p.manual_purchase_currency_asset_id,
       COALESCE(manual_purchase_identifier.identifier_value, manual_purchase_currency.symbol,
         manual_purchase_currency.name) AS manual_purchase_currency_iso,
-      p.connection_average_unit_purchase_price,
-      p.connection_purchase_currency_asset_id,
-      COALESCE(connection_purchase_identifier.identifier_value, connection_purchase_currency.symbol,
-        connection_purchase_currency.name) AS connection_purchase_currency_iso,
+      p.synced_average_unit_purchase_price,
+      p.synced_purchase_currency_asset_id,
+      COALESCE(synced_purchase_identifier.identifier_value, synced_purchase_currency.symbol,
+        synced_purchase_currency.name) AS synced_purchase_currency_iso,
       p.created_at, p.updated_at
       FROM positions p JOIN assets a ON a.id = p.asset_id
       LEFT JOIN asset_prices ap ON ap.asset_id = a.id
@@ -206,11 +240,11 @@ export const getAccount = (id: string, valuationCurrencyAssetId?: string): Finan
       LEFT JOIN asset_identifiers manual_purchase_identifier
         ON manual_purchase_identifier.asset_id = manual_purchase_currency.id
         AND manual_purchase_identifier.identifier_type = 'iso_currency'
-      LEFT JOIN assets connection_purchase_currency
-        ON connection_purchase_currency.id = p.connection_purchase_currency_asset_id
-      LEFT JOIN asset_identifiers connection_purchase_identifier
-        ON connection_purchase_identifier.asset_id = connection_purchase_currency.id
-        AND connection_purchase_identifier.identifier_type = 'iso_currency'
+      LEFT JOIN assets synced_purchase_currency
+        ON synced_purchase_currency.id = p.synced_purchase_currency_asset_id
+      LEFT JOIN asset_identifiers synced_purchase_identifier
+        ON synced_purchase_identifier.asset_id = synced_purchase_currency.id
+        AND synced_purchase_identifier.identifier_type = 'iso_currency'
       WHERE p.account_id = ${id} ORDER BY a.name, p.id`);
     const fxPivotId = yield* usdAssetId;
     const fx = yield* loadFxMap(fxPivotId);
@@ -240,8 +274,10 @@ export const getAccount = (id: string, valuationCurrencyAssetId?: string): Finan
     }
     return {
       id: account.id,
-      connectionId: account.connection_id,
-      connectionName: account.connection_name,
+      custodianId: account.custodian_id,
+      custodianName: account.custodian_name,
+      isDefaultCustodian: account.custodian_id === DEFAULT_MANUAL_CUSTODIAN_ID,
+      accountType: account.account_type,
       name: account.name,
       baseCurrencyAssetId: account.base_currency_asset_id,
       baseCurrencyIso: account.base_currency_iso,
@@ -266,11 +302,25 @@ export const createAccount = (input: CreateAccountInput): FinanceEffect<Account>
     const currencyId = input.baseCurrencyAssetId ?? (yield* usdAssetId);
     yield* assertCash(currencyId);
     const sql = yield* SqlClient.SqlClient;
+    const custodian = yield* firstOrNotFound(
+      yield* db(
+        sql<{
+          readonly id: string;
+          readonly connector_id: string | null;
+        }>`SELECT id, connector_id FROM custodians WHERE id = ${input.custodianId}`,
+      ),
+      "Custodian",
+    );
+    if (custodian.connector_id !== null) {
+      return yield* Effect.fail(
+        failure("read_only", "Accounts under synced custodians are read-only"),
+      );
+    }
     const id = randomUUID();
     const timestamp = nowIso();
     yield* db(sql`INSERT INTO accounts
-      (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
-      VALUES (${id}, NULL, ${name}, ${currencyId}, NULL, ${timestamp}, ${timestamp})`);
+      (id, custodian_id, name, account_type, base_currency_asset_id, connector_account_id, created_at, updated_at)
+      VALUES (${id}, ${input.custodianId}, ${name}, ${input.accountType}, ${currencyId}, NULL, ${timestamp}, ${timestamp})`);
     return yield* getAccount(id);
   });
 
@@ -287,6 +337,11 @@ export const updateAccount = (id: string, input: UpdateAccountInput): FinanceEff
 
 export const deleteAccount = (id: string): FinanceEffect<void> =>
   Effect.gen(function* () {
+    if (id === DEFAULT_MANUAL_ACCOUNT_ID) {
+      return yield* Effect.fail(
+        failure("validation", "The default manual account cannot be deleted"),
+      );
+    }
     yield* assertManualAccountOwner(id);
     const sql = yield* SqlClient.SqlClient;
     yield* db(sql`DELETE FROM accounts WHERE id = ${id}`);

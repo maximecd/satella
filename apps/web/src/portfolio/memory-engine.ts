@@ -7,17 +7,18 @@ import type {
   AddOtherAssetInput,
   Asset,
   AssetSearchResult,
-  ConnectConnectionInput,
-  Connection,
-  ConnectionRefreshResult,
+  ConnectCustodianInput,
+  Custodian,
+  CustodianRefreshResult,
   Dashboard,
+  DashboardCustodianGroup,
   MaintainAssetInput,
   ManualHoldingLookup,
   Position,
   PositionEdit,
   Settings,
   UpdateAccountInput,
-  UpdateConnectionInput,
+  UpdateCustodianInput,
   UpdateSettingsInput,
 } from "@optimus/engine/api";
 
@@ -38,14 +39,14 @@ export type MemoryPortfolioSeed = {
   readonly dashboard?: Dashboard;
   readonly settings?: Settings;
   readonly projectDashboard?: DashboardProjection;
-  readonly connections?: ReadonlyArray<Connection>;
+  readonly custodians?: ReadonlyArray<Custodian>;
   readonly accounts?: ReadonlyArray<Account>;
   readonly assets?: ReadonlyArray<Asset>;
   readonly positionEdits?: ReadonlyArray<PositionEdit>;
   readonly capabilities?: ConnectorCapabilities;
   readonly searchResults?: ReadonlyArray<AssetSearchResult>;
   readonly holdingLookup?: ManualHoldingLookup;
-  readonly refreshResult?: ConnectionRefreshResult;
+  readonly refreshResult?: CustodianRefreshResult;
   readonly addAssetsResult?: AddAssetsResult;
 };
 
@@ -67,7 +68,7 @@ const defaultDashboard: Dashboard = {
   unpricedAssetCount: 0,
   negativeHoldingCount: 0,
   hasMeaningfulAssets: false,
-  accounts: [],
+  custodians: [],
   assetAllocation: [],
   categoryAllocation: [],
   history: [],
@@ -86,6 +87,9 @@ const defaultHoldingLookup: ManualHoldingLookup = { assetId: null, quantity: nul
 
 const clone = <T>(value: T): T => structuredClone(value);
 
+const isSyncedAccount = (account: { readonly connectorAccountId: string | null }) =>
+  account.connectorAccountId !== null;
+
 const providerAveragesFrom = (
   accounts: ReadonlyArray<Account>,
   positionEdits: ReadonlyArray<PositionEdit>,
@@ -98,7 +102,7 @@ const providerAveragesFrom = (
   for (const position of positions) {
     if (
       position.assetCategory !== "cash" &&
-      position.averageUnitPurchasePrice?.source === "connection"
+      position.averageUnitPurchasePrice?.source === "synced"
     ) {
       averages.set(position.id, clone(position.averageUnitPurchasePrice));
     }
@@ -194,6 +198,18 @@ const revaluePosition = (
   };
 };
 
+const editAccountFrom = (account: Account): PositionEdit["account"] => ({
+  id: account.id,
+  name: account.name,
+  custodianId: account.custodianId,
+  custodianName: account.custodianName,
+  isDefaultCustodian: account.isDefaultCustodian,
+  accountType: account.accountType,
+  connectorAccountId: account.connectorAccountId,
+  baseCurrencyAssetId: account.baseCurrencyAssetId,
+  baseCurrencyIso: account.baseCurrencyIso,
+});
+
 export const createMemoryPortfolioEngine = (
   seed: MemoryPortfolioSeed = {},
 ): MemoryPortfolioEngine => {
@@ -201,14 +217,14 @@ export const createMemoryPortfolioEngine = (
     dashboard: Dashboard;
     settings: Settings;
     projectDashboard: DashboardProjection | undefined;
-    connections: Connection[];
+    custodians: Custodian[];
     accounts: Account[];
     assets: Asset[];
     positionEdits: PositionEdit[];
     capabilities: ConnectorCapabilities;
     searchResults: AssetSearchResult[];
     holdingLookup: ManualHoldingLookup;
-    refreshResult: ConnectionRefreshResult | undefined;
+    refreshResult: CustodianRefreshResult | undefined;
     addAssetsResult: AddAssetsResult | undefined;
     providerAverages: Map<string, AverageUnitPurchasePrice>;
   };
@@ -219,7 +235,7 @@ export const createMemoryPortfolioEngine = (
       dashboard: clone(next.dashboard ?? defaultDashboard),
       settings: clone(next.settings ?? defaultSettings),
       projectDashboard: next.projectDashboard,
-      connections: clone([...(next.connections ?? [])]),
+      custodians: clone([...(next.custodians ?? [])]),
       accounts,
       assets: clone([...(next.assets ?? [])]),
       positionEdits,
@@ -235,7 +251,7 @@ export const createMemoryPortfolioEngine = (
     dashboard: clone(value.dashboard),
     settings: clone(value.settings),
     projectDashboard: value.projectDashboard,
-    connections: clone(value.connections),
+    custodians: clone(value.custodians),
     accounts: clone(value.accounts),
     assets: clone(value.assets),
     positionEdits: clone(value.positionEdits),
@@ -270,10 +286,10 @@ export const createMemoryPortfolioEngine = (
     return asset;
   };
 
-  const requireConnection = (id: string) => {
-    const connection = state.connections.find((candidate) => candidate.id === id);
-    if (connection === undefined) throw notFound("Connection");
-    return connection;
+  const requireCustodian = (id: string) => {
+    const custodian = state.custodians.find((candidate) => candidate.id === id);
+    if (custodian === undefined) throw notFound("Custodian");
+    return custodian;
   };
 
   const requirePositionEdit = (id: string) => {
@@ -289,25 +305,43 @@ export const createMemoryPortfolioEngine = (
     return fromAssets?.symbol ?? "USD";
   };
 
-  const syncDashboardAccounts = () => {
-    state.dashboard = {
-      ...state.dashboard,
-      accounts: state.accounts.map((account) => {
-        return {
-          accountId: account.id,
-          accountName: account.name,
-          connectionId: account.connectionId,
-          connectionName: account.connectionName,
-          positionCount: account.positions.filter(
-            (position) => compareDecimal(position.quantity, "0") !== 0,
-          ).length,
-          total: account.total,
-          unrealizedPnl: account.unrealizedPnl,
-          unrealizedPnlPercent: account.unrealizedPnlPercent,
-          totalIncomplete: account.totalIncomplete,
-        };
-      }),
-    };
+  const dashboardRow = (account: Account) => ({
+    accountId: account.id,
+    accountName: account.name,
+    accountType: account.accountType,
+    positionCount: account.positions.filter(
+      (position) => compareDecimal(position.quantity, "0") !== 0,
+    ).length,
+    total: account.total,
+    unrealizedPnl: account.unrealizedPnl,
+    unrealizedPnlPercent: account.unrealizedPnlPercent,
+    totalIncomplete: account.totalIncomplete,
+  });
+
+  const syncDashboardCustodians = () => {
+    const byCustodian = Map.groupBy(state.accounts, (account) => account.custodianId);
+    const custodians: DashboardCustodianGroup[] = [...byCustodian].flatMap(
+      ([custodianId, accounts]) => {
+        const first = accounts[0]!;
+        const meaningful =
+          !first.isDefaultCustodian ||
+          accounts.some((account) =>
+            account.positions.some((position) => compareDecimal(position.quantity, "0") !== 0),
+          );
+        if (!meaningful) return [];
+        const custodian = state.custodians.find((candidate) => candidate.id === custodianId);
+        return [
+          {
+            custodianId,
+            name: first.custodianName,
+            isDefault: first.isDefaultCustodian,
+            connectorId: custodian?.connectorId ?? null,
+            accounts: accounts.map(dashboardRow),
+          },
+        ];
+      },
+    );
+    state.dashboard = { ...state.dashboard, custodians };
   };
 
   const replaceAccount = (next: Account) => {
@@ -321,25 +355,19 @@ export const createMemoryPortfolioEngine = (
       const position = account.positions.find((item) => item.id === edit.position.id);
       return {
         position: position ?? edit.position,
-        account: {
-          id: account.id,
-          name: account.name,
-          connectionId: account.connectionId,
-          connectionName: account.connectionName,
-          baseCurrencyAssetId: account.baseCurrencyAssetId,
-          baseCurrencyIso: account.baseCurrencyIso,
-        },
+        account: editAccountFrom(account),
       };
     });
-    state.connections = state.connections.map((connection) => {
-      if (account.connectionId !== connection.id) return connection;
+    state.custodians = state.custodians.map((custodian) => {
+      if (account.custodianId !== custodian.id) return custodian;
       return {
-        ...connection,
-        accounts: connection.accounts.map((summary) =>
+        ...custodian,
+        accounts: custodian.accounts.map((summary) =>
           summary.id === account.id
             ? {
                 ...summary,
                 name: account.name,
+                accountType: account.accountType,
                 baseCurrencyIso: account.baseCurrencyIso,
                 positionCount: account.positions.filter(
                   (position) => compareDecimal(position.quantity, "0") !== 0,
@@ -349,7 +377,7 @@ export const createMemoryPortfolioEngine = (
         ),
       };
     });
-    syncDashboardAccounts();
+    syncDashboardCustodians();
     return account;
   };
 
@@ -376,15 +404,36 @@ export const createMemoryPortfolioEngine = (
     };
   };
 
-  const ensureAccountFromDestination = (destination: AddManualHoldingInput["account"]) => {
-    if (destination.type === "existing") return requireAccount(destination.id);
+  const ensureCustodian = (input: AddManualHoldingInput["custodian"]) => {
+    if (input.type === "existing") return requireCustodian(input.id);
+    const created: Custodian = {
+      id: `custodian-${state.custodians.length + 1}`,
+      name: input.name,
+      connectorId: null,
+      isDefault: false,
+      accounts: [],
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    state.custodians = [...state.custodians, created];
+    return created;
+  };
+
+  const createManualAccount = (
+    custodian: Custodian,
+    name: string,
+    accountType: Account["accountType"],
+    baseCurrencyAssetId: string,
+  ): Account => {
     const created: Account = {
       id: `account-${state.accounts.length + 1}`,
-      connectionId: null,
-      connectionName: null,
-      name: destination.name,
-      baseCurrencyAssetId: destination.baseCurrencyAssetId ?? "fiat:USD",
-      baseCurrencyIso: currencyIso(destination.baseCurrencyAssetId ?? "fiat:USD"),
+      custodianId: custodian.id,
+      custodianName: custodian.name,
+      isDefaultCustodian: custodian.isDefault,
+      accountType,
+      name,
+      baseCurrencyAssetId,
+      baseCurrencyIso: currencyIso(baseCurrencyAssetId),
       connectorAccountId: null,
       positions: [],
       total: "0",
@@ -396,8 +445,39 @@ export const createMemoryPortfolioEngine = (
       updatedAt: nowIso(),
     };
     state.accounts = [...state.accounts, created];
-    syncDashboardAccounts();
+    state.custodians = state.custodians.map((candidate) =>
+      candidate.id === custodian.id
+        ? {
+            ...candidate,
+            accounts: [
+              ...candidate.accounts,
+              {
+                id: created.id,
+                name: created.name,
+                accountType: created.accountType,
+                baseCurrencyIso: created.baseCurrencyIso,
+                connectorAccountId: null,
+                positionCount: 0,
+              },
+            ],
+          }
+        : candidate,
+    );
+    syncDashboardCustodians();
     return created;
+  };
+
+  const ensureHoldingAccount = (
+    custodian: Custodian,
+    input: AddManualHoldingInput["account"],
+  ): Account => {
+    if (input.type === "existing") return requireAccount(input.id);
+    return createManualAccount(
+      custodian,
+      input.name,
+      input.accountType,
+      input.baseCurrencyAssetId ?? "fiat:USD",
+    );
   };
 
   return {
@@ -516,14 +596,11 @@ export const createMemoryPortfolioEngine = (
       requireAccount(id);
       state.accounts = state.accounts.filter((account) => account.id !== id);
       state.positionEdits = state.positionEdits.filter((edit) => edit.account.id !== id);
-      state.connections = state.connections.map((connection) => ({
-        ...connection,
-        accounts: connection.accounts.filter((summary) => summary.id !== id),
+      state.custodians = state.custodians.map((custodian) => ({
+        ...custodian,
+        accounts: custodian.accounts.filter((summary) => summary.id !== id),
       }));
-      state.dashboard = {
-        ...state.dashboard,
-        accounts: state.dashboard.accounts.filter((row) => row.accountId !== id),
-      };
+      syncDashboardCustodians();
     },
     getPositionEdit: async (id, signal) => {
       throwIfAborted(signal);
@@ -535,8 +612,8 @@ export const createMemoryPortfolioEngine = (
       rejectIfFailed("updatePosition");
       const edit = requirePositionEdit(id);
       const account = requireAccount(edit.account.id);
-      if (input.quantity !== undefined && account.connectionId !== null) {
-        throw new PortfolioFailure("read_only", "Connected quantities are read-only");
+      if (input.quantity !== undefined && isSyncedAccount(account)) {
+        throw new PortfolioFailure("read_only", "Accounts under synced custodians are read-only");
       }
       if (input.averageUnitPurchasePrice != null && edit.position.assetCategory === "cash") {
         throw new PortfolioFailure(
@@ -579,71 +656,72 @@ export const createMemoryPortfolioEngine = (
       });
       state.positionEdits = state.positionEdits.filter((candidate) => candidate.position.id !== id);
     },
-    listConnections: async (signal) => {
+    listCustodians: async (signal) => {
       throwIfAborted(signal);
-      rejectIfFailed("listConnections");
-      return state.connections;
+      rejectIfFailed("listCustodians");
+      return state.custodians;
     },
-    getConnection: async (id, signal) => {
+    getCustodian: async (id, signal) => {
       throwIfAborted(signal);
-      rejectIfFailed("getConnection");
-      return requireConnection(id);
+      rejectIfFailed("getCustodian");
+      return requireCustodian(id);
     },
-    updateConnection: async (id, input: UpdateConnectionInput, signal) => {
+    updateCustodian: async (id, input: UpdateCustodianInput, signal) => {
       throwIfAborted(signal);
-      rejectIfFailed("updateConnection");
-      const current = requireConnection(id);
-      const next: Connection = { ...current, name: input.name, updatedAt: nowIso() };
-      state.connections = state.connections.map((connection) =>
-        connection.id === id ? next : connection,
+      rejectIfFailed("updateCustodian");
+      const current = requireCustodian(id);
+      const next: Custodian = { ...current, name: input.name, updatedAt: nowIso() };
+      state.custodians = state.custodians.map((custodian) =>
+        custodian.id === id ? next : custodian,
       );
       state.accounts = state.accounts.map((account) =>
-        account.connectionId === id ? { ...account, connectionName: next.name } : account,
+        account.custodianId === id ? { ...account, custodianName: next.name } : account,
       );
       state.positionEdits = state.positionEdits.map((edit) =>
-        edit.account.connectionId === id
-          ? { ...edit, account: { ...edit.account, connectionName: next.name } }
+        edit.account.custodianId === id
+          ? { ...edit, account: { ...edit.account, custodianName: next.name } }
           : edit,
       );
-      state.dashboard = {
-        ...state.dashboard,
-        accounts: state.dashboard.accounts.map((row) =>
-          row.connectionId === id ? { ...row, connectionName: next.name } : row,
-        ),
-      };
+      syncDashboardCustodians();
       return next;
     },
-    deleteConnection: async (id, signal) => {
+    deleteCustodian: async (id, signal) => {
       throwIfAborted(signal);
-      rejectIfFailed("deleteConnection");
-      requireConnection(id);
+      rejectIfFailed("deleteCustodian");
+      const custodian = requireCustodian(id);
+      if (custodian.isDefault) {
+        throw new PortfolioFailure("validation", "The default manual custodian cannot be deleted");
+      }
+      if (custodian.connectorId === null && custodian.accounts.length > 0) {
+        throw new PortfolioFailure(
+          "validation",
+          "Delete this custodian's accounts before deleting the custodian",
+        );
+      }
       const removedAccountIds = new Set(
         state.accounts
-          .filter((account) => account.connectionId === id)
+          .filter((account) => account.custodianId === id)
           .map((account) => account.id),
       );
-      state.connections = state.connections.filter((connection) => connection.id !== id);
-      state.accounts = state.accounts.filter((account) => account.connectionId !== id);
+      state.custodians = state.custodians.filter((candidate) => candidate.id !== id);
+      state.accounts = state.accounts.filter((account) => account.custodianId !== id);
       state.positionEdits = state.positionEdits.filter(
         (edit) => !removedAccountIds.has(edit.account.id),
       );
-      state.dashboard = {
-        ...state.dashboard,
-        accounts: state.dashboard.accounts.filter((row) => row.connectionId !== id),
-      };
+      syncDashboardCustodians();
     },
-    refreshConnection: async (id, signal) => {
+    refreshCustodian: async (id, signal) => {
       throwIfAborted(signal);
-      rejectIfFailed("refreshConnection");
-      const connection = requireConnection(id);
+      rejectIfFailed("refreshCustodian");
+      const custodian = requireCustodian(id);
       if (state.refreshResult !== undefined) {
         const result = clone(state.refreshResult);
-        state.connections = state.connections.map((candidate) =>
-          candidate.id === id ? result.connection : candidate,
+        state.custodians = state.custodians.map((candidate) =>
+          candidate.id === id ? result.custodian : candidate,
         );
         return result;
       }
-      return { connection, failures: [] };
+      return { custodian, failures: [] };
     },
     connectorCapabilities: async (signal) => {
       throwIfAborted(signal);
@@ -653,7 +731,16 @@ export const createMemoryPortfolioEngine = (
     listManualAccounts: async (signal) => {
       throwIfAborted(signal);
       rejectIfFailed("listManualAccounts");
-      return state.accounts.filter((account) => account.connectionId === null);
+      return state.accounts.filter(
+        (account) => !isSyncedAccount(account) && !account.isDefaultCustodian,
+      );
+    },
+    listManualCustodians: async (signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("listManualCustodians");
+      return state.custodians.filter(
+        (custodian) => custodian.connectorId === null && !custodian.isDefault,
+      );
     },
     lookupManualHolding: async (_accountId, _identifierType, _identifierValue, signal) => {
       throwIfAborted(signal);
@@ -665,43 +752,50 @@ export const createMemoryPortfolioEngine = (
       rejectIfFailed("searchAssets");
       return state.searchResults.filter((result) => result.assetCategory === assetCategory);
     },
-    connectConnection: async (input: ConnectConnectionInput, signal) => {
+    connectCustodian: async (input: ConnectCustodianInput, signal) => {
       throwIfAborted(signal);
-      rejectIfFailed("connectConnection");
-      const connection: Connection = {
-        id: `connection-${state.connections.length + 1}`,
+      rejectIfFailed("connectCustodian");
+      const custodian: Custodian = {
+        id: `custodian-${state.custodians.length + 1}`,
         name: input.name,
         connectorId: input.connectorId,
+        isDefault: false,
         accounts: [],
         createdAt: nowIso(),
         updatedAt: nowIso(),
       };
-      state.connections = [...state.connections, connection];
-      return connection;
+      state.custodians = [...state.custodians, custodian];
+      return custodian;
     },
     addManualHolding: async (input: AddManualHoldingInput, signal) => {
       throwIfAborted(signal);
       rejectIfFailed("addManualHolding");
-      const account = ensureAccountFromDestination(input.account);
+      const custodian = ensureCustodian(input.custodian);
+      const account = ensureHoldingAccount(custodian, input.account);
       return addAssetsOutcome(account.name);
     },
     addCashAccount: async (input: AddCashAccountInput, signal) => {
       throwIfAborted(signal);
       rejectIfFailed("addCashAccount");
-      const account = ensureAccountFromDestination(input.account);
+      const custodian = ensureCustodian(input.custodian);
+      const account = createManualAccount(
+        custodian,
+        input.name,
+        input.accountType,
+        input.currencyAssetId,
+      );
       return addAssetsOutcome(account.name);
     },
     addOtherAsset: async (input: AddOtherAssetInput, signal) => {
       throwIfAborted(signal);
       rejectIfFailed("addOtherAsset");
-      const account = ensureAccountFromDestination(input.account);
-      return addAssetsOutcome(account.name);
+      return addAssetsOutcome(input.name);
     },
     seed: (next) => {
       if (next.dashboard !== undefined) state.dashboard = clone(next.dashboard);
       if (next.settings !== undefined) state.settings = clone(next.settings);
       if (next.projectDashboard !== undefined) state.projectDashboard = next.projectDashboard;
-      if (next.connections !== undefined) state.connections = clone([...next.connections]);
+      if (next.custodians !== undefined) state.custodians = clone([...next.custodians]);
       if (next.accounts !== undefined) {
         state.accounts = clone([...next.accounts]);
         state.providerAverages = providerAveragesFrom(state.accounts, state.positionEdits);

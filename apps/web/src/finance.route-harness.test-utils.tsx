@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
-import type { Account, Connection, Dashboard, PositionEdit, Settings } from "@optimus/engine/api";
+import type { Account, Custodian, Dashboard, PositionEdit, Settings } from "@optimus/engine/api";
 import { vi } from "vite-plus/test";
 
 import { engineApi } from "./api";
@@ -18,8 +18,10 @@ import { routeTree } from "./routeTree.gen";
 
 export const account: Account = {
   id: "account-1",
-  connectionId: null,
-  connectionName: null,
+  custodianId: "custodian-bank",
+  custodianName: "Demo bank",
+  isDefaultCustodian: false,
+  accountType: "brokerage",
   name: "Portfolio",
   baseCurrencyAssetId: "fiat:USD",
   baseCurrencyIso: "USD",
@@ -78,7 +80,7 @@ export const emptyDashboard: Dashboard = {
   unpricedAssetCount: 0,
   negativeHoldingCount: 0,
   hasMeaningfulAssets: false,
-  accounts: [],
+  custodians: [],
   assetAllocation: [],
   categoryAllocation: [],
   history: [],
@@ -111,28 +113,42 @@ export const populatedDashboardFor = (now = new Date()): Dashboard => {
     unpricedAssetCount: 1,
     negativeHoldingCount: 1,
     hasMeaningfulAssets: true,
-    accounts: [
+    custodians: [
       {
-        accountId: "brokerage",
-        accountName: "Brokerage",
-        connectionId: "ibkr",
-        connectionName: "IBKR",
-        positionCount: 2,
-        total: "800",
-        unrealizedPnl: "50",
-        unrealizedPnlPercent: "0.1",
-        totalIncomplete: false,
+        custodianId: "ibkr",
+        name: "IBKR",
+        isDefault: false,
+        connectorId: "ibkr",
+        accounts: [
+          {
+            accountId: "brokerage",
+            accountName: "Brokerage",
+            accountType: "brokerage",
+            positionCount: 2,
+            total: "800",
+            unrealizedPnl: "50",
+            unrealizedPnlPercent: "0.1",
+            totalIncomplete: false,
+          },
+        ],
       },
       {
-        accountId: "livret",
-        accountName: "Livret A",
-        connectionId: null,
-        connectionName: null,
-        positionCount: 1,
-        total: "300",
-        unrealizedPnl: "0",
-        unrealizedPnlPercent: null,
-        totalIncomplete: true,
+        custodianId: "bnp",
+        name: "BNP Paribas",
+        isDefault: false,
+        connectorId: null,
+        accounts: [
+          {
+            accountId: "livret",
+            accountName: "Livret A",
+            accountType: "savings",
+            positionCount: 1,
+            total: "300",
+            unrealizedPnl: "0",
+            unrealizedPnlPercent: null,
+            totalIncomplete: true,
+          },
+        ],
       },
     ],
     assetAllocation: [
@@ -196,14 +212,16 @@ export const populatedDashboardFor = (now = new Date()): Dashboard => {
 
 export const populatedDashboard = populatedDashboardFor();
 
-export const syncedConnection: Connection = {
+export const syncedCustodian: Custodian = {
   id: "custodian-1",
   name: "OKX",
   connectorId: "okx",
+  isDefault: false,
   accounts: [
     {
       id: "connected-account",
       name: "Trading",
+      accountType: "crypto_wallet",
       baseCurrencyIso: "USD",
       connectorAccountId: "trading",
       positionCount: 1,
@@ -216,9 +234,12 @@ export const syncedConnection: Connection = {
 export const connectedAccount: Account = {
   ...account,
   id: "connected-account",
-  connectionId: "custodian-1",
-  connectionName: "OKX",
+  custodianId: "custodian-1",
+  custodianName: "OKX",
+  isDefaultCustodian: false,
+  accountType: "crypto_wallet",
   name: "Trading",
+  connectorAccountId: "trading",
   totalIncomplete: false,
   positions: [
     {
@@ -255,8 +276,11 @@ export const positionEdit: PositionEdit = {
   account: {
     id: account.id,
     name: account.name,
-    connectionId: account.connectionId,
-    connectionName: account.connectionName,
+    custodianId: account.custodianId,
+    custodianName: account.custodianName,
+    isDefaultCustodian: account.isDefaultCustodian,
+    accountType: account.accountType,
+    connectorAccountId: account.connectorAccountId,
     baseCurrencyAssetId: account.baseCurrencyAssetId,
     baseCurrencyIso: account.baseCurrencyIso,
   },
@@ -267,8 +291,11 @@ export const connectedPositionEdit: PositionEdit = {
   account: {
     id: connectedAccount.id,
     name: connectedAccount.name,
-    connectionId: connectedAccount.connectionId,
-    connectionName: connectedAccount.connectionName,
+    custodianId: connectedAccount.custodianId,
+    custodianName: connectedAccount.custodianName,
+    isDefaultCustodian: connectedAccount.isDefaultCustodian,
+    accountType: connectedAccount.accountType,
+    connectorAccountId: connectedAccount.connectorAccountId,
     baseCurrencyAssetId: connectedAccount.baseCurrencyAssetId,
     baseCurrencyIso: connectedAccount.baseCurrencyIso,
   },

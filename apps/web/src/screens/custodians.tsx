@@ -1,7 +1,7 @@
 import { Alert, Box, Button, Flex, Heading, Input, Link, Stack, Text } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
-import type { ConnectorCapability, Connection } from "@optimus/engine/api";
-import { UpdateConnectionInput } from "@optimus/engine/api";
+import type { ConnectorCapability, Custodian } from "@optimus/engine/api";
+import { UpdateCustodianInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState, type FormEvent } from "react";
 
@@ -19,13 +19,13 @@ import { Field } from "../components/ui/field";
 import { PasswordInput } from "../components/ui/password-input";
 import { notify } from "../components/ui/toaster";
 import {
-  useConnection,
-  useConnections,
+  useCustodian,
+  useCustodians,
   useConnectorCapabilities,
-  useDeleteConnection,
-  useUpdateConnection,
+  useDeleteCustodian,
+  useUpdateCustodian,
 } from "../portfolio";
-import { RefreshConnectionButton } from "../refresh-connection";
+import { RefreshCustodianButton } from "../refresh-custodian";
 import { SelectField } from "../select-field";
 import { AddAssetsButton } from "./add-assets";
 import { SetupInstructions } from "./setup-instructions";
@@ -35,17 +35,19 @@ const errorMessage = (cause: unknown) =>
 
 const accountCount = (count: number) => `${count} account${count === 1 ? "" : "s"}`;
 
-export function ConnectionsListScreen() {
-  const query = useConnections();
+const listedCustodians = (custodians: ReadonlyArray<Custodian>) =>
+  custodians.filter((custodian) => !custodian.isDefault);
+
+export function CustodiansListScreen() {
+  const query = useCustodians();
   const [refreshError, setRefreshError] = useState<string | null>(null);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
+  const custodians = listedCustodians(query.data);
   return (
     <>
-      <PageBreadcrumbs
-        items={[{ label: "Settings", href: "/settings" }, { label: "Connections" }]}
-      />
-      <PageHeader title="Connections" />
+      <PageBreadcrumbs items={[{ label: "Settings", href: "/settings" }, { label: "Custodians" }]} />
+      <PageHeader title="Custodians" />
       {refreshError !== null && (
         <Alert.Root status="error">
           <Alert.Indicator />
@@ -55,28 +57,33 @@ export function ConnectionsListScreen() {
           </Alert.Content>
         </Alert.Root>
       )}
-      {query.data.length === 0 ? (
+      {custodians.length === 0 ? (
         <EmptyState
-          title="No connections"
-          description="Connect a service from Add assets to import accounts automatically."
+          title="No custodians"
+          description="Add a bank or broker from Add assets, or connect a service to import accounts."
         >
           <AddAssetsButton />
         </EmptyState>
       ) : (
         <Box as="ul" m="0" p="0">
-          {query.data.map((connection) => (
+          {custodians.map((custodian) => (
             <NavRow
-              key={connection.id}
-              href={`/settings/connections/${connection.id}`}
-              label={connection.name}
-              description={accountCount(connection.accounts.length)}
+              key={custodian.id}
+              href={`/settings/custodians/${custodian.id}`}
+              label={custodian.name}
+              description={accountCount(custodian.accounts.length)}
               endContent={
                 <Flex gap="2" align="center">
-                  <RefreshConnectionButton connectionId={connection.id} onError={setRefreshError} />
+                  {custodian.connectorId !== null ? (
+                    <RefreshCustodianButton
+                      custodianId={custodian.id}
+                      onError={setRefreshError}
+                    />
+                  ) : null}
                   <Button asChild size="sm" variant="ghost">
                     <RouterLink
-                      to="/settings/connections/$connectionId/edit"
-                      params={{ connectionId: connection.id }}
+                      to="/settings/custodians/$custodianId/edit"
+                      params={{ custodianId: custodian.id }}
                     >
                       Edit
                     </RouterLink>
@@ -91,30 +98,32 @@ export function ConnectionsListScreen() {
   );
 }
 
-export function ConnectionDetailScreen({ id }: { readonly id: string }) {
-  const query = useConnection(id);
+export function CustodianDetailScreen({ id }: { readonly id: string }) {
+  const query = useCustodian(id);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
-  const connection = query.data;
+  const custodian = query.data;
   return (
     <>
       <PageBreadcrumbs
         items={[
           { label: "Settings", href: "/settings" },
-          { label: "Connections", href: "/settings/connections" },
-          { label: connection.name },
+          { label: "Custodians", href: "/settings/custodians" },
+          { label: custodian.name },
         ]}
       />
       <PageHeader
-        title={connection.name}
+        title={custodian.name}
         action={
           <Flex gap="2" align="center">
-            <RefreshConnectionButton connectionId={id} onError={setRefreshError} />
+            {custodian.connectorId !== null ? (
+              <RefreshCustodianButton custodianId={id} onError={setRefreshError} />
+            ) : null}
             <Button asChild>
               <RouterLink
-                to="/settings/connections/$connectionId/edit"
-                params={{ connectionId: id }}
+                to="/settings/custodians/$custodianId/edit"
+                params={{ custodianId: id }}
               >
                 Edit
               </RouterLink>
@@ -134,11 +143,11 @@ export function ConnectionDetailScreen({ id }: { readonly id: string }) {
       <Heading as="h2" size="md">
         Accounts
       </Heading>
-      {connection.accounts.length === 0 ? (
-        <EmptyState title="No accounts" description="Imported accounts will appear here." />
+      {custodian.accounts.length === 0 ? (
+        <EmptyState title="No accounts" description="Accounts at this custodian will appear here." />
       ) : (
         <Box as="ul" m="0" p="0">
-          {connection.accounts.map((account) => (
+          {custodian.accounts.map((account) => (
             <Box
               as="li"
               key={account.id}
@@ -164,37 +173,40 @@ export function ConnectionDetailScreen({ id }: { readonly id: string }) {
   );
 }
 
-export function EditConnectionScreen({ id }: { readonly id: string }) {
-  const query = useConnection(id);
+export function EditCustodianScreen({ id }: { readonly id: string }) {
+  const query = useCustodian(id);
   const capabilities = useConnectorCapabilities();
   if (query.isPending || capabilities.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   if (capabilities.isError)
     return <PageState kind="error" message={errorMessage(capabilities.error)} />;
-  const connector = capabilities.data.connectors.find(
-    ({ id: connectorId }) => connectorId === query.data.connectorId,
-  );
-  if (connector === undefined) {
-    return <PageState kind="error" message="This Connection can no longer be edited." />;
+  const connector =
+    query.data.connectorId === null
+      ? undefined
+      : capabilities.data.connectors.find(
+          ({ id: connectorKey }) => connectorKey === query.data.connectorId,
+        );
+  if (query.data.connectorId !== null && connector === undefined) {
+    return <PageState kind="error" message="This custodian can no longer be edited." />;
   }
-  return <LoadedEditConnection connection={query.data} connector={connector} />;
+  return <LoadedEditCustodian custodian={query.data} connector={connector} />;
 }
 
-function LoadedEditConnection({
-  connection,
+function LoadedEditCustodian({
+  custodian,
   connector,
 }: {
-  readonly connection: Connection;
-  readonly connector: ConnectorCapability;
+  readonly custodian: Custodian;
+  readonly connector: ConnectorCapability | undefined;
 }) {
   const navigate = useNavigate();
-  const [name, setName] = useState(connection.name);
+  const [name, setName] = useState(custodian.name);
   const [credentials, setCredentials] = useState<Record<string, string>>(() =>
-    Object.fromEntries(connector.credentialFields.map((field) => [field.key, ""])),
+    Object.fromEntries((connector?.credentialFields ?? []).map((field) => [field.key, ""])),
   );
   const [error, setError] = useState<string | null>(null);
-  const update = useUpdateConnection(connection.id);
-  const remove = useDeleteConnection(connection.id);
+  const update = useUpdateCustodian(custodian.id);
+  const remove = useDeleteCustodian(custodian.id);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -206,13 +218,13 @@ function LoadedEditConnection({
     if (Object.keys(changedCredentials).length > 0) {
       Object.assign(input, { credentials: changedCredentials });
     }
-    const payload = await Schema.decodeUnknownPromise(UpdateConnectionInput)(input);
+    const payload = await Schema.decodeUnknownPromise(UpdateCustodianInput)(input);
     try {
       await update.mutateAsync(payload);
-      notify.success("Connection updated.");
+      notify.success("Custodian updated.");
       await navigate({
-        to: "/settings/connections/$connectionId",
-        params: { connectionId: connection.id },
+        to: "/settings/custodians/$custodianId",
+        params: { custodianId: custodian.id },
       });
     } catch (cause) {
       setError(errorMessage(cause));
@@ -224,26 +236,34 @@ function LoadedEditConnection({
       <PageBreadcrumbs
         items={[
           { label: "Settings", href: "/settings" },
-          { label: "Connections", href: "/settings/connections" },
-          { label: connection.name, href: `/settings/connections/${connection.id}` },
+          { label: "Custodians", href: "/settings/custodians" },
+          { label: custodian.name, href: `/settings/custodians/${custodian.id}` },
           { label: "Edit" },
         ]}
       />
       <PageHeader
-        title={`Edit ${connection.name}`}
-        action={<RefreshConnectionButton connectionId={connection.id} />}
+        title={`Edit ${custodian.name}`}
+        action={
+          custodian.connectorId !== null ? (
+            <RefreshCustodianButton custodianId={custodian.id} />
+          ) : undefined
+        }
       />
-      <Text as="p" color="fg.muted">
-        Prefer read-only credentials with no trading or withdrawal capability whenever the Connector
-        allows it.
-      </Text>
-      <SetupInstructions source={connector.instructions} />
+      {connector !== undefined ? (
+        <>
+          <Text as="p" color="fg.muted">
+            Prefer read-only credentials with no trading or withdrawal capability whenever the
+            connector allows it.
+          </Text>
+          <SetupInstructions source={connector.instructions} />
+        </>
+      ) : null}
       <FormError message={error} />
       <FormFrame onSubmit={(event) => void submit(event)}>
         <Field label="Name">
           <Input name="name" value={name} onChange={(event) => setName(event.target.value)} />
         </Field>
-        {connector.credentialFields.map((field) =>
+        {connector?.credentialFields.map((field) =>
           field.kind === "select" ? (
             <SelectField
               key={field.key}
@@ -292,12 +312,12 @@ function LoadedEditConnection({
         </Button>
       </FormFrame>
       <DeleteButton
-        entity="connection"
+        entity="custodian"
         isPending={remove.isPending}
         onDelete={async () => {
           try {
             await remove.mutateAsync();
-            await navigate({ to: "/settings/connections" });
+            await navigate({ to: "/settings/custodians" });
           } catch (cause) {
             setError(errorMessage(cause));
           }

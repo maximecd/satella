@@ -43,20 +43,20 @@ describe("application shell", () => {
     expect(await screen.findByRole("heading", { name: "Optimus is locked" })).toBeInTheDocument();
   });
 
-  it("keeps Settings selected on nested Connection routes", async () => {
-    renderRoute("/settings/connections");
-    expect(await screen.findByRole("heading", { name: "Connections" })).toBeInTheDocument();
+  it("keeps Settings selected on nested Custodian routes", async () => {
+    renderRoute("/settings/custodians");
+    expect(await screen.findByRole("heading", { name: "Custodians" })).toBeInTheDocument();
     expect(within(sideNav()).getByRole("link", { name: "Settings" })).toHaveAttribute(
       "aria-current",
       "page",
     );
   });
 
-  it("does not register obsolete Custodian or asset catalog routes", () => {
+  it("registers Custodian routes and does not register Connection routes", () => {
     const routeFiles = Object.keys(import.meta.glob("../routes/*.{ts,tsx}"));
-    expect(routeFiles.some((file) => /custodian/i.test(file))).toBe(false);
+    expect(routeFiles.some((file) => /custodian/i.test(file))).toBe(true);
     expect(routeFiles.some((file) => file.includes("assets.index"))).toBe(false);
-    expect(routeFiles.some((file) => file.includes("settings.connections"))).toBe(true);
+    expect(routeFiles.some((file) => file.includes("settings.connections"))).toBe(false);
     expect(routeFiles.some((file) => file.includes("assets.$assetId.edit"))).toBe(true);
   });
 });

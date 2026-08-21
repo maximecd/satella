@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -45,15 +45,19 @@ describe("dashboard screen", () => {
     expect(apple).toHaveFocus();
     expect(screen.getByText("1 unpriced asset excluded from allocation.")).toBeInTheDocument();
     expect(screen.getByText("Negative holdings are excluded from allocation.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Accounts" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "IBKR" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "BNP Paribas" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Accounts" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Other holdings")).not.toBeInTheDocument();
+    expect(screen.queryByText("Manual custodian")).not.toBeInTheDocument();
 
-    const accounts = screen.getByRole("list");
-    const rows = within(accounts).getAllByRole("link");
-    expect(rows[0]).toHaveAccessibleName(/Brokerage/);
-    expect(rows[0]).toHaveAttribute("href", "/accounts/brokerage");
-    expect(rows[1]).toHaveAccessibleName(/Livret A/);
-    expect(within(accounts).getByText(/800[.,]00 USD/)).toBeInTheDocument();
-    expect(within(accounts).getByText(/300[.,]00 USD/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Brokerage/ })).toHaveAttribute(
+      "href",
+      "/accounts/brokerage",
+    );
+    expect(screen.getByRole("link", { name: /Livret A/ })).toHaveAttribute("href", "/accounts/livret");
+    expect(screen.getByText(/800[.,]00 USD/)).toBeInTheDocument();
+    expect(screen.getByText(/300[.,]00 USD/)).toBeInTheDocument();
     expect(screen.queryByText("Manual")).not.toBeInTheDocument();
     expect(screen.queryByText("Connected")).not.toBeInTheDocument();
   });
@@ -113,5 +117,43 @@ describe("dashboard screen", () => {
     expect(tooltip).toHaveTextContent(/800[.,]25 USD/);
     expect(apple).toHaveTextContent(/800 USD/);
     expect(apple).not.toHaveTextContent(/800[.,]\d/);
+  });
+
+  it("labels the default manual group Other holdings", async () => {
+    const dashboard = populatedDashboardFor();
+    seedPortfolioEngine({
+      dashboard: {
+        ...dashboard,
+        custodians: [
+          ...dashboard.custodians,
+          {
+            custodianId: "custodian:manual",
+            name: "Manual custodian",
+            isDefault: true,
+            connectorId: null,
+            accounts: [
+              {
+                accountId: "watch",
+                accountName: "Manual account",
+                accountType: "other",
+                positionCount: 1,
+                total: "1200",
+                unrealizedPnl: "0",
+                unrealizedPnlPercent: null,
+                totalIncomplete: false,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    renderRoute("/");
+    expect(await screen.findByRole("heading", { name: "Other holdings" })).toBeInTheDocument();
+    expect(screen.queryByText("Manual custodian")).not.toBeInTheDocument();
+    expect(screen.queryByText("Manual account")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Other holdings/ })).toHaveAttribute(
+      "href",
+      "/accounts/watch",
+    );
   });
 });

@@ -15,7 +15,7 @@ The current quantity of one Asset held in one Account.
 _Avoid_: Transaction, holding history
 
 **Asset category**:
-An intrinsic classification of an asset as Stocks & ETFs, Crypto, Cash, or Other assets. The same categories organize Add assets and portfolio allocation.
+An intrinsic classification of an asset as Stocks & ETFs, Crypto, Cash, or Other assets. Portfolio allocation uses these categories. Add assets offers Checking and Savings for cash accounts, then Stocks & ETFs, Crypto, and Other assets.
 _Avoid_: Asset class, account kind
 
 **Portfolio value**:
@@ -33,7 +33,7 @@ The current quantity of a non-Cash Position multiplied by its Average unit purch
 _Avoid_: Tax basis, cost basis
 
 **Average unit purchase price**:
-The authoritative unit price paid for a Position, expressed in its chosen purchase currency. A manual value takes precedence over a Connection-supplied value; it may be unavailable when neither exists.
+The authoritative unit price paid for a Position, expressed in its chosen purchase currency. A manual value takes precedence over a synced connector value; it may be unavailable when neither exists.
 _Avoid_: PRU, average cost basis
 
 **Unrealized P&L**:

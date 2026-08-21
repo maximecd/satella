@@ -73,19 +73,37 @@ const upsertPrice = (
       observed_at = excluded.observed_at,
       updated_at = excluded.updated_at`;
 
-const upsertAccount = (
+const upsertCustodian = (
   sql: SqlClient.SqlClient,
   id: string,
   name: string,
+  createdAt: string,
+) =>
+  sql`INSERT INTO custodians
+      (id, name, connector_id, config_json, created_at, updated_at)
+    VALUES (${id}, ${name}, NULL, NULL, ${createdAt}, ${createdAt})
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      connector_id = NULL,
+      config_json = NULL,
+      updated_at = excluded.updated_at`;
+
+const upsertAccount = (
+  sql: SqlClient.SqlClient,
+  id: string,
+  custodianId: string,
+  name: string,
+  accountType: string,
   baseCurrencyAssetId: string,
   createdAt: string,
 ) =>
   sql`INSERT INTO accounts
-      (id, connection_id, name, base_currency_asset_id, connector_account_id, created_at, updated_at)
-    VALUES (${id}, NULL, ${name}, ${baseCurrencyAssetId}, NULL, ${createdAt}, ${createdAt})
+      (id, custodian_id, name, account_type, base_currency_asset_id, connector_account_id, created_at, updated_at)
+    VALUES (${id}, ${custodianId}, ${name}, ${accountType}, ${baseCurrencyAssetId}, NULL, ${createdAt}, ${createdAt})
     ON CONFLICT(id) DO UPDATE SET
-      connection_id = NULL,
+      custodian_id = excluded.custodian_id,
       name = excluded.name,
+      account_type = excluded.account_type,
       base_currency_asset_id = excluded.base_currency_asset_id,
       connector_account_id = NULL,
       updated_at = excluded.updated_at`;
@@ -191,17 +209,22 @@ export const seedDevelopmentFixture = Effect.gen(function* () {
       yield* upsertPrice(sql, "seed:asset:voo", "550", "fiat:USD");
       yield* upsertPrice(sql, "fiat:EUR", "1.1", "fiat:USD");
 
+      yield* upsertCustodian(sql, "seed:custodian:demo", "Demo custodian", createdAt);
       yield* upsertAccount(
         sql,
         "seed:account:demo-brokerage",
+        "seed:custodian:demo",
         "Demo Brokerage",
+        "brokerage",
         "fiat:USD",
         createdAt,
       );
       yield* upsertAccount(
         sql,
         "seed:account:demo-euro-cash",
+        "seed:custodian:demo",
         "Demo Euro Cash",
+        "checking",
         "fiat:EUR",
         createdAt,
       );

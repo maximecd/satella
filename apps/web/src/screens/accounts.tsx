@@ -29,7 +29,7 @@ import { EmptyState } from "../components/ui/empty-state";
 import { Tooltip } from "../components/ui/tooltip";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { useAccount, useAssets, useDeleteAccount, useUpdateAccount } from "../portfolio";
-import { RefreshConnectionButton } from "../refresh-connection";
+import { RefreshCustodianButton } from "../refresh-custodian";
 import { AddAssetsButton } from "./add-assets";
 import {
   compareDecimal,
@@ -44,7 +44,9 @@ import {
 
 const errorMessage = (cause: unknown) =>
   cause instanceof Error ? cause.message : "The request failed.";
-const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "other"]);
+const MANUAL_ASSET_CATEGORIES = new Set(["other"]);
+const accountTitle = (account: Account) =>
+  account.isDefaultCustodian ? "Other holdings" : account.name;
 
 const pnlPercent = (value: string | null) =>
   value === null
@@ -110,7 +112,7 @@ function PositionTable({
             return (
               <Table.Row key={position.id}>
                 <Table.Cell>
-                  {account.connectionId === null &&
+                  {account.connectorAccountId === null &&
                   MANUAL_ASSET_CATEGORIES.has(position.assetCategory) ? (
                     <Link asChild fontWeight="semibold">
                       <RouterLink to="/assets/$assetId/edit" params={{ assetId: position.assetId }}>
@@ -185,6 +187,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   const account = query.data;
+  const title = accountTitle(account);
   const active = account.positions.filter(
     (position) => compareDecimal(position.quantity, "0") !== 0 && position.reportingValue !== null,
   );
@@ -196,29 +199,29 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
     <>
       <PageBreadcrumbs
         items={
-          account.connectionId === null
-            ? [{ label: "Dashboard", href: "/" }, { label: account.name }]
+          account.connectorAccountId === null
+            ? [{ label: "Dashboard", href: "/" }, { label: title }]
             : [
                 { label: "Settings", href: "/settings" },
-                { label: "Connections", href: "/settings/connections" },
+                { label: "Custodians", href: "/settings/custodians" },
                 {
-                  label: account.connectionName ?? "Connection",
-                  href: `/settings/connections/${account.connectionId}`,
+                  label: account.custodianName,
+                  href: `/settings/custodians/${account.custodianId}`,
                 },
-                { label: account.name },
+                { label: title },
               ]
         }
       />
       <PageHeader
-        title={account.name}
+        title={title}
         subtitle={`Valuation currency ${account.baseCurrencyIso}`}
         action={
-          account.connectionId !== null ? (
-            <RefreshConnectionButton
-              connectionId={account.connectionId}
+          account.connectorAccountId !== null ? (
+            <RefreshCustodianButton
+              custodianId={account.custodianId}
               onError={setRefreshError}
             />
-          ) : (
+          ) : account.isDefaultCustodian ? undefined : (
             <Button asChild>
               <RouterLink to="/accounts/$accountId/edit" params={{ accountId: id }}>
                 Edit account
@@ -276,7 +279,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
         <Heading as="h2" size="md">
           Positions
         </Heading>
-        {account.connectionId === null && <AddAssetsButton />}
+        {account.connectorAccountId === null && <AddAssetsButton />}
       </Flex>
       <PositionTable positions={active} account={account} />
       {zero.length > 0 && (
@@ -385,11 +388,11 @@ export function EditAccountScreen({ id }: { readonly id: string }) {
   const query = useAccount(id);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
-  if (query.data.connectionId !== null)
+  if (query.data.connectorAccountId !== null)
     return (
       <PageState
         kind="error"
-        message="This Account is managed by a Connection and cannot be edited."
+        message="This account is managed by a synced custodian and cannot be edited."
       />
     );
   return <LoadedEditAccount account={query.data} />;

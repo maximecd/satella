@@ -15,7 +15,7 @@ import {
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { useAsset, useAssets, useDeleteAsset, useMaintainAsset } from "../portfolio";
 
-const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "other"]);
+const MANUAL_ASSET_CATEGORIES = new Set(["other"]);
 
 const EditAssetForm = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
@@ -74,7 +74,7 @@ function LoadedAssetScreen({
         <PageHeader title={asset.name} />
         <PageState
           kind="error"
-          message="This asset is maintained by a Connection and cannot be edited."
+          message="This asset is maintained automatically and cannot be edited."
         />
       </>
     );
