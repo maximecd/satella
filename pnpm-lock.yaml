@@ -330,6 +330,9 @@ importers:
       '@optimus/connector-ibkr':
         specifier: workspace:*
         version: link:../../packages/connector-ibkr
+      '@optimus/connector-kraken':
+        specifier: workspace:*
+        version: link:../../packages/connector-kraken
       '@optimus/connector-okx':
         specifier: workspace:*
         version: link:../../packages/connector-okx
@@ -486,6 +489,31 @@ importers:
       saxes:
         specifier: 6.0.0
         version: 6.0.0
+    devDependencies:
+      '@effect/tsgo':
+        specifier: 'catalog:'
+        version: 0.36.4
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)
+      '@types/node':
+        specifier: 26.2.0
+        version: 26.2.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 0.2.9(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.3.0))(tsx@4.23.11)(typescript@7.0.2)
+
+  packages/connector-kraken:
+    dependencies:
+      '@optimus/connector-core':
+        specifier: workspace:*
+        version: link:../connector-core
+      effect:
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108
     devDependencies:
       '@effect/tsgo':
         specifier: 'catalog:'

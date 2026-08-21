@@ -8,8 +8,8 @@ import { make as makeCatalog } from "./ConnectorCatalog.js";
 
 describe("connector composition", () => {
   it("preserves the public built-in order and derives discovery from execution", () => {
-    expect(CONNECTOR_CAPABILITIES.map(({ id }) => id)).toEqual(["okx", "ibkr"]);
-    expect([...CONNECTOR_REGISTRY].map(([id]) => id)).toEqual(["okx", "ibkr"]);
+    expect(CONNECTOR_CAPABILITIES.map(({ id }) => id)).toEqual(["okx", "kraken", "ibkr"]);
+    expect([...CONNECTOR_REGISTRY].map(([id]) => id)).toEqual(["okx", "kraken", "ibkr"]);
     expect(CONNECTOR_CAPABILITIES.every(({ id }) => CONNECTOR_REGISTRY.has(id))).toBe(true);
     const catalog = makeCatalog(CONNECTOR_REGISTRY);
     expect(catalog.capabilities().connectors).toEqual(CONNECTOR_CAPABILITIES);

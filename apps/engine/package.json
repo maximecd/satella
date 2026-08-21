@@ -29,6 +29,7 @@
     "@journeyapps/sqlcipher": "6.0.0",
     "@optimus/connector-core": "workspace:*",
     "@optimus/connector-ibkr": "workspace:*",
+    "@optimus/connector-kraken": "workspace:*",
     "@optimus/connector-okx": "workspace:*",
     "decimal.js": "10.6.0",
     "effect": "catalog:",
