@@ -43,6 +43,8 @@ export interface IbkrConnectorOptions<R = HttpClient.HttpClient> {
   readonly sleep?: (milliseconds: number) => Effect.Effect<void>;
 }
 
+type IbkrRuntimeOptions<R> = Omit<IbkrConnectorOptions<R>, "transportFactory">;
+
 const transientFlexCodes = new Set([
   "1003",
   "1004",
@@ -260,15 +262,18 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
     const externalId = `ibkr:conid:${conid}`;
     const previous = groups.get(externalId);
     if (previous === undefined) {
-      groups.set(externalId, {
+      const group: PositionGroup = {
         category,
         name,
-        ...(symbol === undefined ? {} : { symbol }),
         identifiers,
         modes: new Set([modeKey]),
         quantity,
-        ...(costBasisPrice === undefined ? {} : { averageUnitPurchasePrice: costBasisPrice }),
-      });
+      };
+      if (symbol !== undefined) Object.assign(group, { symbol });
+      if (costBasisPrice !== undefined) {
+        Object.assign(group, { averageUnitPurchasePrice: costBasisPrice });
+      }
+      groups.set(externalId, group);
       continue;
     }
     if (previous.category !== category || previous.name !== name || previous.symbol !== symbol) {
@@ -313,19 +318,23 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
   }
   for (const [externalId, group] of groups) {
     if (group.quantity === "0") continue;
-    positions.push({
-      asset: {
-        externalId,
-        assetCategory: ibkrAssetCategory(group.category),
-        name: group.name,
-        ...(group.symbol === undefined ? {} : { symbol: group.symbol }),
-        identifiers: group.identifiers,
-      },
+    const asset = {
+      externalId,
+      assetCategory: ibkrAssetCategory(group.category),
+      name: group.name,
+      identifiers: group.identifiers,
+    };
+    if (group.symbol !== undefined) Object.assign(asset, { symbol: group.symbol });
+    const position = {
+      asset,
       quantity: group.quantity,
-      ...(group.averageUnitPurchasePrice === undefined
-        ? {}
-        : { averageUnitPurchasePrice: group.averageUnitPurchasePrice }),
-    });
+    };
+    if (group.averageUnitPurchasePrice !== undefined) {
+      Object.assign(position, {
+        averageUnitPurchasePrice: group.averageUnitPurchasePrice,
+      });
+    }
+    positions.push(position);
   }
   return {
     externalId: accountId,
@@ -364,17 +373,25 @@ const fetchCategoryForCode = (code: string): ConnectorFetchAccountsError["catego
   return "invalid_response";
 };
 
-const transportCategory = (
+function transportCategory(
+  cause: IbkrTransportError,
+  phase: "authentication",
+): ConnectorAuthenticationError["category"];
+function transportCategory(
+  cause: IbkrTransportError,
+  phase: "fetch",
+): ConnectorFetchAccountsError["category"];
+function transportCategory(
   cause: IbkrTransportError,
   phase: "authentication" | "fetch",
-): ConnectorAuthenticationError["category"] | ConnectorFetchAccountsError["category"] => {
+): ConnectorAuthenticationError["category"] | ConnectorFetchAccountsError["category"] {
   if (cause.status === 429) return "rate_limit";
   if (cause.status === 401 || cause.status === 403) {
     return phase === "authentication" ? "invalid_credentials" : "authentication_expired";
   }
   if (cause.message.includes("timed out")) return "timeout";
   return cause.transient ? "network" : "invalid_response";
-};
+}
 
 const authenticationError = (
   cause: unknown,
@@ -383,7 +400,7 @@ const authenticationError = (
   new ConnectorAuthenticationError({
     category:
       cause instanceof IbkrTransportError
-        ? (transportCategory(cause, "authentication") as ConnectorAuthenticationError["category"])
+        ? transportCategory(cause, "authentication")
         : "invalid_response",
     message:
       message === "IBKR Flex authentication failed" && cause instanceof IbkrTransportError
@@ -397,9 +414,7 @@ const fetchError = (
 ): ConnectorFetchAccountsError =>
   new ConnectorFetchAccountsError({
     category:
-      cause instanceof IbkrTransportError
-        ? (transportCategory(cause, "fetch") as ConnectorFetchAccountsError["category"])
-        : "invalid_response",
+      cause instanceof IbkrTransportError ? transportCategory(cause, "fetch") : "invalid_response",
     message:
       message === "IBKR Flex account fetch failed" && cause instanceof IbkrTransportError
         ? cause.message
@@ -442,20 +457,28 @@ const ensureSendSuccess = (document: ParsedFlexDocument): string => {
   return referenceCode;
 };
 
+interface FlexErrorFields {
+  readonly flexCode?: unknown;
+  readonly flexCategory?: unknown;
+}
+
+const isFlexErrorFields = (cause: unknown): cause is FlexErrorFields =>
+  cause !== null && Object.prototype.toString.call(cause) === "[object Object]";
+
 const flexCodeOf = (cause: unknown): string | undefined =>
-  typeof cause === "object" && cause !== null && "flexCode" in cause
+  isFlexErrorFields(cause) && "flexCode" in cause
     ? trimOptional(String(cause.flexCode))
     : undefined;
 
 const flexCategoryOf = (cause: unknown): ConnectorAuthenticationError["category"] | undefined =>
-  typeof cause === "object" && cause !== null && "flexCategory" in cause
-    ? (String(cause.flexCategory) as ConnectorAuthenticationError["category"])
+  isFlexErrorFields(cause) && "flexCategory" in cause
+    ? authCategoryForCode(String(cause.flexCategory))
     : undefined;
 
 const authenticateWith = <R>(
   credentials: IbkrCredentials,
   client: IbkrClient<R>,
-  options: IbkrConnectorOptions<R>,
+  options: IbkrRuntimeOptions<R>,
 ): Effect.Effect<
   {
     readonly fetchAccounts: () => Effect.Effect<
@@ -561,8 +584,9 @@ const authenticateWith = <R>(
     };
   });
 
-export const makeIbkrConnector = <R = HttpClient.HttpClient>(
-  options: IbkrConnectorOptions<R> = {},
+const createIbkrConnector = <R>(
+  options: IbkrRuntimeOptions<R>,
+  transport: IbkrHttpTransport<R>,
 ): Connector<IbkrCredentials, R> => ({
   id: "ibkr",
   name: "Interactive Brokers",
@@ -592,11 +616,22 @@ export const makeIbkrConnector = <R = HttpClient.HttpClient>(
       const credentials = yield* Schema.decodeUnknownEffect(IbkrFlexCredentials)(input).pipe(
         Effect.mapError(() => authenticationError(undefined, "IBKR Flex credentials are invalid")),
       );
-      const transport =
-        options.transportFactory?.(IBKR_FLEX_ORIGIN) ??
-        (makeIbkrEffectHttpTransport(IBKR_FLEX_ORIGIN) as unknown as IbkrHttpTransport<R>);
       return yield* authenticateWith(credentials, makeIbkrClient({ transport }), options);
     }),
 });
+
+export function makeIbkrConnector(): Connector<IbkrCredentials, HttpClient.HttpClient>;
+export function makeIbkrConnector<R>(
+  options: IbkrConnectorOptions<R>,
+): Connector<IbkrCredentials, R>;
+export function makeIbkrConnector<R>(
+  options: IbkrConnectorOptions<R> = {},
+): Connector<IbkrCredentials, R> | Connector<IbkrCredentials, HttpClient.HttpClient> {
+  const { transportFactory, ...runtimeOptions } = options;
+  if (transportFactory !== undefined) {
+    return createIbkrConnector(runtimeOptions, transportFactory(IBKR_FLEX_ORIGIN));
+  }
+  return createIbkrConnector(runtimeOptions, makeIbkrEffectHttpTransport(IBKR_FLEX_ORIGIN));
+}
 
 export const IbkrConnector = makeIbkrConnector();

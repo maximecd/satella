@@ -170,7 +170,7 @@ export const chooseFreePort = () =>
     server.once("error", reject);
     server.listen({ host: "127.0.0.1", port: 0 }, () => {
       const address = server.address();
-      if (address === null || typeof address === "string") {
+      if (address === null || !(address instanceof Object)) {
         server.close();
         reject(new Error("Could not bind an ephemeral TCP port"));
         return;

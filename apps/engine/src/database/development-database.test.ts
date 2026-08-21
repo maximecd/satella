@@ -266,7 +266,7 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
       expect(reset.output).toMatch(/reset complete/i);
       expectPrintedSelection(reset.output, checkouts.main);
 
-      const names = await readdir(directory).catch(() => [] as string[]);
+      const names = await readdir(directory).catch(() => []);
       expect(names).not.toContain("vault.envelope.json");
       expect(names).not.toContain("optimus.sqlite");
       expect(names).not.toContain("optimus.sqlite-wal");
@@ -305,9 +305,7 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
       await writeFile(join(dataDirectory(checkouts.main), "engine.lock"), "2147483647\n");
       const recovered = await runDb(["reset"], { cwd: checkouts.main });
       expect(recovered.code).toBe(0);
-      const recoveredNames = await readdir(dataDirectory(checkouts.main)).catch(
-        () => [] as string[],
-      );
+      const recoveredNames = await readdir(dataDirectory(checkouts.main)).catch(() => []);
       expect(recoveredNames).not.toContain("vault.envelope.json");
     } finally {
       await checkouts.dispose();

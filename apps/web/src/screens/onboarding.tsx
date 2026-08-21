@@ -11,8 +11,8 @@ import { PinField } from "./pin-field";
 import { useAddAssets } from "./add-assets";
 import { clearFirstAssetPending, markFirstAssetPending } from "./vault-gate";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 
 type Step = "welcome" | "password" | "pin" | "first-asset";
 

@@ -18,7 +18,7 @@ const semverPattern = new RegExp(
 );
 
 export const normalizeReleaseVersion = (value) => {
-  if (typeof value !== "string" || !semverPattern.test(value)) {
+  if (String(value) !== value || !semverPattern.test(value)) {
     throw new Error(
       "Release version must be a SemVer value without a leading v, for example 1.2.3 or 1.2.3-rc.1",
     );

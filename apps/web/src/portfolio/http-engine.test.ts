@@ -19,7 +19,9 @@ const dashboard = {
   history: [],
 };
 
-const jsonResponse = (body: unknown, status = 200) =>
+type JsonResponseBody = typeof dashboard | Readonly<Record<string, string>>;
+
+const jsonResponse = (body: JsonResponseBody, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json" },

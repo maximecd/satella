@@ -131,8 +131,8 @@ if (!app.requestSingleInstanceLock()) {
         }
       });
     })
-    .catch((error: unknown) => {
-      console.error(error instanceof Error ? error.message : error);
+    .catch((cause: unknown) => {
+      console.error(cause instanceof Error ? cause.message : cause);
       app.quit();
     });
 

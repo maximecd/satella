@@ -1,13 +1,10 @@
 import { randomUUID } from "node:crypto";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 import { SqlClient } from "effect/unstable/sql";
-import type {
-  Account,
-  CreatePositionInput,
-  PositionEdit,
-  UpdatePositionInput,
-} from "../contracts.js";
+import type { Account, CreatePositionInput, PositionEdit } from "../contracts.js";
+import { UpdatePositionInput } from "../contracts.js";
 import { getAccount, assertManualAccountOwner, loadPosition } from "../accounts/AccountSql.js";
 import { getAsset } from "../assets/AssetSql.js";
 import {
@@ -76,7 +73,9 @@ export const updatePosition = (
   Effect.gen(function* () {
     const accountId = yield* positionAccountId(id);
     const assetId = yield* positionAssetId(id);
-    const update: UpdatePositionInput = typeof input === "object" ? input : { quantity: input };
+    const update: UpdatePositionInput = Schema.is(UpdatePositionInput)(input)
+      ? input
+      : { quantity: input };
     if (update.quantity === undefined && update.averageUnitPurchasePrice === undefined) {
       return yield* Effect.fail(
         failure(

@@ -38,15 +38,17 @@ export const connectorCapabilities = (
 ): ReadonlyArray<ConnectorCapability> =>
   Object.freeze(
     [...registry.values()].map(
-      ({ id, name, icon, instructions, assetCategories, credentialFields }) =>
-        Object.freeze({
+      ({ id, name, icon, instructions, assetCategories, credentialFields }) => {
+        const capability = {
           id,
           name,
-          ...(icon === undefined ? {} : { icon }),
-          ...(instructions === undefined ? {} : { instructions }),
           assetCategories: Object.freeze([...assetCategories]),
           credentialFields: Object.freeze([...credentialFields]),
-        }),
+        };
+        if (icon !== undefined) Object.assign(capability, { icon });
+        if (instructions !== undefined) Object.assign(capability, { instructions });
+        return Object.freeze(capability);
+      },
     ),
   );
 

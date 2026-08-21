@@ -9,8 +9,8 @@ import { vaultStatusQuery } from "../queries";
 import { PinField } from "./pin-field";
 import { SecretField } from "./secret-field";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The Screen lock could not be dismissed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The Screen lock could not be dismissed.";
 
 export function ScreenLockScreen({
   status,

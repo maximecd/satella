@@ -116,14 +116,14 @@ export const makeIbkrEffectHttpTransport = (
         if (value !== undefined) headers[key.toLowerCase()] = value;
       }
       if (response.status < 200 || response.status >= 300) {
+        const retryAfterMs = retryAfterMilliseconds(headers);
+        const errorOptions = {
+          transient: transientStatus(response.status),
+          status: response.status,
+        };
+        if (retryAfterMs !== undefined) Object.assign(errorOptions, { retryAfterMs });
         return yield* Effect.fail(
-          new IbkrTransportError(`IBKR request failed with HTTP ${response.status}`, {
-            transient: transientStatus(response.status),
-            status: response.status,
-            ...(retryAfterMilliseconds(headers) === undefined
-              ? {}
-              : { retryAfterMs: retryAfterMilliseconds(headers)! }),
-          }),
+          new IbkrTransportError(`IBKR request failed with HTTP ${response.status}`, errorOptions),
         );
       }
       const body = yield* response.text.pipe(

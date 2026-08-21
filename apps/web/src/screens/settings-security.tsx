@@ -11,8 +11,8 @@ import { PinField } from "./pin-field";
 import { ResetOptimusControl } from "./reset-optimus";
 import { SecretField } from "./secret-field";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 
 export function SettingsSecurityScreen() {
   const statusQuery = useQuery(vaultStatusQuery);
@@ -171,7 +171,10 @@ export function SettingsSecurityScreen() {
                 { value: "60", label: "60 minutes" },
               ]}
               value={timeoutMinutes}
-              onChange={(value) => timeout.mutate(Number(value) as 5 | 15 | 30 | 60)}
+              onChange={(value) => {
+                // SAFETY: SelectField only supplies one of the four literal timeout option values above.
+                timeout.mutate(Number(value) as 5 | 15 | 30 | 60);
+              }}
             />
           </Card.Body>
         </Card.Root>

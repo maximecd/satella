@@ -24,8 +24,8 @@ const EditAssetForm = Schema.Struct({
   currencyAssetId: Schema.String,
 });
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 
 function LoadedAssetScreen({
   asset,
@@ -56,11 +56,12 @@ function LoadedAssetScreen({
               currencyAssetId: decoded.currencyAssetId,
             }
           : undefined;
-        await save.mutateAsync({
+        const input = {
           name: decoded.name,
           symbol: decoded.symbol,
-          ...(manualPrice === undefined ? {} : { manualPrice }),
-        });
+        };
+        if (manualPrice !== undefined) Object.assign(input, { manualPrice });
+        await save.mutateAsync(input);
       } catch (cause) {
         setError(errorMessage(cause));
       }

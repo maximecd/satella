@@ -79,8 +79,20 @@ describe("unrealized P&L", () => {
         symbol: "FUND",
         identifiers: [],
       };
-      const reconcile = (quantity: string, average?: string) =>
-        reconcileConnector("connection-1", {
+      const reconcile = (quantity: string, average?: string) => {
+        const position = {
+          externalAssetId: "fixture:fund",
+          quantity,
+        };
+        if (average !== undefined) {
+          Object.assign(position, {
+            averageUnitPurchasePrice: {
+              price: average,
+              currencyIso: "USD",
+            },
+          });
+        }
+        return reconcileConnector("connection-1", {
           complete: true,
           assets: [connectorAsset],
           accounts: [
@@ -88,23 +100,11 @@ describe("unrealized P&L", () => {
               externalAccountId: "custody",
               name: "Custody",
               baseCurrencyIso: "USD",
-              positions: [
-                {
-                  externalAssetId: "fixture:fund",
-                  quantity,
-                  ...(average === undefined
-                    ? {}
-                    : {
-                        averageUnitPurchasePrice: {
-                          price: average,
-                          currencyIso: "USD",
-                        },
-                      }),
-                },
-              ],
+              positions: [position],
             },
           ],
         });
+      };
 
       yield* reconcile("2", "5");
       let account = yield* Finance.getAccount("connected-account");

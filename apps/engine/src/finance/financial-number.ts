@@ -1,4 +1,4 @@
-import * as DecimalModule from "decimal.js";
+import { Decimal } from "decimal.js";
 import * as Schema from "effect/Schema";
 
 /**
@@ -22,24 +22,8 @@ export const DecimalInput = Schema.String.check(
   }),
 );
 
-type DecimalInstance = {
-  isFinite(): boolean;
-  isZero(): boolean;
-  toFixed(): string;
-  plus(value: string | number | DecimalInstance): DecimalInstance;
-  minus(value: string | number | DecimalInstance): DecimalInstance;
-  times(value: string | number | DecimalInstance): DecimalInstance;
-  div(value: string | number | DecimalInstance): DecimalInstance;
-  cmp(value: string | number | DecimalInstance): number;
-};
+type DecimalInstance = Decimal;
 
-type DecimalConstructor = {
-  new (value: string | number): DecimalInstance;
-  clone(config: { precision: number; rounding: number }): DecimalConstructor;
-  ROUND_HALF_UP: number;
-};
-
-const Decimal = (DecimalModule.default ?? DecimalModule) as unknown as DecimalConstructor;
 const DecimalNumber = Decimal.clone({
   precision: 50,
   rounding: Decimal.ROUND_HALF_UP,
@@ -48,7 +32,7 @@ const DecimalNumber = Decimal.clone({
 const decimalLiteral = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 const parseDecimal = (value: DecimalInput): DecimalInstance => {
-  const text = value.trim();
+  const text = String(value).trim();
   if (!decimalLiteral.test(text)) throw new Error("Financial values must be decimal numbers");
   const result = new DecimalNumber(text);
   if (!result.isFinite()) throw new Error("Financial values must be finite");

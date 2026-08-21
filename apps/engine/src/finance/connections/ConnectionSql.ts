@@ -7,11 +7,13 @@ import { SqlClient } from "effect/unstable/sql";
 import type {
   ConnectConnectionInput,
   Connection,
+  ConnectorCredentials as ConnectorCredentialsType,
   ConnectionRefreshResult,
   FinanceApiError,
   UpdateConnectionInput,
 } from "../contracts.js";
-import { FinanceApiError as FinanceError } from "../contracts.js";
+import { ConnectorCredentials, FinanceApiError as FinanceError } from "../contracts.js";
+import * as Schema from "effect/Schema";
 import { CONNECTOR_CAPABILITIES } from "../config.js";
 import { syncRegisteredConnector, type ConnectorSyncError } from "../connector-service.js";
 import { refreshPrices } from "../market-data.js";
@@ -70,8 +72,8 @@ export const listConnections = (): FinanceEffect<ReadonlyArray<Connection>> =>
 export const connectorSyncFailure = (error: ConnectorSyncError): FinanceApiError => {
   if (error instanceof FinanceError) return error;
   const category =
-    typeof error === "object" && error !== null && "category" in error
-      ? String(error.category)
+    error instanceof ConnectorAuthenticationError || error instanceof ConnectorFetchAccountsError
+      ? error.category
       : "unknown";
   if (error instanceof ConnectorAuthenticationError) {
     return failure("validation", `Connector authentication failed (${category})`);
@@ -82,7 +84,11 @@ export const connectorSyncFailure = (error: ConnectorSyncError): FinanceApiError
   return failure("validation", "The connector could not be synchronized");
 };
 
-const insertConnection = (name: string, connectorId: string, credentials: unknown) =>
+const insertConnection = (
+  name: string,
+  connectorId: string,
+  credentials: ConnectorCredentialsType,
+) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const id = randomUUID();
@@ -92,6 +98,17 @@ const insertConnection = (name: string, connectorId: string, credentials: unknow
       VALUES (${id}, ${name}, ${connectorId}, ${JSON.stringify(credentials)}, ${timestamp}, ${timestamp})`;
     return id;
   });
+
+const decodeStoredCredentials = (
+  configJson: string,
+): Effect.Effect<ConnectorCredentialsType, FinanceApiError> =>
+  Effect.try({
+    try: () => JSON.parse(configJson),
+    catch: () => failure("database", "Stored connector credentials are invalid"),
+  }).pipe(
+    Effect.flatMap(Schema.decodeUnknownEffect(ConnectorCredentials)),
+    Effect.mapError(() => failure("database", "Stored connector credentials are invalid")),
+  );
 
 /**
  * Connects an external service and imports its first complete account snapshot.
@@ -135,16 +152,8 @@ export const refreshConnection = (
       ),
       "Connection",
     );
-    const credentials = yield* Effect.try({
-      try: () => JSON.parse(row.config_json) as unknown,
-      catch: () => failure("database", "Stored connector credentials are invalid"),
-    });
-    if (
-      credentials === null ||
-      typeof credentials !== "object" ||
-      Array.isArray(credentials) ||
-      Object.keys(credentials).length === 0
-    ) {
+    const credentials = yield* decodeStoredCredentials(row.config_json);
+    if (Object.keys(credentials).length === 0) {
       return yield* Effect.fail(failure("validation", "Stored connector credentials are missing"));
     }
     yield* syncRegisteredConnector(id, row.connector_id, credentials).pipe(
@@ -160,13 +169,11 @@ export const completeConnectionRefresh = (
   options: CaptureSnapshotOptions = {},
 ): FinanceEffect<ConnectionRefreshResult> =>
   Effect.gen(function* () {
+    const refreshOptions = { requireFresh: true };
+    if (options.registry !== undefined)
+      Object.assign(refreshOptions, { registry: options.registry });
     const failures =
-      options.refresh === false
-        ? []
-        : (yield* refreshPrices({
-            requireFresh: true,
-            ...(options.registry === undefined ? {} : { registry: options.registry }),
-          })).failures;
+      options.refresh === false ? [] : (yield* refreshPrices(refreshOptions)).failures;
     yield* captureSnapshot({ ...options, refresh: false });
     return { connection: yield* getConnection(id), failures };
   });
@@ -188,14 +195,8 @@ export const updateConnection = (
         ),
         "Connection",
       );
-      const stored = yield* Effect.try({
-        try: () => JSON.parse(row.config_json) as unknown,
-        catch: () => failure("database", "Stored connector credentials are invalid"),
-      });
-      if (stored === null || typeof stored !== "object" || Array.isArray(stored)) {
-        return yield* Effect.fail(failure("database", "Stored connector credentials are invalid"));
-      }
-      const credentials = { ...(stored as Record<string, unknown>), ...input.credentials };
+      const stored = yield* decodeStoredCredentials(row.config_json);
+      const credentials = { ...stored, ...input.credentials };
       yield* syncRegisteredConnector(id, connection.connectorId, credentials).pipe(
         Effect.mapError(connectorSyncFailure),
       );

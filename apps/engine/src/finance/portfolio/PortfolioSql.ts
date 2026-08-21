@@ -36,11 +36,13 @@ export const captureSnapshot = (
 ): FinanceEffect<SnapshotResult> =>
   Effect.gen(function* () {
     if (options.refresh !== false) {
-      yield* refreshPrices({
+      const refreshOptions = {
         requireFresh: true,
         includeAllCashFx: true,
-        ...(options.registry === undefined ? {} : { registry: options.registry }),
-      });
+      };
+      if (options.registry !== undefined)
+        Object.assign(refreshOptions, { registry: options.registry });
+      yield* refreshPrices(refreshOptions);
     }
     const sql = yield* SqlClient.SqlClient;
     const id = randomUUID();

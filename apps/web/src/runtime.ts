@@ -10,8 +10,9 @@ declare global {
 }
 
 const configuredRuntime = () => {
-  if (typeof window === "undefined") return undefined;
-  const runtime = window.optimusRuntime;
+  const browserWindow = globalThis.window;
+  if (browserWindow === undefined) return undefined;
+  const runtime = browserWindow.optimusRuntime;
   return runtime?.engineUrl;
 };
 
@@ -25,9 +26,11 @@ export const engineUrl = () =>
       })());
 
 export const clearVaultDerivedCaches = async () => {
-  if (typeof window !== "undefined") {
-    await window.optimusRuntime?.clearVaultCaches?.();
+  const browserWindow = globalThis.window;
+  if (browserWindow !== undefined) {
+    await browserWindow.optimusRuntime?.clearVaultCaches?.();
   }
-  if (typeof caches === "undefined") return;
-  await Promise.all((await caches.keys()).map((key) => caches.delete(key)));
+  const cacheStorage = globalThis.caches;
+  if (cacheStorage === undefined) return;
+  await Promise.all((await cacheStorage.keys()).map((key) => cacheStorage.delete(key)));
 };

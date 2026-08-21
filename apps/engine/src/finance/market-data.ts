@@ -42,6 +42,8 @@ export interface ProviderBatchResult {
   readonly failures: ReadonlyArray<ProviderFailure>;
 }
 
+type CoinGeckoPriceItem = Readonly<Record<string, number>>;
+
 export class ProviderBatchError extends Error {
   readonly transient: boolean;
   readonly retryAfterMs?: number;
@@ -68,45 +70,59 @@ export interface MarketDataProvider {
 
 const makeCoinGeckoClient = () => {
   const demoAPIKey = process.env["COINGECKO_DEMO_API_KEY"]?.trim() || null;
-  return new Coingecko({
+  const clientOptions = {
     environment: "demo",
     demoAPIKey,
     timeout: Duration.toMillis(DEFAULT_MARKET_DATA_POLICY.requestTimeout),
     maxRetries: 0,
-    // CoinGecko's public API does not require a key, but the SDK requires an
-    // explicit opt-out when no demo key is configured.
-    ...(demoAPIKey === null ? { defaultHeaders: { "x-cg-demo-api-key": null } } : {}),
-  });
+  } as const;
+  // CoinGecko's public API does not require a key, but the SDK requires an
+  // explicit opt-out when no demo key is configured.
+  if (demoAPIKey === null) {
+    Object.assign(clientOptions, { defaultHeaders: { "x-cg-demo-api-key": null } });
+  }
+  return new Coingecko(clientOptions);
 };
 
-const finitePositive = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value) && value > 0;
+const finitePositive = (value: number | null | undefined): value is number =>
+  value !== null && value !== undefined && Number.isFinite(value) && value > 0;
+
+interface MarketDataErrorRecord {
+  readonly status?: unknown;
+  readonly headers?: unknown;
+}
+
+interface HeaderLike {
+  readonly get: (name: string) => string | null;
+}
+
+const isMarketDataErrorRecord = (cause: unknown): cause is MarketDataErrorRecord =>
+  cause !== null &&
+  cause !== undefined &&
+  Object.prototype.toString.call(cause) === "[object Object]";
+
+const isObjectLike = (cause: unknown): cause is object =>
+  cause !== null &&
+  cause !== undefined &&
+  Object.prototype.toString.call(cause) === "[object Object]";
+
+const hasHeaderGet = (cause: unknown): cause is HeaderLike =>
+  isObjectLike(cause) && "get" in cause && cause.get instanceof Function;
 
 const asBatchError = (provider: MarketDataProviderId, cause: unknown) => {
-  const status =
-    typeof cause === "object" &&
-    cause !== null &&
-    "status" in cause &&
-    typeof cause.status === "number"
-      ? cause.status
-      : undefined;
-  const headers =
-    typeof cause === "object" && cause !== null && "headers" in cause ? cause.headers : undefined;
-  const retryAfter =
-    typeof headers === "object" &&
-    headers !== null &&
-    "get" in headers &&
-    typeof headers.get === "function"
-      ? headers.get("retry-after")
-      : undefined;
+  const statusValue = isMarketDataErrorRecord(cause) ? cause.status : undefined;
+  const status = Number.isFinite(statusValue) ? Number(statusValue) : undefined;
+  const headers = isMarketDataErrorRecord(cause) ? cause.headers : undefined;
+  const retryAfter = hasHeaderGet(headers) ? headers.get("retry-after") : undefined;
   const retryAfterMs =
-    typeof retryAfter === "string" && /^\d+$/.test(retryAfter)
+    retryAfter !== null && retryAfter !== undefined && /^\d+$/.test(retryAfter)
       ? Number(retryAfter) * 1_000
       : undefined;
-  return new ProviderBatchError(`${provider} request failed`, {
+  const errorOptions = {
     transient: status === undefined || status === 429 || status >= 500,
-    ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
-  });
+  };
+  if (retryAfterMs !== undefined) Object.assign(errorOptions, { retryAfterMs });
+  return new ProviderBatchError(`${provider} request failed`, errorOptions);
 };
 
 export const makeYahooFinanceProvider = (
@@ -202,9 +218,8 @@ export const makeCoinGeckoProvider = (client = makeCoinGeckoClient()): MarketDat
             include_last_updated_at: true,
           });
           for (const lookup of coinLookups) {
-            const item = response[lookup.lookupKey] as
-              | Readonly<Record<string, unknown>>
-              | undefined;
+            // SAFETY: CoinGecko's simple-price response maps each requested lookup to numeric prices and timestamps.
+            const item = response[lookup.lookupKey] as CoinGeckoPriceItem | undefined;
             const price = item?.[currency];
             const timestamp = item?.["last_updated_at"];
             if (!finitePositive(price) || !finitePositive(timestamp)) {
@@ -244,9 +259,8 @@ export const makeCoinGeckoProvider = (client = makeCoinGeckoClient()): MarketDat
             include_last_updated_at: true,
           });
           for (const lookup of group) {
-            const item = response[lookup.lookupKey.toLowerCase()] as
-              | Readonly<Record<string, unknown>>
-              | undefined;
+            // SAFETY: CoinGecko's token-price response maps each requested lookup to numeric prices and timestamps.
+            const item = response[lookup.lookupKey.toLowerCase()] as CoinGeckoPriceItem | undefined;
             const price = item?.[currency];
             const timestamp = item?.["last_updated_at"];
             if (!finitePositive(price) || !finitePositive(timestamp)) {
@@ -718,7 +732,7 @@ const refreshPriceAssets = (
           return Effect.succeed({
             providerId,
             lookups: lookupMap,
-            results: [] as ReadonlyArray<ProviderBatchResult>,
+            results: [] satisfies ReadonlyArray<ProviderBatchResult>,
           });
         return Effect.forEach(
           chunks([...lookupMap.values()], provider.chunkSize),
@@ -788,15 +802,21 @@ export const refreshPrices = (
 
     if (quoteCurrencies.length === 0) return primary;
 
-    const currencies = yield* refreshPriceAssets({
+    const currencyRefreshOptions: RefreshPricesOptions = {
       assetIds: quoteCurrencies.map(({ id }) => id),
-      ...(options.registry === undefined ? {} : { registry: options.registry }),
-      ...(options.requireFresh === undefined ? {} : { requireFresh: options.requireFresh }),
-      ...(options.resolveMissingLookups === undefined
-        ? {}
-        : { resolveMissingLookups: options.resolveMissingLookups }),
-      ...(options.searchAssets === undefined ? {} : { searchAssets: options.searchAssets }),
-    });
+    };
+    if (options.registry !== undefined)
+      Object.assign(currencyRefreshOptions, { registry: options.registry });
+    if (options.requireFresh !== undefined)
+      Object.assign(currencyRefreshOptions, { requireFresh: options.requireFresh });
+    if (options.resolveMissingLookups !== undefined) {
+      Object.assign(currencyRefreshOptions, {
+        resolveMissingLookups: options.resolveMissingLookups,
+      });
+    }
+    if (options.searchAssets !== undefined)
+      Object.assign(currencyRefreshOptions, { searchAssets: options.searchAssets });
+    const currencies = yield* refreshPriceAssets(currencyRefreshOptions);
 
     return {
       refreshedAssetIds: [

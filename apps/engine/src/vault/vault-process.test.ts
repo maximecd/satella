@@ -56,7 +56,7 @@ const json = async (port: number, path: string, init: RequestInit = {}) => {
   const text = await response.text();
   return {
     status: response.status,
-    body: text.length === 0 ? undefined : (JSON.parse(text) as unknown),
+    body: text.length === 0 ? undefined : JSON.parse(text),
   };
 };
 

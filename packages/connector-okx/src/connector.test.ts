@@ -11,7 +11,7 @@ import {
 
 const now = new Date("2020-12-08T09:21:46.894Z");
 
-const response = (body: unknown, status = 200): OkxHttpResponse => ({
+const response = (body: OkxHttpResponse["body"], status = 200): OkxHttpResponse => ({
   status,
   headers: {},
   body,

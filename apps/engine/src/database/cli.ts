@@ -15,12 +15,9 @@ const printLocation = (location: DatabaseLocation) => {
   console.log(`Database: ${location.databasePath}`);
 };
 
-const errorMessage = (error: unknown) => {
-  if (typeof error === "object" && error !== null && "message" in error) {
-    const message = error.message;
-    if (typeof message === "string" && message.length > 0) return message;
-  }
-  return String(error);
+const errorMessage = (cause: unknown) => {
+  if (cause instanceof Error && cause.message.length > 0) return cause.message;
+  return String(cause);
 };
 
 const args = process.argv.slice(2);

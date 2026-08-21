@@ -30,8 +30,8 @@ import { SelectField } from "../select-field";
 import { AddAssetsButton } from "./add-assets";
 import { SetupInstructions } from "./setup-instructions";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 
 const accountCount = (count: number) => `${count} account${count === 1 ? "" : "s"}`;
 
@@ -202,10 +202,11 @@ function LoadedEditConnection({
     const changedCredentials = Object.fromEntries(
       Object.entries(credentials).filter(([, value]) => value !== ""),
     );
-    const payload = await Schema.decodeUnknownPromise(UpdateConnectionInput)({
-      name: name.trim(),
-      ...(Object.keys(changedCredentials).length === 0 ? {} : { credentials: changedCredentials }),
-    });
+    const input = { name: name.trim() };
+    if (Object.keys(changedCredentials).length > 0) {
+      Object.assign(input, { credentials: changedCredentials });
+    }
+    const payload = await Schema.decodeUnknownPromise(UpdateConnectionInput)(input);
     try {
       await update.mutateAsync(payload);
       notify.success("Connection updated.");

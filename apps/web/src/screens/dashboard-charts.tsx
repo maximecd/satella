@@ -10,12 +10,14 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import * as Schema from "effect/Schema";
 import {
   Area,
   AreaChart,
   ResponsiveContainer,
   Tooltip as ChartTooltip,
   Treemap,
+  type TreemapNode as RechartsTreemapNode,
   XAxis,
   YAxis,
   type TooltipContentProps,
@@ -52,6 +54,19 @@ const Y_AXIS_CHAR_WIDTH = 8;
 const Y_AXIS_GUTTER = 16;
 const Y_AXIS_MIN_WIDTH = 56;
 const Y_AXIS_MAX_WIDTH = 96;
+
+type ChartHistoryPoint = Omit<PortfolioHistoryPoint, "total"> & {
+  readonly total: number;
+  readonly currencyIso?: string;
+};
+
+type AllocationTooltipCell = {
+  readonly name?: string;
+  readonly symbol?: string | null;
+  readonly value?: number;
+  readonly percent?: number;
+  readonly currencyIso?: string;
+};
 
 const yAxisWidthFor = (points: ReadonlyArray<PortfolioHistoryPoint>) => {
   const extreme =
@@ -184,10 +199,9 @@ function ChartTooltipBubble({
 
 function HistoryTooltipContent({ active, payload, coordinate }: TooltipContentProps) {
   if (!active) return null;
-  const point = payload[0]?.payload as
-    | (PortfolioHistoryPoint & { readonly currencyIso?: string })
-    | undefined;
-  if (point?.capturedAt == null || typeof point.total !== "number") return null;
+  // SAFETY: The chart data below converts PortfolioHistoryPoint.total to a finite number before Recharts receives it.
+  const point = payload[0]?.payload as ChartHistoryPoint | undefined;
+  if (point?.capturedAt == null || !Number.isFinite(point.total)) return null;
   const currencyIso = point.currencyIso ?? "";
   return (
     <ChartTooltipBubble
@@ -200,21 +214,24 @@ function HistoryTooltipContent({ active, payload, coordinate }: TooltipContentPr
 
 function AllocationTooltipContent({ active, payload, coordinate }: TooltipContentProps) {
   if (!active) return null;
-  const cell = payload[0]?.payload as {
-    readonly name?: string;
-    readonly symbol?: string | null;
-    readonly value?: number;
-    readonly percent?: number;
-    readonly currencyIso?: string;
-  } | null;
-  if (cell == null || typeof cell.percent !== "number" || typeof cell.value !== "number") {
+  // SAFETY: The treemap data below supplies numeric value and percent fields to Recharts.
+  const cell = payload[0]?.payload as AllocationTooltipCell | undefined;
+  const value = cell?.value;
+  const percent = cell?.percent;
+  if (
+    cell === undefined ||
+    value === undefined ||
+    percent === undefined ||
+    !Number.isFinite(percent) ||
+    !Number.isFinite(value)
+  ) {
     return null;
   }
   const copy = cellCopy({
     name: cell.name ?? "",
     symbol: cell.symbol ?? null,
-    value: cell.value,
-    percent: cell.percent,
+    value,
+    percent,
     currencyIso: cell.currencyIso ?? "",
   });
   return <ChartTooltipBubble amount={copy.amount} detail={copy.detail} coordinate={coordinate} />;
@@ -275,23 +292,24 @@ export function PortfolioValueChart({
   );
 }
 
-type TreemapNode = {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly name: string;
-  readonly value: number;
+type AllocationTreemapNode = RechartsTreemapNode & {
   readonly percent: number;
   readonly symbol: string | null;
   readonly fill: string;
   readonly labelColor: string;
   readonly currencyIso: string;
-  readonly tooltipIndex?: string;
 };
 
-function AllocationCellShape(node: TreemapNode) {
-  if (node.width <= 0 || node.height <= 0 || typeof node.percent !== "number") return null;
+const isAllocationTreemapNode = (node: RechartsTreemapNode): node is AllocationTreemapNode =>
+  Number.isFinite(node["percent"]) &&
+  (node["symbol"] === null || Schema.is(Schema.String)(node["symbol"])) &&
+  Schema.is(Schema.String)(node["fill"]) &&
+  Schema.is(Schema.String)(node["labelColor"]) &&
+  Schema.is(Schema.String)(node["currencyIso"]);
+
+function AllocationCellRenderer(node: RechartsTreemapNode) {
+  if (!isAllocationTreemapNode(node)) return null;
+  if (node.width <= 0 || node.height <= 0 || !Number.isFinite(node.percent)) return null;
   const copy = cellCopy(node);
   const showLabels = node.width >= MIN_LABEL_WIDTH && node.height >= MIN_LABEL_HEIGHT;
   return (
@@ -344,7 +362,7 @@ function AllocationCellShape(node: TreemapNode) {
   );
 }
 
-const renderAllocationCell = (node: unknown) => <AllocationCellShape {...(node as TreemapNode)} />;
+const renderAllocationCell = (node: RechartsTreemapNode) => <AllocationCellRenderer {...node} />;
 
 export function AllocationTreemap({
   cells,

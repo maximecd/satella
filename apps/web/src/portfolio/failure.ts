@@ -1,4 +1,5 @@
 import { FinanceApiError } from "@optimus/engine/api";
+import * as Schema from "effect/Schema";
 
 export const PORTFOLIO_FAILURE_CODES = [
   "not_found",
@@ -15,6 +16,7 @@ export const PORTFOLIO_FAILURE_CODES = [
 export type PortfolioFailureCode = (typeof PORTFOLIO_FAILURE_CODES)[number];
 
 const failureCodes = new Set<string>(PORTFOLIO_FAILURE_CODES);
+const isString = Schema.is(Schema.String);
 
 export class PortfolioFailure extends Error {
   readonly code: PortfolioFailureCode;
@@ -26,11 +28,18 @@ export class PortfolioFailure extends Error {
   }
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+type FailureValue = string | number | boolean | null | FailureRecord | ReadonlyArray<FailureValue>;
+interface FailureRecord {
+  readonly [key: string]: FailureValue;
+}
 
-const isResponseLike = (value: unknown): boolean =>
-  isRecord(value) && typeof value["arrayBuffer"] === "function";
+const isRecord = (cause: unknown): cause is FailureRecord =>
+  cause !== null &&
+  cause !== undefined &&
+  (cause instanceof Error || Object.prototype.toString.call(cause) === "[object Object]");
+
+const isResponseLike = (cause: unknown): boolean =>
+  isRecord(cause) && Object.prototype.toString.call(cause["arrayBuffer"]) === "[object Function]";
 
 export const isAbortLike = (cause: unknown, signal?: AbortSignal): boolean => {
   if (signal?.aborted) return true;
@@ -47,15 +56,20 @@ export const abortError = (cause?: unknown): DOMException =>
     ? cause
     : new DOMException("This operation was aborted", "AbortError");
 
-const asFailureCode = (value: unknown): PortfolioFailureCode | null =>
-  typeof value === "string" && failureCodes.has(value) ? (value as PortfolioFailureCode) : null;
+const isPortfolioFailureCode = (candidate: string): candidate is PortfolioFailureCode =>
+  failureCodes.has(candidate);
+
+const asFailureCode = (cause: unknown): PortfolioFailureCode | null => {
+  if (!isString(cause)) return null;
+  return isPortfolioFailureCode(cause) ? cause : null;
+};
 
 const financeApiError = (cause: unknown): FinanceApiError | null => {
   if (cause instanceof FinanceApiError) return cause;
   if (!isRecord(cause) || cause["_tag"] !== "FinanceApiError") return null;
   const code = asFailureCode(cause["code"]);
   const message = cause["message"];
-  if (code === null || code === "unavailable" || typeof message !== "string") return null;
+  if (code === null || code === "unavailable" || !isString(message)) return null;
   return new FinanceApiError({ code, message });
 };
 
@@ -71,7 +85,7 @@ const nestedFailure = (
   seen: Set<unknown>,
 ): PortfolioFailure | null => {
   if (depth > 6 || cause === null || cause === undefined) return null;
-  if (typeof cause === "object") {
+  if (isRecord(cause)) {
     if (seen.has(cause)) return null;
     seen.add(cause);
   }

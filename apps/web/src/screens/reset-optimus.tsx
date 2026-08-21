@@ -8,8 +8,8 @@ import { Field } from "../components/ui/field";
 import { vaultStatusQuery } from "../queries";
 import { clearVaultDerivedCaches } from "../runtime";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 
 export function ResetOptimusControl() {
   const queryClient = useQueryClient();

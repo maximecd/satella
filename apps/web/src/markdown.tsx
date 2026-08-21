@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const headingFor = (offset: number, level: 1 | 2 | 3 | 4 | 5 | 6) => {
+  // SAFETY: Math.max and Math.min clamp the computed heading level to the six HTML heading tags.
   const tagLevel = Math.min(6, level + offset) as 1 | 2 | 3 | 4 | 5 | 6;
   const as = `h${tagLevel}` as const;
   const size = tagLevel <= 3 ? "md" : "sm";

@@ -3,6 +3,7 @@ import { chmod, open, rename, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import * as Data from "effect/Data";
+import * as Schema from "effect/Schema";
 
 import {
   type Argon2idParameters,
@@ -20,6 +21,19 @@ export const ENVELOPE_MAX_BYTES = 8_192;
 const NONCE_BYTES = 12;
 const KEY_BYTES = 32;
 const AUTH_TAG_BYTES = 16;
+
+type JsonValue = string | number | boolean | null | JsonObject | ReadonlyArray<JsonValue>;
+interface JsonObject {
+  readonly [key: string]: JsonValue;
+}
+const isJsonString = Schema.is(Schema.String);
+const isJsonObject = (cause: JsonValue): cause is JsonObject =>
+  cause !== null && Object.prototype.toString.call(cause) === "[object Object]";
+const requiredJsonValue = (record: JsonObject, key: string): JsonValue => {
+  const value = record[key];
+  if (value === undefined) throw new Error("malformed");
+  return value;
+};
 
 export class VaultUnlockError extends Data.TaggedError("VaultUnlockError")<{
   readonly message: string;
@@ -66,8 +80,8 @@ const encodeEnvelope = (envelope: KeyEnvelope): Buffer =>
     "utf8",
   );
 
-const decodeBase64 = (value: unknown, expectedLength?: number) => {
-  if (typeof value !== "string" || value.length === 0 || value.length > 1_024) {
+const decodeBase64 = (value: JsonValue, expectedLength?: number) => {
+  if (!isJsonString(value) || value.length === 0 || value.length > 1_024) {
     throw new Error("malformed");
   }
   const bytes = Buffer.from(value, "base64");
@@ -82,40 +96,39 @@ export const parseEnvelopeBytes = (bytes: Uint8Array): KeyEnvelope => {
     throw genericUnlockFailure();
   }
   try {
-    const parsed: unknown = JSON.parse(Buffer.from(bytes).toString("utf8"));
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    const parsed: JsonValue = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    if (!isJsonObject(parsed)) throw new Error("malformed");
+    const record = parsed;
+    const vaultId = requiredJsonValue(record, "vaultId");
+    if (requiredJsonValue(record, "version") !== ENVELOPE_VERSION || !isJsonString(vaultId)) {
       throw new Error("malformed");
     }
-    const record = parsed as Record<string, unknown>;
-    if (record["version"] !== ENVELOPE_VERSION || typeof record["vaultId"] !== "string") {
+    const kdf = requiredJsonValue(record, "kdf");
+    const wrap = requiredJsonValue(record, "wrap");
+    if (!isJsonObject(kdf) || !isJsonObject(wrap)) {
       throw new Error("malformed");
     }
-    const kdf = record["kdf"];
-    const wrap = record["wrap"];
-    if (kdf === null || typeof kdf !== "object" || wrap === null || typeof wrap !== "object") {
-      throw new Error("malformed");
-    }
-    const kdfRecord = kdf as Record<string, unknown>;
-    const wrapRecord = wrap as Record<string, unknown>;
-    if (wrapRecord["algorithm"] !== "aes-256-gcm") {
+    const kdfRecord = kdf;
+    const wrapRecord = wrap;
+    if (requiredJsonValue(wrapRecord, "algorithm") !== "aes-256-gcm") {
       throw new Error("malformed");
     }
     return {
       version: ENVELOPE_VERSION,
-      vaultId: record["vaultId"],
+      vaultId,
       kdf: {
         algorithm: "argon2id",
-        version: Number(kdfRecord["version"]),
-        memoryKiB: Number(kdfRecord["memoryKiB"]),
-        passes: Number(kdfRecord["passes"]),
-        parallelism: Number(kdfRecord["parallelism"]),
-        salt: decodeBase64(kdfRecord["salt"], 16),
+        version: Number(requiredJsonValue(kdfRecord, "version")),
+        memoryKiB: Number(requiredJsonValue(kdfRecord, "memoryKiB")),
+        passes: Number(requiredJsonValue(kdfRecord, "passes")),
+        parallelism: Number(requiredJsonValue(kdfRecord, "parallelism")),
+        salt: decodeBase64(requiredJsonValue(kdfRecord, "salt"), 16),
       },
       wrap: {
         algorithm: "aes-256-gcm",
-        nonce: decodeBase64(wrapRecord["nonce"], NONCE_BYTES),
-        ciphertext: decodeBase64(wrapRecord["ciphertext"], KEY_BYTES),
-        tag: decodeBase64(wrapRecord["tag"], AUTH_TAG_BYTES),
+        nonce: decodeBase64(requiredJsonValue(wrapRecord, "nonce"), NONCE_BYTES),
+        ciphertext: decodeBase64(requiredJsonValue(wrapRecord, "ciphertext"), KEY_BYTES),
+        tag: decodeBase64(requiredJsonValue(wrapRecord, "tag"), AUTH_TAG_BYTES),
       },
     };
   } catch (error) {
