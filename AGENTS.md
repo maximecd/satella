@@ -32,3 +32,14 @@ Use the default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent
 ### Domain docs
 
 Single-context layout with root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
+## Completion checks
+
+Work is not complete until `pnpm check` passes.
+
+Before reporting completion:
+
+1. Run `pnpm check` from the repository root.
+2. Fix every failure, then run `pnpm check` again.
+3. Repeat until the command exits successfully.
+4. Report the check result in the final response. If an unrelated pre-existing failure remains, include the exact failure.
