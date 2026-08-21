@@ -174,9 +174,7 @@ function LoadedEditPosition({
         >
           <form.AppField
             name="quantity"
-            children={(field) => (
-              <field.TextField label="Quantity" number disabled={!isManual} />
-            )}
+            children={(field) => <field.TextField label="Quantity" number disabled={!isManual} />}
           />
           {canEditPurchasePrice ? (
             <>

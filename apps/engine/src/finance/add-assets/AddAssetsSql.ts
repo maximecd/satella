@@ -211,9 +211,7 @@ export const lookupManualHolding = (
   Effect.gen(function* () {
     const account = yield* getAccount(accountId);
     if (account.connectorAccountId !== null) {
-      return yield* Effect.fail(
-        failure("read_only", "Only manual accounts can receive holdings"),
-      );
+      return yield* Effect.fail(failure("read_only", "Only manual accounts can receive holdings"));
     }
     const sql = yield* SqlClient.SqlClient;
     const matched = yield* db(sql<{

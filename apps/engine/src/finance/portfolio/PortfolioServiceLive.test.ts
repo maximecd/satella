@@ -198,9 +198,12 @@ describe("portfolio dashboard", () => {
           percent: "100",
         }),
       ]);
-      expect(dashboard.custodians.flatMap((group) => group.accounts).map(({ accountName }) => accountName).sort()).toEqual(
-        ["Growth", "Trading"],
-      );
+      expect(
+        dashboard.custodians
+          .flatMap((group) => group.accounts)
+          .map(({ accountName }) => accountName)
+          .sort(),
+      ).toEqual(["Growth", "Trading"]);
     }).pipe(Effect.provide(engineTestLayer())),
   );
 

@@ -42,7 +42,7 @@ Accounts become typed (`checking`, `savings`, `brokerage`, `crypto_wallet`, `oth
 ## Implementation Decisions
 
 - **Hierarchy**: `Custodian → Account → Position → Asset`. Every account carries a NOT NULL reference to its custodian. One custodian has zero or many accounts; every account belongs to exactly one custodian.
-- **Sync model dissolved into custodians**: the connections table is removed. A custodian with a `connector_id` is *synced*; its connector identity lives on the custodian row. Synced custodians' accounts are read-only, as connected accounts are today.
+- **Sync model dissolved into custodians**: the connections table is removed. A custodian with a `connector_id` is _synced_; its connector identity lives on the custodian row. Synced custodians' accounts are read-only, as connected accounts are today.
 - **Account types**: closed generic enum `checking | savings | brokerage | crypto_wallet | other`. Names are free-form and carry specificity ("PEA" is simply a brokerage account named PEA).
 - **Asset categories**: reduced to `stocks_etfs | crypto | cash | other`. Bonds are removed entirely from enums, contracts, and allocation, to be reintroduced deliberately later. Cash remains an intrinsic category of seeded fiat-currency assets; balances stay modeled as positions of those assets.
 - **Engine-only validation** (explicitly no SQL triggers for business rules):

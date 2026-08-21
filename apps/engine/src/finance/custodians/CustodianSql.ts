@@ -237,9 +237,7 @@ export const updateCustodian = (
       return yield* getCustodian(id);
     }
 
-    yield* db(
-      sql`UPDATE custodians SET name = ${name}, updated_at = ${nowIso()} WHERE id = ${id}`,
-    );
+    yield* db(sql`UPDATE custodians SET name = ${name}, updated_at = ${nowIso()} WHERE id = ${id}`);
     return yield* getCustodian(id);
   });
 

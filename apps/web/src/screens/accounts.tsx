@@ -217,10 +217,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
         subtitle={`Valuation currency ${account.baseCurrencyIso}`}
         action={
           account.connectorAccountId !== null ? (
-            <RefreshCustodianButton
-              custodianId={account.custodianId}
-              onError={setRefreshError}
-            />
+            <RefreshCustodianButton custodianId={account.custodianId} onError={setRefreshError} />
           ) : account.isDefaultCustodian ? undefined : (
             <Button asChild>
               <RouterLink to="/accounts/$accountId/edit" params={{ accountId: id }}>

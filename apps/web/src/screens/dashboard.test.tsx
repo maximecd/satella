@@ -53,7 +53,10 @@ describe("dashboard screen", () => {
       "href",
       "/accounts/brokerage",
     );
-    expect(screen.getByRole("link", { name: /Livret A/ })).toHaveAttribute("href", "/accounts/livret");
+    expect(screen.getByRole("link", { name: /Livret A/ })).toHaveAttribute(
+      "href",
+      "/accounts/livret",
+    );
     expect(screen.getByText(/800[.,]00 USD/)).toBeInTheDocument();
     expect(screen.getByText(/300[.,]00 USD/)).toBeInTheDocument();
   });

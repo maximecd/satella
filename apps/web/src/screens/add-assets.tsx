@@ -10,7 +10,11 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import type { AddManualHoldingInput, AssetSearchResult, ConnectorCapability } from "@optimus/engine/api";
+import type {
+  AddManualHoldingInput,
+  AssetSearchResult,
+  ConnectorCapability,
+} from "@optimus/engine/api";
 import { DecimalFromNonEmptyString } from "@optimus/engine/api";
 import { ConnectCustodianInput } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
@@ -638,8 +642,7 @@ function ManualStep({
 }) {
   const meta = categoryMeta(category);
   if (meta.flow === "holdings") return <HoldingsForm category={category} onComplete={onComplete} />;
-  if (meta.flow === "cash")
-    return <CashForm category={category} onComplete={onComplete} />;
+  if (meta.flow === "cash") return <CashForm category={category} onComplete={onComplete} />;
   return <GenericForm onComplete={onComplete} />;
 }
 

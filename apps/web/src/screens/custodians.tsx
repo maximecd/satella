@@ -46,7 +46,9 @@ export function CustodiansListScreen() {
   const custodians = listedCustodians(query.data);
   return (
     <>
-      <PageBreadcrumbs items={[{ label: "Settings", href: "/settings" }, { label: "Custodians" }]} />
+      <PageBreadcrumbs
+        items={[{ label: "Settings", href: "/settings" }, { label: "Custodians" }]}
+      />
       <PageHeader title="Custodians" />
       {refreshError !== null && (
         <Alert.Root status="error">
@@ -75,10 +77,7 @@ export function CustodiansListScreen() {
               endContent={
                 <Flex gap="2" align="center">
                   {custodian.connectorId !== null ? (
-                    <RefreshCustodianButton
-                      custodianId={custodian.id}
-                      onError={setRefreshError}
-                    />
+                    <RefreshCustodianButton custodianId={custodian.id} onError={setRefreshError} />
                   ) : null}
                   <Button asChild size="sm" variant="ghost">
                     <RouterLink
@@ -121,10 +120,7 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
               <RefreshCustodianButton custodianId={id} onError={setRefreshError} />
             ) : null}
             <Button asChild>
-              <RouterLink
-                to="/settings/custodians/$custodianId/edit"
-                params={{ custodianId: id }}
-              >
+              <RouterLink to="/settings/custodians/$custodianId/edit" params={{ custodianId: id }}>
                 Edit
               </RouterLink>
             </Button>
@@ -144,7 +140,10 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
         Accounts
       </Heading>
       {custodian.accounts.length === 0 ? (
-        <EmptyState title="No accounts" description="Accounts at this custodian will appear here." />
+        <EmptyState
+          title="No accounts"
+          description="Accounts at this custodian will appear here."
+        />
       ) : (
         <Box as="ul" m="0" p="0">
           {custodian.accounts.map((account) => (

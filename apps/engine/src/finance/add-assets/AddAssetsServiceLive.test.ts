@@ -50,7 +50,10 @@ describe("add assets operations", () => {
       });
       const lep = yield* Finance.addCashAccount({
         accountType: "savings",
-        custodian: { type: "existing", id: (yield* Finance.getAccount(livret.accountId)).custodianId },
+        custodian: {
+          type: "existing",
+          id: (yield* Finance.getAccount(livret.accountId)).custodianId,
+        },
         name: "LEP",
         currencyAssetId: "fiat:EUR",
         balance: "100",
@@ -58,9 +61,9 @@ describe("add assets operations", () => {
       const dashboard = yield* Finance.getDashboard();
       expect(lep.accountName).toBe("LEP");
       expect(dashboard.custodians).toHaveLength(1);
-      expect(dashboard.custodians[0]?.accounts.map(({ accountName }) => accountName).sort()).toEqual(
-        ["LEP", "Livret A"],
-      );
+      expect(
+        dashboard.custodians[0]?.accounts.map(({ accountName }) => accountName).sort(),
+      ).toEqual(["LEP", "Livret A"]);
     }).pipe(Effect.provide(engineTestLayer())),
   );
 
@@ -95,7 +98,10 @@ describe("add assets operations", () => {
           symbol: "AAPL",
           identifiers: [{ type: "isin", value: "US0378331005" }],
         },
-        custodian: { type: "existing", id: (yield* Finance.getAccount(checking.accountId)).custodianId },
+        custodian: {
+          type: "existing",
+          id: (yield* Finance.getAccount(checking.accountId)).custodianId,
+        },
         account: { type: "existing", id: checking.accountId },
         quantity: "1",
       }).pipe(Effect.flip);
@@ -156,7 +162,10 @@ describe("add assets operations", () => {
           symbol: "BTC",
           identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
         },
-        custodian: { type: "existing", id: (yield* Finance.getAccount(first.accountId)).custodianId },
+        custodian: {
+          type: "existing",
+          id: (yield* Finance.getAccount(first.accountId)).custodianId,
+        },
         account: { type: "existing", id: first.accountId },
         quantity: "2.5",
       });
@@ -195,49 +204,51 @@ describe("add assets operations", () => {
     }).pipe(Effect.provide(engineTestLayer())),
   );
 
-  it.effect("rejects manual holdings on synced custodians and rolls back a failed other-asset write", () =>
-    Effect.gen(function* () {
-      const before = yield* Finance.listAssets();
-      const invalid = yield* Finance.addOtherAsset({
-        name: "Broken",
-        value: "Infinity",
-        currencyAssetId: "fiat:USD",
-      }).pipe(
-        Effect.flip,
-        Effect.map((error) => error.message),
-      );
-      const after = yield* Finance.listAssets();
-      yield* Finance.seedSyncedCustodian({
-        id: "synced",
-        name: "OKX",
-        connectorId: "okx",
-        accounts: [
-          {
-            id: "trading",
-            name: "Trading",
-            connectorAccountId: "trading",
-            accountType: "crypto_wallet",
+  it.effect(
+    "rejects manual holdings on synced custodians and rolls back a failed other-asset write",
+    () =>
+      Effect.gen(function* () {
+        const before = yield* Finance.listAssets();
+        const invalid = yield* Finance.addOtherAsset({
+          name: "Broken",
+          value: "Infinity",
+          currencyAssetId: "fiat:USD",
+        }).pipe(
+          Effect.flip,
+          Effect.map((error) => error.message),
+        );
+        const after = yield* Finance.listAssets();
+        yield* Finance.seedSyncedCustodian({
+          id: "synced",
+          name: "OKX",
+          connectorId: "okx",
+          accounts: [
+            {
+              id: "trading",
+              name: "Trading",
+              connectorAccountId: "trading",
+              accountType: "crypto_wallet",
+            },
+          ],
+        });
+        const syncedWrite = yield* Finance.addManualHolding({
+          asset: {
+            assetCategory: "crypto",
+            name: "Bitcoin",
+            symbol: "BTC",
+            identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
           },
-        ],
-      });
-      const syncedWrite = yield* Finance.addManualHolding({
-        asset: {
-          assetCategory: "crypto",
-          name: "Bitcoin",
-          symbol: "BTC",
-          identifiers: [{ type: "coingecko_coin_id", value: "bitcoin" }],
-        },
-        custodian: { type: "existing", id: "synced" },
-        account: { type: "existing", id: "trading" },
-        quantity: "1",
-      }).pipe(
-        Effect.flip,
-        Effect.map((error) => error.message),
-      );
-      expect(invalid).toContain("finite");
-      expect(after.length).toBe(before.length);
-      expect(syncedWrite).toContain("manual");
-    }).pipe(Effect.provide(engineTestLayer())),
+          custodian: { type: "existing", id: "synced" },
+          account: { type: "existing", id: "trading" },
+          quantity: "1",
+        }).pipe(
+          Effect.flip,
+          Effect.map((error) => error.message),
+        );
+        expect(invalid).toContain("finite");
+        expect(after.length).toBe(before.length);
+        expect(syncedWrite).toContain("manual");
+      }).pipe(Effect.provide(engineTestLayer())),
   );
 
   it.effect("imports mixed asset categories onto a synced custodian", () =>

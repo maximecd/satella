@@ -15,10 +15,7 @@ export class AddAssetsService extends Context.Service<
   AddAssetsService,
   {
     readonly listManualAccounts: () => Effect.Effect<ReadonlyArray<Account>, FinanceApiError>;
-    readonly listManualCustodians: () => Effect.Effect<
-      ReadonlyArray<Custodian>,
-      FinanceApiError
-    >;
+    readonly listManualCustodians: () => Effect.Effect<ReadonlyArray<Custodian>, FinanceApiError>;
     readonly lookupManualHolding: (
       accountId: string,
       identifierType: string,

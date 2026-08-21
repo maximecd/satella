@@ -61,9 +61,7 @@ const rebuildRecords: MigrationRegistry = {
 
 describe("SQLite migration startup", () => {
   it("ships a single squashed finance-model migration", () => {
-    expect(Object.keys(ProductionMigrations)).toEqual([
-      "20260821194600_initial_finance_model",
-    ]);
+    expect(Object.keys(ProductionMigrations)).toEqual(["20260821194600_initial_finance_model"]);
   });
 
   it.effect("creates the database ledger and runs migrations once across restart", () =>

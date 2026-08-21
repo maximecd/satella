@@ -73,12 +73,7 @@ const upsertPrice = (
       observed_at = excluded.observed_at,
       updated_at = excluded.updated_at`;
 
-const upsertCustodian = (
-  sql: SqlClient.SqlClient,
-  id: string,
-  name: string,
-  createdAt: string,
-) =>
+const upsertCustodian = (sql: SqlClient.SqlClient, id: string, name: string, createdAt: string) =>
   sql`INSERT INTO custodians
       (id, name, connector_id, config_json, created_at, updated_at)
     VALUES (${id}, ${name}, NULL, NULL, ${createdAt}, ${createdAt})

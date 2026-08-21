@@ -81,7 +81,9 @@ describe("custodians", () => {
       const timestamp = new Date().toISOString();
       yield* sql`INSERT INTO positions (id, account_id, asset_id, quantity, created_at, updated_at)
         VALUES ('synced-position', 'synced-account', 'fiat:USD', 1, ${timestamp}, ${timestamp})`;
-      const quantityUpdate = yield* Finance.updatePosition("synced-position", "2").pipe(Effect.flip);
+      const quantityUpdate = yield* Finance.updatePosition("synced-position", "2").pipe(
+        Effect.flip,
+      );
       const deleted = yield* Finance.deletePosition("synced-position").pipe(Effect.flip);
       expect(readOnly.message).toContain("read-only");
       expect(created.message).toContain("read-only");

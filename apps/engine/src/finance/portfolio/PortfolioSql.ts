@@ -208,14 +208,12 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
     );
     const valued = yield* Effect.forEach(rows, (row) => getAccount(row.id, selected.assetId));
     const custodianConnectors = new Map(
-      (
-        yield* db(
-          sql<{
-            readonly id: string;
-            readonly connector_id: string | null;
-          }>`SELECT id, connector_id FROM custodians`,
-        )
-      ).map((row) => [row.id, row.connector_id] as const),
+      (yield* db(
+        sql<{
+          readonly id: string;
+          readonly connector_id: string | null;
+        }>`SELECT id, connector_id FROM custodians`,
+      )).map((row) => [row.id, row.connector_id] as const),
     );
     const accountRows: DashboardAccountRow[] = valued.map((account) => ({
       accountId: account.id,

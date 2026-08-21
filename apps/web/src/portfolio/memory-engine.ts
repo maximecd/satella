@@ -699,9 +699,7 @@ export const createMemoryPortfolioEngine = (
         );
       }
       const removedAccountIds = new Set(
-        state.accounts
-          .filter((account) => account.custodianId === id)
-          .map((account) => account.id),
+        state.accounts.filter((account) => account.custodianId === id).map((account) => account.id),
       );
       state.custodians = state.custodians.filter((candidate) => candidate.id !== id);
       state.accounts = state.accounts.filter((account) => account.custodianId !== id);
