@@ -20,6 +20,7 @@ import type {
 } from "./connector.js";
 import { reconcileConnector } from "./connector.js";
 import { FinanceApiError } from "./contracts.js";
+import type { ConnectorCredentials } from "./contracts.js";
 import { canonicalDecimal } from "./financial-number.js";
 import { CONNECTOR_REGISTRY } from "./connectors/registry.js";
 
@@ -45,16 +46,19 @@ const assetFingerprint = (asset: ConnectorAsset): string =>
       ),
   });
 
-const normalizeAsset = (asset: ConnectorAsset): NormalizedConnectorAsset => ({
-  externalAssetId: asset.externalId.trim(),
-  assetCategory: asset.assetCategory,
-  name: asset.name.trim(),
-  ...(asset.symbol === undefined ? {} : { symbol: asset.symbol.trim() }),
-  identifiers: asset.identifiers.map(({ type, value }: ConnectorAssetIdentifier) => ({
-    type: type.trim(),
-    value: value.trim(),
-  })),
-});
+const normalizeAsset = (asset: ConnectorAsset): NormalizedConnectorAsset => {
+  const normalized = {
+    externalAssetId: asset.externalId.trim(),
+    assetCategory: asset.assetCategory,
+    name: asset.name.trim(),
+    identifiers: asset.identifiers.map(({ type, value }: ConnectorAssetIdentifier) => ({
+      type: type.trim(),
+      value: value.trim(),
+    })),
+  };
+  if (asset.symbol !== undefined) Object.assign(normalized, { symbol: asset.symbol.trim() });
+  return normalized;
+};
 
 /**
  * Converts the connector-owned nested account tree into the engine's
@@ -111,11 +115,14 @@ export const normalizeConnectorAccounts = (
                 ),
                 currencyIso: position.averageUnitPurchasePrice.currencyIso,
               };
-        positions.push({
+        const normalizedPosition = {
           externalAssetId,
           quantity,
-          ...(averageUnitPurchasePrice === undefined ? {} : { averageUnitPurchasePrice }),
-        });
+        };
+        if (averageUnitPurchasePrice !== undefined) {
+          Object.assign(normalizedPosition, { averageUnitPurchasePrice });
+        }
+        positions.push(normalizedPosition);
       }
 
       const baseCurrencyIso = account.baseCurrencyIso.trim().toUpperCase();
@@ -167,7 +174,7 @@ export const syncRegisteredConnectorFrom = (
   registry: ConnectorRegistry,
   connectionId: string,
   connectorId: string,
-  credentials: unknown,
+  credentials: ConnectorCredentials,
 ): Effect.Effect<
   ReconciliationResult,
   ConnectorSyncError,
@@ -188,5 +195,5 @@ export const syncRegisteredConnectorFrom = (
 export const syncRegisteredConnector = (
   connectionId: string,
   connectorId: string,
-  credentials: unknown,
+  credentials: ConnectorCredentials,
 ) => syncRegisteredConnectorFrom(CONNECTOR_REGISTRY, connectionId, connectorId, credentials);

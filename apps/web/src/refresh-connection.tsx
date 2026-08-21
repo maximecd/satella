@@ -5,8 +5,8 @@ import type { MouseEvent } from "react";
 import { notify } from "./components/ui/toaster";
 import { useRefreshConnection } from "./portfolio";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 
 export function RefreshConnectionButton({
   connectionId,

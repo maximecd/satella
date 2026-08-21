@@ -19,7 +19,6 @@ import {
   createContext,
   useContext,
   useEffect,
-  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -56,8 +55,8 @@ import { SelectField } from "../select-field";
 import { compareDecimal } from "../financial-number";
 import { SetupInstructions } from "./setup-instructions";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 
 const CREATE_NEW = "__new__";
 
@@ -641,18 +640,12 @@ function ManualStep({
 function useManualAccountPicker() {
   const accounts = useManualAccounts();
   const assets = useAssets();
-  const [accountChoice, setAccountChoice] = useState(CREATE_NEW);
+  const [accountChoiceOverride, setAccountChoiceOverride] = useState<string>();
   const [accountName, setAccountName] = useState("");
-  const [currencyId, setCurrencyId] = useState("fiat:USD");
-  const didInit = useRef(false);
-  useEffect(() => {
-    if (didInit.current || accounts.data === undefined) return;
-    didInit.current = true;
-    const first = accounts.data[0];
-    if (first === undefined) return;
-    setAccountChoice(first.id);
-    setCurrencyId(first.baseCurrencyAssetId);
-  }, [accounts.data]);
+  const [currencyIdOverride, setCurrencyIdOverride] = useState<string>();
+  const firstAccount = accounts.data?.[0];
+  const accountChoice = accountChoiceOverride ?? firstAccount?.id ?? CREATE_NEW;
+  const currencyId = currencyIdOverride ?? firstAccount?.baseCurrencyAssetId ?? "fiat:USD";
   const cash = assets.data?.filter((asset) => asset.assetCategory === "cash") ?? [];
   const listed = accounts.data ?? [];
   const creatingAccount = listed.length === 0 || accountChoice === CREATE_NEW;
@@ -674,11 +667,11 @@ function useManualAccountPicker() {
     listed,
     creatingAccount,
     accountChoice,
-    setAccountChoice,
+    setAccountChoice: setAccountChoiceOverride,
     accountName,
     setAccountName,
     currencyId,
-    setCurrencyId,
+    setCurrencyId: setCurrencyIdOverride,
     accountOptions,
     destination,
   };
@@ -750,7 +743,7 @@ function HoldingsForm({
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [selected, setSelected] = useState<AssetSearchResult | null>(null);
-  const [quantity, setQuantity] = useState("");
+  const [quantityDraft, setQuantityDraft] = useState<{ key: string; value: string }>();
   const [averagePrice, setAveragePrice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -758,7 +751,8 @@ function HoldingsForm({
     const timeout = setTimeout(() => setDebounced(query.trim()), 300);
     return () => clearTimeout(timeout);
   }, [query]);
-  const searchCategory = meta.assetCategory === "crypto" ? "crypto" : "stocks_etfs";
+  const searchCategory: "crypto" | "stocks_etfs" =
+    meta.assetCategory === "crypto" ? "crypto" : "stocks_etfs";
   const results = useAssetSearch(debounced, searchCategory);
   const identifier = selected?.identifiers[0];
   const lookup = useManualHoldingLookup(
@@ -767,11 +761,18 @@ function HoldingsForm({
     identifier?.value ?? "",
   );
   const existingQuantity = lookup.data?.quantity;
-  useEffect(() => {
-    if (existingQuantity !== undefined && existingQuantity !== null) {
-      setQuantity(String(existingQuantity));
-    }
-  }, [existingQuantity]);
+  const holdingKey = JSON.stringify([
+    picker.creatingAccount ? "" : picker.accountChoice,
+    identifier?.type ?? "",
+    identifier?.value ?? "",
+  ]);
+  const quantity =
+    quantityDraft?.key === holdingKey
+      ? quantityDraft.value
+      : existingQuantity === undefined || existingQuantity === null
+        ? ""
+        : String(existingQuantity);
+  const setQuantity = (value: string) => setQuantityDraft({ key: holdingKey, value });
   const mutation = useAddManualHolding();
   if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
   if (picker.accounts.isError)
@@ -818,7 +819,7 @@ function HoldingsForm({
     }
     if (decoded === undefined) return;
     try {
-      const result = await mutation.mutateAsync({
+      const input = {
         asset: {
           assetCategory: searchCategory,
           name: selected.name,
@@ -827,15 +828,16 @@ function HoldingsForm({
         },
         account: picker.destination(),
         quantity: decoded,
-        ...(decodedAverage === undefined
-          ? {}
-          : {
-              averageUnitPurchasePrice: {
-                price: decodedAverage,
-                currencyAssetId: picker.currencyId,
-              },
-            }),
-      });
+      };
+      if (decodedAverage !== undefined) {
+        Object.assign(input, {
+          averageUnitPurchasePrice: {
+            price: decodedAverage,
+            currencyAssetId: picker.currencyId,
+          },
+        });
+      }
+      const result = await mutation.mutateAsync(input);
       notify.success(
         result.positionOutcome === "updated"
           ? `Updated ${selected.name} quantity in ${result.accountName}.`
@@ -1079,15 +1081,34 @@ function GenericForm({
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [averagePrice, setAveragePrice] = useState("");
-  const [valueCurrencyId, setValueCurrencyId] = useState(() => picker.currencyId);
-  const [purchaseCurrencyId, setPurchaseCurrencyId] = useState(() => picker.currencyId);
+  const [currencySelection, setCurrencySelection] = useState<{
+    readonly baseCurrencyId: string;
+    readonly valueCurrencyId: string;
+    readonly purchaseCurrencyId: string;
+  }>();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const mutation = useAddOtherAsset();
-  useEffect(() => {
-    setValueCurrencyId(picker.currencyId);
-    setPurchaseCurrencyId(picker.currencyId);
-  }, [picker.currencyId]);
+  const selectedCurrencies =
+    currencySelection?.baseCurrencyId === picker.currencyId
+      ? currencySelection
+      : {
+          baseCurrencyId: picker.currencyId,
+          valueCurrencyId: picker.currencyId,
+          purchaseCurrencyId: picker.currencyId,
+        };
+  const valueCurrencyId = selectedCurrencies.valueCurrencyId;
+  const purchaseCurrencyId = selectedCurrencies.purchaseCurrencyId;
+  const setValueCurrencyId = (nextValue: string) =>
+    setCurrencySelection({
+      ...selectedCurrencies,
+      valueCurrencyId: nextValue,
+    });
+  const setPurchaseCurrencyId = (nextValue: string) =>
+    setCurrencySelection({
+      ...selectedCurrencies,
+      purchaseCurrencyId: nextValue,
+    });
   if (picker.accounts.isPending || picker.assets.isPending) return <PageState kind="pending" />;
   if (picker.accounts.isError)
     return <PageState kind="error" message={errorMessage(picker.accounts.error)} />;
@@ -1128,7 +1149,7 @@ function GenericForm({
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0 || decoded === undefined) return;
     try {
-      await mutation.mutateAsync({
+      const input = {
         category:
           meta.assetCategory === "bonds" || meta.assetCategory === "other"
             ? meta.assetCategory
@@ -1136,16 +1157,17 @@ function GenericForm({
         account: picker.destination(),
         name: name.trim(),
         value: decoded,
-        ...(decodedAverage === undefined
-          ? {}
-          : {
-              averageUnitPurchasePrice: {
-                price: decodedAverage,
-                currencyAssetId: purchaseCurrencyId,
-              },
-            }),
         currencyAssetId: valueCurrencyId,
-      });
+      };
+      if (decodedAverage !== undefined) {
+        Object.assign(input, {
+          averageUnitPurchasePrice: {
+            price: decodedAverage,
+            currencyAssetId: purchaseCurrencyId,
+          },
+        });
+      }
+      await mutation.mutateAsync(input);
       notify.success(`Added ${name.trim()}.`);
       onComplete();
     } catch (cause) {

@@ -65,13 +65,14 @@ export const makeDatabaseLive = (options: DatabaseLiveOptions = {}) =>
         yield* Effect.addFinalizer(() => releaseDatabaseOwnership(config.dataDirectory));
       }
       const client = yield* makeSqliteClient(config, key.dek);
-      const summary = yield* runMigrations({
+      const migrationOptions = {
         registry: options.migrations ?? ProductionMigrations,
-        ...(options.now === undefined ? {} : { now: options.now }),
-        ...(options.backupRetention === undefined
-          ? {}
-          : { backupRetention: options.backupRetention }),
-      }).pipe(
+      };
+      if (options.now !== undefined) Object.assign(migrationOptions, { now: options.now });
+      if (options.backupRetention !== undefined) {
+        Object.assign(migrationOptions, { backupRetention: options.backupRetention });
+      }
+      const summary = yield* runMigrations(migrationOptions).pipe(
         Effect.provideService(DatabaseConfig, config),
         Effect.provideService(SqlClient.SqlClient, client),
         Effect.provideService(EngineSqliteClientTag, client),

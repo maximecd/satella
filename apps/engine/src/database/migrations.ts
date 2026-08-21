@@ -32,7 +32,7 @@ export type MigrationRegistry = Readonly<
   Record<string, Effect.Effect<void, unknown, SqlClient.SqlClient>>
 >;
 
-export const ProductionMigrations: MigrationRegistry = {
+export const ProductionMigrations = {
   "0001_initial_finance_model": initialFinanceModel,
   "0002_seed_default_fiat_currencies": seedDefaultFiatCurrencies,
   "0003_account_source_date": addAccountSourceDate,
@@ -41,7 +41,7 @@ export const ProductionMigrations: MigrationRegistry = {
   "0006_reporting_currency": addReportingCurrency,
   "0007_vault_security": addVaultSecurity,
   "0008_decimal_values_and_purchase_prices": addDecimalValuesAndPurchasePrices,
-};
+} satisfies MigrationRegistry;
 
 export interface MigrationRunOptions {
   readonly registry: MigrationRegistry;
@@ -407,9 +407,8 @@ export const runMigrations = (options: MigrationRunOptions) =>
       );
     }
 
-    return {
-      applied: finalApplied,
-      pendingBeforeRun,
-      ...(backupPath === undefined ? {} : { backupPath }),
-    } satisfies MigrationRunSummary;
+    if (backupPath === undefined) {
+      return { applied: finalApplied, pendingBeforeRun } satisfies MigrationRunSummary;
+    }
+    return { applied: finalApplied, pendingBeforeRun, backupPath } satisfies MigrationRunSummary;
   });

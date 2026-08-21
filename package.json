@@ -21,8 +21,10 @@
   },
   "devDependencies": {
     "@effect/tsgo": "catalog:",
+    "@oxlint/plugins": "1.79.0",
     "@types/node": "catalog:",
     "concurrently": "10.0.4",
+    "oxlint": "1.79.0",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "wait-on": "9.1.0"

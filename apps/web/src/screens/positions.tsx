@@ -1,6 +1,6 @@
 import { Button, Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
-import type { PositionEdit } from "@optimus/engine/api";
+import type { PositionEdit, UpdatePositionInput } from "@optimus/engine/api";
 import { DecimalFromNonEmptyString } from "@optimus/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
@@ -23,14 +23,19 @@ import {
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { useAssets, useDeletePosition, usePositionEdit, useUpdatePosition } from "../portfolio";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 
 const PositionFormInput = Schema.Struct({
   quantity: DecimalFromNonEmptyString,
   averageUnitPurchasePrice: Schema.String,
   purchaseCurrencyAssetId: Schema.String,
 });
+
+type PositionUpdatePayload = {
+  quantity?: UpdatePositionInput["quantity"];
+  averageUnitPurchasePrice?: UpdatePositionInput["averageUnitPurchasePrice"];
+};
 
 export function EditPositionScreen({ positionId }: { readonly positionId: string }) {
   const query = usePositionEdit(positionId);
@@ -78,18 +83,12 @@ function LoadedEditPosition({
         setError(errorMessage(cause));
         return;
       }
-      const payload: {
-        quantity?: string;
-        averageUnitPurchasePrice?: {
-          price: string;
-          currencyAssetId: string;
-        } | null;
-      } = {};
-      if (account.connectionId === null) payload.quantity = quantity;
+      const payload: PositionUpdatePayload = {};
+      if (account.connectionId === null) Object.assign(payload, { quantity });
       if (canEditPurchasePrice) {
         if (resetRequested || averageText === "") {
           if (resetRequested || initialAverage?.source === "manual") {
-            payload.averageUnitPurchasePrice = null;
+            Object.assign(payload, { averageUnitPurchasePrice: null });
           }
         } else {
           let price: string;
@@ -108,10 +107,12 @@ function LoadedEditPosition({
             initialAverage.price === price &&
             initialAverage.currencyAssetId === value.purchaseCurrencyAssetId;
           if (!unchangedConnectionValue) {
-            payload.averageUnitPurchasePrice = {
-              price,
-              currencyAssetId: value.purchaseCurrencyAssetId,
-            };
+            Object.assign(payload, {
+              averageUnitPurchasePrice: {
+                price,
+                currencyAssetId: value.purchaseCurrencyAssetId,
+              },
+            });
           }
         }
       }

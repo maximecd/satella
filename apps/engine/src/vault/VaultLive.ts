@@ -86,7 +86,7 @@ const asCreateError = (cause: unknown) =>
     ? cause
     : (() => {
         console.error(
-          `[Optimus] Vault creation failed (${cause instanceof Error ? cause.constructor.name : typeof cause})`,
+          `[Optimus] Vault creation failed (${cause instanceof Error ? cause.constructor.name : Object.prototype.toString.call(cause)})`,
         );
         return new VaultStateError({
           reason: "closed",

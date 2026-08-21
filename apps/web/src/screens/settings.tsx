@@ -9,8 +9,8 @@ import { notify } from "../components/ui/toaster";
 import { useSaveReportingCurrency, useSettings } from "../portfolio";
 import { SelectField } from "../select-field";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 
 export function SettingsScreen() {
   const query = useSettings();

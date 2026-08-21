@@ -7,31 +7,31 @@ import { VaultUnlockError } from "../vault/envelope.js";
 import { VaultStateError } from "../vault/errors.js";
 import { VaultService } from "../vault/Vault.js";
 
-const toApiError = (error: unknown): VaultApiError => {
-  if (error instanceof VaultApiError) return error;
-  if (error instanceof VaultUnlockError) {
-    return new VaultApiError({ code: "unlock-failed", message: error.message });
+const toApiError = (cause: unknown): VaultApiError => {
+  if (cause instanceof VaultApiError) return cause;
+  if (cause instanceof VaultUnlockError) {
+    return new VaultApiError({ code: "unlock-failed", message: cause.message });
   }
-  if (error instanceof VaultStateError) {
+  if (cause instanceof VaultStateError) {
     const code =
-      error.reason === "already-exists"
+      cause.reason === "already-exists"
         ? "already-exists"
-        : error.reason === "absent"
+        : cause.reason === "absent"
           ? "absent"
-          : error.reason === "password-too-short"
+          : cause.reason === "password-too-short"
             ? "password-too-short"
-            : error.reason === "invalid-pin"
+            : cause.reason === "invalid-pin"
               ? "invalid-pin"
-              : error.reason === "pin-disabled"
+              : cause.reason === "pin-disabled"
                 ? "pin-disabled"
-                : error.reason === "screen-locked"
+                : cause.reason === "screen-locked"
                   ? "screen-locked"
-                  : error.reason === "reset-confirmation"
+                  : cause.reason === "reset-confirmation"
                     ? "reset-confirmation"
-                    : error.reason === "closed"
+                    : cause.reason === "closed"
                       ? "closed"
                       : "validation";
-    return new VaultApiError({ code, message: error.message });
+    return new VaultApiError({ code, message: cause.message });
   }
   return new VaultApiError({
     code: "unlock-failed",

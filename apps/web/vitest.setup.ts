@@ -31,11 +31,12 @@ Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
   value: vi.fn(() => null),
 });
 
-if (typeof HTMLDialogElement !== "undefined") {
-  HTMLDialogElement.prototype.showModal = function showModal() {
+const dialogElement = globalThis.HTMLDialogElement;
+if (dialogElement !== undefined) {
+  dialogElement.prototype.showModal = function showModal() {
     this.setAttribute("open", "");
   };
-  HTMLDialogElement.prototype.close = function close() {
+  dialogElement.prototype.close = function close() {
     this.removeAttribute("open");
   };
 }

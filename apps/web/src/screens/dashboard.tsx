@@ -22,8 +22,8 @@ import {
   multiplyDecimal,
 } from "../financial-number";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 
 const rowDescription = (row: DashboardAccountRow) => {
   const holdings = `${row.positionCount} holding${row.positionCount === 1 ? "" : "s"}`;
@@ -130,7 +130,10 @@ export function DashboardScreen() {
                   aria-label="Portfolio value range"
                   size="sm"
                   value={range}
-                  onValueChange={(details) => setRange(details.value as PortfolioValueRange)}
+                  onValueChange={(details) => {
+                    // SAFETY: The segmented control items are exactly the PortfolioValueRange literals.
+                    setRange(details.value as PortfolioValueRange);
+                  }}
                   items={[...PORTFOLIO_VALUE_RANGES]}
                 />
               </Box>
@@ -157,9 +160,10 @@ export function DashboardScreen() {
                   aria-label="Allocation"
                   size="sm"
                   value={allocationView}
-                  onValueChange={(details) =>
-                    setAllocationView(details.value as "assets" | "categories")
-                  }
+                  onValueChange={(details) => {
+                    // SAFETY: The segmented control items are exactly the two allocation view literals.
+                    setAllocationView(details.value as "assets" | "categories");
+                  }}
                   items={[
                     { value: "assets", label: "Assets" },
                     { value: "categories", label: "Categories" },

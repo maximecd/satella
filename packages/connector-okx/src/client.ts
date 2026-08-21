@@ -55,11 +55,11 @@ export class OkxTransportError extends Error {
   }
 }
 
-export const OKX_REST_ORIGINS: Readonly<Record<OkxRegion, string>> = {
+export const OKX_REST_ORIGINS = {
   global: "https://openapi.okx.com",
   eea: "https://eea.okx.com",
   us: "https://us.okx.com",
-};
+} satisfies Readonly<Record<OkxRegion, string>>;
 
 export const okxRestOrigin = (region: OkxRegion): string => OKX_REST_ORIGINS[region];
 
@@ -147,12 +147,13 @@ const parseResponse = <A>(
 ): Effect.Effect<A, OkxTransportError | Schema.SchemaError> => {
   if (response.status < 200 || response.status >= 300) {
     const retryAfterMs = retryAfterMilliseconds(response.headers);
+    const errorOptions = {
+      transient: transientStatus(response.status),
+      status: response.status,
+    };
+    if (retryAfterMs !== undefined) Object.assign(errorOptions, { retryAfterMs });
     return Effect.fail(
-      new OkxTransportError(`OKX request failed with HTTP ${response.status}`, {
-        transient: transientStatus(response.status),
-        status: response.status,
-        ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
-      }),
+      new OkxTransportError(`OKX request failed with HTTP ${response.status}`, errorOptions),
     );
   }
   return Schema.decodeUnknownEffect(schema)(response.body);
@@ -189,7 +190,7 @@ export const makeOkxClient = <R>(options: OkxClientOptions<R>): OkxClient<R> => 
             Effect.flatMap(() => retry(remaining - 1, attemptNumber + 1)),
           );
         }),
-      ) as Effect.Effect<A, OkxTransportError, R>;
+      );
     return retry(maxAttempts - 1, 0);
   };
 

@@ -6,13 +6,13 @@ import { DecimalInput, DecimalString } from "./financial-number.js";
 export const AssetCategory = Schema.Literals(["stocks_etfs", "bonds", "crypto", "cash", "other"]);
 export type AssetCategory = typeof AssetCategory.Type;
 
-export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
+export const ASSET_CATEGORY_LABELS = {
   stocks_etfs: "Stocks & ETFs",
   bonds: "Bonds",
   crypto: "Crypto",
   cash: "Cash",
   other: "Other assets",
-};
+} satisfies Record<AssetCategory, string>;
 
 export const SearchableAssetCategory = Schema.Literals(["stocks_etfs", "crypto"]);
 export type SearchableAssetCategory = typeof SearchableAssetCategory.Type;
@@ -153,16 +153,19 @@ export const ConnectorCapabilities = Schema.Struct({
 export const EntityIdPath = Schema.Struct({ id: Schema.String });
 
 /** Credentials are stored in the connector configuration for later refreshes. */
+export const ConnectorCredentials = Schema.Record(Schema.String, Schema.String);
+export type ConnectorCredentials = typeof ConnectorCredentials.Type;
+
 export const ConnectConnectionInput = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
   connectorId: Schema.Trim.check(Schema.isNonEmpty()),
-  credentials: Schema.Record(Schema.String, Schema.Unknown),
+  credentials: ConnectorCredentials,
 });
 export type ConnectConnectionInput = typeof ConnectConnectionInput.Type;
 
 export const UpdateConnectionInput = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),
-  credentials: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+  credentials: Schema.optional(ConnectorCredentials),
 });
 export type UpdateConnectionInput = typeof UpdateConnectionInput.Type;
 

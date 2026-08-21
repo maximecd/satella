@@ -38,6 +38,8 @@ export interface OkxConnectorOptions<R = HttpClient.HttpClient> {
   readonly maxAttempts?: number;
 }
 
+type OkxRuntimeOptions<R> = Omit<OkxConnectorOptions<R>, "transportFactory">;
+
 const FIAT_CURRENCIES = new Set([
   "AED",
   "ARS",
@@ -138,10 +140,15 @@ const mapBalances = (
     .map(([currency, quantity]) => ({ asset: connectorAsset(currency), quantity }));
 };
 
-const mapErrorCategory = (
+function mapErrorCategory(
+  cause: unknown,
+  phase: "authentication",
+): ConnectorAuthenticationError["category"];
+function mapErrorCategory(cause: unknown, phase: "fetch"): ConnectorFetchAccountsError["category"];
+function mapErrorCategory(
   cause: unknown,
   phase: "authentication" | "fetch",
-): ConnectorAuthenticationError["category"] | ConnectorFetchAccountsError["category"] => {
+): ConnectorAuthenticationError["category"] | ConnectorFetchAccountsError["category"] {
   if (cause instanceof OkxTransportError) {
     if (cause.status === 401) {
       return phase === "authentication" ? "invalid_credentials" : "authentication_expired";
@@ -154,24 +161,29 @@ const mapErrorCategory = (
     return cause.transient ? "network" : "invalid_response";
   }
   return "invalid_response";
-};
+}
 
 const authenticationError = (cause: unknown, message?: string) =>
   new ConnectorAuthenticationError({
-    category: mapErrorCategory(cause, "authentication") as ConnectorAuthenticationError["category"],
+    category: mapErrorCategory(cause, "authentication"),
     message: message ?? "OKX authentication failed",
   });
 
 const fetchError = (cause: unknown, message?: string) =>
   new ConnectorFetchAccountsError({
-    category: mapErrorCategory(cause, "fetch") as ConnectorFetchAccountsError["category"],
+    category: mapErrorCategory(cause, "fetch"),
     message: message ?? "OKX account fetch failed",
   });
 
-const apiErrorCategory = (
+function apiErrorCategory(
+  code: string,
+  phase: "authentication",
+): ConnectorAuthenticationError["category"];
+function apiErrorCategory(code: string, phase: "fetch"): ConnectorFetchAccountsError["category"];
+function apiErrorCategory(
   code: string,
   phase: "authentication" | "fetch",
-): ConnectorAuthenticationError["category"] | ConnectorFetchAccountsError["category"] => {
+): ConnectorAuthenticationError["category"] | ConnectorFetchAccountsError["category"] {
   if (code === "50011" || code === "50013") return "rate_limit";
   if (code === "50119")
     return phase === "authentication" ? "unsupported_region" : "authentication_expired";
@@ -189,7 +201,7 @@ const apiErrorCategory = (
   }
   if (code === "50102") return "network";
   return phase === "authentication" ? "invalid_response" : "invalid_response";
-};
+}
 
 const ensureAuthenticationSuccess = <A extends { readonly code: string; readonly msg: string }>(
   response: A,
@@ -197,10 +209,7 @@ const ensureAuthenticationSuccess = <A extends { readonly code: string; readonly
   if (response.code === "0") return Effect.succeed(response);
   return Effect.fail(
     new ConnectorAuthenticationError({
-      category: apiErrorCategory(
-        response.code,
-        "authentication",
-      ) as ConnectorAuthenticationError["category"],
+      category: apiErrorCategory(response.code, "authentication"),
       message: "OKX rejected the authenticated request",
     }),
   );
@@ -212,7 +221,7 @@ const ensureFetchSuccess = <A extends { readonly code: string; readonly msg: str
   if (response.code === "0") return Effect.succeed(response);
   return Effect.fail(
     new ConnectorFetchAccountsError({
-      category: apiErrorCategory(response.code, "fetch") as ConnectorFetchAccountsError["category"],
+      category: apiErrorCategory(response.code, "fetch"),
       message: "OKX rejected the account request",
     }),
   );
@@ -328,8 +337,9 @@ const authenticateWith = <R>(
     };
   });
 
-export const makeOkxConnector = <R = HttpClient.HttpClient>(
-  options: OkxConnectorOptions<R> = {},
+const createOkxConnector = <R>(
+  options: OkxRuntimeOptions<R>,
+  transportFactory: (origin: string) => OkxHttpTransport<R>,
 ): Connector<OkxCredentials, R> => ({
   id: "okx",
   name: "OKX",
@@ -374,18 +384,26 @@ export const makeOkxConnector = <R = HttpClient.HttpClient>(
       const credentials = yield* Schema.decodeUnknownEffect(OkxCredentials)(input).pipe(
         Effect.mapError(() => authenticationError(undefined, "OKX credentials are invalid")),
       );
-      const transport =
-        options.transportFactory?.(okxRestOrigin(credentials.region)) ??
-        (makeEffectHttpTransport(
-          okxRestOrigin(credentials.region),
-        ) as unknown as OkxHttpTransport<R>);
-      const client = makeOkxClient({
-        transport,
-        ...(options.now === undefined ? {} : { now: options.now }),
-        ...(options.maxAttempts === undefined ? {} : { maxAttempts: options.maxAttempts }),
-      });
+      const transport = transportFactory(okxRestOrigin(credentials.region));
+      const clientOptions = { transport };
+      if (options.now !== undefined) Object.assign(clientOptions, { now: options.now });
+      if (options.maxAttempts !== undefined)
+        Object.assign(clientOptions, { maxAttempts: options.maxAttempts });
+      const client = makeOkxClient(clientOptions);
       return yield* authenticateWith<R>(credentials, client);
     }),
 });
+
+export function makeOkxConnector(): Connector<OkxCredentials, HttpClient.HttpClient>;
+export function makeOkxConnector<R>(options: OkxConnectorOptions<R>): Connector<OkxCredentials, R>;
+export function makeOkxConnector<R>(
+  options: OkxConnectorOptions<R> = {},
+): Connector<OkxCredentials, R> | Connector<OkxCredentials, HttpClient.HttpClient> {
+  const { transportFactory, ...runtimeOptions } = options;
+  if (transportFactory !== undefined) {
+    return createOkxConnector(runtimeOptions, transportFactory);
+  }
+  return createOkxConnector(runtimeOptions, (origin) => makeEffectHttpTransport(origin));
+}
 
 export const OkxConnector = makeOkxConnector();

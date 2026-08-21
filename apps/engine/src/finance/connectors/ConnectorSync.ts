@@ -2,7 +2,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import type { FinanceApiError } from "../contracts.js";
+import type { ConnectorCredentials, FinanceApiError } from "../contracts.js";
 import * as ConnectorService from "../connector-service.js";
 import { connectorSyncFailure } from "../connections/ConnectionSql.js";
 import { HttpClient } from "effect/unstable/http";
@@ -13,7 +13,7 @@ export class ConnectorSync extends Context.Service<
     readonly syncRegistered: (
       connectionId: string,
       connectorId: string,
-      credentials: unknown,
+      credentials: ConnectorCredentials,
     ) => Effect.Effect<void, FinanceApiError>;
   }
 >()("@optimus/engine/finance/ConnectorSync") {}

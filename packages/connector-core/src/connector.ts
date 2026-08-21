@@ -150,18 +150,19 @@ export const validateConnectorOutput = (
             throw new Error("Connector returned conflicting definitions for one asset");
           }
           seenAssetDefinitions.set(position.asset.externalId, position.asset);
-          positions.push({
+          const normalizedPosition = {
             ...position,
             quantity,
-            ...(position.averageUnitPurchasePrice === undefined
-              ? {}
-              : {
-                  averageUnitPurchasePrice: {
-                    ...position.averageUnitPurchasePrice,
-                    price: canonicalDecimal(position.averageUnitPurchasePrice.price),
-                  },
-                }),
-          });
+          };
+          if (position.averageUnitPurchasePrice !== undefined) {
+            Object.assign(normalizedPosition, {
+              averageUnitPurchasePrice: {
+                ...position.averageUnitPurchasePrice,
+                price: canonicalDecimal(position.averageUnitPurchasePrice.price),
+              },
+            });
+          }
+          positions.push(normalizedPosition);
         }
         normalized.push({ ...account, positions });
       }

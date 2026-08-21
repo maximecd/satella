@@ -60,30 +60,34 @@ export const deriveKeyEncryptionKey = async (
 ): Promise<Uint8Array> => {
   assertKdfParameters(parameters);
   const message =
-    typeof password === "string" ? Buffer.from(password, "utf8") : Buffer.from(password);
+    password instanceof Uint8Array ? Buffer.from(password) : Buffer.from(password, "utf8");
   const nativeArgon2 = nodeCrypto.argon2;
-  if (typeof nativeArgon2 === "function") {
+  if (nativeArgon2 !== undefined) {
     try {
       const derived = await new Promise<Buffer>((resolve, reject) => {
-        nativeArgon2(
-          "argon2id",
-          {
-            message,
-            nonce: Buffer.from(parameters.salt),
-            parallelism: parameters.parallelism,
-            tagLength: 32,
-            memory: parameters.memoryKiB,
-            passes: parameters.passes,
-            ...(extras.secret === undefined ? {} : { secret: Buffer.from(extras.secret) }),
-            ...(extras.associatedData === undefined
-              ? {}
-              : { associatedData: Buffer.from(extras.associatedData) }),
-          },
-          (error, result) => {
-            if (error !== undefined && error !== null) reject(error);
-            else resolve(result as Buffer);
-          },
-        );
+        const nativeOptions = {
+          message,
+          nonce: Buffer.from(parameters.salt),
+          parallelism: parameters.parallelism,
+          tagLength: 32,
+          memory: parameters.memoryKiB,
+          passes: parameters.passes,
+        };
+        if (extras.secret !== undefined) {
+          Object.assign(nativeOptions, { secret: Buffer.from(extras.secret) });
+        }
+        if (extras.associatedData !== undefined) {
+          Object.assign(nativeOptions, {
+            associatedData: Buffer.from(extras.associatedData),
+          });
+        }
+        nativeArgon2("argon2id", nativeOptions, (error, result) => {
+          if (error !== undefined && error !== null) reject(error);
+          else {
+            // SAFETY: Node's argon2 callback returns the requested 32-byte Buffer result.
+            resolve(result as Buffer);
+          }
+        });
       });
       return new Uint8Array(derived);
     } catch (cause) {
@@ -94,16 +98,19 @@ export const deriveKeyEncryptionKey = async (
   if (extras.associatedData !== undefined) {
     throw new Error("Argon2 associated data is unavailable in this runtime");
   }
-  return wasmArgon2id({
+  const wasmOptions = {
     password: message,
     salt: Buffer.from(parameters.salt),
     iterations: parameters.passes,
     parallelism: parameters.parallelism,
     memorySize: parameters.memoryKiB,
     hashLength: 32,
-    ...(extras.secret === undefined ? {} : { secret: Buffer.from(extras.secret) }),
-    outputType: "binary",
-  });
+    outputType: "binary" as const,
+  };
+  if (extras.secret !== undefined) {
+    Object.assign(wasmOptions, { secret: Buffer.from(extras.secret) });
+  }
+  return wasmArgon2id(wasmOptions);
 };
 
 /** RFC 9106 section 5.3 Argon2id version 19 vector. */

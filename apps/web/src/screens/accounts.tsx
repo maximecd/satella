@@ -42,8 +42,8 @@ import {
   multiplyDecimal,
 } from "../financial-number";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The request failed.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The request failed.";
 const MANUAL_ASSET_CATEGORIES = new Set(["bonds", "other"]);
 
 const pnlPercent = (value: string | null) =>

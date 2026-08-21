@@ -19,13 +19,15 @@ export function ColorModeProvider(props: ColorModeProviderProps) {
 
 export type ThemePreference = "system" | "light" | "dark";
 
+interface ThemePreferenceState {
+  readonly theme: ThemePreference;
+  readonly setTheme: (theme: ThemePreference) => void;
+}
+
 const isThemePreference = (value: string | undefined): value is ThemePreference =>
   value === "system" || value === "light" || value === "dark";
 
-export function useThemePreference(): {
-  readonly theme: ThemePreference;
-  readonly setTheme: (theme: ThemePreference) => void;
-} {
+export function useThemePreference(): ThemePreferenceState {
   const { theme, setTheme } = useTheme();
   return {
     theme: isThemePreference(theme) ? theme : "system",

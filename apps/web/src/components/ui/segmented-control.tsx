@@ -15,8 +15,8 @@ export interface SegmentedControlProps extends SegmentGroup.RootProps {
 
 function normalize(items: Array<string | Item>): Item[] {
   return items.map((item) => {
-    if (typeof item === "string") return { value: item, label: item };
-    return item;
+    if (item instanceof Object) return item;
+    return { value: item, label: item };
   });
 }
 

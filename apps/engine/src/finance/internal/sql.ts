@@ -20,6 +20,7 @@ import {
 export type FinanceEffect<A> = Effect.Effect<A, FinanceError, SqlClient.SqlClient>;
 
 export const MANUAL_ASSET_CATEGORIES = new Set<AssetCategory>(["bonds", "other"]);
+const supportedReportingCurrencies = new Set<string>(SUPPORTED_REPORTING_CURRENCIES);
 
 export interface AssetRow {
   readonly id: string;
@@ -210,8 +211,7 @@ export const convertAmount = (
   return divideDecimal(multiplyDecimal(amount, fromRate), toRate);
 };
 
-export const isSupportedReportingCurrency = (iso: string) =>
-  (SUPPORTED_REPORTING_CURRENCIES as readonly string[]).includes(iso);
+export const isSupportedReportingCurrency = (iso: string) => supportedReportingCurrencies.has(iso);
 
 export const loadPrice = (assetId: string) =>
   Effect.gen(function* () {

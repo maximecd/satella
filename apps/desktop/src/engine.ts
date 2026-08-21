@@ -76,21 +76,26 @@ export const managedEngineEnvironment = (
     readonly parentPid?: number;
     readonly production?: boolean;
   },
-): NodeJS.ProcessEnv => ({
-  ...env,
-  ELECTRON_RUN_AS_NODE: "1",
-  OPTIMUS_ENGINE_PORT: String(options.port),
-  OPTIMUS_DATA_DIR: options.dataDirectory,
-  ...(options.parentPid === undefined
-    ? {}
-    : { OPTIMUS_ENGINE_PARENT_PID: String(options.parentPid) }),
-  ...(options.production === true
-    ? {
-        OPTIMUS_CANONICAL_DATA_DIR: options.dataDirectory,
-        OPTIMUS_DATABASE_CONTEXT: "production",
-      }
-    : {}),
-});
+): NodeJS.ProcessEnv => {
+  const managedEnvironment = {
+    ...env,
+    ELECTRON_RUN_AS_NODE: "1",
+    OPTIMUS_ENGINE_PORT: String(options.port),
+    OPTIMUS_DATA_DIR: options.dataDirectory,
+  };
+  if (options.parentPid !== undefined) {
+    Object.assign(managedEnvironment, {
+      OPTIMUS_ENGINE_PARENT_PID: String(options.parentPid),
+    });
+  }
+  if (options.production === true) {
+    Object.assign(managedEnvironment, {
+      OPTIMUS_CANONICAL_DATA_DIR: options.dataDirectory,
+      OPTIMUS_DATABASE_CONTEXT: "production",
+    });
+  }
+  return managedEnvironment;
+};
 
 export const waitForEngineHello = async (
   port: number,

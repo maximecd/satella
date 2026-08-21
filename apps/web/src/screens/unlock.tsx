@@ -8,8 +8,8 @@ import { vaultStatusQuery } from "../queries";
 import { SecretField } from "./secret-field";
 import { ResetOptimusControl } from "./reset-optimus";
 
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "The Vault could not be unlocked.";
+const errorMessage = (cause: unknown) =>
+  cause instanceof Error ? cause.message : "The Vault could not be unlocked.";
 
 export function UnlockScreen() {
   const queryClient = useQueryClient();

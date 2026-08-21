@@ -7,6 +7,7 @@ import { identity } from "effect/Function";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
+import * as Schema from "effect/Schema";
 import { Reactivity } from "effect/unstable/reactivity";
 import * as Client from "effect/unstable/sql/SqlClient";
 import type { Connection } from "effect/unstable/sql/SqlConnection";
@@ -48,15 +49,20 @@ type SqlcipherDatabase = InstanceType<typeof sqlite3.Database> & {
   };
 };
 
+type SqliteScalar = string | number | bigint | Uint8Array | null;
+type SqliteRow = Readonly<Record<string, SqliteScalar>>;
 const runAll = (
   db: SqlcipherDatabase,
   sql: string,
   params: ReadonlyArray<unknown>,
-): Promise<ReadonlyArray<Record<string, unknown>>> =>
+): Promise<ReadonlyArray<SqliteRow>> =>
   new Promise((resolve, reject) => {
     db.all(sql, params, (error, rows) => {
       if (error) reject(error);
-      else resolve((rows ?? []) as ReadonlyArray<Record<string, unknown>>);
+      else {
+        // SAFETY: sqlite3 returns row objects whose values are SQLite scalar values.
+        resolve((rows ?? []) as ReadonlyArray<SqliteRow>);
+      }
     });
   });
 
@@ -84,7 +90,10 @@ const openDatabase = (filename: string): Promise<SqlcipherDatabase> =>
   new Promise((resolve, reject) => {
     const db = new sqlite3.Database(filename, (error) => {
       if (error) reject(error);
-      else resolve(db as SqlcipherDatabase);
+      else {
+        // SAFETY: The database is opened through the SQLCipher driver and its required backup API is part of the adapter contract.
+        resolve(db as SqlcipherDatabase);
+      }
     });
   });
 
@@ -114,7 +123,7 @@ const configureEncryptedConnection = async (db: SqlcipherDatabase, dek: Uint8Arr
   db.configure("busyTimeout", 5_000);
   await runExec(db, rawKeyPragma(dek));
   const cipherVersion = await pragmaValue(db, "cipher_version");
-  if (typeof cipherVersion !== "string" || cipherVersion.length === 0) {
+  if (!Schema.is(Schema.String)(cipherVersion) || cipherVersion.length === 0) {
     throw new DatabasePragmaError({
       pragma: "cipher_version",
       expected: "a SQLCipher version string",
@@ -198,7 +207,7 @@ export const makeEncryptedSqliteClient = (options: {
         Effect.tryPromise({
           try: async () => {
             if (raw) {
-              return [await runRaw(db, sql, params)] as unknown as ReadonlyArray<any>;
+              return [await runRaw(db, sql, params)];
             }
             return await runAll(db, sql, params);
           },
@@ -218,14 +227,10 @@ export const makeEncryptedSqliteClient = (options: {
           return execute(sql, params, true);
         },
         executeValues(sql, params) {
-          return Effect.map(execute(sql, params), (rows) =>
-            rows.map((row) => Object.values(row as Record<string, unknown>)),
-          );
+          return Effect.map(execute(sql, params), (rows) => rows.map((row) => Object.values(row)));
         },
         executeValuesUnprepared(sql, params) {
-          return Effect.map(execute(sql, params), (rows) =>
-            rows.map((row) => Object.values(row as Record<string, unknown>)),
-          );
+          return Effect.map(execute(sql, params), (rows) => rows.map((row) => Object.values(row)));
         },
         executeUnprepared(sql, params, transformRows) {
           const effect = execute(sql, params ?? [], false);
@@ -261,6 +266,7 @@ export const makeEncryptedSqliteClient = (options: {
       );
     });
 
+    // SAFETY: The connection and compiler above are the complete dependencies required by the EngineSqliteClient adapter.
     const client = (yield* Client.make({
       acquirer,
       compiler,

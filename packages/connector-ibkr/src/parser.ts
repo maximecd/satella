@@ -39,8 +39,8 @@ const optionalAttribute = (attributes: Readonly<Record<string, string>>, name: s
   return value === undefined ? undefined : value;
 };
 
-const decode = <A>(schema: Schema.Codec<A>, input: unknown): A =>
-  Schema.decodeUnknownSync(schema as Schema.Codec<A>)(input);
+const decode = <A, Input>(schema: Schema.Codec<A>, input: Input): A =>
+  Schema.decodeUnknownSync(schema)(input);
 
 const parseAttributeRecord = <A>(
   attributes: Readonly<Record<string, string>>,
@@ -175,14 +175,14 @@ export const parseFlexXml = (
     const errorCode = optionalAttribute(rootAttributes, "errorCode") ?? responseText.errorcode;
     const errorMessage =
       optionalAttribute(rootAttributes, "errorMessage") ?? responseText.errormessage;
+    const envelopeInput: Record<string, string> = {};
+    if (status !== undefined) Object.assign(envelopeInput, { status });
+    if (referenceCode !== undefined) Object.assign(envelopeInput, { referenceCode });
+    if (errorCode !== undefined) Object.assign(envelopeInput, { errorCode });
+    if (errorMessage !== undefined) Object.assign(envelopeInput, { errorMessage });
     return {
       kind: "response",
-      envelope: decode(IbkrFlexResponseEnvelope, {
-        ...(status === undefined ? {} : { status }),
-        ...(referenceCode === undefined ? {} : { referenceCode }),
-        ...(errorCode === undefined ? {} : { errorCode }),
-        ...(errorMessage === undefined ? {} : { errorMessage }),
-      }),
+      envelope: decode(IbkrFlexResponseEnvelope, envelopeInput),
     };
   }
   if (rootName !== "FlexQueryResponse") throw parserError("has an unexpected root element");
@@ -193,20 +193,25 @@ export const parseFlexXml = (
   if (statements.length === 0) throw parserError("contains no FlexStatement elements");
   return {
     kind: "report",
-    ...(reportType === undefined ? {} : { reportType }),
+    reportType,
     statements: statements.map((statement) =>
-      decode(IbkrFlexStatement, {
-        ...(statement.attributes.accountId === undefined
-          ? {}
-          : { accountId: statement.attributes.accountId }),
-        ...(statement.accountInformation === undefined
-          ? {}
-          : { accountInformation: statement.accountInformation }),
-        hasOpenPositions: statement.hasOpenPositions,
-        hasCashReport: statement.hasCashReport,
-        openPositions: statement.openPositions,
-        cashReportCurrencies: statement.cashReportCurrencies,
-      }),
+      decode(
+        IbkrFlexStatement,
+        Object.assign(
+          {
+            hasOpenPositions: statement.hasOpenPositions,
+            hasCashReport: statement.hasCashReport,
+            openPositions: statement.openPositions,
+            cashReportCurrencies: statement.cashReportCurrencies,
+          },
+          statement.attributes.accountId === undefined
+            ? {}
+            : { accountId: statement.attributes.accountId },
+          statement.accountInformation === undefined
+            ? {}
+            : { accountInformation: statement.accountInformation },
+        ),
+      ),
     ),
   };
 };

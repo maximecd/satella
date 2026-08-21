@@ -6,13 +6,22 @@ import { SelectField } from "./select-field";
 
 const { fieldContext, formContext, useFieldContext, useFormContext } = createFormHookContexts();
 
+type MessageLike = {
+  readonly message: unknown;
+};
+
+const isObjectLike = (cause: unknown): cause is object =>
+  cause !== null &&
+  cause !== undefined &&
+  Object.prototype.toString.call(cause) === "[object Object]";
+
+const hasMessage = (cause: unknown): cause is MessageLike =>
+  isObjectLike(cause) && "message" in cause;
+
 const message = (errors: ReadonlyArray<unknown>, label: string, value: string) => {
   const first = errors[0];
   if (first === undefined) return undefined;
-  const raw =
-    typeof first === "object" && first !== null && "message" in first
-      ? String(first.message)
-      : String(first);
+  const raw = hasMessage(first) ? String(first.message) : String(first);
   if (raw.includes("Expected a non empty string") || raw.includes("a length of at least 1"))
     return value.trim() === "" ? `${label} is required.` : undefined;
   if (
