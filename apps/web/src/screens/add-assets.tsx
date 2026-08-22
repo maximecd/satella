@@ -6,6 +6,7 @@ import {
   IconButton,
   Image,
   Input,
+  Progress,
   SimpleGrid,
   Stack,
   Text,
@@ -266,22 +267,18 @@ function AddAssetsDialog({
           )}
         </DialogBody>
         <DialogFooter p="0">
-          <Box
-            role="progressbar"
-            aria-label="Form progress"
-            aria-valuemin={0}
-            aria-valuenow={progress.value}
-            aria-valuemax={progress.max}
-            bg="bg.muted"
-            h="1.5"
+          <Progress.Root
+            value={progress.value}
+            max={progress.max}
+            size="xs"
+            colorPalette="blue"
+            translations={{ value: () => "Form progress" }}
             w="full"
           >
-            <Box
-              h="full"
-              bg="blue.solid"
-              width={`${progress.max === 0 ? 0 : (progress.value / progress.max) * 100}%`}
-            />
-          </Box>
+            <Progress.Track rounded="none">
+              <Progress.Range />
+            </Progress.Track>
+          </Progress.Root>
         </DialogFooter>
       </DialogContent>
     </DialogRoot>
