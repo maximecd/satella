@@ -1,6 +1,7 @@
 import { Button, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import type { VaultStatus } from "@satella-app/engine/api";
 
 import { engineApi } from "../api";
@@ -9,18 +10,18 @@ import { vaultStatusQuery } from "../queries";
 import { GateLayout } from "./gate-layout";
 import { PinField, type PinFieldHandle } from "./pin-field";
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The Screen lock could not be dismissed.";
-
 export function ScreenLockScreen({
   status,
 }: {
   readonly status: Extract<VaultStatus, { state: "open" }>;
 }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const pinFieldRef = useRef<PinFieldHandle>(null);
+  const requestFailed = t("security.screenLock.requestFailed");
+  const errorMessage = (cause: unknown) => (cause instanceof Error ? cause.message : requestFailed);
   const unlockPin = useMutation({
     mutationFn: engineApi.unlockScreen,
     onSuccess: (next) => queryClient.setQueryData(vaultStatusQuery.queryKey, next),
@@ -40,10 +41,7 @@ export function ScreenLockScreen({
     },
   });
   return (
-    <GateLayout
-      title="Satella is locked"
-      description="Screen lock hides the interface. Background Refresh may continue. This is not the same as closing the Vault."
-    >
+    <GateLayout title={t("security.screenLock.title")} description={t("security.screenLock.intro")}>
       <FormError message={error} />
       <form
         onSubmit={(event: FormEvent) => {
@@ -54,20 +52,20 @@ export function ScreenLockScreen({
         <Stack gap="4">
           <PinField
             ref={pinFieldRef}
-            label="Screen-lock PIN"
+            label={t("security.screenLock.pinLabel")}
             value={pin}
             onChange={setPin}
             htmlName="screen-lock-pin"
             autoFocus
           />
           <Button type="submit" colorPalette="blue">
-            Unlock
+            {t("security.screenLock.unlock")}
           </Button>
         </Stack>
       </form>
       {status.pinEntryDisabled ? (
         <Text color="fg.muted" fontSize="sm">
-          Too many incorrect PIN attempts. Use your Vault password to unlock Satella again.
+          {t("security.screenLock.pinDisabledNote")}
         </Text>
       ) : null}
       <Button
@@ -76,7 +74,7 @@ export function ScreenLockScreen({
         disabled={logOut.isPending}
         loading={logOut.isPending}
       >
-        Use Vault password instead
+        {t("security.screenLock.usePasswordInstead")}
       </Button>
     </GateLayout>
   );

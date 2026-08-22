@@ -1,0 +1,124 @@
+{
+  "addAssets": {
+    "title": "Add assets",
+    "back": "Back",
+    "close": "Close",
+    "dialogAriaLabel": "Add assets",
+    "progressAriaLabel": "Form progress",
+    "clearSearch": "Clear",
+    "createOption": "Create new",
+    "searchCategories": "Search categories",
+    "assetTypes": "Asset types",
+    "categoriesEmpty": {
+      "title": "No categories found",
+      "description": "Try a different search."
+    },
+    "categories": {
+      "checking": {
+        "label": "Checking",
+        "description": "Add a checking account at a bank with a starting balance."
+      },
+      "savings": {
+        "label": "Savings",
+        "description": "Add a savings account at a bank with a starting balance."
+      },
+      "stocks_etfs": {
+        "label": "Stocks & ETFs",
+        "description": "Search listed stocks and ETFs, then place them in a brokerage account."
+      },
+      "crypto": {
+        "label": "Crypto",
+        "description": "Search supported crypto and place it in a wallet account."
+      },
+      "other": {
+        "label": "Other assets",
+        "description": "Track a custom asset by name and current value."
+      }
+    },
+    "connectors": {
+      "search": "Search connectors",
+      "availableAriaLabel": "Available connectors",
+      "connectAriaLabel": "Connect {{name}}",
+      "noneForCategory": {
+        "title": "No connectors for this category",
+        "description": "Continue manually to add this asset type."
+      },
+      "noneFound": {
+        "title": "No connectors found",
+        "description": "Try a different connector name."
+      },
+      "addManually": "Add manually",
+      "orAddManually": "Or add manually",
+      "manualDescription": "Enter this asset yourself instead of connecting a custodian.",
+      "unavailable": "That connector is not available.",
+      "readOnlyHint": "Prefer read-only credentials with no trading or withdrawal capability whenever the Connector allows it.",
+      "nameField": "Name",
+      "nameRequired": "Name is required.",
+      "fieldRequired": "{{field}} is required.",
+      "importedAccounts": "Imported accounts from {{name}}.",
+      "connectAndImport": "Connect and import"
+    },
+    "custodian": {
+      "fallbackLabel": "Custodian",
+      "labels": {
+        "Bank": "Bank",
+        "Broker": "Broker",
+        "Exchange": "Exchange"
+      },
+      "choose": "Choose a {{label}}",
+      "nameWithList": "{{label}} name",
+      "nameRequired": "{{label}} name is required."
+    },
+    "account": {
+      "choose": "Choose an account",
+      "nameField": "Account name",
+      "nameRequired": "Account name is required."
+    },
+    "holdings": {
+      "assetLabel": "Asset",
+      "assetPlaceholder": "Search by name or exact symbol",
+      "selectAssetRequired": "Select an asset.",
+      "searching": "Searching…",
+      "providerUnavailable": "Asset search is temporarily unavailable.",
+      "matches": "Matches",
+      "noMatches": {
+        "title": "No asset matches found",
+        "description": "Custom stocks and crypto are not available. Try a different symbol."
+      },
+      "quantity": "Quantity",
+      "quantityRequired": "Quantity is required.",
+      "quantityInvalid": "Enter a valid quantity.",
+      "averagePrice": "Average unit purchase price (optional)",
+      "averagePriceInvalid": "Enter a valid average unit purchase price.",
+      "averagePricePositive": "Average unit purchase price must be greater than zero.",
+      "purchaseCurrency": "Purchase currency",
+      "addQuantity": "Add quantity",
+      "updateQuantity": "Update quantity",
+      "addedToast": "Added {{name}} to {{account}}.",
+      "updatedToast": "Updated {{name}} quantity in {{account}}."
+    },
+    "cash": {
+      "bankLabel": "Bank",
+      "bankNameRequired": "Bank name is required.",
+      "accountName": "Account name",
+      "currency": "Currency",
+      "balance": "Balance",
+      "balanceRequired": "Balance is required.",
+      "balanceInvalid": "Enter a valid balance.",
+      "save": "Save account",
+      "addedToast": "Added {{name}}."
+    },
+    "other": {
+      "nameField": "Asset name",
+      "nameRequired": "Asset name is required.",
+      "valueField": "Current value",
+      "valueRequired": "Current value is required.",
+      "valueInvalid": "Enter a valid value.",
+      "currency": "Currency",
+      "averagePrice": "Average unit purchase price (optional)",
+      "purchaseCurrency": "Purchase currency",
+      "submit": "Add asset",
+      "addedToast": "Added {{name}}."
+    }
+  }
+}

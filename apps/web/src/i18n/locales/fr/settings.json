@@ -1,0 +1,32 @@
+{
+  "settings": {
+    "title": "Réglages",
+    "language": {
+      "label": "Langue",
+      "helper": "La langue de l'interface. Les montants et les dates la suivent.",
+      "en": "English",
+      "fr": "Français",
+      "saved": "Langue enregistrée."
+    },
+    "reportingCurrency": {
+      "label": "Devise de référence",
+      "helper": "Les totaux, l'historique et la répartition du portefeuille utilisent cette devise.",
+      "saved": "Devise de référence enregistrée."
+    },
+    "theme": {
+      "label": "Thème",
+      "helper": "Système suit cet appareil et constitue le réglage par défaut.",
+      "system": "Système",
+      "light": "Clair",
+      "dark": "Sombre"
+    },
+    "custodiansNav": {
+      "label": "Établissements",
+      "description": "Gérez vos banques, courtiers et services liés."
+    },
+    "securityNav": {
+      "label": "Sécurité",
+      "description": "Mot de passe du coffre, verrouillage et réinitialisation d'Satella."
+    }
+  }
+}

@@ -1,11 +1,17 @@
 import { Button, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import { MIN_VAULT_PASSWORD_LENGTH } from "@satella-app/engine/api";
+
 import { engineApi } from "../api";
 import { FormError } from "../components";
+import { appLanguage, type AppLanguage } from "../app-language";
+import { changeAppLanguage } from "../i18n";
 import { vaultStatusQuery } from "../queries";
+import { useSaveReportingCurrency, useSettings } from "../portfolio";
+import { SelectField } from "../select-field";
 import { passwordGuidance, SecretField } from "./secret-field";
 import { PinField } from "./pin-field";
 import { GateLayout } from "./gate-layout";
@@ -13,12 +19,10 @@ import { RestoreVaultControl } from "./restore-vault";
 import { useAddAssets } from "./add-assets";
 import { clearFirstAssetPending, markFirstAssetPending } from "./vault-gate";
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The request failed.";
-
-type Step = "welcome" | "password" | "pin" | "pin-confirm" | "first-asset";
+type Step = "welcome" | "password" | "pin" | "pin-confirm" | "preferences" | "first-asset";
 
 export function OnboardingScreen() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const addAssets = useAddAssets();
   const [step, setStep] = useState<Step>("welcome");
@@ -32,27 +36,21 @@ export function OnboardingScreen() {
     onSuccess: async (status) => {
       markFirstAssetPending();
       queryClient.setQueryData(vaultStatusQuery.queryKey, status);
-      setStep("first-asset");
+      setStep("preferences");
     },
-    onError: (cause) => setError(errorMessage(cause)),
+    onError: (cause) =>
+      setError(cause instanceof Error ? cause.message : t("errors.requestFailed")),
   });
 
   if (step === "welcome") {
     return (
-      <GateLayout title="Welcome to Satella">
+      <GateLayout title={t("onboarding.welcome.title")}>
         <Stack gap="4">
-          <Text as="p">
-            Satella keeps your portfolio, custodians, and credentials in one local Vault on this
-            computer. Financial data stays local except when Satella talks directly to Connectors
-            and market-data sources you configure.
-          </Text>
-          <Text as="p">
-            Encryption protects copied files while the Vault is closed. It does not protect an open
-            Vault from malware, administrators, or memory inspection.
-          </Text>
+          <Text as="p">{t("onboarding.welcome.intro")}</Text>
+          <Text as="p">{t("onboarding.welcome.encryptionNote")}</Text>
         </Stack>
         <Button colorPalette="blue" onClick={() => setStep("password")}>
-          Create a new Vault
+          {t("onboarding.welcome.createNewVault")}
         </Button>
         <RestoreVaultControl requiresConfirmation={false} />
       </GateLayout>
@@ -62,16 +60,19 @@ export function OnboardingScreen() {
   if (step === "password") {
     const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
     return (
-      <GateLayout title="Create a Vault password" description={passwordGuidance(password)}>
+      <GateLayout
+        title={t("onboarding.password.title")}
+        description={passwordGuidance(password, t)}
+      >
         <form
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
             if (password.length < MIN_VAULT_PASSWORD_LENGTH) {
-              setError(`Vault password must be at least ${MIN_VAULT_PASSWORD_LENGTH} characters.`);
+              setError(t("onboarding.password.minLengthError", { min: MIN_VAULT_PASSWORD_LENGTH }));
               return;
             }
             if (password !== confirmPassword) {
-              setError("Vault password and confirmation do not match.");
+              setError(t("onboarding.password.mismatchError"));
               return;
             }
             setError(null);
@@ -81,24 +82,29 @@ export function OnboardingScreen() {
           <Stack gap="4">
             <FormError message={error} />
             <SecretField
-              label="Vault password"
+              label={t("onboarding.password.vaultPassword")}
               value={password}
               onChange={setPassword}
               htmlName="vault-password"
               autoComplete="new-password"
             />
             <SecretField
-              label="Confirm Vault password"
+              label={t("onboarding.password.confirmVaultPassword")}
               value={confirmPassword}
               onChange={setConfirmPassword}
               htmlName="vault-password-confirm"
               autoComplete="new-password"
               {...(mismatch
-                ? { status: { type: "error" as const, message: "Passwords do not match." } }
+                ? {
+                    status: {
+                      type: "error" as const,
+                      message: t("onboarding.password.fieldMismatchError"),
+                    },
+                  }
                 : {})}
             />
             <Button type="submit" colorPalette="blue">
-              Continue
+              {t("onboarding.password.continue")}
             </Button>
           </Stack>
         </form>
@@ -108,15 +114,12 @@ export function OnboardingScreen() {
 
   if (step === "pin") {
     return (
-      <GateLayout
-        title="Create a Screen-lock PIN"
-        description="Lock hides the interface behind this four-digit PIN while the Vault stays open. Background Refresh may continue. Lock is not Vault encryption."
-      >
+      <GateLayout title={t("onboarding.pin.title")} description={t("onboarding.pin.description")}>
         <form
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
             if (!/^\d{4}$/.test(pin)) {
-              setError("Screen-lock PIN must be exactly four digits.");
+              setError(t("onboarding.pin.formatError"));
               return;
             }
             setError(null);
@@ -126,14 +129,14 @@ export function OnboardingScreen() {
           <Stack gap="4">
             <FormError message={error} />
             <PinField
-              label="Screen-lock PIN"
+              label={t("onboarding.pin.screenLockPin")}
               value={pin}
               onChange={setPin}
               htmlName="screen-lock-pin"
               autoFocus
             />
             <Button type="submit" colorPalette="blue">
-              Continue
+              {t("onboarding.password.continue")}
             </Button>
           </Stack>
         </form>
@@ -143,12 +146,15 @@ export function OnboardingScreen() {
 
   if (step === "pin-confirm") {
     return (
-      <GateLayout title="Confirm your Screen-lock PIN" description="Re-enter the same four digits.">
+      <GateLayout
+        title={t("onboarding.pinConfirm.title")}
+        description={t("onboarding.pinConfirm.description")}
+      >
         <form
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
             if (pin !== confirmPin) {
-              setError("Screen-lock PINs do not match. Start again.");
+              setError(t("onboarding.pinConfirm.mismatchError"));
               setConfirmPin("");
               setStep("pin");
               return;
@@ -160,7 +166,7 @@ export function OnboardingScreen() {
           <Stack gap="4">
             <FormError message={error} />
             <PinField
-              label="Confirm Screen-lock PIN"
+              label={t("onboarding.pin.confirmScreenLockPin")}
               value={confirmPin}
               onChange={setConfirmPin}
               htmlName="screen-lock-pin-confirm"
@@ -172,7 +178,7 @@ export function OnboardingScreen() {
               disabled={create.isPending}
               loading={create.isPending}
             >
-              Create Vault
+              {t("onboarding.pin.createVault")}
             </Button>
           </Stack>
         </form>
@@ -180,10 +186,14 @@ export function OnboardingScreen() {
     );
   }
 
+  if (step === "preferences") {
+    return <PreferencesStep onDone={() => setStep("first-asset")} />;
+  }
+
   return (
     <GateLayout
-      title="Add your first asset"
-      description="You can start with the same Add assets flow you will use later, or skip."
+      title={t("onboarding.firstAsset.title")}
+      description={t("onboarding.firstAsset.description")}
     >
       <Stack direction="row" gap="3">
         <Button
@@ -192,7 +202,7 @@ export function OnboardingScreen() {
             addAssets.open();
           }}
         >
-          Add your first asset
+          {t("onboarding.firstAsset.addFirstAsset")}
         </Button>
         <Button
           variant="outline"
@@ -201,9 +211,147 @@ export function OnboardingScreen() {
             void queryClient.invalidateQueries({ queryKey: vaultStatusQuery.queryKey });
           }}
         >
-          Go to dashboard
+          {t("onboarding.firstAsset.goToDashboard")}
         </Button>
       </Stack>
+    </GateLayout>
+  );
+}
+
+const REGION_CURRENCY = new Map(
+  Object.entries({
+    AU: "AUD",
+    CA: "CAD",
+    CH: "CHF",
+    CN: "CNH",
+    GB: "GBP",
+    HK: "HKD",
+    JP: "JPY",
+    NZ: "NZD",
+    US: "USD",
+  }),
+);
+
+const EUROZONE_REGIONS = new Set([
+  "AT",
+  "BE",
+  "HR",
+  "CY",
+  "EE",
+  "FI",
+  "FR",
+  "DE",
+  "GR",
+  "IE",
+  "IT",
+  "LV",
+  "LT",
+  "LU",
+  "MT",
+  "NL",
+  "PT",
+  "SK",
+  "SI",
+  "ES",
+]);
+
+const navigatorRegion = (): string | undefined => {
+  try {
+    return new Intl.Locale(navigator.language).region?.toUpperCase();
+  } catch {
+    return undefined;
+  }
+};
+
+const suggestedCurrencyIso = (availableIso: readonly string[]): string | null => {
+  if (availableIso.length === 0) return null;
+  const region = navigatorRegion();
+  if (region !== undefined) {
+    const mapped = EUROZONE_REGIONS.has(region) ? "EUR" : REGION_CURRENCY.get(region);
+    const match = mapped !== undefined ? availableIso.find((iso) => iso === mapped) : undefined;
+    if (match !== undefined) return match;
+  }
+  return availableIso.find((iso) => iso === "EUR") ?? availableIso[0]!;
+};
+
+function PreferencesStep({ onDone }: { readonly onDone: () => void }) {
+  const { t } = useTranslation();
+  const query = useSettings();
+  const save = useSaveReportingCurrency();
+  const [suggestedLanguage] = useState<AppLanguage>(appLanguage());
+  const [language, setLanguage] = useState<AppLanguage>(appLanguage());
+  const [currencyAssetId, setCurrencyAssetId] = useState<string | null>(null);
+  const currencies = query.data?.currencies ?? [];
+  const suggestedCurrency =
+    suggestedCurrencyIso(currencies.map((currency) => currency.assetId)) ??
+    query.data?.reportingCurrency.assetId;
+  const selectedCurrency = currencyAssetId ?? suggestedCurrency ?? "";
+  const errorMessage = (cause: unknown) =>
+    cause instanceof Error ? cause.message : t("errors.requestFailed");
+  const persist = (next: { readonly language: AppLanguage; readonly currency: string }) => {
+    changeAppLanguage(next.language);
+    save.mutate(
+      { reportingCurrencyAssetId: next.currency, language: next.language },
+      { onSuccess: onDone },
+    );
+  };
+  const submit = () => persist({ language, currency: selectedCurrency });
+  const keepSuggested = () => {
+    setLanguage(suggestedLanguage);
+    persist({
+      language: suggestedLanguage,
+      currency: suggestedCurrency ?? "",
+    });
+  };
+  return (
+    <GateLayout
+      title={t("onboarding.preferences.title")}
+      description={t("onboarding.preferences.description")}
+    >
+      {query.isError ? (
+        <>
+          <FormError message={errorMessage(query.error)} />
+          <Button colorPalette="blue" variant="outline" onClick={onDone}>
+            {t("onboarding.preferences.keepSuggested")}
+          </Button>
+        </>
+      ) : (
+        <Stack gap="4">
+          <SelectField
+            label={t("onboarding.preferences.language")}
+            helperText={t("onboarding.preferences.languageHelper")}
+            options={[
+              { value: "en", label: t("settings.language.en") },
+              { value: "fr", label: t("settings.language.fr") },
+            ]}
+            value={language}
+            onChange={(value) => {
+              const next: AppLanguage = value === "fr" ? "fr" : "en";
+              setLanguage(next);
+              changeAppLanguage(next);
+            }}
+          />
+          <SelectField
+            label={t("onboarding.preferences.reportingCurrency")}
+            helperText={t("onboarding.preferences.reportingCurrencyHelper")}
+            options={currencies.map((currency) => ({
+              value: currency.assetId,
+              label: `${currency.name} (${currency.iso})`,
+            }))}
+            value={selectedCurrency}
+            onChange={setCurrencyAssetId}
+          />
+          <Stack direction="row" gap="3">
+            <Button colorPalette="blue" disabled={save.isPending} onClick={submit}>
+              {t("onboarding.preferences.saveAndContinue")}
+            </Button>
+            <Button variant="outline" disabled={save.isPending} onClick={keepSuggested}>
+              {t("onboarding.preferences.keepSuggested")}
+            </Button>
+          </Stack>
+          <FormError message={save.error === null ? null : errorMessage(save.error)} />
+        </Stack>
+      )}
     </GateLayout>
   );
 }

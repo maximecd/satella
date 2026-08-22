@@ -5,12 +5,15 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { engineApi } from "../api";
 import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
 import { chooseVaultImportSource } from "../runtime";
+import { changeAppLanguage, i18n } from "../i18n";
 
 vi.mock("../api", async () => import("../engine-api.test-utils"));
 vi.mock("../runtime", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../runtime")>()),
   chooseVaultImportSource: vi.fn(),
 }));
+
+const L = (en: string, fr: string) => (i18n.language === "fr" ? fr : en);
 
 const typePin = async (user: UserEvent, label: string, pin: string) => {
   for (const [index, digit] of [...pin].entries()) {
@@ -22,10 +25,10 @@ describe("onboarding and Vault start", () => {
   beforeEach(() => {
     resetFinanceMocks();
     window.sessionStorage.clear();
+    changeAppLanguage("en");
   });
 
-  it("walks through welcome, Vault password, PIN, and first-asset invitation", async () => {
-    const user = userEvent.setup();
+  const createVault = async (user: ReturnType<typeof userEvent.setup>) => {
     vi.mocked(engineApi.vaultStatus).mockResolvedValue({ state: "absent" });
     vi.mocked(engineApi.initializeVault).mockImplementation(async () => {
       const status = {
@@ -39,25 +42,46 @@ describe("onboarding and Vault start", () => {
       return status;
     });
     renderRoute("/");
-    expect(await screen.findByRole("heading", { name: "Welcome to Satella" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Create a new Vault" }));
-    const password = await screen.findByLabelText("Vault password");
-    await user.click(screen.getAllByRole("button", { name: "Show" })[0]!);
+    expect(
+      await screen.findByRole("heading", {
+        name: L("Welcome to Satella", "Bienvenue dans Satella"),
+      }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: L("Create a new Vault", "Créer un nouveau coffre") }),
+    );
+    const password = await screen.findByLabelText(L("Vault password", "Mot de passe du coffre"));
     await user.type(password, "correct horse");
-    await user.type(screen.getByLabelText("Confirm Vault password"), "correct horse");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    await screen.findByLabelText("Screen-lock PIN digit 1");
-    await typePin(user, "Screen-lock PIN", "2468");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    await screen.findByLabelText("Confirm Screen-lock PIN digit 1");
-    await typePin(user, "Confirm Screen-lock PIN", "2468");
-    await user.click(screen.getByRole("button", { name: "Create Vault" }));
+    await user.type(
+      screen.getByLabelText(L("Confirm Vault password", "Confirmer le mot de passe du coffre")),
+      "correct horse",
+    );
+    await user.click(screen.getByRole("button", { name: L("Continue", "Continuer") }));
+    await screen.findByLabelText(L("Screen-lock PIN", "Code de verrouillage") + " digit 1");
+    await typePin(user, L("Screen-lock PIN", "Code de verrouillage"), "2468");
+    await user.click(screen.getByRole("button", { name: L("Continue", "Continuer") }));
+    await screen.findByLabelText(
+      L("Confirm Screen-lock PIN", "Confirmer le code de verrouillage") + " digit 1",
+    );
+    await typePin(user, L("Confirm Screen-lock PIN", "Confirmer le code de verrouillage"), "2468");
+    await user.click(screen.getByRole("button", { name: L("Create Vault", "Créer le coffre") }));
     await waitFor(() =>
       expect(engineApi.initializeVault).toHaveBeenCalledWith({
         password: "correct horse",
         pin: "2468",
       }),
     );
+  };
+
+  it("walks through welcome, Vault password, PIN, preferences, and first-asset invitation", async () => {
+    const user = userEvent.setup();
+    await createVault(user);
+    expect(
+      await screen.findByRole("heading", { name: "Language and currency" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Language")).toBeInTheDocument();
+    expect(screen.getByLabelText("Reporting currency")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep suggested" }));
     expect(
       await screen.findByRole("heading", { name: "Add your first asset" }),
     ).toBeInTheDocument();
@@ -65,6 +89,35 @@ describe("onboarding and Vault start", () => {
     expect(screen.getByRole("button", { name: "Go to dashboard" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Go to dashboard" }));
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+  });
+
+  it("applies the chosen App language and Reporting currency to the rest of the app", async () => {
+    const user = userEvent.setup();
+    await createVault(user);
+    expect(
+      await screen.findByRole("heading", { name: "Language and currency" }),
+    ).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Language"), "fr");
+    await user.selectOptions(screen.getByLabelText("Devise de référence"), "fiat:EUR");
+    await user.click(screen.getByRole("button", { name: "Enregistrer et continuer" }));
+    expect(
+      await screen.findByRole("heading", { name: "Ajoutez votre premier actif" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Aller au tableau de bord" }));
+    await user.click(await screen.findByRole("link", { name: /Settings|Réglages/ }));
+    expect(await screen.findByLabelText("Langue")).toHaveDisplayValue(/Français/);
+    expect(screen.getByLabelText("Devise de référence")).toHaveDisplayValue(/€|EUR/);
+  });
+
+  it("keeps the detected App language when Vault settings load on the preferences step", async () => {
+    const user = userEvent.setup();
+    changeAppLanguage("fr");
+    await createVault(user);
+    expect(await screen.findByRole("heading", { name: "Langue et devise" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Devise de référence")).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: "Langue et devise" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Langue")).toHaveDisplayValue(/Français/);
+    expect(document.documentElement.lang).toBe("fr");
   });
 
   it("shows a generic unlock failure on the Vault password screen", async () => {

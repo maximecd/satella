@@ -1,0 +1,16 @@
+{
+  "assets": {
+    "breadcrumbs": {
+      "dashboard": "Tableau de bord"
+    },
+    "editTitle": "Modifier {{name}}",
+    "notEditable": "Cet actif est géré automatiquement et ne peut pas être modifié.",
+    "form": {
+      "name": "Nom",
+      "symbol": "Symbole (facultatif)",
+      "price": "Cours manuel (facultatif)",
+      "priceCurrency": "Devise du cours",
+      "save": "Enregistrer l'actif"
+    }
+  }
+}

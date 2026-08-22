@@ -1,0 +1,32 @@
+{
+  "settings": {
+    "title": "Settings",
+    "language": {
+      "label": "Language",
+      "helper": "The interface language. Amounts and dates follow it.",
+      "en": "English",
+      "fr": "Français",
+      "saved": "Language saved."
+    },
+    "reportingCurrency": {
+      "label": "Reporting currency",
+      "helper": "Portfolio totals, history, and allocation use this currency.",
+      "saved": "Reporting currency saved."
+    },
+    "theme": {
+      "label": "Theme",
+      "helper": "System follows this device and is the default.",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "custodiansNav": {
+      "label": "Custodians",
+      "description": "Manage banks, brokers, and linked services."
+    },
+    "securityNav": {
+      "label": "Security",
+      "description": "Vault password, Screen lock, and Reset Satella."
+    }
+  }
+}

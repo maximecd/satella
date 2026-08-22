@@ -1,0 +1,80 @@
+{
+  "security": {
+    "loading": "Loading…",
+    "passwordGuidance": {
+      "empty": "Choose at least {{min}} characters. A password manager can create a long secret. Satella cannot recover a forgotten Vault password.",
+      "tooShort": "Vault password must be at least {{min}} characters. Satella cannot recover it.",
+      "considerLonger": "Consider a longer password or a password manager. Forgotten Vault passwords cannot be recovered.",
+      "strongLength": "Strong length. Satella cannot recover this Vault password."
+    },
+    "unlock": {
+      "title": "Unlock your Vault",
+      "intro": "Enter your Vault password. Satella cannot recover it. An incorrect password is indistinguishable from damaged Vault data.",
+      "vaultPasswordLabel": "Vault password",
+      "submit": "Unlock Vault",
+      "requestFailed": "The Vault could not be unlocked."
+    },
+    "screenLock": {
+      "title": "Satella is locked",
+      "intro": "Screen lock hides the interface. Background Refresh may continue. This is not the same as closing the Vault.",
+      "vaultPasswordLabel": "Vault password",
+      "unlockWithPassword": "Unlock with Vault password",
+      "pinLabel": "Screen-lock PIN",
+      "unlock": "Unlock",
+      "usePasswordInstead": "Use Vault password instead",
+      "requestFailed": "The Screen lock could not be dismissed.",
+      "pinDisabledNote": "Too many incorrect PIN attempts. Use your Vault password to unlock Satella again."
+    },
+    "reset": {
+      "title": "Reset Satella",
+      "warning": "This permanently deletes the Vault, portfolio, custodian credentials, encrypted backups, and Vault metadata. You will return to first-run onboarding. This cannot be undone.",
+      "confirmLabel": "Type \"Reset Satella\" to confirm",
+      "submit": "Reset Satella"
+    },
+    "setupInstructions": "Setup instructions",
+    "settings": {
+      "title": "Security",
+      "passwordSection": {
+        "heading": "Vault password",
+        "description": "Changing the Vault password rewraps the encryption key. Encrypted backups stay usable.",
+        "currentLabel": "Current Vault password",
+        "newLabel": "New Vault password",
+        "confirmLabel": "Confirm new Vault password",
+        "submit": "Change Vault password",
+        "mismatchError": "Vault password and confirmation do not match.",
+        "changedToast": "Vault password changed."
+      },
+      "pinSection": {
+        "heading": "Screen-lock PIN",
+        "vaultPasswordLabel": "Vault password",
+        "newPinLabel": "New Screen-lock PIN",
+        "confirmPinLabel": "Confirm Screen-lock PIN",
+        "mismatchError": "Screen-lock PIN and confirmation do not match.",
+        "pinsDoNotMatchError": "PINs do not match.",
+        "submit": "Change Screen-lock PIN",
+        "changedToast": "Screen-lock PIN changed."
+      },
+      "timeoutSection": {
+        "label": "Screen-lock timeout",
+        "helperText": "Lock hides the interface after inactivity. There is no Never option.",
+        "minutes_one": "{{count}} minute",
+        "minutes_other": "{{count}} minutes",
+        "savedToast": "Screen-lock timeout saved."
+      },
+      "lockNow": "Lock now",
+      "privacyNote": "Screen lock is interface privacy, not Vault encryption. Encryption protects copied files while the Vault is closed.",
+      "licenseNote": "SQLCipher Community Edition is included under the BSD-3-Clause license. Notices ship with this application."
+    },
+    "restore": {
+      "title": "Restore Vault",
+      "description": "Restoring replaces this device's Vault with the contents of the selected export after validation succeeds.",
+      "passwordLabel": "Exported Vault's password",
+      "confirmLabel": "Replace my current Vault and its data",
+      "submit": "Restore Vault",
+      "cancel": "Cancel",
+      "successToast": "Vault restored. Unlock with the restored Vault's password.",
+      "incorrectPassword": "The Vault password is incorrect.",
+      "requestFailed": "The Vault could not be restored."
+    }
+  }
+}

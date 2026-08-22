@@ -81,6 +81,7 @@ const defaultSettings: Settings = {
     { assetId: "fiat:EUR", iso: "EUR", name: "Euro" },
     { assetId: "fiat:USD", iso: "USD", name: "US dollar" },
   ],
+  language: "en",
 };
 
 const defaultCapabilities: ConnectorCapabilities = { connectors: [] };
@@ -495,15 +496,20 @@ export const createMemoryPortfolioEngine = (
     updateSettings: async (input: UpdateSettingsInput, signal) => {
       throwIfAborted(signal);
       rejectIfFailed("updateSettings");
-      const currency = state.settings.currencies.find(
-        (option) => option.assetId === input.reportingCurrencyAssetId,
-      );
-      if (currency === undefined) {
-        throw new PortfolioFailure("validation", "Unknown reporting currency");
+      let reportingCurrency = state.settings.reportingCurrency;
+      if (input.reportingCurrencyAssetId !== undefined) {
+        const currency = state.settings.currencies.find(
+          (option) => option.assetId === input.reportingCurrencyAssetId,
+        );
+        if (currency === undefined) {
+          throw new PortfolioFailure("validation", "Unknown reporting currency");
+        }
+        reportingCurrency = { assetId: currency.assetId, iso: currency.iso };
       }
       return applySettings({
         ...state.settings,
-        reportingCurrency: { assetId: currency.assetId, iso: currency.iso },
+        reportingCurrency,
+        language: input.language ?? state.settings.language,
       });
     },
     listAssets: async (signal) => {

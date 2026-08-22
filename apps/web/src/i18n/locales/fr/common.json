@@ -1,0 +1,22 @@
+{
+  "app": {
+    "name": "Satella",
+    "loading": "Chargement…"
+  },
+  "errors": {
+    "requestFailed": "La requête a échoué.",
+    "pageError": "Une erreur est survenue",
+    "pageErrorFallback": "Le moteur n'a pas pu traiter cette requête."
+  },
+  "form": {
+    "couldNotSave": "Impossible d'enregistrer"
+  },
+  "delete": {
+    "button": "Supprimer {{entity}}",
+    "title": "Supprimer {{entity}} ?",
+    "description": "Cette suppression est définitive et efface également l'historique associé. Cette action ne peut pas être annulée.",
+    "cancel": "Annuler",
+    "confirm": "Supprimer définitivement"
+  },
+  "breadcrumb": "Fil d'Ariane"
+}

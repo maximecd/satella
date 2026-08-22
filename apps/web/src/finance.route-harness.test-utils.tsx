@@ -12,6 +12,8 @@ import { vi } from "vite-plus/test";
 
 import { engineApi } from "./api";
 import { Provider } from "./components/ui/provider";
+import { AppLanguageSync } from "./i18n/AppLanguageSync";
+import "./i18n/index.js";
 
 import {
   createMemoryPortfolioEngine,
@@ -99,6 +101,7 @@ export const settings: Settings = {
     { assetId: "fiat:EUR", iso: "EUR", name: "Euro" },
     { assetId: "fiat:USD", iso: "USD", name: "US dollar" },
   ],
+  language: "en",
 };
 
 export const populatedDashboardFor = (now = new Date()): Dashboard => {
@@ -365,6 +368,7 @@ export const renderRoute = (path: string) => {
     <Provider>
       <QueryClientProvider client={queryClient}>
         <PortfolioEngineProvider engine={engine}>
+          <AppLanguageSync />
           <RouterProvider router={router} />
         </PortfolioEngineProvider>
       </QueryClientProvider>

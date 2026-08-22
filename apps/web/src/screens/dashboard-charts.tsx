@@ -11,6 +11,7 @@ import {
   type RefObject,
 } from "react";
 import * as Schema from "effect/Schema";
+import { useTranslation } from "react-i18next";
 import {
   Area,
   AreaChart,
@@ -23,12 +24,16 @@ import {
   type TooltipContentProps,
 } from "recharts";
 import { canonicalDecimal, formatAmount, formatWholeAmount } from "../financial-number";
+import { appLanguage } from "../app-language";
+import type { TFunction } from "i18next";
 
-const compactAmount = new Intl.NumberFormat(undefined, {
-  maximumFractionDigits: 2,
-});
-const chartDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-const tooltipDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+const numberFormatter = (locale: string, options: Intl.NumberFormatOptions = {}) =>
+  new Intl.NumberFormat(locale, options);
+
+const compactAmount = () => numberFormatter(appLanguage(), { maximumFractionDigits: 2 });
+const chartDateFormatter = () =>
+  new Intl.DateTimeFormat(appLanguage(), { month: "short", day: "numeric" });
+const tooltipDateFormatter = () => new Intl.DateTimeFormat(appLanguage(), { dateStyle: "medium" });
 
 const CATEGORY_TOKENS = [
   "blue.subtle",
@@ -66,7 +71,7 @@ const yAxisWidthFor = (points: ReadonlyArray<PortfolioHistoryPoint>) => {
     points.length === 0
       ? 0
       : Math.max(...points.map((point) => Math.abs(Number(canonicalDecimal(point.total)))));
-  const tick = compactAmount.format(extreme === 0 ? 0 : Math.ceil(extreme * 1.15));
+  const tick = compactAmount().format(extreme === 0 ? 0 : Math.ceil(extreme * 1.15));
   return Math.min(
     Y_AXIS_MAX_WIDTH,
     Math.max(Y_AXIS_MIN_WIDTH, tick.length * Y_AXIS_CHAR_WIDTH + Y_AXIS_GUTTER),
@@ -85,25 +90,28 @@ const tooltipWrapperStyle = {
 
 const ChartRootContext = createContext<RefObject<HTMLElement | null>>({ current: null });
 
-const cellCopy = (cell: {
-  readonly name: string;
-  readonly symbol: string | null;
-  readonly value: number;
-  readonly percent: number;
-  readonly currencyIso: string;
-}) => {
+const cellCopy = (
+  cell: {
+    readonly name: string;
+    readonly symbol: string | null;
+    readonly value: number;
+    readonly percent: number;
+    readonly currencyIso: string;
+  },
+  t: TFunction,
+) => {
   const amount = formatAmount(cell.value, cell.currencyIso);
   const compact = formatWholeAmount(cell.value, cell.currencyIso);
   const percent = `${Math.round(cell.percent)}%`;
   const title = cell.symbol === null ? cell.name : `${cell.name} (${cell.symbol})`;
-  const detail = `${cell.name} • ${percent}`;
+  const detail = t("dashboard.charts.cellDetail", { name: cell.name, percent });
   return {
     amount,
     compact,
     percent,
     title,
     detail,
-    label: `${title}, ${amount}, ${percent}`,
+    label: t("dashboard.charts.cellLabel", { title, amount, percent }),
   };
 };
 
@@ -199,13 +207,14 @@ function HistoryTooltipContent({ active, payload, coordinate }: TooltipContentPr
   return (
     <ChartTooltipBubble
       amount={formatAmount(point.total, currencyIso)}
-      detail={tooltipDate.format(Date.parse(point.capturedAt))}
+      detail={tooltipDateFormatter().format(Date.parse(point.capturedAt))}
       coordinate={coordinate}
     />
   );
 }
 
 function AllocationTooltipContent({ active, payload, coordinate }: TooltipContentProps) {
+  const { t } = useTranslation();
   if (!active) return null;
   // SAFETY: The treemap data below supplies numeric value and percent fields to Recharts.
   const cell = payload[0]?.payload as AllocationTooltipCell | undefined;
@@ -220,13 +229,16 @@ function AllocationTooltipContent({ active, payload, coordinate }: TooltipConten
   ) {
     return null;
   }
-  const copy = cellCopy({
-    name: cell.name ?? "",
-    symbol: cell.symbol ?? null,
-    value,
-    percent,
-    currencyIso: cell.currencyIso ?? "",
-  });
+  const copy = cellCopy(
+    {
+      name: cell.name ?? "",
+      symbol: cell.symbol ?? null,
+      value,
+      percent,
+      currencyIso: cell.currencyIso ?? "",
+    },
+    t,
+  );
   return <ChartTooltipBubble amount={copy.amount} detail={copy.detail} coordinate={coordinate} />;
 }
 
@@ -249,13 +261,14 @@ export function PortfolioValueChart({
         ...point,
         total: Number(canonicalDecimal(point.total)),
         currencyIso,
-        date: chartDate.format(Date.parse(point.capturedAt)),
+        date: chartDateFormatter().format(Date.parse(point.capturedAt)),
       })),
     [currencyIso, points],
   );
   const yAxisWidth = useMemo(() => yAxisWidthFor(points), [points]);
+  const { t } = useTranslation();
   return (
-    <ChartFrame height={280} aria-label="Portfolio value history" role="img">
+    <ChartFrame height={280} aria-label={t("dashboard.charts.historyAriaLabel")} role="img">
       <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
         <AreaChart data={data} accessibilityLayer margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <XAxis dataKey="date" stroke={fgMuted ?? "currentColor"} />
@@ -263,7 +276,7 @@ export function PortfolioValueChart({
             stroke={fgMuted ?? "currentColor"}
             width={yAxisWidth}
             tickMargin={4}
-            tickFormatter={(value: number) => compactAmount.format(value)}
+            tickFormatter={(value: number) => compactAmount().format(value)}
           />
           <ChartTooltip
             content={HistoryTooltipContent}
@@ -301,9 +314,10 @@ const isAllocationTreemapNode = (node: RechartsTreemapNode): node is AllocationT
   Schema.is(Schema.String)(node["currencyIso"]);
 
 function AllocationCellRenderer(node: RechartsTreemapNode) {
+  const { t } = useTranslation();
   if (!isAllocationTreemapNode(node)) return null;
   if (node.width <= 0 || node.height <= 0 || !Number.isFinite(node.percent)) return null;
-  const copy = cellCopy(node);
+  const copy = cellCopy(node, t);
   const showLabels = node.width >= MIN_LABEL_WIDTH && node.height >= MIN_LABEL_HEIGHT;
   return (
     <g role="img" tabIndex={0} aria-label={copy.label}>
@@ -365,6 +379,7 @@ export function AllocationTreemap({
   readonly currencyIso: string;
 }) {
   const [labelColor, ...fills] = useToken("colors", ["fg", ...CATEGORY_TOKENS]);
+  const { t } = useTranslation();
   const data = useMemo(
     () =>
       cells.map((cell, index) => ({
@@ -379,7 +394,7 @@ export function AllocationTreemap({
     [cells, currencyIso, fills, labelColor],
   );
   return (
-    <ChartFrame height={280} aria-label="Allocation" role="img">
+    <ChartFrame height={280} aria-label={t("dashboard.charts.allocationAriaLabel")} role="img">
       <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
         <Treemap
           width={400}

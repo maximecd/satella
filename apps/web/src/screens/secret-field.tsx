@@ -1,4 +1,5 @@
 import { MIN_VAULT_PASSWORD_LENGTH } from "@satella-app/engine/api";
+import type { TFunction } from "i18next";
 
 import { Field } from "../components/ui/field";
 import { PasswordInput } from "../components/ui/password-input";
@@ -38,15 +39,15 @@ export function SecretField({
   );
 }
 
-export const passwordGuidance = (password: string) => {
+export const passwordGuidance = (password: string, t: TFunction) => {
   if (password.length === 0) {
-    return `Choose at least ${MIN_VAULT_PASSWORD_LENGTH} characters. A password manager can create a long secret. Satella cannot recover a forgotten Vault password.`;
+    return t("security.passwordGuidance.empty", { min: MIN_VAULT_PASSWORD_LENGTH });
   }
   if (password.length < MIN_VAULT_PASSWORD_LENGTH) {
-    return `Vault password must be at least ${MIN_VAULT_PASSWORD_LENGTH} characters. Satella cannot recover it.`;
+    return t("security.passwordGuidance.tooShort", { min: MIN_VAULT_PASSWORD_LENGTH });
   }
   if (password.length < 16) {
-    return "Consider a longer password or a password manager. Forgotten Vault passwords cannot be recovered.";
+    return t("security.passwordGuidance.considerLonger");
   }
-  return "Strong length. Satella cannot recover this Vault password.";
+  return t("security.passwordGuidance.strongLength");
 };

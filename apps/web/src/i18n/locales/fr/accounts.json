@@ -1,0 +1,37 @@
+{
+  "accounts": {
+    "otherHoldings": "Autres positions",
+    "breadcrumbs": {
+      "dashboard": "Tableau de bord",
+      "settings": "Réglages",
+      "custodians": "Établissements",
+      "edit": "Modifier"
+    },
+    "valuationCurrencySubtitle": "Devise de valorisation {{iso}}",
+    "valuationCurrencyLabel": "Devise de valorisation",
+    "editAccount": "Modifier le compte",
+    "editTitle": "Modifier {{name}}",
+    "refreshFailed": "Échec de l'actualisation",
+    "incompleteTotalTitle": "Le total est incomplet",
+    "incompleteTotalDescription": "Les positions sans cours sont exclues de ce total.",
+    "valuedTotal": "Total valorisé",
+    "unrealizedPnl": "P&L latent",
+    "positionsHeading": "Positions",
+    "zeroPositions": "Positions à quantité nulle ({{total}})",
+    "unpricedPositions": "Positions sans cours ({{total}})",
+    "managedAccountError": "Ce compte est géré par un établissement synchronisé et ne peut pas être modifié.",
+    "accountNameLabel": "Nom du compte",
+    "saveChanges": "Enregistrer les modifications",
+    "table": {
+      "noPositions": "Aucune position",
+      "asset": "Actif",
+      "quantity": "Quantité",
+      "marketPrice": "Cours du marché",
+      "value": "Valeur ({{iso}})",
+      "unrealizedPnl": "P&L latent",
+      "unpriced": "Sans cours",
+      "edit": "Modifier"
+    },
+    "convertedAt": "Converti à {{from}} = {{to}}"
+  }
+}

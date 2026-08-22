@@ -3,6 +3,7 @@ import type { Asset } from "@satella-app/engine/api";
 import { DecimalFromNonEmptyString } from "@satella-app/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   DeleteButton,
@@ -24,8 +25,8 @@ const EditAssetForm = Schema.Struct({
   currencyAssetId: Schema.String,
 });
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The request failed.";
+const errorMessage = (cause: unknown, fallback: string) =>
+  cause instanceof Error ? cause.message : fallback;
 
 function LoadedAssetScreen({
   asset,
@@ -34,6 +35,8 @@ function LoadedAssetScreen({
   readonly asset: Asset;
   readonly allAssets: ReadonlyArray<Asset>;
 }) {
+  const { t } = useTranslation();
+  const requestFailed = t("errors.requestFailed");
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const save = useMaintainAsset(asset.id);
@@ -63,19 +66,18 @@ function LoadedAssetScreen({
         if (manualPrice !== undefined) Object.assign(input, { manualPrice });
         await save.mutateAsync(input);
       } catch (cause) {
-        setError(errorMessage(cause));
+        setError(errorMessage(cause, requestFailed));
       }
     },
   });
   if (!MANUAL_ASSET_CATEGORIES.has(asset.assetCategory)) {
     return (
       <>
-        <PageBreadcrumbs items={[{ label: "Dashboard", href: "/" }, { label: asset.name }]} />
-        <PageHeader title={asset.name} />
-        <PageState
-          kind="error"
-          message="This asset is maintained automatically and cannot be edited."
+        <PageBreadcrumbs
+          items={[{ label: t("assets.breadcrumbs.dashboard"), href: "/" }, { label: asset.name }]}
         />
+        <PageHeader title={asset.name} />
+        <PageState kind="error" message={t("assets.notEditable")} />
       </>
     );
   }
@@ -83,9 +85,12 @@ function LoadedAssetScreen({
   return (
     <>
       <PageBreadcrumbs
-        items={[{ label: "Dashboard", href: "/" }, { label: `Edit ${asset.name}` }]}
+        items={[
+          { label: t("assets.breadcrumbs.dashboard"), href: "/" },
+          { label: t("assets.editTitle", { name: asset.name }) },
+        ]}
       />
-      <PageHeader title={`Edit ${asset.name}`} />
+      <PageHeader title={t("assets.editTitle", { name: asset.name })} />
       <FormError message={error} />
       <form.AppForm>
         <FormFrame
@@ -94,20 +99,23 @@ function LoadedAssetScreen({
             void form.handleSubmit();
           }}
         >
-          <form.AppField name="name" children={(field) => <field.TextField label="Name" />} />
+          <form.AppField
+            name="name"
+            children={(field) => <field.TextField label={t("assets.form.name")} />}
+          />
           <form.AppField
             name="symbol"
-            children={(field) => <field.TextField label="Symbol (optional)" />}
+            children={(field) => <field.TextField label={t("assets.form.symbol")} />}
           />
           <form.AppField
             name="price"
-            children={(field) => <field.TextField label="Manual price (optional)" number />}
+            children={(field) => <field.TextField label={t("assets.form.price")} number />}
           />
           <form.AppField
             name="currencyAssetId"
             children={(field) => (
               <field.SelectField
-                label="Price currency"
+                label={t("assets.form.priceCurrency")}
                 options={fiat.map((candidate) => ({
                   value: candidate.id,
                   label: candidate.symbol ?? candidate.name,
@@ -115,7 +123,7 @@ function LoadedAssetScreen({
               />
             )}
           />
-          <form.SubmitButton label="Save asset" />
+          <form.SubmitButton label={t("assets.form.save")} />
         </FormFrame>
       </form.AppForm>
       <DeleteButton
@@ -126,7 +134,7 @@ function LoadedAssetScreen({
             await remove.mutateAsync();
             await navigate({ to: "/" });
           } catch (cause) {
-            setError(errorMessage(cause));
+            setError(errorMessage(cause, requestFailed));
           }
         }}
       />

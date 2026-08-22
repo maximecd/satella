@@ -1,0 +1,51 @@
+{
+  "onboarding": {
+    "welcome": {
+      "title": "Welcome to Satella",
+      "intro": "Satella keeps your portfolio, custodians, and credentials in one local Vault on this computer. Financial data stays local except when Satella talks directly to Connectors and market-data sources you configure.",
+      "encryptionNote": "Encryption protects copied files while the Vault is closed. It does not protect an open Vault from malware, administrators, or memory inspection.",
+      "continue": "Continue",
+      "createNewVault": "Create a new Vault"
+    },
+    "password": {
+      "title": "Create a Vault password",
+      "vaultPassword": "Vault password",
+      "confirmVaultPassword": "Confirm Vault password",
+      "minLengthError": "Vault password must be at least {{min}} characters.",
+      "mismatchError": "Vault password and confirmation do not match.",
+      "fieldMismatchError": "Passwords do not match.",
+      "continue": "Continue"
+    },
+    "pin": {
+      "title": "Create a Screen-lock PIN",
+      "description": "Lock hides the interface behind this four-digit PIN while the Vault stays open. Background Refresh may continue. Lock is not Vault encryption.",
+      "screenLockPin": "Screen-lock PIN",
+      "confirmScreenLockPin": "Confirm Screen-lock PIN",
+      "formatError": "Screen-lock PIN must be exactly four digits.",
+      "mismatchError": "Screen-lock PIN and confirmation do not match.",
+      "fieldMismatchError": "PINs do not match.",
+      "createVault": "Create Vault"
+    },
+    "preferences": {
+      "title": "Language and currency",
+      "description": "Choose the interface language and the currency used for your portfolio totals. You can change both later in Settings.",
+      "language": "Language",
+      "languageHelper": "Amounts and dates follow this language.",
+      "reportingCurrency": "Reporting currency",
+      "reportingCurrencyHelper": "Portfolio totals, history, and allocation use this currency.",
+      "keepSuggested": "Keep suggested",
+      "saveAndContinue": "Save and continue"
+    },
+    "firstAsset": {
+      "title": "Add your first asset",
+      "description": "You can start with the same Add assets flow you will use later, or skip.",
+      "addFirstAsset": "Add your first asset",
+      "goToDashboard": "Go to dashboard"
+    },
+    "pinConfirm": {
+      "title": "Confirm your Screen-lock PIN",
+      "description": "Re-enter the same four digits.",
+      "mismatchError": "Screen-lock PINs do not match. Start again."
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "shell": {
+    "sideNavigation": "Side navigation",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "lock": "Lock"
+  }
+}

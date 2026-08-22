@@ -2,6 +2,12 @@
 
 Satella presents a unified view of a person's financial holdings across synced custodians and manually entered accounts.
 
+## Preferences
+
+**App language**:
+The language of Satella's interface, English or French. It is asked during onboarding and changeable in Settings, and is stored in the Vault so it travels with Vault export and restore.
+_Avoid_: Locale, INTL, region
+
 ## Portfolio
 
 **Account**:
@@ -35,7 +41,7 @@ The short sign (for example $ or €) shown next to an amount instead of its ISO
 _Avoid_: Currency sign, ticker
 
 **Reporting currency**:
-The single currency used to express portfolio-wide totals, history, and allocation. USD is the default, and the user may change it in Settings.
+The single currency used to express portfolio-wide totals, history, and allocation. USD is the default, it is asked once during onboarding, and the user may change it in Settings.
 _Avoid_: Default currency, base currency
 
 ## Acquisition and performance
