@@ -2,6 +2,7 @@ import { HttpBody, HttpClient, HttpClientRequest } from "effect/unstable/http";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 import { createHash, createHmac } from "node:crypto";
 
 import { KrakenCredentials } from "./schemas.js";
@@ -175,19 +176,24 @@ export const makeKrakenClient = <R>(options: KrakenClientOptions<R>): KrakenClie
     ? Math.max(1, Math.floor(configuredAttempts))
     : 3;
   const nextNonce = makeNonceCounter(now);
+  // Kraken tracks nonce order per API key. Hold one permit from nonce allocation
+  // through retries so concurrent callers cannot send requests out of order.
+  const requestSemaphore = Semaphore.makeUnsafe(1);
 
   const requestWithRetry = <A>(
     input: KrakenHttpRequest,
     schema: Schema.Codec<A>,
   ): Effect.Effect<A, KrakenTransportError, R> => {
-    const attempt = options.transport.request(input).pipe(
-      Effect.flatMap((response) => parseResponse(response, schema)),
-      Effect.mapError((cause) =>
-        cause instanceof KrakenTransportError
-          ? cause
-          : new KrakenTransportError("Kraken returned an invalid response", {
-              transient: false,
-            }),
+    const attempt = Effect.suspend(() =>
+      options.transport.request(input).pipe(
+        Effect.flatMap((response) => parseResponse(response, schema)),
+        Effect.mapError((cause) =>
+          cause instanceof KrakenTransportError
+            ? cause
+            : new KrakenTransportError("Kraken returned an invalid response", {
+                transient: false,
+              }),
+        ),
       ),
     );
     const retry = (
@@ -212,27 +218,31 @@ export const makeKrakenClient = <R>(options: KrakenClientOptions<R>): KrakenClie
     readonly schema: Schema.Codec<A>;
     readonly extraParameters?: Readonly<Record<string, string>>;
   }) => {
-    const nonce = nextNonce();
-    const parameters = new URLSearchParams({ nonce, ...input.extraParameters });
-    const body = parameters.toString();
-    return requestWithRetry(
-      {
-        method: "POST",
-        path: input.path,
-        headers: {
-          Accept: "application/json",
-          "API-Key": input.credentials.apiKey,
-          "API-Sign": signKrakenRequest({
+    return requestSemaphore.withPermit(
+      Effect.suspend(() => {
+        const nonce = nextNonce();
+        const parameters = new URLSearchParams({ nonce, ...input.extraParameters });
+        const body = parameters.toString();
+        return requestWithRetry(
+          {
+            method: "POST",
             path: input.path,
-            nonce,
+            headers: {
+              Accept: "application/json",
+              "API-Key": input.credentials.apiKey,
+              "API-Sign": signKrakenRequest({
+                path: input.path,
+                nonce,
+                body,
+                secret: input.credentials.apiSecret,
+              }),
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
             body,
-            secret: input.credentials.apiSecret,
-          }),
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body,
-      },
-      input.schema,
+          },
+          input.schema,
+        );
+      }),
     );
   };
 

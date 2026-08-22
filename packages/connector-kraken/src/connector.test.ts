@@ -1,3 +1,4 @@
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -225,6 +226,46 @@ describe("Kraken connector", () => {
     expect(new URLSearchParams(allocationsRequest?.body ?? "").get("hide_zero_allocations")).toBe(
       "true",
     );
+  });
+
+  it("serializes private requests when responses arrive out of nonce order", async () => {
+    let highestAcceptedNonce = 0;
+    let requestCount = 0;
+    const transport: KrakenHttpTransport = {
+      request: (request) => {
+        const nonce = Number(new URLSearchParams(request.body).get("nonce"));
+        const requestIndex = requestCount++;
+        const delay = requestIndex === 1 ? 30 : requestIndex === 2 ? 10 : 0;
+
+        return Effect.sleep(Duration.millis(delay)).pipe(
+          Effect.flatMap(() => {
+            if (nonce <= highestAcceptedNonce) {
+              return Effect.succeed(
+                response({ error: [`EAPI:Invalid nonce ${nonce}`], result: null }),
+              );
+            }
+            highestAcceptedNonce = nonce;
+            if (request.path === "/0/private/Balance") {
+              return Effect.succeed(response({ error: [], result: {} }));
+            }
+            if (request.path === "/0/private/Earn/Strategies") {
+              return Effect.succeed(response({ error: [], result: { items: [] } }));
+            }
+            return Effect.succeed(response({ error: [], result: { items: [] } }));
+          }),
+        );
+      },
+    };
+
+    const authenticated = await Effect.runPromise(
+      makeKrakenConnector({
+        transportFactory: () => transport,
+        now: () => now,
+        maxAttempts: 1,
+      }).authenticate(credentials),
+    );
+
+    await expect(Effect.runPromise(authenticated.fetchAccounts())).resolves.toEqual([]);
   });
 
   it("merges staking-suffix balances into one Earn position per asset", async () => {
