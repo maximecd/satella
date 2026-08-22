@@ -18,10 +18,38 @@ export interface ManagedOperationalMessage {
   };
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+export type ManagedProcessValue =
+  | undefined
+  | null
+  | boolean
+  | number
+  | string
+  | ReadonlyArray<ManagedProcessValue>
+  | { readonly [key: string]: ManagedProcessValue };
 
-const hasOnlyKeys = (value: Record<string, unknown>, keys: ReadonlyArray<string>) => {
+type ManagedProcessRecord = { readonly [key: string]: ManagedProcessValue };
+
+export const isFiniteManagedProcessNumber = (value: ManagedProcessValue): value is number =>
+  Object.prototype.toString.call(value) === "[object Number]" && Number.isFinite(Number(value));
+
+const isRecord = (value: ManagedProcessValue): value is ManagedProcessRecord =>
+  Object.prototype.toString.call(value) === "[object Object]";
+
+const isString = (value: ManagedProcessValue): value is string =>
+  Object.prototype.toString.call(value) === "[object String]";
+
+const isBoolean = (value: ManagedProcessValue): value is boolean =>
+  Object.prototype.toString.call(value) === "[object Boolean]";
+
+const isCycleOutcome = (
+  value: ManagedProcessValue,
+): value is "success" | "partial" | "failed" | null =>
+  value === null || value === "success" || value === "partial" || value === "failed";
+
+const isVaultState = (value: ManagedProcessValue): value is "absent" | "locked" | "open" =>
+  value === "absent" || value === "locked" || value === "open";
+
+const hasOnlyKeys = (value: ManagedProcessRecord, keys: ReadonlyArray<string>) => {
   const allowed = new Set(keys);
   const actual = Object.keys(value);
   return actual.length === allowed.size && actual.every((key) => allowed.has(key));
@@ -29,30 +57,23 @@ const hasOnlyKeys = (value: Record<string, unknown>, keys: ReadonlyArray<string>
 
 /** Accepts only the private operational schema; financial payloads are ignored. */
 export const decodeManagedOperationalMessage = (
-  value: unknown,
+  value: ManagedProcessValue,
 ): ManagedOperationalMessage | undefined => {
   if (!isRecord(value) || !hasOnlyKeys(value, ["type", "autoRefresh", "vault"])) return undefined;
   if (value.type !== "operational-state" || !isRecord(value.autoRefresh) || !isRecord(value.vault))
     return undefined;
   if (!hasOnlyKeys(value.autoRefresh, ["lastCycleAt", "lastCycleOutcome"])) return undefined;
   if (!hasOnlyKeys(value.vault, ["state", "screenLock"])) return undefined;
-  if (value.autoRefresh.lastCycleAt !== null && typeof value.autoRefresh.lastCycleAt !== "string")
-    return undefined;
-  if (
-    value.autoRefresh.lastCycleOutcome !== null &&
-    value.autoRefresh.lastCycleOutcome !== "success" &&
-    value.autoRefresh.lastCycleOutcome !== "partial" &&
-    value.autoRefresh.lastCycleOutcome !== "failed"
-  )
-    return undefined;
-  if (
-    value.vault.state !== "absent" &&
-    value.vault.state !== "locked" &&
-    value.vault.state !== "open"
-  )
-    return undefined;
-  if (typeof value.vault.screenLock !== "boolean") return undefined;
-  return value as unknown as ManagedOperationalMessage;
+  const { lastCycleAt, lastCycleOutcome } = value.autoRefresh;
+  if (lastCycleAt !== null && !isString(lastCycleAt)) return undefined;
+  if (!isCycleOutcome(lastCycleOutcome)) return undefined;
+  if (!isVaultState(value.vault.state)) return undefined;
+  if (!isBoolean(value.vault.screenLock)) return undefined;
+  return {
+    type: "operational-state",
+    autoRefresh: { lastCycleAt, lastCycleOutcome },
+    vault: { state: value.vault.state, screenLock: value.vault.screenLock },
+  };
 };
 
 export const newEngineToken = () => randomBytes(32).toString("base64url");

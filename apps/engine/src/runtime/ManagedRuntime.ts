@@ -3,26 +3,35 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
-import type { AutoRefreshStatus } from "../finance/contracts.js";
+import {
+  AutoRefreshStatus,
+  type AutoRefreshStatus as AutoRefreshStatusType,
+} from "../finance/contracts.js";
 import type { VaultStatus } from "../vault/Vault.js";
 
-export interface ManagedVaultState {
-  readonly state: "absent" | "locked" | "open";
-  readonly screenLock: boolean;
-}
+const ManagedVaultStateSchema = Schema.Struct({
+  state: Schema.Literals(["absent", "locked", "open"]),
+  screenLock: Schema.Boolean,
+});
+
+const ManagedOperationalMessageSchema = Schema.Struct({
+  type: Schema.Literal("operational-state"),
+  autoRefresh: AutoRefreshStatus,
+  vault: ManagedVaultStateSchema,
+});
+
+export type ManagedVaultState = typeof ManagedVaultStateSchema.Type;
 
 export interface ManagedOperationalState {
-  readonly autoRefresh: AutoRefreshStatus;
+  readonly autoRefresh: AutoRefreshStatusType;
   readonly vault: ManagedVaultState;
 }
 
 /** Closed operational payload: it deliberately contains no financial data. */
-export interface ManagedOperationalMessage {
-  readonly type: "operational-state";
-  readonly autoRefresh: AutoRefreshStatus;
-  readonly vault: ManagedVaultState;
-}
+export type ManagedOperationalMessage = typeof ManagedOperationalMessageSchema.Type;
 
 export interface ManagedProcessChannel {
   readonly connected: () => boolean;
@@ -56,43 +65,23 @@ const messageFor = (state: ManagedOperationalState): ManagedOperationalMessage =
   vault: state.vault,
 });
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const hasOnlyKeys = (value: Record<string, unknown>, keys: ReadonlyArray<string>) => {
-  const expected = new Set(keys);
-  return (
-    Object.keys(value).every((key) => expected.has(key)) &&
-    expected.size === Object.keys(value).length
-  );
-};
+type ManagedProcessValue =
+  | undefined
+  | null
+  | boolean
+  | number
+  | string
+  | ReadonlyArray<ManagedProcessValue>
+  | { readonly [key: string]: ManagedProcessValue };
 
 /** Decodes the closed IPC schema before any message can affect tray state. */
 export const decodeManagedOperationalMessage = (
-  value: unknown,
+  value: ManagedProcessValue,
 ): ManagedOperationalMessage | undefined => {
-  if (!isRecord(value) || !hasOnlyKeys(value, ["type", "autoRefresh", "vault"])) return undefined;
-  if (value.type !== "operational-state" || !isRecord(value.autoRefresh) || !isRecord(value.vault))
-    return undefined;
-  if (!hasOnlyKeys(value.autoRefresh, ["lastCycleAt", "lastCycleOutcome"])) return undefined;
-  if (!hasOnlyKeys(value.vault, ["state", "screenLock"])) return undefined;
-  const { lastCycleAt, lastCycleOutcome } = value.autoRefresh;
-  if (lastCycleAt !== null && typeof lastCycleAt !== "string") return undefined;
-  if (
-    lastCycleOutcome !== null &&
-    lastCycleOutcome !== "success" &&
-    lastCycleOutcome !== "partial" &&
-    lastCycleOutcome !== "failed"
-  )
-    return undefined;
-  if (
-    value.vault.state !== "absent" &&
-    value.vault.state !== "locked" &&
-    value.vault.state !== "open"
-  )
-    return undefined;
-  if (typeof value.vault.screenLock !== "boolean") return undefined;
-  return value as unknown as ManagedOperationalMessage;
+  const decoded = Schema.decodeUnknownOption(ManagedOperationalMessageSchema, {
+    onExcessProperty: "error",
+  })(value);
+  return Option.isSome(decoded) ? decoded.value : undefined;
 };
 
 const sameState = (left: ManagedOperationalState, right: ManagedOperationalState) =>
@@ -156,7 +145,7 @@ export const make = (channel?: ManagedProcessChannel) =>
   });
 
 const nodeChannel = (): ManagedProcessChannel | undefined => {
-  if (typeof process.send !== "function" || process.channel === undefined) return undefined;
+  if (process.send === undefined || process.channel === undefined) return undefined;
   return {
     connected: () => process.connected === true,
     send: (message, callback) => {

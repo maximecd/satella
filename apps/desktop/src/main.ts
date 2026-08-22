@@ -20,6 +20,8 @@ import {
   managedEngineEnvironment,
   newEngineToken,
   decodeManagedOperationalMessage,
+  isFiniteManagedProcessNumber,
+  type ManagedProcessValue,
   screenLockRequest,
   vaultActivityRequest,
   spawnManagedEngine,
@@ -59,8 +61,8 @@ app.setAppUserModelId(APP_ID);
 ipcMain.handle("satella:clear-vault-caches", async () => {
   await session.defaultSession.clearCache();
 });
-ipcMain.on("satella:vault-activity", (_event, activityAt: unknown) => {
-  if (typeof activityAt !== "number" || !Number.isFinite(activityAt)) return;
+ipcMain.on("satella:vault-activity", (_event, activityAt: ManagedProcessValue) => {
+  if (!isFiniteManagedProcessNumber(activityAt)) return;
   const request = vaultActivityRequest(engineUrl, engineToken, activityAt);
   void fetch(request.url, {
     method: request.method,
@@ -100,7 +102,7 @@ ipcMain.on("satella:app-language", (_event, language: string) => {
   else trayState.setLanguage(language);
 });
 
-const handleManagedEngineMessage = (value: unknown) => {
+const handleManagedEngineMessage = (value: ManagedProcessValue) => {
   const message = decodeManagedOperationalMessage(value);
   if (message === undefined) return;
   const wasScreenLocked = operationalState.vault.screenLock;

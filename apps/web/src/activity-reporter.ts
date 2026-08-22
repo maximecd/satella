@@ -1,9 +1,11 @@
 export const ACTIVITY_REPORT_INTERVAL_MS = 30_000;
 
+export type ActivityTimerHandle = ReturnType<typeof setTimeout> | number;
+
 export interface ActivityReporterClock {
   readonly now: () => number;
-  readonly schedule: (callback: () => void, delayMs: number) => unknown;
-  readonly cancel: (handle: unknown) => void;
+  readonly schedule: (callback: () => void, delayMs: number) => ActivityTimerHandle;
+  readonly cancel: (handle: ActivityTimerHandle) => void;
 }
 
 export interface ActivityReporter {
@@ -14,7 +16,7 @@ export interface ActivityReporter {
 const realClock: ActivityReporterClock = {
   now: () => Date.now(),
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
-  cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  cancel: (handle) => clearTimeout(handle),
 };
 
 /** Coalesces pointer and keyboard activity while preserving the latest event time. */
@@ -27,7 +29,7 @@ export const createActivityReporter = (options: {
   const intervalMs = options.intervalMs ?? ACTIVITY_REPORT_INTERVAL_MS;
   let lastSentAt: number | undefined;
   let pendingActivityAt: number | undefined;
-  let timer: unknown;
+  let timer: ActivityTimerHandle | undefined;
   let disposed = false;
 
   const clearTimer = () => {

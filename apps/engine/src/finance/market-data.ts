@@ -380,9 +380,9 @@ export const makeSearchCache = (
       entries.delete(key);
       entries.set(key, { expiresAt: now() + ttlMs, results });
       while (entries.size > capacity) {
-        const oldest = entries.keys().next().value as string | undefined;
-        if (oldest === undefined) break;
-        entries.delete(oldest);
+        const oldest = entries.keys().next();
+        if (oldest.done) break;
+        entries.delete(oldest.value);
       }
     },
     clear: () => entries.clear(),

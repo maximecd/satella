@@ -19,6 +19,7 @@ describe("window lifecycle", () => {
   it("keeps an accidental close warm, then releases the renderer after grace", () => {
     const calls: string[] = [];
     let timer: (() => void) | undefined;
+    let nextTimerHandle = 0;
     let createRequests = 0;
     const lifecycle = createWindowLifecycle({
       createWindow: () => {
@@ -28,7 +29,8 @@ describe("window lifecycle", () => {
       schedule: (callback, delayMs) => {
         expect(delayMs).toBe(WINDOW_DORMANCY_GRACE_MS);
         timer = callback;
-        return callback;
+        nextTimerHandle += 1;
+        return nextTimerHandle;
       },
       cancel: () => {
         timer = undefined;

@@ -43,6 +43,8 @@ export const makeLazyConnector = ({ capability, load }: LazyConnectorDefinition)
       }).pipe(
         Effect.flatMap(
           (connector) =>
+            // SAFETY: the proxy deliberately erases the concrete connector's environment
+            // and credential types while forwarding its authentication effect unchanged.
             connector.authenticate(credentials) as Effect.Effect<
               AuthenticatedConnector<any>,
               ConnectorAuthenticationError,

@@ -6,12 +6,14 @@ const makeClock = () => {
   let now = 0;
   let callback: (() => void) | undefined;
   let delay = 0;
+  let nextTimerHandle = 0;
   const clock: ActivityReporterClock = {
     now: () => now,
     schedule: (next, nextDelay) => {
       callback = next;
       delay = nextDelay;
-      return next;
+      nextTimerHandle += 1;
+      return nextTimerHandle;
     },
     cancel: () => {
       callback = undefined;

@@ -1,7 +1,9 @@
+export type ScreenLockTimerHandle = ReturnType<typeof setTimeout> | number;
+
 export interface ScreenLockDeadlineClock {
   readonly now: () => number;
-  readonly schedule: (callback: () => void, delayMs: number) => unknown;
-  readonly cancel: (handle: unknown) => void;
+  readonly schedule: (callback: () => void, delayMs: number) => ScreenLockTimerHandle;
+  readonly cancel: (handle: ScreenLockTimerHandle) => void;
 }
 
 export interface ScreenLockDeadline {
@@ -14,7 +16,7 @@ export interface ScreenLockDeadline {
 const realClock: ScreenLockDeadlineClock = {
   now: () => Date.now(),
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
-  cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  cancel: (handle) => clearTimeout(handle),
 };
 
 const safeActivityTime = (now: number, activityAt: number | undefined) => {
@@ -30,7 +32,7 @@ export const makeScreenLockDeadline = (options: {
   const clock = options.clock ?? realClock;
   let timeoutMs: number | null = null;
   let lastActivityAt: number | null = null;
-  let scheduled: unknown;
+  let scheduled: ScreenLockTimerHandle | undefined;
   let generation = 0;
 
   const cancel = () => {

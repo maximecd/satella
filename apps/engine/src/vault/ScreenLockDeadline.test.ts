@@ -14,7 +14,10 @@ const makeTestClock = () => {
       timers.set(handle, { at: now + delayMs, callback });
       return handle;
     },
-    cancel: (handle) => timers.delete(handle as number),
+    cancel: (handle) => {
+      // SAFETY: this deterministic clock only returns numeric handles.
+      return timers.delete(handle as number);
+    },
   };
   return {
     clock,

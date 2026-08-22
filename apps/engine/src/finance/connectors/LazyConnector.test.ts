@@ -32,7 +32,9 @@ describe("lazy Connector acquisition", () => {
 
     expect(connectorCapabilities(connectorRegistryFrom([connector]))).toEqual([capability]);
     expect(loads).toBe(0);
+    // SAFETY: the fixture connector has no environment or meaningful error value.
     await Effect.runPromise(connector.authenticate({}) as Effect.Effect<unknown, unknown, never>);
+    // SAFETY: the fixture connector has no environment or meaningful error value.
     await Effect.runPromise(connector.authenticate({}) as Effect.Effect<unknown, unknown, never>);
     expect(loads).toBe(1);
   });

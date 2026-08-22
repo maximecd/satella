@@ -83,6 +83,8 @@ export const closeToTray =
 
 export const WINDOW_DORMANCY_GRACE_MS = 60_000;
 
+export type WindowTimerHandle = ReturnType<typeof setTimeout> | number;
+
 export type WindowLifecycleState = "active" | "hidden" | "dormant";
 
 export interface WindowLifecycleWindow {
@@ -111,18 +113,17 @@ export const createWindowLifecycle = (options: {
   readonly isQuitting: () => boolean;
   readonly focus?: (window: WindowLifecycleWindow) => void;
   readonly gracePeriodMs?: number;
-  readonly schedule?: (callback: () => void, delayMs: number) => unknown;
-  readonly cancel?: (handle: unknown) => void;
+  readonly schedule?: (callback: () => void, delayMs: number) => WindowTimerHandle;
+  readonly cancel?: (handle: WindowTimerHandle) => void;
   readonly onDormant?: () => void;
 }): WindowLifecycle => {
   const focus = options.focus ?? focusWindow;
   const schedule = options.schedule ?? ((callback, delayMs) => setTimeout(callback, delayMs));
-  const cancel =
-    options.cancel ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+  const cancel = options.cancel ?? ((handle) => clearTimeout(handle));
   const gracePeriodMs = options.gracePeriodMs ?? WINDOW_DORMANCY_GRACE_MS;
   let current: WindowLifecycleWindow | undefined;
   let currentState: WindowLifecycleState = "dormant";
-  let dormancyTimer: unknown;
+  let dormancyTimer: WindowTimerHandle | undefined;
 
   const cancelDormancy = () => {
     if (dormancyTimer !== undefined) {
