@@ -10,7 +10,7 @@ All `0.x` releases are alphas; the prerelease flag communicates alpha status, so
 
 ## Nightlies
 
-Every successful push to `main` reruns all CI gates (`check`, `test`, `build`) and then packages one macOS Apple Silicon ZIP and publishes it as an immutable **nightly prerelease**: a `v<next-patch>-nightly.<UTC yyyymmdd>.<run number>` tag on the exact commit (for example `v0.1.1-nightly.20260822.42`) with generated release notes. Nightlies are permanent prereleases, so the latest integrated build is always downloadable from the Releases page; they never affect the stable version sequence, which only counts non-nightly tags.
+Every successful push to `main` reruns all CI gates (`check`, `test`, `build`) and then packages one macOS Apple Silicon ZIP and publishes it as an immutable **nightly prerelease**: a `v<next-patch>-nightly.<UTC yyyymmdd>.<run number>` tag on the exact commit (for example `v0.1.1-nightly.20260822.42`) with generated release notes. The separate **Nightly** workflow listens for the successful `CI` workflow completion on `main`, so pull requests do not carry a skipped nightly check. Nightlies are permanent prereleases, so the latest integrated build is always downloadable from the Releases page; they never affect the stable version sequence, which only counts non-nightly tags.
 
 ## Shipping a release
 
