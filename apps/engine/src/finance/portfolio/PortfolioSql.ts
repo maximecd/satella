@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import * as Effect from "effect/Effect";
-import * as Duration from "effect/Duration";
 
 import { SqlClient } from "effect/unstable/sql";
 import type {
@@ -13,7 +12,6 @@ import type {
   SnapshotResult,
 } from "../contracts.js";
 import { ASSET_CATEGORY_LABELS } from "../contracts.js";
-import { DEFAULT_SNAPSHOT_INTERVAL } from "../config.js";
 import { getAccount } from "../accounts/AccountSql.js";
 import { refreshPrices, type MarketDataRegistry } from "../market-data.js";
 import { addDecimal, compareDecimal, divideDecimal, multiplyDecimal } from "../financial-number.js";
@@ -79,24 +77,6 @@ export const captureSnapshot = (
       ),
     );
     return { id, capturedAt, ...result };
-  });
-
-export const captureSnapshotIfDue = (
-  options: CaptureSnapshotOptions = {},
-): FinanceEffect<SnapshotResult | null> =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    const latest = yield* db(sql<{ readonly captured_at: string }>`SELECT captured_at FROM snapshots
-      ORDER BY captured_at DESC LIMIT 1`);
-    const now = (options.now ?? (() => new Date()))();
-    const previous = latest[0]?.captured_at;
-    if (
-      previous !== undefined &&
-      now.getTime() - Date.parse(previous) < Duration.toMillis(DEFAULT_SNAPSHOT_INTERVAL)
-    ) {
-      return null;
-    }
-    return yield* captureSnapshot({ ...options, now: () => now });
   });
 
 interface HistoricalPositionRow {

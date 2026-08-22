@@ -27,6 +27,7 @@ import {
   AddOtherAssetInput,
   Asset,
   AssetSearchResult,
+  AutoRefreshStatus,
   ConnectorCapabilities,
   ConnectCustodianInput,
   CreateAccountInput,
@@ -60,9 +61,13 @@ export const HelloResponse = Schema.Struct({
 const EntityIdParams = { id: Schema.String };
 const created = <S extends Schema.Top>(schema: S) => schema.pipe(HttpApiSchema.status(201));
 
-const SystemApi = HttpApiGroup.make("system").add(
-  HttpApiEndpoint.get("hello", "/api/hello", { success: HelloResponse }),
-);
+const SystemApi = HttpApiGroup.make("system")
+  .add(HttpApiEndpoint.get("hello", "/api/hello", { success: HelloResponse }))
+  .add(
+    HttpApiEndpoint.get("getRefreshStatus", "/api/auto-refresh/status", {
+      success: AutoRefreshStatus,
+    }),
+  );
 
 export const FinanceApi = HttpApiGroup.make("finance")
   .add(

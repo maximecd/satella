@@ -153,14 +153,10 @@ export const connectCustodian = (
     return yield* getCustodian(id);
   });
 
-/** Re-authenticates with the stored connector credentials and reconciles a complete snapshot. */
-export const refreshCustodian = (
+/** Re-authenticates with the stored connector credentials and reconciles holdings, without prices or snapshots. */
+export const refreshCustodianHoldings = (
   id: string,
-): Effect.Effect<
-  CustodianRefreshResult,
-  FinanceApiError,
-  SqlClient.SqlClient | HttpClient.HttpClient
-> =>
+): Effect.Effect<void, FinanceApiError, SqlClient.SqlClient | HttpClient.HttpClient> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const row = yield* firstOrNotFound(
@@ -184,8 +180,16 @@ export const refreshCustodian = (
       Effect.mapError(connectorSyncFailure),
     );
     yield* db(sql`UPDATE custodians SET updated_at = ${nowIso()} WHERE id = ${id}`);
-    return yield* completeCustodianRefresh(id);
   });
+
+/** Re-authenticates with the stored connector credentials and reconciles a complete snapshot. */
+export const refreshCustodian = (
+  id: string,
+): Effect.Effect<
+  CustodianRefreshResult,
+  FinanceApiError,
+  SqlClient.SqlClient | HttpClient.HttpClient
+> => refreshCustodianHoldings(id).pipe(Effect.andThen(completeCustodianRefresh(id)));
 
 /** Records today's Portfolio snapshot after a synced custodian import or Refresh. */
 export const completeCustodianRefresh = (

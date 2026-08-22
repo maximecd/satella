@@ -1,4 +1,15 @@
-import { app, BrowserWindow, dialog, ipcMain, powerMonitor, session, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
+  powerMonitor,
+  session,
+  shell,
+  Tray,
+} from "electron";
 import { join } from "node:path";
 
 import {
@@ -11,16 +22,20 @@ import {
   screenLockRequest,
   spawnManagedEngine,
   stopManagedEngine,
+  vaultStatusRequest,
   waitForEngineHello,
 } from "./engine.js";
 import { APP_ID, APP_NAME, productionDataDirectory } from "./runtime.js";
 import {
+  closeToTray,
   externalUrlAction,
   focusWindow,
   navigationPermission,
   shouldQuitOnLastWindow,
+  trayIconPath,
   windowLoadTarget,
 } from "./window.js";
+import { setTrayLanguage, trayMenuItems, type RefreshStatus } from "./tray.js";
 
 const developmentUrl = process.env["SATELLA_WEB_URL"];
 let enginePort = DEFAULT_ENGINE_PORT;
@@ -28,6 +43,9 @@ let engineUrl = process.env["SATELLA_ENGINE_URL"] ?? `http://127.0.0.1:${engineP
 let engineProcess: ReturnType<typeof spawnManagedEngine> | undefined;
 let mainWindow: BrowserWindow | undefined;
 let engineToken = process.env["SATELLA_ENGINE_TOKEN"] ?? newEngineToken();
+let tray: Tray | undefined;
+let refreshStatus: RefreshStatus | null = null;
+let vaultOpen = false;
 let quitting = false;
 let pendingSecondInstance = false;
 
@@ -62,12 +80,71 @@ ipcMain.handle("satella:show-open-dialog", async () => {
       : await dialog.showOpenDialog(mainWindow, options);
   return result.canceled ? undefined : result.filePaths[0];
 });
+// SAFETY: only the paired preload bridge sends "satella:vault-open".
+ipcMain.on("satella:vault-open", (_event, open: boolean) => {
+  vaultOpen = open;
+  rebuildTrayMenu();
+});
+// SAFETY: only the paired preload bridge sends "satella:app-language".
+ipcMain.on("satella:app-language", (_event, language: string) => {
+  setTrayLanguage(language);
+  rebuildTrayMenu();
+});
 
-const lockViaEngine = () => {
-  const request = screenLockRequest(engineUrl, engineToken);
-  void fetch(request.url, { method: request.method, headers: request.headers }).catch(
-    () => undefined,
+const rebuildTrayMenu = () => {
+  tray?.setContextMenu(
+    Menu.buildFromTemplate(
+      trayMenuItems(refreshStatus, vaultOpen, {
+        open: openWindow,
+        lockNow: () => void lockViaEngine(),
+        quit: () => app.quit(),
+      }),
+    ),
   );
+};
+
+const lockViaEngine = async () => {
+  const request = screenLockRequest(engineUrl, engineToken);
+  try {
+    await fetch(request.url, { method: request.method, headers: request.headers });
+  } catch {
+    return;
+  }
+  vaultOpen = false;
+  rebuildTrayMenu();
+  // Tell the renderer so it swaps to the lock screen immediately.
+  mainWindow?.webContents.send("satella:vault-locked");
+};
+
+const fetchRefreshStatus = async (): Promise<RefreshStatus | null> => {
+  try {
+    const response = await fetch(`${engineUrl.replace(/\/$/, "")}/api/auto-refresh/status`);
+    if (!response.ok) return null;
+    // SAFETY: the engine's OpenAPI contract guarantees the auto-refresh status shape.
+    return (await response.json()) as RefreshStatus;
+  } catch {
+    return null;
+  }
+};
+
+const fetchVaultOpen = async (): Promise<boolean | null> => {
+  const request = vaultStatusRequest(engineUrl, engineToken);
+  try {
+    const response = await fetch(request.url, { headers: request.headers });
+    if (!response.ok) return null;
+    // SAFETY: the engine's OpenAPI contract guarantees the Vault status shape.
+    const status = (await response.json()) as { state: string; screenLock?: boolean };
+    return status.state === "open" && status.screenLock !== true;
+  } catch {
+    return null;
+  }
+};
+
+const pollTrayStatus = async () => {
+  const [status, open] = await Promise.all([fetchRefreshStatus(), fetchVaultOpen()]);
+  refreshStatus = status;
+  vaultOpen = open ?? false;
+  rebuildTrayMenu();
 };
 
 const createWindow = async () => {
@@ -91,6 +168,10 @@ const createWindow = async () => {
     width: 1120,
   });
   mainWindow = window;
+  window.on(
+    "close",
+    closeToTray(window, () => quitting),
+  );
   if (pendingSecondInstance) {
     pendingSecondInstance = false;
     focusWindow(window);
@@ -125,6 +206,14 @@ const createWindow = async () => {
   }
 };
 
+const openWindow = () => {
+  if (mainWindow === undefined || mainWindow.isDestroyed()) {
+    void createWindow();
+    return;
+  }
+  focusWindow(mainWindow);
+};
+
 const startManagedEngine = async () => {
   const smokePort =
     process.env["SATELLA_SMOKE_ENGINE_PORT"] === undefined
@@ -151,6 +240,7 @@ const startManagedEngine = async () => {
     managedEngineEnvironment(process.env, {
       port: enginePort,
       dataDirectory,
+      logDirectory: app.getPath("logs"),
       parentPid: process.pid,
       production: app.isPackaged,
       engineToken,
@@ -159,6 +249,25 @@ const startManagedEngine = async () => {
   engineProcess.stdout?.on("data", (chunk: Buffer) => process.stdout.write(`[engine] ${chunk}`));
   engineProcess.stderr?.on("data", (chunk: Buffer) => process.stderr.write(`[engine] ${chunk}`));
   await waitForEngineHello(enginePort);
+};
+
+const createTray = () => {
+  if (process.platform !== "darwin") return;
+  const icon = nativeImage.createFromPath(
+    trayIconPath(__dirname, {
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+    }),
+  );
+  icon.setTemplateImage(true);
+  // Keep a module-level reference so Electron cannot garbage-collect the tray.
+  tray = new Tray(icon);
+
+  rebuildTrayMenu();
+  tray?.on("click", openWindow);
+
+  void pollTrayStatus();
+  setInterval(() => void pollTrayStatus(), 60_000);
 };
 
 if (!app.requestSingleInstanceLock()) {
@@ -174,6 +283,7 @@ if (!app.requestSingleInstanceLock()) {
     .then(async () => {
       await startManagedEngine();
       await createWindow();
+      createTray();
 
       powerMonitor.on("lock-screen", lockViaEngine);
       powerMonitor.on("resume", lockViaEngine);

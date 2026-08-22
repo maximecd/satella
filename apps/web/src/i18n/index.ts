@@ -70,6 +70,8 @@ export const changeAppLanguage = (language: AppLanguage) => {
   setAppLanguage(language);
   void i18n.changeLanguage(language);
   document.documentElement.lang = language;
+  // Keep the desktop tray strings in the same language as the app.
+  window.satellaRuntime?.reportAppLanguage?.(language);
 };
 
 declare module "i18next" {

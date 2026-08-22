@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect";
+import * as Deferred from "effect/Deferred";
 import * as Layer from "effect/Layer";
 import { mkdtemp, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -10,11 +11,15 @@ import { it } from "@effect/vitest";
 import { DatabaseConfigFromDirectory } from "../database/index.js";
 import { TempDirectoryError } from "../database/DatabaseTestLayer.js";
 import { FAST_KDF } from "./kdf.js";
+import { VaultEvents, layer as VaultEventsLive } from "./VaultEvents.js";
 import { RESET_CONFIRMATION, VaultService } from "./Vault.js";
 import { VaultLive } from "./VaultLive.js";
 
 const vaultLayer = (directory: string) =>
-  VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(directory)));
+  VaultLive.pipe(
+    Layer.provide(DatabaseConfigFromDirectory(directory)),
+    Layer.provideMerge(VaultEventsLive),
+  );
 
 const password = "correct-horse-battery";
 const pin = "2468";
@@ -48,6 +53,28 @@ describe("Vault", () => {
       });
       expect(names).toContain("vault.envelope.json");
       expect(sqlite.includes(Buffer.from("vault_security"))).toBe(false);
+    }),
+  );
+
+  it.effect("signals unlock listeners when the vault opens", () =>
+    Effect.gen(function* () {
+      const directory = yield* Effect.tryPromise({
+        try: () => mkdtemp(join(tmpdir(), "satella-vault-")),
+        catch: (cause) => new TempDirectoryError({ cause }),
+      });
+      yield* Effect.gen(function* () {
+        const vault = yield* VaultService;
+        const events = yield* VaultEvents;
+        const notified = yield* Deferred.make<void>();
+        yield* Effect.forkChild(
+          Effect.gen(function* () {
+            yield* events.awaitUnlock();
+            yield* Deferred.succeed(notified, undefined);
+          }),
+        );
+        yield* vault.initialize({ password, pin, kdf: FAST_KDF });
+        yield* Deferred.await(notified);
+      }).pipe(Effect.provide(vaultLayer(directory)));
     }),
   );
 

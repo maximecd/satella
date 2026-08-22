@@ -13,9 +13,16 @@ import { MarketDataService } from "../finance/market-data/MarketDataService.js";
 import { PortfolioService } from "../finance/portfolio/PortfolioService.js";
 import { PositionService } from "../finance/positions/PositionService.js";
 import { SettingsService } from "../finance/settings/SettingsService.js";
+import { AutoRefreshScheduler } from "../finance/refresh/AutoRefresh.js";
 
 export const SystemApiLive = HttpApiBuilder.group(EngineApi, "system", (handlers) =>
-  handlers.handle("hello", () => Effect.succeed({ message: "Hello world" })),
+  handlers
+    .handle("hello", () => Effect.succeed({ message: "Hello world" }))
+    .handle("getRefreshStatus", () =>
+      Effect.gen(function* () {
+        return yield* (yield* AutoRefreshScheduler).status();
+      }),
+    ),
 );
 
 export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handlers) =>

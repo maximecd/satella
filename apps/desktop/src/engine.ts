@@ -73,11 +73,18 @@ export const screenLockRequest = (engineUrl: string, token: string) => ({
   headers: { [ENGINE_TOKEN_HEADER]: token },
 });
 
+export const vaultStatusRequest = (engineUrl: string, token: string) => ({
+  url: `${engineUrl.replace(/\/$/, "")}/api/vault/status`,
+  method: "GET" as const,
+  headers: { [ENGINE_TOKEN_HEADER]: token },
+});
+
 export const managedEngineEnvironment = (
   env: NodeJS.ProcessEnv,
   options: {
     readonly port: number;
     readonly dataDirectory: string;
+    readonly logDirectory?: string;
     readonly parentPid?: number;
     readonly production?: boolean;
     readonly engineToken?: string;
@@ -91,6 +98,9 @@ export const managedEngineEnvironment = (
   };
   if (options.engineToken !== undefined) {
     Object.assign(managedEnvironment, { SATELLA_ENGINE_TOKEN: options.engineToken });
+  }
+  if (options.logDirectory !== undefined) {
+    Object.assign(managedEnvironment, { SATELLA_LOG_DIR: options.logDirectory });
   }
   if (options.parentPid !== undefined) {
     Object.assign(managedEnvironment, {

@@ -39,18 +39,23 @@ describe("portfolio snapshots", () => {
     }).pipe(Effect.provide(engineTestLayer())),
   );
 
-  it.effect("does not fabricate another snapshot before the configured daily interval", () =>
+  it.effect("keeps a snapshot from every refresh, even several in quick succession", () =>
     Effect.gen(function* () {
-      const first = yield* Finance.captureSnapshotIfDue({
+      const first = yield* Finance.captureSnapshot({
         refresh: false,
         now: () => new Date("2026-08-11T00:00:00.000Z"),
       });
-      const second = yield* Finance.captureSnapshotIfDue({
+      const second = yield* Finance.captureSnapshot({
         refresh: false,
         now: () => new Date("2026-08-11T01:00:00.000Z"),
       });
       expect(first).not.toBeNull();
-      expect(second).toBeNull();
+      expect(second).not.toBeNull();
+      const history = yield* Finance.getPortfolioHistory();
+      expect(history.map(({ capturedAt }) => capturedAt)).toEqual([
+        "2026-08-11T00:00:00.000Z",
+        "2026-08-11T01:00:00.000Z",
+      ]);
     }).pipe(Effect.provide(engineTestLayer())),
   );
 

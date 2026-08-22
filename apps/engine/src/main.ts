@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { join } from "node:path";
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
@@ -18,7 +19,11 @@ import {
   releaseDatabaseOwnershipSync,
 } from "./database/ownership.js";
 import { FinanceLive } from "./finance/FinanceLive.js";
+import { FailureLogDirectory, NodeFailureLogFilesLive } from "./finance/refresh/FailureLog.js";
+import { layer as FailureLogLive } from "./finance/refresh/FailureLog.js";
+import { layer as AutoRefreshLive } from "./finance/refresh/AutoRefresh.js";
 import { IdGeneratorLive } from "./IdGenerator.js";
+import { layer as VaultEventsLive } from "./vault/VaultEvents.js";
 import { VaultLive } from "./vault/VaultLive.js";
 
 const parsePort = (value: string | undefined, fallback: number): number => {
@@ -71,6 +76,22 @@ const OwnershipLive = Layer.effectDiscard(
   }),
 ).pipe(Layer.provide(DatabaseConfigLive));
 
+const FailureLogDirectoryLive = Layer.effect(
+  FailureLogDirectory,
+  Effect.gen(function* () {
+    const config = yield* DatabaseConfig;
+    const override = process.env["SATELLA_LOG_DIR"];
+    return {
+      directory: override ?? join(config.dataDirectory, "logs"),
+    };
+  }),
+).pipe(Layer.provide(DatabaseConfigLive));
+
+const EngineFailureLogLive = FailureLogLive.pipe(
+  Layer.provide(FailureLogDirectoryLive),
+  Layer.provide(NodeFailureLogFilesLive),
+);
+
 const routesLayer = EngineApiLive.pipe(
   Layer.provideMerge(VaultFinanceAccess),
   Layer.provideMerge(ApiErrorLogging),
@@ -97,8 +118,10 @@ const HttpServerLive = HttpRouter.serve(routesLayer).pipe(
 );
 
 const ServerLive = HttpServerLive.pipe(
+  Layer.provide(AutoRefreshLive().pipe(Layer.provide(EngineFailureLogLive))),
   Layer.provide(FinanceLive),
-  Layer.provide(VaultLive),
+  Layer.provide(VaultEventsLive),
+  Layer.provide(VaultLive.pipe(Layer.provide(DatabaseConfigLive), Layer.provide(VaultEventsLive))),
   Layer.provide(OwnershipLive),
   Layer.provide(DatabaseConfigLive),
   Layer.provide(IdGeneratorLive),

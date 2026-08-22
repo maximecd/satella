@@ -1,9 +1,14 @@
+import type { AppLanguage } from "./app-language";
+
 export interface SatellaRuntimeConfiguration {
   readonly engineUrl: string;
   readonly engineToken?: string;
   readonly clearVaultCaches?: () => Promise<void>;
   readonly showVaultSaveDialog?: (defaultPath?: string) => Promise<string | undefined>;
   readonly showVaultOpenDialog?: () => Promise<string | undefined>;
+  readonly onVaultLocked?: (listener: () => void) => () => void;
+  readonly reportVaultOpen?: (open: boolean) => void;
+  readonly reportAppLanguage?: (language: AppLanguage) => void;
 }
 declare global {
   interface Window {

@@ -35,7 +35,7 @@ export const DEFAULT_MARKET_DATA_POLICY = {
   searchDebounceMs: 300,
 } as const;
 
-export const DEFAULT_SNAPSHOT_INTERVAL = Duration.days(1);
+export const AUTO_REFRESH_INTERVAL = Duration.minutes(15);
 
 /** Connector capabilities are derived from the explicitly compiled connector registry. */
 export const CONNECTOR_CAPABILITIES = COMPOSED_CONNECTOR_CAPABILITIES;
