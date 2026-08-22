@@ -17,6 +17,9 @@ export class RefreshQueue extends Context.Service<
   }
 >()("@satella-app/engine/finance/RefreshQueue") {}
 
+/** All manual and automatic price/snapshot tails share this queue slot. */
+export const REFRESH_COMPLETION_QUEUE_KEY = "refresh-completion";
+
 interface Job {
   readonly key: string;
   readonly effect: Effect.Effect<any, any>;

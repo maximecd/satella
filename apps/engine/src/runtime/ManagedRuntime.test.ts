@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -65,5 +67,34 @@ describe("managed runtime channel", () => {
         vault: { ...valid.vault, pinAttemptsRemaining: 2 },
       }),
     ).toBeUndefined();
+  });
+
+  it("observes closure of a real child-process IPC channel", async () => {
+    const child = spawn(process.execPath, ["-e", "setInterval(() => undefined, 1000)"], {
+      stdio: ["ignore", "ignore", "ignore", "ipc"],
+    });
+    const channel: ManagedProcessChannel = {
+      connected: () => child.connected,
+      send: (message, callback) => child.send(message, callback),
+      onDisconnect: (listener) => {
+        child.once("disconnect", listener);
+        return () => child.removeListener("disconnect", listener);
+      },
+    };
+
+    try {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const runtime = yield* make(channel);
+            yield* Effect.sync(() => child.disconnect());
+            yield* runtime.awaitParentDisconnect();
+          }),
+        ),
+      );
+      expect(child.connected).toBe(false);
+    } finally {
+      child.kill();
+    }
   });
 });

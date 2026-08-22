@@ -3,7 +3,7 @@ import * as Layer from "effect/Layer";
 import { SqlClient } from "effect/unstable/sql";
 import * as TestClock from "effect/testing/TestClock";
 import * as Schema from "effect/Schema";
-import { connectorRegistryFrom } from "@satella-app/connector-core";
+import { ConnectorAuthenticationError, connectorRegistryFrom } from "@satella-app/connector-core";
 
 import { engineTestLayer } from "../../database/database.test-utils.js";
 import { describe, expect, it } from "@effect/vitest";
@@ -45,6 +45,7 @@ const makeFailureLog = () => {
 
 describe("auto-refresh", () => {
   it.effect("reconciles every custodian before one shared completion tail", () => {
+    let failedToken: string | undefined;
     const connectorRegistry = connectorRegistryFrom([
       {
         id: "test-only",
@@ -52,8 +53,16 @@ describe("auto-refresh", () => {
         assetCategories: ["crypto" as const],
         credentialFields: [],
         credentialsSchema: Schema.Unknown,
-        authenticate: (credentials) =>
-          Effect.succeed({
+        authenticate: (credentials) => {
+          if (credentials.token === failedToken) {
+            return Effect.fail(
+              new ConnectorAuthenticationError({
+                category: "network",
+                message: "fixture failure",
+              }),
+            );
+          }
+          return Effect.succeed({
             fetchAccounts: () =>
               Effect.succeed([
                 {
@@ -74,9 +83,11 @@ describe("auto-refresh", () => {
                   ],
                 },
               ]),
-          }),
+          });
+        },
       },
     ]);
+    const failures = makeFailureLog();
     let marketDataCalls = 0;
     const marketDataProvider: MarketDataProvider = {
       id: "coingecko",
@@ -133,11 +144,19 @@ describe("auto-refresh", () => {
       expect(marketDataCalls).toBe(1);
       expect(yield* snapshotCount).toBe(1);
       expect(yield* scheduler.status()).toMatchObject({ lastCycleOutcome: "success" });
+
+      failedToken = "two";
+      yield* TestClock.adjust(AUTO_REFRESH_INTERVAL);
+      yield* waitForCycles(2);
+      expect(marketDataCalls).toBe(2);
+      expect(yield* snapshotCount).toBe(2);
+      expect(yield* scheduler.status()).toMatchObject({ lastCycleOutcome: "partial" });
+      expect(failures.entries).toEqual([{ custodian: "two", code: "validation" }]);
     }).pipe(
       Effect.provide(
         AutoRefreshLive({ registry: marketDataRegistry, connectorRegistry }).pipe(
           Layer.provideMerge(fakeVault.pipe(Layer.provideMerge(engineTestLayer()))),
-          Layer.provideMerge(makeFailureLog().layer),
+          Layer.provideMerge(failures.layer),
           Layer.provideMerge(VaultEventsLive),
           Layer.provideMerge(RefreshQueueLive),
         ),

@@ -15,6 +15,7 @@ import type {
   CustodianRefreshResult,
   ConnectorCredentials as ConnectorCredentialsType,
   FinanceApiError,
+  PriceRefreshFailure,
   UpdateCustodianInput,
 } from "../contracts.js";
 import { ConnectorCredentials, FinanceApiError as FinanceError } from "../contracts.js";
@@ -221,19 +222,50 @@ export const reconcileCustodian = (
 ): Effect.Effect<Custodian, FinanceApiError, SqlClient.SqlClient | HttpClient.HttpClient> =>
   refreshCustodianHoldings(id, options).pipe(Effect.andThen(getCustodian(id)));
 
+export interface RefreshCompletionResult {
+  readonly failures: ReadonlyArray<PriceRefreshFailure>;
+  readonly error: FinanceApiError | null;
+}
+
+/** Performs the one shared price pass and Snapshot at the end of a refresh pipeline. */
+export const completeRefreshPass = (
+  options: CaptureSnapshotOptions = {},
+): Effect.Effect<RefreshCompletionResult, never, SqlClient.SqlClient> =>
+  Effect.gen(function* () {
+    let price: RefreshCompletionResult;
+    if (options.refresh === false) {
+      price = { failures: [], error: null };
+    } else {
+      const refreshOptions = {
+        requireFresh: true,
+        includeAllCashFx: true,
+      };
+      if (options.registry !== undefined)
+        Object.assign(refreshOptions, { registry: options.registry });
+      price = yield* refreshPrices(refreshOptions).pipe(
+        Effect.map(({ failures }) => ({ failures, error: null })),
+        Effect.catch((error) => Effect.succeed({ failures: [], error })),
+      );
+    }
+    const snapshotError = yield* captureSnapshot({ ...options, refresh: false }).pipe(
+      Effect.map(() => null),
+      Effect.catch((error) => Effect.succeed(error)),
+    );
+    return {
+      failures: price.failures,
+      error: price.error ?? snapshotError,
+    };
+  });
+
 /** Records today's Portfolio snapshot after a synced custodian import or Refresh. */
 export const completeCustodianRefresh = (
   id: string,
   options: CaptureSnapshotOptions = {},
 ): FinanceEffect<CustodianRefreshResult> =>
   Effect.gen(function* () {
-    const refreshOptions = { requireFresh: true };
-    if (options.registry !== undefined)
-      Object.assign(refreshOptions, { registry: options.registry });
-    const failures =
-      options.refresh === false ? [] : (yield* refreshPrices(refreshOptions)).failures;
-    yield* captureSnapshot({ ...options, refresh: false });
-    return { custodian: yield* getCustodian(id), failures };
+    const completion = yield* completeRefreshPass(options);
+    if (completion.error !== null) return yield* Effect.fail(completion.error);
+    return { custodian: yield* getCustodian(id), failures: completion.failures };
   });
 
 export const updateCustodian = (

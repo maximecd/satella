@@ -5,10 +5,13 @@ import type { ConnectorRegistry } from "@satella-app/connector-core";
 
 import type { AutoRefreshStatus, FinanceApiError } from "../contracts.js";
 import { FailureLog, type FailureLogEntry } from "./FailureLog.js";
-import { RefreshQueue } from "./RefreshQueue.js";
-import { refreshPrices, type MarketDataRegistry } from "../market-data.js";
-import { reconcileCustodian } from "../custodians/CustodianSql.js";
-import { captureSnapshot } from "../portfolio/PortfolioSql.js";
+import { REFRESH_COMPLETION_QUEUE_KEY, RefreshQueue } from "./RefreshQueue.js";
+import { type MarketDataRegistry } from "../market-data.js";
+import {
+  completeRefreshPass,
+  reconcileCustodian,
+  type RefreshCompletionResult,
+} from "../custodians/CustodianSql.js";
 import { db } from "../internal/sql.js";
 import { makeWithVaultSql } from "../with-vault-sql.js";
 
@@ -40,10 +43,7 @@ export interface RefreshCycleOptions {
   readonly now?: () => Date;
 }
 
-export interface RefreshCycleCompletion {
-  readonly priceFailureCount: number;
-  readonly error: FinanceApiError | null;
-}
+export type RefreshCycleCompletion = RefreshCompletionResult;
 
 export interface RefreshCycleResult {
   readonly status: AutoRefreshStatus;
@@ -54,26 +54,7 @@ export interface RefreshCycleResult {
 /** Completes an automatic cycle exactly once, even when its price pass fails. */
 export const completeCycle = (
   options: { readonly registry?: MarketDataRegistry } = {},
-): CycleEffect<RefreshCycleCompletion> =>
-  Effect.gen(function* () {
-    const priceOptions: Parameters<typeof refreshPrices>[0] = {
-      requireFresh: true,
-      includeAllCashFx: true,
-    };
-    if (options.registry !== undefined) Object.assign(priceOptions, { registry: options.registry });
-    const price = yield* refreshPrices(priceOptions).pipe(
-      Effect.map((result) => ({ failureCount: result.failures.length, error: null })),
-      Effect.catch((error) => Effect.succeed({ failureCount: 0, error })),
-    );
-    const snapshotError = yield* captureSnapshot({ refresh: false }).pipe(
-      Effect.map(() => null),
-      Effect.catch((error) => Effect.succeed(error)),
-    );
-    return {
-      priceFailureCount: price.failureCount,
-      error: price.error ?? snapshotError,
-    };
-  });
+): CycleEffect<RefreshCycleCompletion> => completeRefreshPass(options);
 
 const cycleOutcome = (
   custodianCount: number,
@@ -82,7 +63,7 @@ const cycleOutcome = (
 ): AutoRefreshStatus["lastCycleOutcome"] => {
   if (completion.error !== null || (custodianCount > 0 && custodianFailureCount === custodianCount))
     return "failed";
-  if (custodianFailureCount > 0 || completion.priceFailureCount > 0) return "partial";
+  if (custodianFailureCount > 0 || completion.failures.length > 0) return "partial";
   return "success";
 };
 
@@ -123,7 +104,10 @@ export const runAutomaticRefreshCycle = (
       yield* failureLog.record(entry);
     }
 
-    const completion = yield* queue.submit("cycle", withSql(completeCycle(options)));
+    const completion = yield* queue.submit(
+      REFRESH_COMPLETION_QUEUE_KEY,
+      withSql(completeCycle(options)),
+    );
     const lastCycleOutcome = cycleOutcome(syncedIds.length, failures.length, completion);
     return {
       status: {

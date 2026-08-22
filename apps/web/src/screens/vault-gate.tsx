@@ -52,6 +52,20 @@ export function VaultGate({ children }: { readonly children: ReactNode }) {
 
   useEffect(() => {
     if (status?.state !== "open" || status.screenLock) return;
+    let latestActivityAt = Date.now();
+    let lockTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleStatusCheck = (activityAt: number) => {
+      latestActivityAt = activityAt;
+      if (lockTimer !== undefined) clearTimeout(lockTimer);
+      const deadlineAt = activityAt + status.screenLockTimeoutMinutes * 60_000;
+      lockTimer = setTimeout(
+        () => {
+          lockTimer = undefined;
+          void queryClient.invalidateQueries({ queryKey: vaultStatusQuery.queryKey });
+        },
+        Math.max(0, deadlineAt - Date.now()),
+      );
+    };
     const reporter = createActivityReporter({
       send: (activityAt) => {
         const report = window.satellaRuntime?.reportVaultActivity;
@@ -62,15 +76,20 @@ export function VaultGate({ children }: { readonly children: ReactNode }) {
         }
       },
     });
-    const bump = () => reporter.report();
+    const bump = () => {
+      scheduleStatusCheck(Date.now());
+      reporter.report();
+    };
+    scheduleStatusCheck(latestActivityAt);
     window.addEventListener("pointerdown", bump);
     window.addEventListener("keydown", bump);
     return () => {
       reporter.dispose();
+      if (lockTimer !== undefined) clearTimeout(lockTimer);
       window.removeEventListener("pointerdown", bump);
       window.removeEventListener("keydown", bump);
     };
-  }, [status]);
+  }, [queryClient, status]);
 
   if (statusQuery.isPending) {
     return (
