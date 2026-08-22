@@ -7,6 +7,7 @@ import {
   managedEngineEnvironment,
   newEngineToken,
   screenLockRequest,
+  vaultStatusRequest,
 } from "./engine.js";
 import {
   closeToTray,
@@ -17,7 +18,7 @@ import {
   trayIconPath,
   windowLoadTarget,
 } from "./window.js";
-import { formatLastRefresh, trayMenuItems } from "./tray.js";
+import { formatLastRefresh, setTrayLanguage, trayMenuItems } from "./tray.js";
 
 describe("desktop main process helpers", () => {
   it("loads the development URL when provided", () => {
@@ -90,6 +91,7 @@ describe("desktop main process helpers", () => {
     const calls: string[] = [];
     const items = trayMenuItems(
       { lastCycleAt: new Date(2026, 7, 22, 12, 30).toISOString(), lastCycleOutcome: "success" },
+      true,
       {
         open: () => calls.push("open"),
         lockNow: () => calls.push("lock"),
@@ -110,6 +112,48 @@ describe("desktop main process helpers", () => {
     lockItem?.click?.();
     quitItem?.click?.();
     expect(calls).toEqual(["open", "lock", "quit"]);
+  });
+
+  it("disables Lock Now when the vault is not open", () => {
+    const actions = { open: () => undefined, lockNow: () => undefined, quit: () => undefined };
+    expect(
+      trayMenuItems(null, true, actions).find(({ label }) => label === "Lock Now")?.enabled,
+    ).toBe(true);
+    expect(
+      trayMenuItems(null, false, actions).find(({ label }) => label === "Lock Now")?.enabled,
+    ).toBe(false);
+  });
+
+  it("translates the tray menu into French when the App language is French", () => {
+    const now = new Date(2026, 7, 22, 18, 5);
+    setTrayLanguage("fr");
+    try {
+      expect(formatLastRefresh(null, now)).toBe("Pas encore actualisé");
+      expect(formatLastRefresh(new Date(2026, 7, 22, 9, 41).toISOString(), now)).toBe(
+        "Dernière actualisation aujourd'hui à 09:41",
+      );
+      expect(formatLastRefresh(new Date(2026, 6, 4, 23, 8).toISOString(), now)).toBe(
+        "Dernière actualisation le 4 juil. à 23:08",
+      );
+      expect(
+        trayMenuItems(null, true, {
+          open: () => undefined,
+          lockNow: () => undefined,
+          quit: () => undefined,
+        }).map(({ label }) => label),
+      ).toEqual(["Ouvrir Satella", "Verrouiller maintenant", "Pas encore actualisé", "Quitter"]);
+    } finally {
+      setTrayLanguage("en");
+    }
+  });
+
+  it("falls back to English for unknown tray languages", () => {
+    setTrayLanguage("de");
+    try {
+      expect(formatLastRefresh(null)).toBe("Not refreshed yet");
+    } finally {
+      setTrayLanguage("en");
+    }
   });
 
   it("does not allow an inherited data directory to replace the canonical one", () => {
@@ -141,6 +185,13 @@ describe("desktop main process helpers", () => {
     const request = screenLockRequest("http://127.0.0.1:3001", "token-value");
     expect(request.url).toBe("http://127.0.0.1:3001/api/vault/lock");
     expect(request.method).toBe("POST");
+    expect(request.headers["x-satella-engine-token"]).toBe("token-value");
+  });
+
+  it("reads the vault status with the engine token", () => {
+    const request = vaultStatusRequest("http://127.0.0.1:3001", "token-value");
+    expect(request.url).toBe("http://127.0.0.1:3001/api/vault/status");
+    expect(request.method).toBe("GET");
     expect(request.headers["x-satella-engine-token"]).toBe("token-value");
   });
 

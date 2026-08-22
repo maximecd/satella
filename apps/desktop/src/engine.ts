@@ -73,6 +73,12 @@ export const screenLockRequest = (engineUrl: string, token: string) => ({
   headers: { [ENGINE_TOKEN_HEADER]: token },
 });
 
+export const vaultStatusRequest = (engineUrl: string, token: string) => ({
+  url: `${engineUrl.replace(/\/$/, "")}/api/vault/status`,
+  method: "GET" as const,
+  headers: { [ENGINE_TOKEN_HEADER]: token },
+});
+
 export const managedEngineEnvironment = (
   env: NodeJS.ProcessEnv,
   options: {

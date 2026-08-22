@@ -46,6 +46,19 @@ export function VaultGate({ children }: { readonly children: ReactNode }) {
     };
   }, []);
 
+  useEffect(
+    () =>
+      window.satellaRuntime?.onVaultLocked?.(() => {
+        void queryClient.invalidateQueries({ queryKey: vaultStatusQuery.queryKey });
+      }),
+    [queryClient],
+  );
+
+  // Keep the tray's "Lock Now" item in sync without waiting for its poll.
+  useEffect(() => {
+    window.satellaRuntime?.reportVaultOpen?.(status?.state === "open" && !status.screenLock);
+  }, [status]);
+
   useEffect(() => {
     if (status?.state !== "open" || status.screenLock) return;
     let last = Date.now();

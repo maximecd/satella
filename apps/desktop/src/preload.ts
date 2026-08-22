@@ -18,6 +18,17 @@ const satellaRuntime = {
   // undefined when the native dialog is cancelled.
   showVaultOpenDialog: () =>
     ipcRenderer.invoke("satella:show-open-dialog") as Promise<string | undefined>,
+  // SAFETY: the paired main-process handler emits "satella:vault-locked" after the
+  // engine confirms the Screen lock; returns an unsubscribe function.
+  onVaultLocked: (listener: () => void) => {
+    const wrapped = () => listener();
+    ipcRenderer.on("satella:vault-locked", wrapped);
+    return () => {
+      ipcRenderer.removeListener("satella:vault-locked", wrapped);
+    };
+  },
+  reportVaultOpen: (open: boolean) => ipcRenderer.send("satella:vault-open", open),
+  reportAppLanguage: (language: string) => ipcRenderer.send("satella:app-language", language),
 };
 if (engineUrl !== undefined) Object.assign(satellaRuntime, { engineUrl });
 if (engineToken !== undefined) Object.assign(satellaRuntime, { engineToken });
