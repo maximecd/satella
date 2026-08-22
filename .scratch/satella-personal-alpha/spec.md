@@ -23,8 +23,8 @@ Protect the desktop-to-engine boundary with a random token created for each appl
 1. As the maintainer, I want the product named Satella everywhere, so that the first real release does not expose its temporary name.
 2. As the maintainer, I want the current GitHub repository left where it is, so that the rename does not force the open-source repository move to happen now.
 3. As a macOS user, I want the application displayed as Satella in Finder, the Dock, menus, dialogs, and process metadata, so that its identity is consistent.
-4. As a macOS user, I want Satella to use the stable bundle identifier `com.maxime.satella`, so that every Satella update resolves to the same application identity.
-5. As a developer, I want workspace packages to use the `@satella` scope, so that imports and package metadata no longer retain the temporary identity.
+4. As a macOS user, I want Satella to use the stable bundle identifier `app.satella`, so that every Satella update resolves to the same application identity.
+5. As a developer, I want workspace packages to use the `@satella-app` scope, so that imports and package metadata no longer retain the temporary identity and match the reserved npm scope.
 6. As a developer, I want environment variables, IPC channels, runtime globals, storage keys, database names, development directories, logs, and test fixtures renamed, so that internal diagnostics and interfaces speak one language.
 7. As a user, I want onboarding, Lock, Reset, errors, connector instructions, and security guidance to say Satella, so that no temporary product copy remains visible.
 8. As a maintainer, I want source documentation, domain documentation, ADRs, research notes, release documentation, and local issue files renamed, so that future work does not copy the temporary name back into the product.
@@ -40,7 +40,7 @@ Protect the desktop-to-engine boundary with a random token created for each appl
 18. As the first alpha user, I want released migrations to remain immutable, so that an update cannot reject my Vault because history was rewritten.
 19. As the first alpha user, I want later schema changes appended as migrations, so that the product can keep evolving without resets.
 20. As the first alpha user, I want a newer binary to migrate my Vault automatically when needed, so that replacing the application remains the normal update flow.
-21. As the first alpha user, I want a failed migration to leave my existing data recoverable, so that trying an update does not become permanent data loss.
+21. As the first alpha user, I want a failed migration to stop with a clear error and leave my Vault files untouched, so that a broken update never destroys data.
 22. As the first alpha user, I want future release validation to exercise a populated Vault from the previous alpha, so that compatibility is proved with data rather than inferred from migration files.
 23. As a user in Settings, I want an Export Vault action, so that I can create a recovery file before an update.
 24. As a user exporting a Vault, I want Satella to require my current Vault password, so that an unattended unlocked screen cannot copy my credentials and financial data.
@@ -106,7 +106,7 @@ Protect the desktop-to-engine boundary with a random token created for each appl
 
 ## Implementation Decisions
 
-- The product identity is `Satella`; the technical slug is `satella`; workspace packages use `@satella/*`; the permanent macOS bundle identifier is `com.maxime.satella`.
+- The product identity is `Satella`; the technical slug is `satella`; workspace packages use `@satella-app/*`, matching the reserved npm scope; the permanent macOS bundle identifier is `app.satella` (reverse-DNS of the owned `satella.app` domain); the product's web domain for downloads is `satella.app`.
 - Rename all repository-owned product and technical identifiers, including application metadata, artifacts, package names, imports, environment variables, IPC names, runtime globals, local-storage keys, development directories, database filenames, reset confirmation, cryptographic context labels, user agents, source symbols that contain the product name, visible copy, tests, and documentation.
 - The current GitHub repository name, repository location, working-copy directory, and Git history remain unchanged. No compatibility aliases retain the temporary identity inside the current source tree.
 - Satella uses a new platform-native application identity and therefore a new production `userData` location. Development storage is `.satella`; production Vault data remains in the `data/` subtree owned by the desktop.
@@ -117,7 +117,7 @@ Protect the desktop-to-engine boundary with a random token created for each appl
 - A `.satella-vault` is a versioned single-file container. It includes a fresh consistent SQLCipher backup of the live database, the active key envelope, and only the minimal format metadata required for validation. The database remains encrypted with the Vault data-encryption key, and the envelope remains protected by the current Vault password.
 - Vault export includes portfolio data, custodians, connector credentials, Reporting currency, history, Vault security rows, the Screen-lock PIN hash, and Screen-lock timeout. It excludes WAL and shared-memory files, journals, engine ownership state, caches, logs, Electron preferences, and retained pre-migration backups.
 - Export writes to a temporary sibling and publishes the final `.satella-vault` only after the consistent encrypted database, envelope, container structure, and file permissions pass validation. Existing destination files remain intact until replacement succeeds.
-- Restore Vault is available from Welcome when no Vault exists and from Vault unlock when one does. It is not offered as an ordinary Settings mutation.
+- Restore Vault is available from Welcome when no Vault exists and from Vault unlock when one does. It is unreachable while a Vault session is unlocked, and it is not offered as an ordinary Settings mutation.
 - Restore requires the exported Vault password. When a local Vault exists, the user confirms that a successful restore will replace it.
 - Restore expands into an isolated staging location, validates the container version and paths, unwraps the staged envelope, opens the staged SQLCipher database, verifies cipher activation and database integrity, checks migration history, and applies pending migrations to the staged database. It rejects a database created by a newer schema.
 - Wrong passwords and damaged encrypted data retain the existing generic unlock boundary. Format and compatibility errors may tell the user that the file is unsupported without disclosing encrypted contents.
@@ -125,7 +125,7 @@ Protect the desktop-to-engine boundary with a random token created for each appl
 - A successful restore clears Vault-derived renderer and HTTP caches, releases stale ownership state, and returns to the closed Vault-unlock state. It never auto-unlocks financial screens.
 - Normal application updates remain manual. The user quits Satella, replaces `Satella.app`, and opens the existing Vault. Export and restore are recovery tools, not required update steps.
 - Every push to `main` runs the established CI gates. A macOS Apple Silicon packaging job runs only after all required gates pass and uploads one nightly ZIP as a GitHub Actions artifact with 14-day retention.
-- Nightlies use a unique SemVer-compatible version derived from the next patch after the latest non-nightly release, the UTC date, and the GitHub run number. Before the first release, the nightly base is `0.1.0`. Nightlies create neither Git tags nor GitHub Releases.
+- Nightlies use a unique SemVer-compatible version of the form `<next-patch>-nightly.<UTC yyyymmdd>.<run number>`, for example `0.1.1-nightly.20260822.42`; before the first release the base is `0.1.0`, producing versions such as `0.1.0-nightly.20260815.7`. Nightlies create neither Git tags nor GitHub Releases.
 - The manual release workflow is named `Ship Satella`, accepts no user inputs, and runs only for `main`. If no Satella release tag exists, it selects `0.1.0`; otherwise it increments the patch component of the latest non-nightly release and leaves major and minor unchanged.
 - Ship Satella reruns check, test, build, packaging, structural validation, and the packaged-runtime smoke test against the exact selected commit. It creates the immutable tag and GitHub prerelease only after all gates pass.
 - All `0.x` GitHub Releases are prereleases and communicate alpha status through the major version rather than an `-alpha` suffix. There is no minor or major bump workflow in this scope.
@@ -156,7 +156,7 @@ Protect the desktop-to-engine boundary with a random token created for each appl
 - Desktop helper tests cover engine-token generation and propagation contracts, allowed development and packaged navigation targets, denied navigation, denied popups, and validated external-link handling. Existing desktop main-process helper tests are prior art.
 - The packaged-runtime seam extracts and launches the assembled `Satella.app` with isolated user data. It proves the Satella bundle identity and resources, SQLCipher loading, authenticated engine startup, rejection of a direct unauthenticated privileged request, native Vault creation, export and restore round-trip, single-instance behavior, canonical storage, and clean engine shutdown. The existing release smoke test is prior art.
 - Packaged upgrade coverage begins with the second Satella release. The test creates a populated Vault using the previous released application, replaces only the application with the candidate, unlocks the same Vault, and verifies representative finance data, connector configuration, settings, and migration history. The test never substitutes a newly seeded current-schema database for the previous release.
-- A rename guard scans repository-owned files and packaged resources for temporary product identifiers while explicitly excluding Git history, the current repository name, and external URLs that cannot change. Structural packaging validation separately proves `Satella.app`, `com.maxime.satella`, Satella artifact names, `@satella` connector resources, and absence of repository-relative runtime paths.
+- A rename guard scans repository-owned files and packaged resources for temporary product identifiers while explicitly excluding Git history, the current repository name, and external URLs that cannot change. Structural packaging validation separately proves `Satella.app`, `app.satella`, Satella artifact names, `@satella-app` connector resources, and absence of repository-relative runtime paths.
 - The full existing test suite must pass after workspace package renaming. Type checking and production builds prove that no stale package import or deployment dependency remains unresolved.
 - A release is complete only when `pnpm check`, the full test suite, the production build, structural package validation, the real packaged-app smoke test, and the applicable upgrade test all pass.
 
@@ -181,6 +181,8 @@ Protect the desktop-to-engine boundary with a random token created for each appl
 
 ## Further Notes
 
+- The npm scope `@satella-app` is reserved, but this release publishes no npm packages. Workspace packages adopt the scope now so a future publish needs no rename.
+- Distribution stays entirely on GitHub for this release; `satella.app` is recorded as the product's permanent domain and becomes the public download home only in a later phase.
 - The current source tree may still change or squash its initial schema until the first Satella release is published. The compatibility promise begins at that exact release, not at an earlier temporary tag.
 - Replacing `/Applications/Satella.app` does not replace `~/Library/Application Support/Satella/data`. That separation is the normal update mechanism; Vault export exists for recovery from a bad release, damaged local state, machine replacement, or user error.
 - A `.satella-vault` is encrypted recovery data, not a sanitized report. Anyone who learns its Vault password can recover its financial data and connector credentials.
