@@ -14,6 +14,7 @@ const dashboard = {
   negativeHoldingCount: 0,
   hasMeaningfulAssets: false,
   custodians: [],
+  custodianAllocation: [],
   assetAllocation: [],
   categoryAllocation: [],
   history: [],
