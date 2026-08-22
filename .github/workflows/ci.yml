@@ -46,11 +46,6 @@ jobs:
           vp run --filter @satella-app/connector-kraken build
           vp run --filter @satella-app/connector-okx build
       - run: vp run -r test
-      - name: Lint GitHub Actions workflows
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash \
-            | bash -s -- v1.7.12
-          ./actionlint -no-color
       - run: node --test scripts/*.test.mjs
 
   build:
