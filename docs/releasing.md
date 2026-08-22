@@ -6,7 +6,7 @@ Satella is distributed as ad-hoc signed macOS Apple Silicon ZIPs. Every push to 
 
 All `0.x` releases are alphas; the prerelease flag communicates alpha status, so versions carry no `-alpha` suffix. The first release is `v0.1.0`. **Ship Satella** accepts no inputs: it selects `v0.1.0` when no release tag exists and afterwards increments the patch of the highest existing non-nightly release (`v0.1.1`, `v0.1.2`, …). There is no minor- or major-bump workflow in this scope.
 
-`v0.1.0` establishes the permanent migration ledger. From that release onward, released migrations are immutable and every schema change must be appended as a new timestamped migration that preserves existing Vault data.
+The first nightly established the permanent migration ledger because nightly installations keep their Vault across updates. Released migrations are immutable. Every schema change must be appended as a new timestamped migration that preserves existing Vault data, including changes shipped before `v0.1.0`.
 
 ## Nightlies
 
