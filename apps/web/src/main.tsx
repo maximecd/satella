@@ -9,6 +9,8 @@ import {
 } from "@tanstack/react-router";
 
 import { Provider } from "./components/ui/provider";
+import { AppLanguageSync } from "./i18n/AppLanguageSync";
+import "./i18n/index.js";
 import { createHttpPortfolioEngine, PortfolioEngineProvider } from "./portfolio";
 import { routeTree } from "./routeTree.gen";
 
@@ -39,6 +41,7 @@ createRoot(root).render(
     <Provider>
       <QueryClientProvider client={queryClient}>
         <PortfolioEngineProvider engine={portfolioEngine}>
+          <AppLanguageSync />
           <RouterProvider router={router} />
         </PortfolioEngineProvider>
       </QueryClientProvider>

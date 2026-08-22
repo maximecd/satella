@@ -2,11 +2,13 @@ import { Button, Flex, Heading, Icon, Link, Stack, Text } from "@chakra-ui/react
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useLocation } from "@tanstack/react-router";
 import { LayoutDashboard, Lock, Settings, type LucideIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { engineApi } from "./api";
 import { vaultStatusQuery } from "./queries";
 
 export function Sidebar() {
+  const { t } = useTranslation();
   const pathname = useLocation({ select: (location) => location.pathname });
   const isDashboard = pathname === "/";
   const isSettings = pathname === "/settings" || pathname.startsWith("/settings/");
@@ -14,7 +16,7 @@ export function Sidebar() {
   return (
     <Flex
       as="nav"
-      aria-label="Side navigation"
+      aria-label={t("shell.sideNavigation")}
       direction="column"
       w={{ base: "56", md: "60" }}
       bg="bg.panel"
@@ -31,8 +33,18 @@ export function Sidebar() {
         Satella
       </Heading>
       <Stack gap="1" flex="1">
-        <NavItem href="/" label="Dashboard" icon={LayoutDashboard} selected={isDashboard} />
-        <NavItem href="/settings" label="Settings" icon={Settings} selected={isSettings} />
+        <NavItem
+          href="/"
+          label={t("shell.dashboard")}
+          icon={LayoutDashboard}
+          selected={isDashboard}
+        />
+        <NavItem
+          href="/settings"
+          label={t("shell.settings")}
+          icon={Settings}
+          selected={isSettings}
+        />
       </Stack>
       <LockButton />
     </Flex>
@@ -40,6 +52,7 @@ export function Sidebar() {
 }
 
 function LockButton() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const lock = useMutation({
     mutationFn: engineApi.lockScreen,
@@ -62,7 +75,7 @@ function LockButton() {
       <Icon asChild>
         <Lock />
       </Icon>
-      Lock
+      {t("shell.lock")}
     </Button>
   );
 }

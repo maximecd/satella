@@ -1,6 +1,7 @@
 import { Text } from "@chakra-ui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 import { engineApi } from "../api";
 import { vaultStatusQuery } from "../queries";
@@ -9,7 +10,9 @@ import { ScreenLockScreen } from "./screen-lock";
 import { UnlockScreen } from "./unlock";
 
 const FIRST_ASSET_KEY = "satella.onboarding.first-asset";
-const firstAssetListeners = new Set<() => void>();
+export const firstAssetListeners = new Set<() => void>();
+
+export const isFirstAssetPending = () => sessionStorage.getItem(FIRST_ASSET_KEY) === "1";
 
 export const markFirstAssetPending = () => {
   sessionStorage.setItem(FIRST_ASSET_KEY, "1");
@@ -22,6 +25,7 @@ export const clearFirstAssetPending = () => {
 };
 
 export function VaultGate({ children }: { readonly children: ReactNode }) {
+  const { t } = useTranslation();
   const statusQuery = useQuery(vaultStatusQuery);
   const queryClient = useQueryClient();
   const [firstAssetPending, setFirstAssetPending] = useState(
@@ -65,7 +69,7 @@ export function VaultGate({ children }: { readonly children: ReactNode }) {
   if (statusQuery.isPending) {
     return (
       <Text color="fg.muted" as="p" role="status">
-        Loading…
+        {t("security.loading")}
       </Text>
     );
   }

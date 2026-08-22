@@ -1,0 +1,37 @@
+{
+  "accounts": {
+    "otherHoldings": "Other holdings",
+    "breadcrumbs": {
+      "dashboard": "Dashboard",
+      "settings": "Settings",
+      "custodians": "Custodians",
+      "edit": "Edit"
+    },
+    "valuationCurrencySubtitle": "Valuation currency {{iso}}",
+    "valuationCurrencyLabel": "Valuation currency",
+    "editAccount": "Edit account",
+    "editTitle": "Edit {{name}}",
+    "refreshFailed": "Refresh failed",
+    "incompleteTotalTitle": "Total is incomplete",
+    "incompleteTotalDescription": "Unpriced positions are excluded from this total.",
+    "valuedTotal": "Valued total",
+    "unrealizedPnl": "Unrealized P&L",
+    "positionsHeading": "Positions",
+    "zeroPositions": "Zero positions ({{total}})",
+    "unpricedPositions": "Unpriced positions ({{total}})",
+    "managedAccountError": "This account is managed by a synced custodian and cannot be edited.",
+    "accountNameLabel": "Account name",
+    "saveChanges": "Save changes",
+    "table": {
+      "noPositions": "No positions",
+      "asset": "Asset",
+      "quantity": "Quantity",
+      "marketPrice": "Market price",
+      "value": "Value ({{iso}})",
+      "unrealizedPnl": "Unrealized P&L",
+      "unpriced": "Unpriced",
+      "edit": "Edit"
+    },
+    "convertedAt": "Converted at {{from}} = {{to}}"
+  }
+}

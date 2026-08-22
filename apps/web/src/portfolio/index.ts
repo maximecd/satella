@@ -31,6 +31,7 @@ export {
   useManualHoldingLookup,
   usePositionEdit,
   useRefreshCustodian,
+  useSaveAppLanguage,
   useSaveReportingCurrency,
   useSettings,
   useUpdateAccount,

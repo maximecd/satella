@@ -121,7 +121,8 @@ export const initialFinanceModel = Effect.gen(function* () {
 
   yield* sql`CREATE TABLE app_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    reporting_currency_asset_id TEXT NOT NULL REFERENCES assets(id)
+    reporting_currency_asset_id TEXT NOT NULL REFERENCES assets(id),
+    app_language TEXT NOT NULL CHECK (app_language IN ('en', 'fr'))
   ) STRICT`;
 
   yield* sql`CREATE TABLE vault_security (
@@ -153,7 +154,8 @@ export const initialFinanceModel = Effect.gen(function* () {
     yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
       VALUES (${`identifier:iso:${iso}`}, ${assetId}, 'iso_currency', ${iso})`;
   }
-  yield* sql`INSERT INTO app_settings (id, reporting_currency_asset_id) VALUES (1, 'fiat:USD')`;
+  yield* sql`INSERT INTO app_settings (id, reporting_currency_asset_id, app_language)
+    VALUES (1, 'fiat:USD', 'en')`;
 
   yield* sql`INSERT INTO custodians (id, name, connector_id, config_json, created_at, updated_at)
     VALUES ('custodian:manual', 'Manual custodian', NULL, NULL, ${timestamp}, ${timestamp})`;

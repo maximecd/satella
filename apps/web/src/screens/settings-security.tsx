@@ -1,6 +1,7 @@
 import { Button, Card, Heading, Separator, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import { engineApi } from "../api";
 import { FormError, PageHeader } from "../components";
@@ -12,10 +13,8 @@ import { PinField } from "./pin-field";
 import { ResetSatellaControl } from "./reset-satella";
 import { SecretField } from "./secret-field";
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The request failed.";
-
 export function SettingsSecurityScreen() {
+  const { t } = useTranslation();
   const statusQuery = useQuery(vaultStatusQuery);
   const queryClient = useQueryClient();
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -26,6 +25,8 @@ export function SettingsSecurityScreen() {
   const [pinPassword, setPinPassword] = useState("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  const errorMessage = (cause: unknown) =>
+    cause instanceof Error ? cause.message : t("errors.requestFailed");
   const changePassword = useMutation({
     mutationFn: engineApi.changeVaultPassword,
     onSuccess: () => {
@@ -33,7 +34,7 @@ export function SettingsSecurityScreen() {
       setCurrentPassword("");
       setNextPassword("");
       setConfirmPassword("");
-      notify.success("Vault password changed.");
+      notify.success(t("security.settings.passwordSection.changedToast"));
     },
     onError: (cause) => setPasswordError(errorMessage(cause)),
   });
@@ -44,7 +45,7 @@ export function SettingsSecurityScreen() {
       setPinPassword("");
       setPin("");
       setConfirmPin("");
-      notify.success("Screen-lock PIN changed.");
+      notify.success(t("security.settings.pinSection.changedToast"));
     },
     onError: (cause) => setPinError(errorMessage(cause)),
   });
@@ -56,7 +57,7 @@ export function SettingsSecurityScreen() {
     mutationFn: engineApi.setScreenLockTimeout,
     onSuccess: (status) => {
       queryClient.setQueryData(vaultStatusQuery.queryKey, status);
-      notify.success("Screen-lock timeout saved.");
+      notify.success(t("security.settings.timeoutSection.savedToast"));
     },
   });
   const [exportPassword, setExportPassword] = useState("");
@@ -83,7 +84,7 @@ export function SettingsSecurityScreen() {
   const pinMismatch = confirmPin.length > 0 && pin !== confirmPin;
   return (
     <>
-      <PageHeader title="Security" />
+      <PageHeader title={t("security.settings.title")} />
       <Stack gap="6">
         <Card.Root>
           <Card.Body>
@@ -91,7 +92,7 @@ export function SettingsSecurityScreen() {
               onSubmit={(event: FormEvent) => {
                 event.preventDefault();
                 if (nextPassword !== confirmPassword) {
-                  setPasswordError("Vault password and confirmation do not match.");
+                  setPasswordError(t("security.settings.passwordSection.mismatchError"));
                   return;
                 }
                 changePassword.mutate({ currentPassword, nextPassword });
@@ -99,36 +100,35 @@ export function SettingsSecurityScreen() {
             >
               <Stack gap="4">
                 <Heading as="h2" size="md">
-                  Vault password
+                  {t("security.settings.passwordSection.heading")}
                 </Heading>
                 <Text color="fg.muted" as="p">
-                  Changing the Vault password rewraps the encryption key. Encrypted backups stay
-                  usable.
+                  {t("security.settings.passwordSection.description")}
                 </Text>
                 <FormError message={passwordError} />
                 <SecretField
-                  label="Current Vault password"
+                  label={t("security.settings.passwordSection.currentLabel")}
                   value={currentPassword}
                   onChange={setCurrentPassword}
                   htmlName="current-vault-password"
                   autoComplete="current-password"
                 />
                 <SecretField
-                  label="New Vault password"
+                  label={t("security.settings.passwordSection.newLabel")}
                   value={nextPassword}
                   onChange={setNextPassword}
                   htmlName="new-vault-password"
                   autoComplete="new-password"
                 />
                 <SecretField
-                  label="Confirm new Vault password"
+                  label={t("security.settings.passwordSection.confirmLabel")}
                   value={confirmPassword}
                   onChange={setConfirmPassword}
                   htmlName="confirm-vault-password"
                   autoComplete="new-password"
                 />
                 <Button type="submit" colorPalette="blue">
-                  Change Vault password
+                  {t("security.settings.passwordSection.submit")}
                 </Button>
               </Stack>
             </form>
@@ -140,7 +140,7 @@ export function SettingsSecurityScreen() {
               onSubmit={(event: FormEvent) => {
                 event.preventDefault();
                 if (pin !== confirmPin) {
-                  setPinError("Screen-lock PIN and confirmation do not match.");
+                  setPinError(t("security.settings.pinSection.mismatchError"));
                   return;
                 }
                 changePin.mutate({ password: pinPassword, pin });
@@ -148,32 +148,34 @@ export function SettingsSecurityScreen() {
             >
               <Stack gap="4">
                 <Heading as="h2" size="md">
-                  Screen-lock PIN
+                  {t("security.settings.pinSection.heading")}
                 </Heading>
                 <FormError message={pinError} />
                 <SecretField
-                  label="Vault password"
+                  label={t("security.settings.pinSection.vaultPasswordLabel")}
                   value={pinPassword}
                   onChange={setPinPassword}
                   htmlName="pin-vault-password"
                   autoComplete="current-password"
                 />
                 <PinField
-                  label="New Screen-lock PIN"
+                  label={t("security.settings.pinSection.newPinLabel")}
                   value={pin}
                   onChange={setPin}
                   htmlName="new-pin"
                 />
                 <PinField
-                  label="Confirm Screen-lock PIN"
+                  label={t("security.settings.pinSection.confirmPinLabel")}
                   value={confirmPin}
                   onChange={setConfirmPin}
                   htmlName="confirm-pin"
                   invalid={pinMismatch}
-                  errorText={pinMismatch ? "PINs do not match." : undefined}
+                  errorText={
+                    pinMismatch ? t("security.settings.pinSection.pinsDoNotMatchError") : undefined
+                  }
                 />
                 <Button type="submit" colorPalette="blue">
-                  Change Screen-lock PIN
+                  {t("security.settings.pinSection.submit")}
                 </Button>
               </Stack>
             </form>
@@ -218,14 +220,12 @@ export function SettingsSecurityScreen() {
         <Card.Root>
           <Card.Body>
             <SelectField
-              label="Screen-lock timeout"
-              helperText="Lock hides the interface after inactivity. There is no Never option."
-              options={[
-                { value: "5", label: "5 minutes" },
-                { value: "15", label: "15 minutes" },
-                { value: "30", label: "30 minutes" },
-                { value: "60", label: "60 minutes" },
-              ]}
+              label={t("security.settings.timeoutSection.label")}
+              helperText={t("security.settings.timeoutSection.helperText")}
+              options={[5, 15, 30, 60].map((minutes) => ({
+                value: String(minutes),
+                label: t("security.settings.timeoutSection.minutes", { count: minutes }),
+              }))}
               value={timeoutMinutes}
               onChange={(value) => {
                 // SAFETY: SelectField only supplies one of the four literal timeout option values above.
@@ -234,14 +234,12 @@ export function SettingsSecurityScreen() {
             />
           </Card.Body>
         </Card.Root>
-        <Button onClick={() => lockNow.mutate()}>Lock now</Button>
+        <Button onClick={() => lockNow.mutate()}>{t("security.settings.lockNow")}</Button>
         <Text color="fg.muted" as="p">
-          Screen lock is interface privacy, not Vault encryption. Encryption protects copied files
-          while the Vault is closed.
+          {t("security.settings.privacyNote")}
         </Text>
         <Text color="fg.muted" as="p">
-          SQLCipher Community Edition is included under the BSD-3-Clause license. Notices ship with
-          this application.
+          {t("security.settings.licenseNote")}
         </Text>
         <Separator />
         <ResetSatellaControl />

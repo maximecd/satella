@@ -4,6 +4,7 @@ import type { ConnectorCapability, Custodian } from "@satella-app/engine/api";
 import { UpdateCustodianInput } from "@satella-app/engine/api";
 import * as Schema from "effect/Schema";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   DeleteButton,
@@ -30,39 +31,40 @@ import { SelectField } from "../select-field";
 import { AddAssetsButton } from "./add-assets";
 import { SetupInstructions } from "./setup-instructions";
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The request failed.";
-
-const accountCount = (count: number) => `${count} account${count === 1 ? "" : "s"}`;
-
 const listedCustodians = (custodians: ReadonlyArray<Custodian>) =>
   custodians.filter((custodian) => !custodian.isDefault);
 
 export function CustodiansListScreen() {
+  const { t } = useTranslation();
   const query = useCustodians();
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const errorMessage = (cause: unknown) =>
+    cause instanceof Error ? cause.message : t("errors.requestFailed");
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   const custodians = listedCustodians(query.data);
   return (
     <>
       <PageBreadcrumbs
-        items={[{ label: "Settings", href: "/settings" }, { label: "Custodians" }]}
+        items={[
+          { label: t("settings.title"), href: "/settings" },
+          { label: t("custodians.title") },
+        ]}
       />
-      <PageHeader title="Custodians" />
+      <PageHeader title={t("custodians.title")} />
       {refreshError !== null && (
         <Alert.Root status="error">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>Refresh failed</Alert.Title>
+            <Alert.Title>{t("custodians.refreshFailed")}</Alert.Title>
             <Alert.Description>{refreshError}</Alert.Description>
           </Alert.Content>
         </Alert.Root>
       )}
       {custodians.length === 0 ? (
         <EmptyState
-          title="No custodians"
-          description="Add a bank or broker from Add assets, or connect a service to import accounts."
+          title={t("custodians.list.empty.title")}
+          description={t("custodians.list.empty.description")}
         >
           <AddAssetsButton />
         </EmptyState>
@@ -73,7 +75,9 @@ export function CustodiansListScreen() {
               key={custodian.id}
               href={`/settings/custodians/${custodian.id}`}
               label={custodian.name}
-              description={accountCount(custodian.accounts.length)}
+              description={t("custodians.list.accountCount", {
+                count: custodian.accounts.length,
+              })}
               endContent={
                 <Flex gap="2" align="center">
                   {custodian.connectorId !== null ? (
@@ -84,7 +88,7 @@ export function CustodiansListScreen() {
                       to="/settings/custodians/$custodianId/edit"
                       params={{ custodianId: custodian.id }}
                     >
-                      Edit
+                      {t("custodians.edit")}
                     </RouterLink>
                   </Button>
                 </Flex>
@@ -98,8 +102,11 @@ export function CustodiansListScreen() {
 }
 
 export function CustodianDetailScreen({ id }: { readonly id: string }) {
+  const { t } = useTranslation();
   const query = useCustodian(id);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const errorMessage = (cause: unknown) =>
+    cause instanceof Error ? cause.message : t("errors.requestFailed");
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   const custodian = query.data;
@@ -107,8 +114,8 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
     <>
       <PageBreadcrumbs
         items={[
-          { label: "Settings", href: "/settings" },
-          { label: "Custodians", href: "/settings/custodians" },
+          { label: t("settings.title"), href: "/settings" },
+          { label: t("custodians.title"), href: "/settings/custodians" },
           { label: custodian.name },
         ]}
       />
@@ -121,7 +128,7 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
             ) : null}
             <Button asChild>
               <RouterLink to="/settings/custodians/$custodianId/edit" params={{ custodianId: id }}>
-                Edit
+                {t("custodians.edit")}
               </RouterLink>
             </Button>
           </Flex>
@@ -131,18 +138,18 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
         <Alert.Root status="error">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>Refresh failed</Alert.Title>
+            <Alert.Title>{t("custodians.refreshFailed")}</Alert.Title>
             <Alert.Description>{refreshError}</Alert.Description>
           </Alert.Content>
         </Alert.Root>
       )}
       <Heading as="h2" size="md">
-        Accounts
+        {t("custodians.detail.accountsHeading")}
       </Heading>
       {custodian.accounts.length === 0 ? (
         <EmptyState
-          title="No accounts"
-          description="Accounts at this custodian will appear here."
+          title={t("custodians.detail.noAccountsTitle")}
+          description={t("custodians.detail.noAccountsDescription")}
         />
       ) : (
         <Box as="ul" m="0" p="0">
@@ -161,7 +168,7 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
                   </RouterLink>
                 </Link>
                 <Text color="fg.muted" fontSize="sm">
-                  {`${account.positionCount} holding${account.positionCount === 1 ? "" : "s"}`}
+                  {t("custodians.detail.holdingsCount", { count: account.positionCount })}
                 </Text>
               </Stack>
             </Box>
@@ -173,8 +180,11 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
 }
 
 export function EditCustodianScreen({ id }: { readonly id: string }) {
+  const { t } = useTranslation();
   const query = useCustodian(id);
   const capabilities = useConnectorCapabilities();
+  const errorMessage = (cause: unknown) =>
+    cause instanceof Error ? cause.message : t("errors.requestFailed");
   if (query.isPending || capabilities.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   if (capabilities.isError)
@@ -186,7 +196,7 @@ export function EditCustodianScreen({ id }: { readonly id: string }) {
           ({ id: connectorKey }) => connectorKey === query.data.connectorId,
         );
   if (query.data.connectorId !== null && connector === undefined) {
-    return <PageState kind="error" message="This custodian can no longer be edited." />;
+    return <PageState kind="error" message={t("custodians.editScreen.noLongerEditable")} />;
   }
   return <LoadedEditCustodian custodian={query.data} connector={connector} />;
 }
@@ -198,6 +208,7 @@ function LoadedEditCustodian({
   readonly custodian: Custodian;
   readonly connector: ConnectorCapability | undefined;
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [name, setName] = useState(custodian.name);
   const [credentials, setCredentials] = useState<Record<string, string>>(() =>
@@ -206,6 +217,8 @@ function LoadedEditCustodian({
   const [error, setError] = useState<string | null>(null);
   const update = useUpdateCustodian(custodian.id);
   const remove = useDeleteCustodian(custodian.id);
+  const errorMessage = (cause: unknown) =>
+    cause instanceof Error ? cause.message : t("errors.requestFailed");
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -220,7 +233,7 @@ function LoadedEditCustodian({
     const payload = await Schema.decodeUnknownPromise(UpdateCustodianInput)(input);
     try {
       await update.mutateAsync(payload);
-      notify.success("Custodian updated.");
+      notify.success(t("custodians.editScreen.updatedToast"));
       await navigate({
         to: "/settings/custodians/$custodianId",
         params: { custodianId: custodian.id },
@@ -234,14 +247,14 @@ function LoadedEditCustodian({
     <>
       <PageBreadcrumbs
         items={[
-          { label: "Settings", href: "/settings" },
-          { label: "Custodians", href: "/settings/custodians" },
+          { label: t("settings.title"), href: "/settings" },
+          { label: t("custodians.title"), href: "/settings/custodians" },
           { label: custodian.name, href: `/settings/custodians/${custodian.id}` },
-          { label: "Edit" },
+          { label: t("custodians.edit") },
         ]}
       />
       <PageHeader
-        title={`Edit ${custodian.name}`}
+        title={t("custodians.editScreen.title", { name: custodian.name })}
         action={
           custodian.connectorId !== null ? (
             <RefreshCustodianButton custodianId={custodian.id} />
@@ -251,15 +264,14 @@ function LoadedEditCustodian({
       {connector !== undefined ? (
         <>
           <Text as="p" color="fg.muted">
-            Prefer read-only credentials with no trading or withdrawal capability whenever the
-            connector allows it.
+            {t("custodians.editScreen.readOnlyHint")}
           </Text>
           <SetupInstructions source={connector.instructions} />
         </>
       ) : null}
       <FormError message={error} />
       <FormFrame onSubmit={(event) => void submit(event)}>
-        <Field label="Name">
+        <Field label={t("custodians.editScreen.nameLabel")}>
           <Input name="name" value={name} onChange={(event) => setName(event.target.value)} />
         </Field>
         {connector?.credentialFields.map((field) =>
@@ -267,19 +279,22 @@ function LoadedEditCustodian({
             <SelectField
               key={field.key}
               label={field.label}
-              options={[{ value: "", label: "Keep current value" }, ...(field.options ?? [])]}
+              options={[
+                { value: "", label: t("custodians.editScreen.keepCurrentValue") },
+                ...(field.options ?? []),
+              ]}
               value={credentials[field.key] ?? ""}
               onChange={(value) =>
                 setCredentials((current) => ({ ...current, [field.key]: value }))
               }
               name={field.key}
-              helperText="Choose a value only if you want to change it."
+              helperText={t("custodians.editScreen.selectHelperText")}
             />
           ) : (
             <Field
               key={field.key}
               label={field.label}
-              helperText="Leave blank to keep the current value."
+              helperText={t("custodians.editScreen.textHelperText")}
             >
               {field.kind === "password" ? (
                 <PasswordInput
@@ -307,7 +322,7 @@ function LoadedEditCustodian({
           disabled={update.isPending}
           loading={update.isPending}
         >
-          Save changes
+          {t("custodians.editScreen.saveChanges")}
         </Button>
       </FormFrame>
       <DeleteButton

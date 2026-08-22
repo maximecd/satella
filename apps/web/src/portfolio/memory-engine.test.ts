@@ -35,6 +35,19 @@ describe("memory portfolio engine", () => {
     ).rejects.toMatchObject({ code: "validation", message: "Unknown reporting currency" });
   });
 
+  it("persists App language with Reporting currency and keeps it when omitted", async () => {
+    const engine = createMemoryPortfolioEngine({ settings });
+    const updated = await engine.updateSettings({
+      reportingCurrencyAssetId: "fiat:USD",
+      language: "fr",
+    });
+    expect(updated.language).toBe("fr");
+    expect((await engine.getSettings()).language).toBe("fr");
+    await engine.updateSettings({ reportingCurrencyAssetId: "fiat:EUR" });
+    expect((await engine.getSettings()).language).toBe("fr");
+    expect((await engine.getSettings()).reportingCurrency.iso).toBe("EUR");
+  });
+
   it("honors cancellation", async () => {
     const engine = createMemoryPortfolioEngine();
     const signal = AbortSignal.abort();

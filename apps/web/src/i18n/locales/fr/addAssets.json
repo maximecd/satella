@@ -1,0 +1,124 @@
+{
+  "addAssets": {
+    "title": "Ajouter des actifs",
+    "back": "Retour",
+    "close": "Fermer",
+    "dialogAriaLabel": "Ajouter des actifs",
+    "progressAriaLabel": "Progression du formulaire",
+    "clearSearch": "Effacer",
+    "createOption": "Créer",
+    "searchCategories": "Rechercher des catégories",
+    "assetTypes": "Types d'actifs",
+    "categoriesEmpty": {
+      "title": "Aucune catégorie trouvée",
+      "description": "Essayez une autre recherche."
+    },
+    "categories": {
+      "checking": {
+        "label": "Compte courant",
+        "description": "Ajoutez un compte courant dans une banque avec un solde de départ."
+      },
+      "savings": {
+        "label": "Épargne",
+        "description": "Ajoutez un compte d'épargne dans une banque avec un solde de départ."
+      },
+      "stocks_etfs": {
+        "label": "Actions & ETF",
+        "description": "Recherchez des actions et ETF cotés, puis placez-les dans un compte titres."
+      },
+      "crypto": {
+        "label": "Crypto",
+        "description": "Recherchez des cryptos prises en charge et placez-les dans un compte portefeuille."
+      },
+      "other": {
+        "label": "Autres actifs",
+        "description": "Suivez un actif personnalisé par son nom et sa valeur actuelle."
+      }
+    },
+    "connectors": {
+      "search": "Rechercher un connecteur",
+      "availableAriaLabel": "Connecteurs disponibles",
+      "connectAriaLabel": "Connecter {{name}}",
+      "noneForCategory": {
+        "title": "Aucun connecteur pour cette catégorie",
+        "description": "Continuez manuellement pour ajouter ce type d'actif."
+      },
+      "noneFound": {
+        "title": "Aucun connecteur trouvé",
+        "description": "Essayez un autre nom de connecteur."
+      },
+      "addManually": "Ajouter manuellement",
+      "orAddManually": "Ou ajouter manuellement",
+      "manualDescription": "Saisissez cet actif vous-même au lieu de connecter un établissement.",
+      "unavailable": "Ce connecteur n'est pas disponible.",
+      "readOnlyHint": "Privilégiez des identifiants en lecture seule, sans capacité de trading ni de retrait, lorsque le connecteur le permet.",
+      "nameField": "Nom",
+      "nameRequired": "Le nom est requis.",
+      "fieldRequired": "Le champ {{field}} est requis.",
+      "importedAccounts": "Comptes importés depuis {{name}}.",
+      "connectAndImport": "Connecter et importer"
+    },
+    "custodian": {
+      "fallbackLabel": "Établissement",
+      "labels": {
+        "Bank": "Banque",
+        "Broker": "Courtier",
+        "Exchange": "Plateforme d'échange"
+      },
+      "choose": "Choisir l'établissement",
+      "nameWithList": "Nom de l'établissement",
+      "nameRequired": "Le nom de l'établissement est requis."
+    },
+    "account": {
+      "choose": "Choisir le compte",
+      "nameField": "Nom du compte",
+      "nameRequired": "Le nom du compte est requis."
+    },
+    "holdings": {
+      "assetLabel": "Actif",
+      "assetPlaceholder": "Rechercher par nom ou symbole exact",
+      "selectAssetRequired": "Sélectionnez un actif.",
+      "searching": "Recherche…",
+      "providerUnavailable": "La recherche d'actifs est temporairement indisponible.",
+      "matches": "Correspondances",
+      "noMatches": {
+        "title": "Aucune correspondance trouvée",
+        "description": "Les actions et cryptos personnalisées ne sont pas disponibles. Essayez un autre symbole."
+      },
+      "quantity": "Quantité",
+      "quantityRequired": "La quantité est requise.",
+      "quantityInvalid": "Saisissez une quantité valide.",
+      "averagePrice": "Prix unitaire moyen d'achat (facultatif)",
+      "averagePriceInvalid": "Saisissez un prix unitaire moyen d'achat valide.",
+      "averagePricePositive": "Le prix unitaire moyen d'achat doit être supérieur à zéro.",
+      "purchaseCurrency": "Devise d'achat",
+      "addQuantity": "Ajouter la quantité",
+      "updateQuantity": "Mettre à jour la quantité",
+      "addedToast": "Ajout de {{name}} à {{account}}.",
+      "updatedToast": "Quantité de {{name}} mise à jour dans {{account}}."
+    },
+    "cash": {
+      "bankLabel": "Banque",
+      "bankNameRequired": "Le nom de la banque est requis.",
+      "accountName": "Nom du compte",
+      "currency": "Devise",
+      "balance": "Solde",
+      "balanceRequired": "Le solde est requis.",
+      "balanceInvalid": "Saisissez un solde valide.",
+      "save": "Enregistrer le compte",
+      "addedToast": "Ajout de {{name}}."
+    },
+    "other": {
+      "nameField": "Nom de l'actif",
+      "nameRequired": "Le nom de l'actif est requis.",
+      "valueField": "Valeur actuelle",
+      "valueRequired": "La valeur actuelle est requise.",
+      "valueInvalid": "Saisissez une valeur valide.",
+      "currency": "Devise",
+      "averagePrice": "Prix unitaire moyen d'achat (facultatif)",
+      "purchaseCurrency": "Devise d'achat",
+      "submit": "Ajouter l'actif",
+      "addedToast": "Ajout de {{name}}."
+    }
+  }
+}

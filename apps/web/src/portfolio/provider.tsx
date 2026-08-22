@@ -5,6 +5,7 @@ import type {
   AddCashAccountInput,
   AddManualHoldingInput,
   AddOtherAssetInput,
+  AppLanguage,
   Asset,
   ConnectCustodianInput,
   Custodian,
@@ -94,6 +95,17 @@ export const useSaveReportingCurrency = () => {
     onSuccess: async (settings) => {
       queryClient.setQueryData(settingsQueryKey, settings);
       await queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
+    },
+  });
+};
+
+export const useSaveAppLanguage = () => {
+  const engine = usePortfolioEngine();
+  const queryClient = useQueryClient();
+  return useMutation<Settings, PortfolioFailure, AppLanguage>({
+    mutationFn: (language) => engine.updateSettings({ language }),
+    onSuccess: (settings) => {
+      queryClient.setQueryData(settingsQueryKey, settings);
     },
   });
 };

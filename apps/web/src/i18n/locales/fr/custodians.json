@@ -1,0 +1,33 @@
+{
+  "custodians": {
+    "title": "Établissements",
+    "edit": "Modifier",
+    "refreshFailed": "Échec de l'actualisation",
+    "list": {
+      "empty": {
+        "title": "Aucun établissement",
+        "description": "Ajoutez une banque ou un courtier depuis « Ajouter des actifs », ou connectez un service pour importer des comptes."
+      },
+      "accountCount_one": "{{count}} compte",
+      "accountCount_other": "{{count}} comptes"
+    },
+    "detail": {
+      "accountsHeading": "Comptes",
+      "noAccountsTitle": "Aucun compte",
+      "noAccountsDescription": "Les comptes de cet établissement apparaîtront ici.",
+      "holdingsCount_one": "{{count}} position",
+      "holdingsCount_other": "{{count}} positions"
+    },
+    "editScreen": {
+      "title": "Modifier {{name}}",
+      "readOnlyHint": "Dans la mesure du possible, privilégiez des identifiants en lecture seule, sans capacité de négociation ni de retrait.",
+      "nameLabel": "Nom",
+      "keepCurrentValue": "Conserver la valeur actuelle",
+      "selectHelperText": "Choisissez une valeur uniquement si vous souhaitez la modifier.",
+      "textHelperText": "Laissez vide pour conserver la valeur actuelle.",
+      "saveChanges": "Enregistrer les modifications",
+      "updatedToast": "Établissement mis à jour.",
+      "noLongerEditable": "Cet établissement ne peut plus être modifié."
+    }
+  }
+}

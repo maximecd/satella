@@ -1,0 +1,16 @@
+{
+  "assets": {
+    "breadcrumbs": {
+      "dashboard": "Dashboard"
+    },
+    "editTitle": "Edit {{name}}",
+    "notEditable": "This asset is maintained automatically and cannot be edited.",
+    "form": {
+      "name": "Name",
+      "symbol": "Symbol (optional)",
+      "price": "Manual price (optional)",
+      "priceCurrency": "Price currency",
+      "save": "Save asset"
+    }
+  }
+}

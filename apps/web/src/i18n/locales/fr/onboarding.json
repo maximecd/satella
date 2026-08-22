@@ -1,0 +1,51 @@
+{
+  "onboarding": {
+    "welcome": {
+      "title": "Bienvenue dans Satella",
+      "intro": "Satella conserve votre portefeuille, vos établissements et vos identifiants dans un coffre local sur cet ordinateur. Les données financières restent locales, sauf lorsque Satella communique directement avec les connecteurs et les sources de données de marché que vous configurez.",
+      "encryptionNote": "Le chiffrement protège les fichiers copiés tant que le coffre est fermé. Il ne protège pas un coffre ouvert contre les logiciels malveillants, les administrateurs ou l'inspection de la mémoire.",
+      "continue": "Continuer",
+      "createNewVault": "Créer un nouveau coffre"
+    },
+    "password": {
+      "title": "Créer un mot de passe de coffre",
+      "vaultPassword": "Mot de passe du coffre",
+      "confirmVaultPassword": "Confirmer le mot de passe du coffre",
+      "minLengthError": "Le mot de passe du coffre doit contenir au moins {{min}} caractères.",
+      "mismatchError": "Le mot de passe du coffre et sa confirmation ne correspondent pas.",
+      "fieldMismatchError": "Les mots de passe ne correspondent pas.",
+      "continue": "Continuer"
+    },
+    "pin": {
+      "title": "Créer un code de verrouillage",
+      "description": "Verrouiller masque l'interface derrière ce code à quatre chiffres tant que le coffre reste ouvert. L'actualisation en arrière-plan peut continuer. Le verrouillage n'est pas le chiffrement du coffre.",
+      "screenLockPin": "Code de verrouillage",
+      "confirmScreenLockPin": "Confirmer le code de verrouillage",
+      "formatError": "Le code de verrouillage doit comporter exactement quatre chiffres.",
+      "mismatchError": "Le code de verrouillage et sa confirmation ne correspondent pas.",
+      "fieldMismatchError": "Les codes ne correspondent pas.",
+      "createVault": "Créer le coffre"
+    },
+    "preferences": {
+      "title": "Langue et devise",
+      "description": "Choisissez la langue de l'interface et la devise utilisée pour vos totaux de portefeuille. Vous pourrez modifier les deux plus tard dans les réglages.",
+      "language": "Langue",
+      "languageHelper": "Les montants et les dates suivent cette langue.",
+      "reportingCurrency": "Devise de référence",
+      "reportingCurrencyHelper": "Les totaux, l'historique et la répartition du portefeuille utilisent cette devise.",
+      "keepSuggested": "Garder les suggestions",
+      "saveAndContinue": "Enregistrer et continuer"
+    },
+    "firstAsset": {
+      "title": "Ajoutez votre premier actif",
+      "description": "Vous pouvez commencer avec le même flux d'ajout d'actifs que celui que vous utiliserez plus tard, ou passer.",
+      "addFirstAsset": "Ajouter votre premier actif",
+      "goToDashboard": "Aller au tableau de bord"
+    },
+    "pinConfirm": {
+      "title": "Confirmez votre code de verrouillage",
+      "description": "Saisissez à nouveau les quatre mêmes chiffres.",
+      "mismatchError": "Les codes de verrouillage ne correspondent pas. Recommencez."
+    }
+  }
+}

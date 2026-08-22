@@ -1,0 +1,42 @@
+{
+  "dashboard": {
+    "title": "Dashboard",
+    "incompleteValuation": "Incomplete valuation",
+    "empty": {
+      "title": "No assets yet",
+      "description": "Connect a custodian or track assets manually. Satella will show Portfolio value, allocation, and accounts here."
+    },
+    "portfolioValue": {
+      "title": "Portfolio value",
+      "unrealizedPnl": "Unrealized P&L",
+      "changeLabel": "Portfolio value change:",
+      "rangeAriaLabel": "Portfolio value range",
+      "notEnoughHistory": "Not enough history"
+    },
+    "allocation": {
+      "title": "Allocation",
+      "ariaLabel": "Allocation",
+      "assets": "Assets",
+      "custodians": "Custodians",
+      "categories": "Categories",
+      "empty": "No priced allocation to show.",
+      "unpricedExcluded_one": "{{count}} unpriced asset excluded from allocation.",
+      "unpricedExcluded_other": "{{count}} unpriced assets excluded from allocation.",
+      "negativeExcluded": "Negative holdings are excluded from allocation."
+    },
+    "holdings": {
+      "other": "Other holdings"
+    },
+    "accounts": {
+      "holdingsCount_one": "{{count}} holding",
+      "holdingsCount_other": "{{count}} holdings",
+      "pnl": "P&L"
+    },
+    "charts": {
+      "historyAriaLabel": "Portfolio value history",
+      "allocationAriaLabel": "Allocation",
+      "cellDetail": "{{name}} • {{percent}}",
+      "cellLabel": "{{title}}, {{amount}}, {{percent}}"
+    }
+  }
+}

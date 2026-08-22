@@ -28,6 +28,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ADD_ASSETS_CATEGORIES, categoryMeta, type AddAssetsCategory } from "../add-assets";
 import { FormError, FormFrame, PageState } from "../components";
@@ -61,10 +62,16 @@ import { SelectField } from "../select-field";
 import { compareDecimal } from "../financial-number";
 import { SetupInstructions } from "./setup-instructions";
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The request failed.";
+const errorMessage = (cause: unknown, fallback: string) =>
+  cause instanceof Error ? cause.message : fallback;
 
 const CREATE_NEW = "__new__";
+
+const CUSTODIAN_LABEL_KEYS = {
+  Bank: "addAssets.custodian.labels.Bank",
+  Broker: "addAssets.custodian.labels.Broker",
+  Exchange: "addAssets.custodian.labels.Exchange",
+} as const;
 
 type WizardStep = "category" | "connectors" | "connect" | "manual";
 
@@ -134,7 +141,7 @@ export function useAddAssets() {
 }
 
 export function AddAssetsButton({
-  label = "Add assets",
+  label,
   variant = "solid",
   start,
 }: {
@@ -142,6 +149,7 @@ export function AddAssetsButton({
   readonly variant?: "solid" | "outline" | "ghost";
   readonly start?: AddAssetsStart;
 }) {
+  const { t } = useTranslation();
   const { open } = useAddAssets();
   return (
     <Button
@@ -149,7 +157,7 @@ export function AddAssetsButton({
       variant={variant}
       onClick={() => open(start)}
     >
-      {label}
+      {label ?? t("addAssets.title")}
     </Button>
   );
 }
@@ -161,6 +169,7 @@ function AddAssetsDialog({
   readonly start: AddAssetsStart;
   readonly onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const capabilities = useConnectorCapabilities();
   const [history, setHistory] = useState<Frame[]>(() => initialHistory(start));
   const current = history[history.length - 1] ?? categoryFrame();
@@ -212,11 +221,11 @@ function AddAssetsDialog({
       size="lg"
       scrollBehavior="inside"
     >
-      <DialogContent aria-label="Add assets">
+      <DialogContent aria-label={t("addAssets.dialogAriaLabel")}>
         <DialogHeader>
           <Stack direction="row" align="center" gap="2" w="full">
             <IconButton
-              aria-label="Back"
+              aria-label={t("addAssets.back")}
               variant="ghost"
               onClick={back}
               disabled={!canGoBack}
@@ -227,9 +236,9 @@ function AddAssetsDialog({
               </Icon>
             </IconButton>
             <DialogTitle flex="1" textAlign="center">
-              Add assets
+              {t("addAssets.title")}
             </DialogTitle>
-            <IconButton aria-label="Close" variant="ghost" onClick={onClose}>
+            <IconButton aria-label={t("addAssets.close")} variant="ghost" onClick={onClose}>
               <Icon asChild>
                 <X />
               </Icon>
@@ -272,7 +281,7 @@ function AddAssetsDialog({
             max={progress.max}
             size="xs"
             colorPalette="blue"
-            translations={{ value: () => "Form progress" }}
+            translations={{ value: () => t("addAssets.progressAriaLabel") }}
             w="full"
           >
             <Progress.Track rounded="none">
@@ -300,6 +309,7 @@ function SearchInput({
   readonly placeholder?: string | undefined;
   readonly errorText?: string | undefined;
 }) {
+  const { t } = useTranslation();
   return (
     <Field label={label} invalid={errorText !== undefined} errorText={errorText}>
       <InputGroup
@@ -310,7 +320,12 @@ function SearchInput({
         }
         endElement={
           value.length > 0 ? (
-            <IconButton aria-label="Clear" variant="ghost" size="xs" onClick={() => onChange("")}>
+            <IconButton
+              aria-label={t("addAssets.clearSearch")}
+              variant="ghost"
+              size="xs"
+              onClick={() => onChange("")}
+            >
               <Icon asChild>
                 <X />
               </Icon>
@@ -330,9 +345,15 @@ function SearchInput({
 }
 
 function CategoryStep({ onSelect }: { readonly onSelect: (category: AddAssetsCategory) => void }) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const needle = search.trim().toLocaleLowerCase();
-  const categories = ADD_ASSETS_CATEGORIES.map((id) => ({ id, ...categoryMeta(id) })).filter(
+  const categories = ADD_ASSETS_CATEGORIES.map((id) => ({
+    id,
+    ...categoryMeta(id),
+    label: t(`addAssets.categories.${id}.label`),
+    description: t(`addAssets.categories.${id}.description`),
+  })).filter(
     (category) =>
       needle.length === 0 ||
       `${category.label} ${category.description}`.toLocaleLowerCase().includes(needle),
@@ -340,16 +361,19 @@ function CategoryStep({ onSelect }: { readonly onSelect: (category: AddAssetsCat
   return (
     <Stack gap="4">
       <SearchInput
-        label="Search categories"
+        label={t("addAssets.searchCategories")}
         value={search}
         onChange={setSearch}
         name="categorySearch"
       />
       {categories.length === 0 ? (
-        <EmptyState title="No categories found" description="Try a different search." />
+        <EmptyState
+          title={t("addAssets.categoriesEmpty.title")}
+          description={t("addAssets.categoriesEmpty.description")}
+        />
       ) : (
         <Stack gap="1" as="ul">
-          <Text fontWeight="medium">Asset types</Text>
+          <Text fontWeight="medium">{t("addAssets.assetTypes")}</Text>
           {categories.map((category) => (
             <Box as="li" key={category.id} listStyle="none">
               <Button
@@ -384,12 +408,14 @@ function ConnectorStep({
   readonly onConnect: (connectorId: string) => void;
   readonly onManual: () => void;
 }) {
+  const { t } = useTranslation();
+  const requestFailed = t("errors.requestFailed");
   const meta = categoryMeta(category);
   const capabilities = useConnectorCapabilities();
   const [search, setSearch] = useState("");
   if (capabilities.isPending) return <PageState kind="pending" />;
   if (capabilities.isError)
-    return <PageState kind="error" message={errorMessage(capabilities.error)} />;
+    return <PageState kind="error" message={errorMessage(capabilities.error, requestFailed)} />;
   const connectors = capabilities.data.connectors.filter((connector) =>
     connector.assetCategories.includes(meta.assetCategory),
   );
@@ -401,7 +427,7 @@ function ConnectorStep({
     <Stack gap="4">
       {connectors.length > 0 && (
         <SearchInput
-          label="Search connectors"
+          label={t("addAssets.connectors.search")}
           value={search}
           onChange={setSearch}
           name="connectorSearch"
@@ -409,17 +435,20 @@ function ConnectorStep({
       )}
       {connectors.length === 0 ? (
         <EmptyState
-          title="No connectors for this category"
-          description="Continue manually to add this asset type."
+          title={t("addAssets.connectors.noneForCategory.title")}
+          description={t("addAssets.connectors.noneForCategory.description")}
         >
           <Button colorPalette="blue" onClick={onManual}>
-            Add manually
+            {t("addAssets.connectors.addManually")}
           </Button>
         </EmptyState>
       ) : filtered.length === 0 ? (
-        <EmptyState title="No connectors found" description="Try a different connector name." />
+        <EmptyState
+          title={t("addAssets.connectors.noneFound.title")}
+          description={t("addAssets.connectors.noneFound.description")}
+        />
       ) : (
-        <Box as="section" aria-label="Available connectors">
+        <Box as="section" aria-label={t("addAssets.connectors.availableAriaLabel")}>
           <SimpleGrid columns={{ base: 2, md: 3 }} gap="3">
             {filtered.map((connector) => (
               <Button
@@ -428,7 +457,7 @@ function ConnectorStep({
                 variant="outline"
                 height="auto"
                 py="5"
-                aria-label={`Connect ${connector.name}`}
+                aria-label={t("addAssets.connectors.connectAriaLabel", { name: connector.name })}
                 onClick={() => onConnect(connector.id)}
               >
                 <Stack align="center" gap="3">
@@ -447,12 +476,12 @@ function ConnectorStep({
         </Box>
       )}
       <Stack gap="1">
-        <Text fontWeight="medium">Or add manually</Text>
+        <Text fontWeight="medium">{t("addAssets.connectors.orAddManually")}</Text>
         <Button variant="ghost" height="auto" py="3" justifyContent="flex-start" onClick={onManual}>
           <Stack align="flex-start" gap="0.5">
-            <Text fontWeight="semibold">Add manually</Text>
+            <Text fontWeight="semibold">{t("addAssets.connectors.addManually")}</Text>
             <Text color="fg.muted" fontSize="sm" whiteSpace="normal">
-              Enter this asset yourself instead of connecting a provider.
+              {t("addAssets.connectors.manualDescription")}
             </Text>
           </Stack>
         </Button>
@@ -470,18 +499,20 @@ function ConnectStep({
   readonly connectorId: string;
   readonly onComplete: () => void;
 }) {
+  const { t } = useTranslation();
+  const requestFailed = t("errors.requestFailed");
   const meta = categoryMeta(category);
   const capabilities = useConnectorCapabilities();
   const listed = useCustodians();
   if (capabilities.isPending || listed.isPending) return <PageState kind="pending" />;
   if (capabilities.isError)
-    return <PageState kind="error" message={errorMessage(capabilities.error)} />;
+    return <PageState kind="error" message={errorMessage(capabilities.error, requestFailed)} />;
   const connector = capabilities.data.connectors.find(({ id }) => id === connectorId);
   if (connector === undefined) {
-    return <PageState kind="error" message="That connector is not available." />;
+    return <PageState kind="error" message={t("addAssets.connectors.unavailable")} />;
   }
   if (!connector.assetCategories.includes(meta.assetCategory)) {
-    return <PageState kind="error" message="That connector is not available." />;
+    return <PageState kind="error" message={t("addAssets.connectors.unavailable")} />;
   }
   const existingCount = (listed.data ?? []).filter(
     (custodian) => custodian.connectorId === connector.id,
@@ -506,6 +537,8 @@ function ConnectorImportForm({
   readonly suggestedName: string;
   readonly onComplete: () => void;
 }) {
+  const { t } = useTranslation();
+  const requestFailed = t("errors.requestFailed");
   const [name, setName] = useState(suggestedName);
   const [credentials, setCredentials] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -530,10 +563,12 @@ function ConnectorImportForm({
     event.preventDefault();
     setError(null);
     const nextFieldErrors: Record<string, string> = {};
-    if (name.trim() === "") nextFieldErrors.name = "Name is required.";
+    if (name.trim() === "") nextFieldErrors.name = t("addAssets.connectors.nameRequired");
     for (const field of connector.credentialFields) {
       if (field.required && (credentials[field.key] ?? "").trim() === "") {
-        nextFieldErrors[field.key] = `${field.label} is required.`;
+        nextFieldErrors[field.key] = t("addAssets.connectors.fieldRequired", {
+          field: field.label,
+        });
       }
     }
     setFieldErrors(nextFieldErrors);
@@ -545,22 +580,25 @@ function ConnectorImportForm({
     });
     try {
       const custodian = await connect.mutateAsync(payload);
-      notify.success(`Imported accounts from ${custodian.name}.`);
+      notify.success(t("addAssets.connectors.importedAccounts", { name: custodian.name }));
       onComplete();
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, requestFailed));
     }
   };
   return (
     <Stack gap="4">
       <Text as="p" color="fg.muted">
-        Prefer read-only credentials with no trading or withdrawal capability whenever the Connector
-        allows it.
+        {t("addAssets.connectors.readOnlyHint")}
       </Text>
       <SetupInstructions source={connector.instructions} />
       <FormError message={error} />
       <FormFrame onSubmit={(event) => void submit(event)}>
-        <Field label="Name" invalid={fieldErrors.name !== undefined} errorText={fieldErrors.name}>
+        <Field
+          label={t("addAssets.connectors.nameField")}
+          invalid={fieldErrors.name !== undefined}
+          errorText={fieldErrors.name}
+        >
           <Input
             name="name"
             value={name}
@@ -623,7 +661,7 @@ function ConnectorImportForm({
           disabled={connect.isPending}
           loading={connect.isPending}
         >
-          Connect and import
+          {t("addAssets.connectors.connectAndImport")}
         </Button>
       </FormFrame>
     </Stack>
@@ -650,6 +688,7 @@ function useCashAssets() {
 }
 
 function useManualCustodianPicker() {
+  const { t } = useTranslation();
   const custodians = useManualCustodians();
   const [custodianChoiceOverride, setCustodianChoiceOverride] = useState<string>();
   const [custodianName, setCustodianName] = useState("");
@@ -659,7 +698,7 @@ function useManualCustodianPicker() {
   const creatingCustodian = listed.length === 0 || custodianChoice === CREATE_NEW;
   const custodianOptions = [
     ...listed.map((custodian) => ({ value: custodian.id, label: custodian.name })),
-    { value: CREATE_NEW, label: "Create new" },
+    { value: CREATE_NEW, label: t("addAssets.createOption") },
   ];
   const destination = () =>
     creatingCustodian
@@ -690,11 +729,12 @@ function CustodianFields({
   readonly fieldErrors: Record<string, string>;
   readonly clearFieldError: (key: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       {picker.listed.length > 0 && (
         <SelectField
-          label={`Choose a ${label.toLocaleLowerCase()}`}
+          label={t("addAssets.custodian.choose", { label: label.toLocaleLowerCase() })}
           options={picker.custodianOptions}
           value={picker.custodianChoice}
           onChange={picker.setCustodianChoice}
@@ -702,7 +742,9 @@ function CustodianFields({
       )}
       {picker.creatingCustodian && (
         <Field
-          label={picker.listed.length === 0 ? label : `${label} name`}
+          label={
+            picker.listed.length === 0 ? label : t("addAssets.custodian.nameWithList", { label })
+          }
           invalid={fieldErrors.custodianName !== undefined}
           errorText={fieldErrors.custodianName}
         >
@@ -721,6 +763,7 @@ function CustodianFields({
 }
 
 function useHoldingAccountPicker(custodianId: string, accountType: "brokerage" | "crypto_wallet") {
+  const { t } = useTranslation();
   const accounts = useManualAccounts();
   const { assets, cash } = useCashAssets();
   const [accountChoiceOverride, setAccountChoiceOverride] = useState<string>();
@@ -742,7 +785,7 @@ function useHoldingAccountPicker(custodianId: string, accountType: "brokerage" |
       value: account.id,
       label: `${account.name} · ${account.baseCurrencyIso}`,
     })),
-    { value: CREATE_NEW, label: "Create new" },
+    { value: CREATE_NEW, label: t("addAssets.createOption") },
   ];
   const destination = () =>
     creatingAccount
@@ -779,11 +822,12 @@ function HoldingAccountFields({
   readonly fieldErrors: Record<string, string>;
   readonly clearFieldError: (key: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       {picker.listed.length > 0 && (
         <SelectField
-          label="Choose an account"
+          label={t("addAssets.account.choose")}
           options={picker.accountOptions}
           value={picker.accountChoice}
           onChange={(value) => {
@@ -795,7 +839,7 @@ function HoldingAccountFields({
       )}
       {picker.creatingAccount && (
         <Field
-          label={picker.listed.length === 0 ? "Account name" : "Account name"}
+          label={t("addAssets.account.nameField")}
           invalid={fieldErrors.accountName !== undefined}
           errorText={fieldErrors.accountName}
         >
@@ -820,6 +864,8 @@ function HoldingsForm({
   readonly category: AddAssetsCategory;
   readonly onComplete: () => void;
 }) {
+  const { t } = useTranslation();
+  const requestFailed = t("errors.requestFailed");
   const meta = categoryMeta(category);
   const custodianPicker = useManualCustodianPicker();
   const accountPicker = useHoldingAccountPicker(
@@ -867,9 +913,16 @@ function HoldingsForm({
   )
     return <PageState kind="pending" />;
   if (custodianPicker.custodians.isError)
-    return <PageState kind="error" message={errorMessage(custodianPicker.custodians.error)} />;
+    return (
+      <PageState
+        kind="error"
+        message={errorMessage(custodianPicker.custodians.error, requestFailed)}
+      />
+    );
   if (accountPicker.accounts.isError)
-    return <PageState kind="error" message={errorMessage(accountPicker.accounts.error)} />;
+    return (
+      <PageState kind="error" message={errorMessage(accountPicker.accounts.error, requestFailed)} />
+    );
   const clearFieldError = (key: string) => {
     setFieldErrors((current) => {
       if (current[key] === undefined) return current;
@@ -883,20 +936,24 @@ function HoldingsForm({
     setError(null);
     const nextFieldErrors: Record<string, string> = {};
     if (selected === null || identifier === undefined) {
-      nextFieldErrors.asset = "Select an asset.";
+      nextFieldErrors.asset = t("addAssets.holdings.selectAssetRequired");
     }
     if (custodianPicker.creatingCustodian && custodianPicker.custodianName.trim() === "") {
-      nextFieldErrors.custodianName = `${meta.custodianLabel} name is required.`;
+      nextFieldErrors.custodianName = t("addAssets.custodian.nameRequired", {
+        label: meta.custodianLabel ?? t("addAssets.custodian.fallbackLabel"),
+      });
     }
     if (accountPicker.creatingAccount && accountPicker.accountName.trim() === "") {
-      nextFieldErrors.accountName = "Account name is required.";
+      nextFieldErrors.accountName = t("addAssets.account.nameRequired");
     }
     const decoded = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(quantity).catch(
       () => undefined,
     );
     if (decoded === undefined) {
       nextFieldErrors.quantity =
-        quantity.trim() === "" ? "Quantity is required." : "Enter a valid quantity.";
+        quantity.trim() === ""
+          ? t("addAssets.holdings.quantityRequired")
+          : t("addAssets.holdings.quantityInvalid");
     }
     const decodedAverage =
       averagePrice.trim() === ""
@@ -905,9 +962,9 @@ function HoldingsForm({
             () => undefined,
           );
     if (averagePrice.trim() !== "" && decodedAverage === undefined) {
-      nextFieldErrors.averagePrice = "Enter a valid average unit purchase price.";
+      nextFieldErrors.averagePrice = t("addAssets.holdings.averagePriceInvalid");
     } else if (decodedAverage !== undefined && compareDecimal(decodedAverage, "0") <= 0) {
-      nextFieldErrors.averagePrice = "Average unit purchase price must be greater than zero.";
+      nextFieldErrors.averagePrice = t("addAssets.holdings.averagePricePositive");
     }
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0 || selected === null || identifier === undefined) {
@@ -937,25 +994,31 @@ function HoldingsForm({
       const result = await mutation.mutateAsync(input);
       notify.success(
         result.positionOutcome === "updated"
-          ? `Updated ${selected.name} quantity in ${result.accountName}.`
-          : `Added ${selected.name} to ${result.accountName}.`,
+          ? t("addAssets.holdings.updatedToast", {
+              name: selected.name,
+              account: result.accountName,
+            })
+          : t("addAssets.holdings.addedToast", {
+              name: selected.name,
+              account: result.accountName,
+            }),
       );
       onComplete();
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, requestFailed));
     }
   };
   return (
     <Stack gap="4">
       <SearchInput
-        label="Asset"
+        label={t("addAssets.holdings.assetLabel")}
         value={query}
         onChange={(value) => {
           setQuery(value);
           clearFieldError("asset");
         }}
         name="assetSearch"
-        placeholder="Search by name or exact symbol"
+        placeholder={t("addAssets.holdings.assetPlaceholder")}
         errorText={fieldErrors.asset}
       />
       {selected !== null && (
@@ -965,17 +1028,17 @@ function HoldingsForm({
       )}
       {results.isFetching && (
         <Text color="fg.muted" as="p" role="status">
-          Searching…
+          {t("addAssets.holdings.searching")}
         </Text>
       )}
       {results.isError && (
         <Text color="fg.muted" as="p" role="alert">
-          Provider search is temporarily unavailable.
+          {t("addAssets.holdings.providerUnavailable")}
         </Text>
       )}
       {results.data && results.data.length > 0 && (
         <Stack gap="1">
-          <Text fontWeight="medium">Matches</Text>
+          <Text fontWeight="medium">{t("addAssets.holdings.matches")}</Text>
           {results.data.map((result) => {
             const match = result.identifiers[0];
             return (
@@ -1007,8 +1070,8 @@ function HoldingsForm({
       )}
       {debounced.length > 0 && !results.isFetching && results.data?.length === 0 && (
         <EmptyState
-          title="No provider matches found"
-          description="Custom stocks and crypto are not available. Try a different symbol."
+          title={t("addAssets.holdings.noMatches.title")}
+          description={t("addAssets.holdings.noMatches.description")}
         />
       )}
       <FormError message={error} />
@@ -1016,7 +1079,12 @@ function HoldingsForm({
         <Stack gap="4">
           <CustodianFields
             picker={custodianPicker}
-            label={meta.custodianLabel ?? "Custodian"}
+            label={
+              meta.custodianLabel === null
+                ? t("addAssets.custodian.fallbackLabel")
+                : // SAFETY: custodianLabel is one of the engine's Bank/Broker/Exchange literals.
+                  t(CUSTODIAN_LABEL_KEYS[meta.custodianLabel as keyof typeof CUSTODIAN_LABEL_KEYS])
+            }
             fieldErrors={fieldErrors}
             clearFieldError={clearFieldError}
           />
@@ -1026,7 +1094,7 @@ function HoldingsForm({
             clearFieldError={clearFieldError}
           />
           <Field
-            label="Quantity"
+            label={t("addAssets.holdings.quantity")}
             invalid={fieldErrors.quantity !== undefined}
             errorText={fieldErrors.quantity}
           >
@@ -1040,7 +1108,7 @@ function HoldingsForm({
             />
           </Field>
           <Field
-            label="Average unit purchase price (optional)"
+            label={t("addAssets.holdings.averagePrice")}
             invalid={fieldErrors.averagePrice !== undefined}
             errorText={fieldErrors.averagePrice}
           >
@@ -1054,7 +1122,7 @@ function HoldingsForm({
             />
           </Field>
           <SelectField
-            label="Purchase currency"
+            label={t("addAssets.holdings.purchaseCurrency")}
             options={accountPicker.cash.map((asset) => ({
               value: asset.id,
               label: asset.symbol ?? asset.name,
@@ -1069,8 +1137,8 @@ function HoldingsForm({
             loading={mutation.isPending}
           >
             {existingQuantity === undefined || existingQuantity === null
-              ? "Add quantity"
-              : "Update quantity"}
+              ? t("addAssets.holdings.addQuantity")
+              : t("addAssets.holdings.updateQuantity")}
           </Button>
         </Stack>
       </form>
@@ -1085,6 +1153,8 @@ function CashForm({
   readonly category: AddAssetsCategory;
   readonly onComplete: () => void;
 }) {
+  const { t } = useTranslation();
+  const requestFailed = t("errors.requestFailed");
   const meta = categoryMeta(category);
   const custodianPicker = useManualCustodianPicker();
   const { assets, cash: currencies } = useCashAssets();
@@ -1096,7 +1166,12 @@ function CashForm({
   const cash = useAddCashAccount();
   if (custodianPicker.custodians.isPending || assets.isPending) return <PageState kind="pending" />;
   if (custodianPicker.custodians.isError)
-    return <PageState kind="error" message={errorMessage(custodianPicker.custodians.error)} />;
+    return (
+      <PageState
+        kind="error"
+        message={errorMessage(custodianPicker.custodians.error, requestFailed)}
+      />
+    );
   const clearFieldError = (key: string) => {
     setFieldErrors((current) => {
       if (current[key] === undefined) return current;
@@ -1110,15 +1185,18 @@ function CashForm({
     setError(null);
     const nextFieldErrors: Record<string, string> = {};
     if (custodianPicker.creatingCustodian && custodianPicker.custodianName.trim() === "") {
-      nextFieldErrors.custodianName = "Bank name is required.";
+      nextFieldErrors.custodianName = t("addAssets.cash.bankNameRequired");
     }
-    if (accountName.trim() === "") nextFieldErrors.accountName = "Account name is required.";
+    if (accountName.trim() === "")
+      nextFieldErrors.accountName = t("addAssets.account.nameRequired");
     const decoded = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(balance).catch(
       () => undefined,
     );
     if (decoded === undefined) {
       nextFieldErrors.balance =
-        balance.trim() === "" ? "Balance is required." : "Enter a valid balance.";
+        balance.trim() === ""
+          ? t("addAssets.cash.balanceRequired")
+          : t("addAssets.cash.balanceInvalid");
     }
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0 || decoded === undefined) return;
@@ -1130,10 +1208,10 @@ function CashForm({
         currencyAssetId: currencyId,
         balance: decoded,
       });
-      notify.success(`Added ${result.accountName}.`);
+      notify.success(t("addAssets.cash.addedToast", { name: result.accountName }));
       onComplete();
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, requestFailed));
     }
   };
   return (
@@ -1143,12 +1221,12 @@ function CashForm({
         <Stack gap="4">
           <CustodianFields
             picker={custodianPicker}
-            label="Bank"
+            label={t("addAssets.cash.bankLabel")}
             fieldErrors={fieldErrors}
             clearFieldError={clearFieldError}
           />
           <Field
-            label="Account name"
+            label={t("addAssets.cash.accountName")}
             invalid={fieldErrors.accountName !== undefined}
             errorText={fieldErrors.accountName}
           >
@@ -1162,7 +1240,7 @@ function CashForm({
             />
           </Field>
           <SelectField
-            label="Currency"
+            label={t("addAssets.cash.currency")}
             options={currencies.map((asset) => ({
               value: asset.id,
               label: asset.symbol ?? asset.name,
@@ -1171,7 +1249,7 @@ function CashForm({
             onChange={setCurrencyId}
           />
           <Field
-            label="Balance"
+            label={t("addAssets.cash.balance")}
             invalid={fieldErrors.balance !== undefined}
             errorText={fieldErrors.balance}
           >
@@ -1190,7 +1268,7 @@ function CashForm({
             loading={cash.isPending}
             disabled={cash.isPending}
           >
-            Save account
+            {t("addAssets.cash.save")}
           </Button>
         </Stack>
       </form>
@@ -1199,6 +1277,8 @@ function CashForm({
 }
 
 function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
+  const { t } = useTranslation();
+  const requestFailed = t("errors.requestFailed");
   const { assets, cash } = useCashAssets();
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
@@ -1221,13 +1301,15 @@ function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
     event.preventDefault();
     setError(null);
     const nextFieldErrors: Record<string, string> = {};
-    if (name.trim() === "") nextFieldErrors.name = "Asset name is required.";
+    if (name.trim() === "") nextFieldErrors.name = t("addAssets.other.nameRequired");
     const decoded = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(value).catch(
       () => undefined,
     );
     if (decoded === undefined) {
       nextFieldErrors.value =
-        value.trim() === "" ? "Current value is required." : "Enter a valid value.";
+        value.trim() === ""
+          ? t("addAssets.other.valueRequired")
+          : t("addAssets.other.valueInvalid");
     }
     const decodedAverage =
       averagePrice.trim() === ""
@@ -1236,9 +1318,9 @@ function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
             () => undefined,
           );
     if (averagePrice.trim() !== "" && decodedAverage === undefined) {
-      nextFieldErrors.averagePrice = "Enter a valid average unit purchase price.";
+      nextFieldErrors.averagePrice = t("addAssets.holdings.averagePriceInvalid");
     } else if (decodedAverage !== undefined && compareDecimal(decodedAverage, "0") <= 0) {
-      nextFieldErrors.averagePrice = "Average unit purchase price must be greater than zero.";
+      nextFieldErrors.averagePrice = t("addAssets.holdings.averagePricePositive");
     }
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0 || decoded === undefined) return;
@@ -1257,10 +1339,10 @@ function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
         });
       }
       await mutation.mutateAsync(input);
-      notify.success(`Added ${name.trim()}.`);
+      notify.success(t("addAssets.other.addedToast", { name: name.trim() }));
       onComplete();
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(errorMessage(cause, requestFailed));
     }
   };
   return (
@@ -1269,7 +1351,7 @@ function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
       <form onSubmit={(event) => void submit(event)}>
         <Stack gap="4">
           <Field
-            label="Asset name"
+            label={t("addAssets.other.nameField")}
             invalid={fieldErrors.name !== undefined}
             errorText={fieldErrors.name}
           >
@@ -1283,7 +1365,7 @@ function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
             />
           </Field>
           <Field
-            label="Current value"
+            label={t("addAssets.other.valueField")}
             invalid={fieldErrors.value !== undefined}
             errorText={fieldErrors.value}
           >
@@ -1297,7 +1379,7 @@ function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
             />
           </Field>
           <SelectField
-            label="Currency"
+            label={t("addAssets.other.currency")}
             options={cash.map((asset) => ({
               value: asset.id,
               label: asset.symbol ?? asset.name,
@@ -1306,7 +1388,7 @@ function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
             onChange={setValueCurrencyId}
           />
           <Field
-            label="Average unit purchase price (optional)"
+            label={t("addAssets.other.averagePrice")}
             invalid={fieldErrors.averagePrice !== undefined}
             errorText={fieldErrors.averagePrice}
           >
@@ -1320,7 +1402,7 @@ function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
             />
           </Field>
           <SelectField
-            label="Purchase currency"
+            label={t("addAssets.other.purchaseCurrency")}
             options={cash.map((asset) => ({
               value: asset.id,
               label: asset.symbol ?? asset.name,
@@ -1334,7 +1416,7 @@ function GenericForm({ onComplete }: { readonly onComplete: () => void }) {
             loading={mutation.isPending}
             disabled={mutation.isPending}
           >
-            Add asset
+            {t("addAssets.other.submit")}
           </Button>
         </Stack>
       </form>

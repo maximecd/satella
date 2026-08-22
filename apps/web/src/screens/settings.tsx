@@ -1,5 +1,6 @@
 import { Box, Card, Stack } from "@chakra-ui/react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { FormError, NavRow, PageHeader, PageState } from "../components";
 import { useThemePreference } from "../components/ui/color-mode";
@@ -7,49 +8,74 @@ import { Field } from "../components/ui/field";
 import { SegmentedControl } from "../components/ui/segmented-control";
 import { notify } from "../components/ui/toaster";
 import { currencySymbol } from "../financial-number";
-import { useSaveReportingCurrency, useSettings } from "../portfolio";
+import type { AppLanguage } from "../app-language";
+import { useSaveAppLanguage, useSaveReportingCurrency, useSettings } from "../portfolio";
 import { SelectField } from "../select-field";
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The request failed.";
-
 export function SettingsScreen() {
+  const { t } = useTranslation();
   const query = useSettings();
   const [saveError, setSaveError] = useState<string | null>(null);
-  const save = useSaveReportingCurrency();
+  const saveCurrency = useSaveReportingCurrency();
+  const saveLanguage = useSaveAppLanguage();
+  const requestFailed = t("errors.requestFailed");
+  const errorMessage = (cause: unknown) => (cause instanceof Error ? cause.message : requestFailed);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   const settings = query.data;
   return (
     <>
-      <PageHeader title="Settings" />
+      <PageHeader title={t("settings.title")} />
       <FormError message={saveError} />
       <Stack gap="6">
         <Card.Root>
           <Card.Body>
-            <SelectField
-              label="Reporting currency"
-              helperText="Portfolio totals, history, and allocation use this currency."
-              options={settings.currencies.map((currency) => ({
-                value: currency.assetId,
-                label: `${currencySymbol(currency.iso) ?? currency.iso} · ${currency.name}`,
-              }))}
-              value={settings.reportingCurrency.assetId}
-              onChange={(value) => {
-                if (value === settings.reportingCurrency.assetId) return;
-                save.mutate(
-                  { reportingCurrencyAssetId: value },
-                  {
+            <Stack gap="5">
+              <SelectField
+                label={t("settings.language.label")}
+                helperText={t("settings.language.helper")}
+                options={[
+                  { value: "en", label: t("settings.language.en") },
+                  { value: "fr", label: t("settings.language.fr") },
+                ]}
+                value={settings.language}
+                onChange={(value) => {
+                  if (value === settings.language) return;
+                  const language: AppLanguage = value === "fr" ? "fr" : "en";
+                  saveLanguage.mutate(language, {
                     onSuccess: () => {
                       setSaveError(null);
-                      notify.success("Reporting currency saved.");
+                      notify.success(t("settings.language.saved"));
                     },
                     onError: (cause) => setSaveError(errorMessage(cause)),
-                  },
-                );
-              }}
-              disabled={save.isPending}
-            />
+                  });
+                }}
+                disabled={saveLanguage.isPending}
+              />
+              <SelectField
+                label={t("settings.reportingCurrency.label")}
+                helperText={t("settings.reportingCurrency.helper")}
+                options={settings.currencies.map((currency) => ({
+                  value: currency.assetId,
+                  label: `${currencySymbol(currency.iso) ?? currency.iso} · ${currency.name}`,
+                }))}
+                value={settings.reportingCurrency.assetId}
+                onChange={(value) => {
+                  if (value === settings.reportingCurrency.assetId) return;
+                  saveCurrency.mutate(
+                    { reportingCurrencyAssetId: value },
+                    {
+                      onSuccess: () => {
+                        setSaveError(null);
+                        notify.success(t("settings.reportingCurrency.saved"));
+                      },
+                      onError: (cause) => setSaveError(errorMessage(cause)),
+                    },
+                  );
+                }}
+                disabled={saveCurrency.isPending}
+              />
+            </Stack>
           </Card.Body>
         </Card.Root>
         <Card.Root>
@@ -60,13 +86,13 @@ export function SettingsScreen() {
         <Box as="ul" m="0" p="0">
           <NavRow
             href="/settings/custodians"
-            label="Custodians"
-            description="Manage banks, brokers, and linked services."
+            label={t("settings.custodiansNav.label")}
+            description={t("settings.custodiansNav.description")}
           />
           <NavRow
             href="/settings/security"
-            label="Security"
-            description="Vault password, Screen lock, and Reset Satella."
+            label={t("settings.securityNav.label")}
+            description={t("settings.securityNav.description")}
           />
         </Box>
       </Stack>
@@ -75,11 +101,12 @@ export function SettingsScreen() {
 }
 
 function ThemeField() {
+  const { t } = useTranslation();
   const { theme, setTheme } = useThemePreference();
   return (
-    <Field label="Theme" helperText="System follows this device and is the default.">
+    <Field label={t("settings.theme.label")} helperText={t("settings.theme.helper")}>
       <SegmentedControl
-        aria-label="Theme"
+        aria-label={t("settings.theme.label")}
         width="full"
         value={theme}
         onValueChange={(details) => {
@@ -88,9 +115,9 @@ function ThemeField() {
           }
         }}
         items={[
-          { value: "system", label: "System" },
-          { value: "light", label: "Light" },
-          { value: "dark", label: "Dark" },
+          { value: "system", label: t("settings.theme.system") },
+          { value: "light", label: t("settings.theme.light") },
+          { value: "dark", label: t("settings.theme.dark") },
         ]}
       />
     </Field>

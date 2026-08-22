@@ -1,0 +1,80 @@
+{
+  "security": {
+    "loading": "Chargement…",
+    "passwordGuidance": {
+      "empty": "Choisissez au moins {{min}} caractères. Un gestionnaire de mots de passe peut créer un secret long. Satella ne peut pas récupérer un mot de passe de coffre oublié.",
+      "tooShort": "Le mot de passe du coffre doit contenir au moins {{min}} caractères. Satella ne peut pas le récupérer.",
+      "considerLonger": "Envisagez un mot de passe plus long ou un gestionnaire de mots de passe. Les mots de passe de coffre oubliés ne peuvent pas être récupérés.",
+      "strongLength": "Longueur robuste. Satella ne peut pas récupérer ce mot de passe de coffre."
+    },
+    "unlock": {
+      "title": "Déverrouillez votre coffre",
+      "intro": "Saisissez votre mot de passe du coffre. Satella ne peut pas le récupérer. Un mot de passe incorrect est indiscernable de données de coffre endommagées.",
+      "vaultPasswordLabel": "Mot de passe du coffre",
+      "submit": "Déverrouiller le coffre",
+      "requestFailed": "Le coffre n'a pas pu être déverrouillé."
+    },
+    "screenLock": {
+      "title": "Satella est verrouillé",
+      "intro": "Le verrouillage masque l'interface. L'actualisation en arrière-plan peut continuer. Ce n'est pas la même chose que de fermer le coffre.",
+      "vaultPasswordLabel": "Mot de passe du coffre",
+      "unlockWithPassword": "Déverrouiller avec le mot de passe du coffre",
+      "pinLabel": "Code de verrouillage",
+      "unlock": "Déverrouiller",
+      "usePasswordInstead": "Utiliser le mot de passe du coffre",
+      "requestFailed": "Le verrouillage n'a pas pu être désactivé.",
+      "pinDisabledNote": "Trop de tentatives de code incorrectes. Utilisez votre mot de passe du coffre pour déverrouiller Satella à nouveau."
+    },
+    "reset": {
+      "title": "Réinitialiser Satella",
+      "warning": "Cette action supprime définitivement le coffre, le portefeuille, les identifiants des établissements, les sauvegardes chiffrées et les métadonnées du coffre. Vous reviendrez à la configuration initiale. Cette action est irréversible.",
+      "confirmLabel": "Saisissez « Reset Satella » pour confirmer",
+      "submit": "Réinitialiser Satella"
+    },
+    "setupInstructions": "Instructions de configuration",
+    "settings": {
+      "title": "Sécurité",
+      "passwordSection": {
+        "heading": "Mot de passe du coffre",
+        "description": "Modifier le mot de passe du coffre rechiffre la clé de chiffrement. Les sauvegardes chiffrées restent utilisables.",
+        "currentLabel": "Mot de passe du coffre actuel",
+        "newLabel": "Nouveau mot de passe du coffre",
+        "confirmLabel": "Confirmer le nouveau mot de passe du coffre",
+        "submit": "Modifier le mot de passe du coffre",
+        "mismatchError": "Le mot de passe du coffre et sa confirmation ne correspondent pas.",
+        "changedToast": "Mot de passe du coffre modifié."
+      },
+      "pinSection": {
+        "heading": "Code de verrouillage",
+        "vaultPasswordLabel": "Mot de passe du coffre",
+        "newPinLabel": "Nouveau code de verrouillage",
+        "confirmPinLabel": "Confirmer le code de verrouillage",
+        "mismatchError": "Le code de verrouillage et sa confirmation ne correspondent pas.",
+        "pinsDoNotMatchError": "Les codes ne correspondent pas.",
+        "submit": "Modifier le code de verrouillage",
+        "changedToast": "Code de verrouillage modifié."
+      },
+      "timeoutSection": {
+        "label": "Délai de verrouillage",
+        "helperText": "Verrouiller masque l'interface après une inactivité. Il n'y a pas d'option Jamais.",
+        "minutes_one": "{{count}} minute",
+        "minutes_other": "{{count}} minutes",
+        "savedToast": "Délai de verrouillage enregistré."
+      },
+      "lockNow": "Verrouiller maintenant",
+      "privacyNote": "Le verrouillage protège la confidentialité de l'interface, il ne chiffre pas le coffre. Le chiffrement protège les fichiers copiés tant que le coffre est fermé.",
+      "licenseNote": "SQLCipher Community Edition est inclus sous la licence BSD-3-Clause. Les mentions de licence sont fournies avec cette application."
+    },
+    "restore": {
+      "title": "Restaurer un coffre",
+      "description": "La restauration remplace le coffre de cet appareil par le contenu de l'export sélectionné une fois la validation réussie.",
+      "passwordLabel": "Mot de passe du coffre exporté",
+      "confirmLabel": "Remplacer mon coffre actuel et ses données",
+      "submit": "Restaurer le coffre",
+      "cancel": "Annuler",
+      "successToast": "Coffre restauré. Déverrouillez avec le mot de passe du coffre restauré.",
+      "incorrectPassword": "Le mot de passe du coffre est incorrect.",
+      "requestFailed": "Le coffre n'a pas pu être restauré."
+    }
+  }
+}

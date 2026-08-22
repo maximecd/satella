@@ -1,0 +1,8 @@
+{
+  "shell": {
+    "sideNavigation": "Navigation latérale",
+    "dashboard": "Tableau de bord",
+    "settings": "Réglages",
+    "lock": "Verrouiller"
+  }
+}

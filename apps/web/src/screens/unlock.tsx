@@ -1,6 +1,7 @@
 import { Button, Stack } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import { engineApi } from "../api";
 import { FormError } from "../components";
@@ -10,10 +11,8 @@ import { SecretField } from "./secret-field";
 import { ResetSatellaControl } from "./reset-satella";
 import { RestoreVaultControl } from "./restore-vault";
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The Vault could not be unlocked.";
-
 export function UnlockScreen() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -22,13 +21,11 @@ export function UnlockScreen() {
     onSuccess: (status) => {
       queryClient.setQueryData(vaultStatusQuery.queryKey, status);
     },
-    onError: (cause) => setError(errorMessage(cause)),
+    onError: (cause) =>
+      setError(cause instanceof Error ? cause.message : t("security.unlock.requestFailed")),
   });
   return (
-    <GateLayout
-      title="Unlock your Vault"
-      description="Enter your Vault password. Satella cannot recover it. An incorrect password is indistinguishable from damaged Vault data."
-    >
+    <GateLayout title={t("security.unlock.title")} description={t("security.unlock.intro")}>
       <form
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
@@ -39,7 +36,7 @@ export function UnlockScreen() {
         <Stack gap="4">
           <FormError message={error} />
           <SecretField
-            label="Vault password"
+            label={t("security.unlock.vaultPasswordLabel")}
             value={password}
             onChange={setPassword}
             htmlName="vault-password"
@@ -51,7 +48,7 @@ export function UnlockScreen() {
             disabled={unlock.isPending}
             loading={unlock.isPending}
           >
-            Unlock Vault
+            {t("security.unlock.submit")}
           </Button>
         </Stack>
       </form>

@@ -1,0 +1,33 @@
+{
+  "custodians": {
+    "title": "Custodians",
+    "edit": "Edit",
+    "refreshFailed": "Refresh failed",
+    "list": {
+      "empty": {
+        "title": "No custodians",
+        "description": "Add a bank or broker from Add assets, or connect a service to import accounts."
+      },
+      "accountCount_one": "{{count}} account",
+      "accountCount_other": "{{count}} accounts"
+    },
+    "detail": {
+      "accountsHeading": "Accounts",
+      "noAccountsTitle": "No accounts",
+      "noAccountsDescription": "Accounts at this custodian will appear here.",
+      "holdingsCount_one": "{{count}} holding",
+      "holdingsCount_other": "{{count}} holdings"
+    },
+    "editScreen": {
+      "title": "Edit {{name}}",
+      "readOnlyHint": "Prefer read-only credentials with no trading or withdrawal capability whenever the connector allows it.",
+      "nameLabel": "Name",
+      "keepCurrentValue": "Keep current value",
+      "selectHelperText": "Choose a value only if you want to change it.",
+      "textHelperText": "Leave blank to keep the current value.",
+      "saveChanges": "Save changes",
+      "updatedToast": "Custodian updated.",
+      "noLongerEditable": "This custodian can no longer be edited."
+    }
+  }
+}

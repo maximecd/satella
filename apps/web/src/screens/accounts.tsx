@@ -13,8 +13,10 @@ import {
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import type { Account, Position } from "@satella-app/engine/api";
 import { UpdateAccountInput } from "@satella-app/engine/api";
+import type { TFunction } from "i18next";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   DeleteButton,
@@ -44,11 +46,7 @@ import {
   multiplyDecimal,
 } from "../financial-number";
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The request failed.";
 const MANUAL_ASSET_CATEGORIES = new Set(["other"]);
-const accountTitle = (account: Account) =>
-  account.isDefaultCustodian ? "Other holdings" : account.name;
 
 const pnlPercent = (value: string | null) =>
   value === null
@@ -58,7 +56,7 @@ const pnlPercent = (value: string | null) =>
         maximumFractionDigits: 2,
       })}%`;
 
-const conversionDescription = (position: Position, valuationCurrencyIso: string) => {
+const conversionDescription = (position: Position, valuationCurrencyIso: string, t: TFunction) => {
   if (
     position.price === null ||
     position.reportingValue === null ||
@@ -70,10 +68,10 @@ const conversionDescription = (position: Position, valuationCurrencyIso: string)
     position.reportingValue,
     multiplyDecimal(position.quantity, position.price.price),
   );
-  return `Converted at ${formatWholeAmount("1", position.price.currencyIso)} = ${formatFxAmount(
-    rate,
-    valuationCurrencyIso,
-  )}`;
+  return t("accounts.convertedAt", {
+    from: formatWholeAmount("1", position.price.currencyIso),
+    to: formatFxAmount(rate, valuationCurrencyIso),
+  });
 };
 
 function PositionTable({
@@ -83,25 +81,31 @@ function PositionTable({
   readonly positions: ReadonlyArray<Position>;
   readonly account: Account;
 }) {
-  if (positions.length === 0) return <EmptyState title="No positions" size="sm" />;
+  const { t } = useTranslation();
+  if (positions.length === 0)
+    return <EmptyState title={t("accounts.table.noPositions")} size="sm" />;
   return (
     <Table.ScrollArea>
       <Table.Root size="sm" variant="line" interactive>
         <Table.Header>
           <Table.Row>
-            <Table.ColumnHeader>Asset</Table.ColumnHeader>
-            <Table.ColumnHeader textAlign="end">Quantity</Table.ColumnHeader>
-            <Table.ColumnHeader textAlign="end">Market price</Table.ColumnHeader>
+            <Table.ColumnHeader>{t("accounts.table.asset")}</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">{t("accounts.table.quantity")}</Table.ColumnHeader>
             <Table.ColumnHeader textAlign="end">
-              Value ({account.baseCurrencyIso})
+              {t("accounts.table.marketPrice")}
             </Table.ColumnHeader>
-            <Table.ColumnHeader textAlign="end">Unrealized P&amp;L</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">
+              {t("accounts.table.value", { iso: account.baseCurrencyIso })}
+            </Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">
+              {t("accounts.table.unrealizedPnl")}
+            </Table.ColumnHeader>
             <Table.ColumnHeader />
           </Table.Row>
         </Table.Header>
         <Table.Body>
           {positions.map((position) => {
-            const conversion = conversionDescription(position, account.baseCurrencyIso);
+            const conversion = conversionDescription(position, account.baseCurrencyIso, t);
             const name = (
               <Stack gap="0.5">
                 <Text fontWeight="semibold">{position.assetName}</Text>
@@ -142,7 +146,7 @@ function PositionTable({
                   <Tooltip content={conversion ?? ""} disabled={conversion === undefined}>
                     <Text fontVariantNumeric="tabular-nums">
                       {position.reportingValue === null
-                        ? "Unpriced"
+                        ? t("accounts.table.unpriced")
                         : formatAmount(position.reportingValue, account.baseCurrencyIso)}
                     </Text>
                   </Tooltip>
@@ -171,7 +175,7 @@ function PositionTable({
                       to="/positions/$positionId/edit"
                       params={{ positionId: position.id }}
                     >
-                      Edit
+                      {t("accounts.table.edit")}
                     </RouterLink>
                   </Button>
                 </Table.Cell>
@@ -185,12 +189,16 @@ function PositionTable({
 }
 
 export function AccountDetailScreen({ id }: { readonly id: string }) {
+  const { t } = useTranslation();
   const query = useAccount(id);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const requestFailed = t("errors.requestFailed");
+  const describeError = (cause: unknown) =>
+    cause instanceof Error ? cause.message : requestFailed;
   if (query.isPending) return <PageState kind="pending" />;
-  if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
+  if (query.isError) return <PageState kind="error" message={describeError(query.error)} />;
   const account = query.data;
-  const title = accountTitle(account);
+  const title = account.isDefaultCustodian ? t("accounts.otherHoldings") : account.name;
   const active = account.positions.filter(
     (position) => compareDecimal(position.quantity, "0") !== 0 && position.reportingValue !== null,
   );
@@ -203,10 +211,10 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
       <PageBreadcrumbs
         items={
           account.connectorAccountId === null
-            ? [{ label: "Dashboard", href: "/" }, { label: title }]
+            ? [{ label: t("accounts.breadcrumbs.dashboard"), href: "/" }, { label: title }]
             : [
-                { label: "Settings", href: "/settings" },
-                { label: "Custodians", href: "/settings/custodians" },
+                { label: t("accounts.breadcrumbs.settings"), href: "/settings" },
+                { label: t("accounts.breadcrumbs.custodians"), href: "/settings/custodians" },
                 {
                   label: account.custodianName,
                   href: `/settings/custodians/${account.custodianId}`,
@@ -217,14 +225,14 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
       />
       <PageHeader
         title={title}
-        subtitle={`Valuation currency ${account.baseCurrencyIso}`}
+        subtitle={t("accounts.valuationCurrencySubtitle", { iso: account.baseCurrencyIso })}
         action={
           account.connectorAccountId !== null ? (
             <RefreshCustodianButton custodianId={account.custodianId} onError={setRefreshError} />
           ) : account.isDefaultCustodian ? undefined : (
             <Button asChild>
               <RouterLink to="/accounts/$accountId/edit" params={{ accountId: id }}>
-                Edit account
+                {t("accounts.editAccount")}
               </RouterLink>
             </Button>
           )
@@ -234,7 +242,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
         <Alert.Root status="error">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>Refresh failed</Alert.Title>
+            <Alert.Title>{t("accounts.refreshFailed")}</Alert.Title>
             <Alert.Description>{refreshError}</Alert.Description>
           </Alert.Content>
         </Alert.Root>
@@ -243,19 +251,19 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
         <Alert.Root status="warning">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>Total is incomplete</Alert.Title>
-            <Alert.Description>Unpriced positions are excluded from this total.</Alert.Description>
+            <Alert.Title>{t("accounts.incompleteTotalTitle")}</Alert.Title>
+            <Alert.Description>{t("accounts.incompleteTotalDescription")}</Alert.Description>
           </Alert.Content>
         </Alert.Root>
       )}
       <ResourceCard>
         <Flex justify="space-between" align="center" gap="4" wrap="wrap">
-          <Text fontWeight="medium">Valued total</Text>
+          <Text fontWeight="medium">{t("accounts.valuedTotal")}</Text>
           <Text fontSize="2xl" fontWeight="semibold" fontVariantNumeric="tabular-nums">
             {formatAmount(account.total, account.baseCurrencyIso)}
           </Text>
           <Stack align="flex-end" gap="0">
-            <Text fontWeight="medium">Unrealized P&amp;L</Text>
+            <Text fontWeight="medium">{t("accounts.unrealizedPnl")}</Text>
             <Text
               fontSize="lg"
               fontVariantNumeric="tabular-nums"
@@ -277,7 +285,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
       </ResourceCard>
       <Flex justify="space-between" align="center" gap="3" wrap="wrap">
         <Heading as="h2" size="md">
-          Positions
+          {t("accounts.positionsHeading")}
         </Heading>
         {account.connectorAccountId === null && <AddAssetsButton />}
       </Flex>
@@ -286,7 +294,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
         <Box bg="bg.subtle" rounded="md" p="3">
           <Collapsible.Root>
             <Collapsible.Trigger asChild>
-              <Button variant="ghost">{`Zero positions (${zero.length})`}</Button>
+              <Button variant="ghost">{t("accounts.zeroPositions", { total: zero.length })}</Button>
             </Collapsible.Trigger>
             <Collapsible.Content>
               <PositionTable positions={zero} account={account} />
@@ -298,7 +306,9 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
         <Box bg="bg.subtle" rounded="md" p="3">
           <Collapsible.Root>
             <Collapsible.Trigger asChild>
-              <Button variant="ghost">{`Unpriced positions (${unpriced.length})`}</Button>
+              <Button variant="ghost">
+                {t("accounts.unpricedPositions", { total: unpriced.length })}
+              </Button>
             </Collapsible.Trigger>
             <Collapsible.Content>
               <PositionTable positions={unpriced} account={account} />
@@ -311,11 +321,15 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
 }
 
 function LoadedEditAccount({ account }: { readonly account: Account }) {
+  const { t } = useTranslation();
   const assets = useAssets();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const update = useUpdateAccount(account.id);
   const remove = useDeleteAccount(account.id);
+  const requestFailed = t("errors.requestFailed");
+  const describeError = (cause: unknown) =>
+    cause instanceof Error ? cause.message : requestFailed;
   const form = useAppForm({
     defaultValues: { name: account.name, baseCurrencyAssetId: account.baseCurrencyAssetId },
     validationLogic: submitThenChangeValidation,
@@ -325,7 +339,7 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
         await update.mutateAsync(await Schema.decodeUnknownPromise(UpdateAccountInput)(value));
         await navigate({ to: "/accounts/$accountId", params: { accountId: account.id } });
       } catch (cause) {
-        setError(errorMessage(cause));
+        setError(describeError(cause));
       }
     },
   });
@@ -335,12 +349,12 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
     <>
       <PageBreadcrumbs
         items={[
-          { label: "Dashboard", href: "/" },
+          { label: t("accounts.breadcrumbs.dashboard"), href: "/" },
           { label: account.name, href: `/accounts/${account.id}` },
-          { label: "Edit" },
+          { label: t("accounts.breadcrumbs.edit") },
         ]}
       />
-      <PageHeader title={`Edit ${account.name}`} />
+      <PageHeader title={t("accounts.editTitle", { name: account.name })} />
       <FormError message={error} />
       <form.AppForm>
         <FormFrame
@@ -351,13 +365,13 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
         >
           <form.AppField
             name="name"
-            children={(field) => <field.TextField label="Account name" />}
+            children={(field) => <field.TextField label={t("accounts.accountNameLabel")} />}
           />
           <form.AppField
             name="baseCurrencyAssetId"
             children={(field) => (
               <field.SelectField
-                label="Valuation currency"
+                label={t("accounts.valuationCurrencyLabel")}
                 options={fiat.map((asset) => ({
                   value: asset.id,
                   label: asset.symbol ?? asset.name,
@@ -365,7 +379,7 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
               />
             )}
           />
-          <form.SubmitButton label="Save changes" />
+          <form.SubmitButton label={t("accounts.saveChanges")} />
         </FormFrame>
       </form.AppForm>
       <DeleteButton
@@ -376,7 +390,7 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
             await remove.mutateAsync();
             await navigate({ to: "/" });
           } catch (cause) {
-            setError(errorMessage(cause));
+            setError(describeError(cause));
           }
         }}
       />
@@ -385,15 +399,14 @@ function LoadedEditAccount({ account }: { readonly account: Account }) {
 }
 
 export function EditAccountScreen({ id }: { readonly id: string }) {
+  const { t } = useTranslation();
   const query = useAccount(id);
+  const requestFailed = t("errors.requestFailed");
+  const describeError = (cause: unknown) =>
+    cause instanceof Error ? cause.message : requestFailed;
   if (query.isPending) return <PageState kind="pending" />;
-  if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
+  if (query.isError) return <PageState kind="error" message={describeError(query.error)} />;
   if (query.data.connectorAccountId !== null)
-    return (
-      <PageState
-        kind="error"
-        message="This account is managed by a synced custodian and cannot be edited."
-      />
-    );
+    return <PageState kind="error" message={t("accounts.managedAccountError")} />;
   return <LoadedEditAccount account={query.data} />;
 }

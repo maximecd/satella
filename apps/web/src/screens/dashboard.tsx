@@ -1,6 +1,8 @@
 import { Alert, Box, Card, Grid, Heading, Stack, Text } from "@chakra-ui/react";
-import type { DashboardAccountRow, DashboardCustodianGroup } from "@satella-app/engine/api";
+import type { DashboardAccountRow } from "@satella-app/engine/api";
+import type { TFunction } from "i18next";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { NavRow, PageHeader, PageState } from "../components";
 import { EmptyState } from "../components/ui/empty-state";
@@ -22,22 +24,20 @@ import {
   multiplyDecimal,
 } from "../financial-number";
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The request failed.";
-
-const groupLabel = (group: DashboardCustodianGroup) =>
-  group.isDefault ? "Other holdings" : group.name;
-
-const rowDescription = (row: DashboardAccountRow) => {
-  const holdings = `${row.positionCount} holding${row.positionCount === 1 ? "" : "s"}`;
-  const parts = [holdings, row.totalIncomplete ? "Incomplete valuation" : null].filter(
+const rowDescription = (row: DashboardAccountRow, t: TFunction) => {
+  const holdings = t("dashboard.accounts.holdingsCount", { count: row.positionCount });
+  const parts = [holdings, row.totalIncomplete ? t("dashboard.incompleteValuation") : null].filter(
     (part): part is string => part !== null,
   );
   return parts.join(" · ");
 };
 
-const changeLabel = (change: ReturnType<typeof periodChange>, currencyIso: string): string => {
-  if (change === null) return "Not enough history";
+const changeLabel = (
+  change: ReturnType<typeof periodChange>,
+  currencyIso: string,
+  notEnoughHistory: string,
+): string => {
+  if (change === null) return notEnoughHistory;
   const absolute = `${compareDecimal(change.absolute, "0") >= 0 ? "+" : ""}${formatAmount(change.absolute, currencyIso)}`;
   if (change.percent === null) return absolute;
   const sign = compareDecimal(change.percent, "0") >= 0 ? "+" : "";
@@ -60,11 +60,14 @@ const pnlPercent = (value: string | null) =>
       )}%)`;
 
 export function DashboardScreen() {
+  const { t } = useTranslation();
   const query = useDashboard();
   const [range, setRange] = useState<PortfolioValueRange>("1M");
   const [allocationView, setAllocationView] = useState<"custodians" | "categories" | "assets">(
     "custodians",
   );
+  const requestFailed = t("errors.requestFailed");
+  const errorMessage = (cause: unknown) => (cause instanceof Error ? cause.message : requestFailed);
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   const dashboard = query.data;
@@ -72,10 +75,10 @@ export function DashboardScreen() {
   if (!dashboard.hasMeaningfulAssets) {
     return (
       <>
-        <PageHeader title="Dashboard" action={<AddAssetsButton />} />
+        <PageHeader title={t("dashboard.title")} action={<AddAssetsButton />} />
         <EmptyState
-          title="No assets yet"
-          description="Connect a provider or track assets manually. Satella will show Portfolio value, allocation, and accounts here."
+          title={t("dashboard.empty.title")}
+          description={t("dashboard.empty.description")}
         >
           <AddAssetsButton />
         </EmptyState>
@@ -93,22 +96,22 @@ export function DashboardScreen() {
   const unpriced =
     dashboard.unpricedAssetCount === 0
       ? null
-      : `${dashboard.unpricedAssetCount} unpriced asset${dashboard.unpricedAssetCount === 1 ? "" : "s"} excluded from allocation.`;
+      : t("dashboard.allocation.unpricedExcluded", { count: dashboard.unpricedAssetCount });
   return (
     <>
-      <PageHeader title="Dashboard" action={<AddAssetsButton />} />
+      <PageHeader title={t("dashboard.title")} action={<AddAssetsButton />} />
       <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap="4">
         <Card.Root>
           <Card.Body>
             <Stack gap="4">
               <Stack gap="1">
                 <Heading as="h2" size="md">
-                  Portfolio value
+                  {t("dashboard.portfolioValue.title")}
                 </Heading>
                 <Text fontSize="2xl" fontWeight="semibold" fontVariantNumeric="tabular-nums">
                   {formatAmount(dashboard.portfolioValue, iso)}
                 </Text>
-                <Text fontWeight="medium">Unrealized P&amp;L</Text>
+                <Text fontWeight="medium">{t("dashboard.portfolioValue.unrealizedPnl")}</Text>
                 <Text
                   fontSize="lg"
                   fontVariantNumeric="tabular-nums"
@@ -127,14 +130,16 @@ export function DashboardScreen() {
                 </Text>
                 <Text color="fg.muted">
                   <Text as="span" fontWeight="medium">
-                    Portfolio value change:
+                    {t("dashboard.portfolioValue.changeLabel")}
                   </Text>{" "}
-                  <Text as="span">{changeLabel(change, iso)}</Text>
+                  <Text as="span">
+                    {changeLabel(change, iso, t("dashboard.portfolioValue.notEnoughHistory"))}
+                  </Text>
                 </Text>
               </Stack>
               <Box alignSelf="flex-start">
                 <SegmentedControl
-                  aria-label="Portfolio value range"
+                  aria-label={t("dashboard.portfolioValue.rangeAriaLabel")}
                   size="sm"
                   value={range}
                   onValueChange={(details) => {
@@ -150,7 +155,7 @@ export function DashboardScreen() {
               {dashboard.totalIncomplete ? (
                 <Alert.Root status="warning">
                   <Alert.Indicator />
-                  <Alert.Title>Incomplete valuation</Alert.Title>
+                  <Alert.Title>{t("dashboard.incompleteValuation")}</Alert.Title>
                 </Alert.Root>
               ) : null}
             </Stack>
@@ -160,11 +165,11 @@ export function DashboardScreen() {
           <Card.Body>
             <Stack gap="4">
               <Heading as="h2" size="md">
-                Allocation
+                {t("dashboard.allocation.title")}
               </Heading>
               <Box overflowX="auto" maxW="full">
                 <SegmentedControl
-                  aria-label="Allocation"
+                  aria-label={t("dashboard.allocation.ariaLabel")}
                   size="sm"
                   w="fit-content"
                   value={allocationView}
@@ -173,20 +178,20 @@ export function DashboardScreen() {
                     setAllocationView(details.value as "custodians" | "categories" | "assets");
                   }}
                   items={[
-                    { value: "custodians", label: "Custodians" },
-                    { value: "categories", label: "Categories" },
-                    { value: "assets", label: "Assets" },
+                    { value: "custodians", label: t("dashboard.allocation.custodians") },
+                    { value: "categories", label: t("dashboard.allocation.categories") },
+                    { value: "assets", label: t("dashboard.allocation.assets") },
                   ]}
                 />
               </Box>
               {allocation.length > 0 ? (
                 <AllocationTreemap cells={allocation} currencyIso={iso} />
               ) : (
-                <Text color="fg.muted">No priced allocation to show.</Text>
+                <Text color="fg.muted">{t("dashboard.allocation.empty")}</Text>
               )}
               {unpriced ? <Text color="fg.muted">{unpriced}</Text> : null}
               {dashboard.negativeHoldingCount > 0 ? (
-                <Text color="fg.muted">Negative holdings are excluded from allocation.</Text>
+                <Text color="fg.muted">{t("dashboard.allocation.negativeExcluded")}</Text>
               ) : null}
             </Stack>
           </Card.Body>
@@ -197,20 +202,21 @@ export function DashboardScreen() {
               {dashboard.custodians.map((group) => (
                 <Stack key={group.custodianId} gap="2">
                   <Heading as="h2" size="md">
-                    {groupLabel(group)}
+                    {group.isDefault ? t("dashboard.holdings.other") : group.name}
                   </Heading>
                   <Box as="ul" m="0" p="0">
                     {group.accounts.map((row) => (
                       <NavRow
                         key={row.accountId}
                         href={`/accounts/${row.accountId}`}
-                        label={group.isDefault ? "Other holdings" : row.accountName}
-                        description={rowDescription(row)}
+                        label={group.isDefault ? t("dashboard.holdings.other") : row.accountName}
+                        description={rowDescription(row, t)}
                         endContent={
                           <Stack align="flex-end" gap="0" fontVariantNumeric="tabular-nums">
                             <Text>{formatAmount(row.total, iso)}</Text>
                             <Text color={pnlColor(row.unrealizedPnl)} fontSize="sm">
-                              P&amp;L {formatSignedAmount(row.unrealizedPnl, iso)}
+                              {t("dashboard.accounts.pnl")}{" "}
+                              {formatSignedAmount(row.unrealizedPnl, iso)}
                               {pnlPercent(row.unrealizedPnlPercent)}
                             </Text>
                           </Stack>

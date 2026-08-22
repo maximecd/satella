@@ -435,6 +435,9 @@ export const ReportingCurrency = Schema.Struct({
 });
 export type ReportingCurrency = typeof ReportingCurrency.Type;
 
+export const AppLanguage = Schema.Literals(["en", "fr"]);
+export type AppLanguage = typeof AppLanguage.Type;
+
 export const AllocationCell = Schema.Struct({
   key: Schema.String,
   name: Schema.String,
@@ -472,11 +475,13 @@ export type SettingsCurrency = typeof SettingsCurrency.Type;
 export const Settings = Schema.Struct({
   reportingCurrency: ReportingCurrency,
   currencies: Schema.Array(SettingsCurrency),
+  language: AppLanguage,
 });
 export type Settings = typeof Settings.Type;
 
 export const UpdateSettingsInput = Schema.Struct({
-  reportingCurrencyAssetId: Schema.String,
+  reportingCurrencyAssetId: Schema.optional(Schema.String),
+  language: Schema.optional(AppLanguage),
 });
 export type UpdateSettingsInput = typeof UpdateSettingsInput.Type;
 

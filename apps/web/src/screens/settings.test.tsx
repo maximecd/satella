@@ -9,11 +9,13 @@ import {
   seedPortfolioEngine,
   settings,
 } from "../finance.route-harness.test-utils";
+import { changeAppLanguage } from "../i18n";
 
 describe("settings screen", () => {
   beforeEach(() => {
     resetFinanceMocks();
     window.localStorage.clear();
+    changeAppLanguage("en");
   });
 
   it("shows Reporting currency and a Custodians row", async () => {
@@ -39,6 +41,19 @@ describe("settings screen", () => {
     await user.selectOptions(await screen.findByLabelText("Reporting currency"), "fiat:EUR");
     expect((await screen.findAllByText("Reporting currency saved.")).length).toBeGreaterThan(0);
     expect(screen.getByLabelText("Reporting currency")).toHaveDisplayValue(/€|EUR/);
+  });
+
+  it("defaults Language to the detected app language and saves a change immediately", async () => {
+    const user = userEvent.setup();
+    renderRoute("/settings");
+    const selector = await screen.findByLabelText("Language");
+    expect(selector).toHaveValue("en");
+    expect(document.documentElement.lang).toBe("en");
+    await user.selectOptions(selector, "fr");
+    expect((await screen.findAllByText("Language saved.")).length).toBeGreaterThan(0);
+    await waitFor(() => expect(document.documentElement.lang).toBe("fr"));
+    expect(screen.getByLabelText("Langue")).toHaveDisplayValue(/Français/);
+    expect(screen.queryByLabelText("Reporting currency")).not.toBeInTheDocument();
   });
 
   it("saves Reporting currency immediately and updates Dashboard values", async () => {

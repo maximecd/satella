@@ -1,6 +1,7 @@
 import { Button, Checkbox, Heading, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 import { engineApi } from "../api";
 import { FormError } from "../components";
@@ -9,24 +10,25 @@ import { clearVaultDerivedCaches, chooseVaultImportSource } from "../runtime";
 import { vaultStatusQuery } from "../queries";
 import { SecretField } from "./secret-field";
 
-const errorMessage = (cause: unknown) => {
-  const message = cause instanceof Error ? cause.message : undefined;
-  if (message !== undefined && message.includes("could not be unlocked")) {
-    return "The Vault password is incorrect.";
-  }
-  return message ?? "The Vault could not be restored.";
-};
-
 export function RestoreVaultControl({
   requiresConfirmation,
 }: {
   readonly requiresConfirmation: boolean;
 }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [sourcePath, setSourcePath] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestFailed = t("security.restore.requestFailed");
+  const errorMessage = (cause: unknown) => {
+    const message = cause instanceof Error ? cause.message : undefined;
+    if (message !== undefined && message.includes("could not be unlocked")) {
+      return t("security.restore.incorrectPassword");
+    }
+    return message ?? requestFailed;
+  };
 
   const restore = useMutation({
     mutationFn: (input: { sourcePath: string; password: string }) =>
@@ -37,7 +39,7 @@ export function RestoreVaultControl({
       setConfirmed(false);
       setSourcePath(null);
       setError(null);
-      notify.success("Vault restored. Unlock with the restored Vault's password.");
+      notify.success(t("security.restore.successToast"));
       await queryClient.invalidateQueries({ queryKey: vaultStatusQuery.queryKey });
     },
     onError: (cause) => setError(errorMessage(cause)),
@@ -54,7 +56,7 @@ export function RestoreVaultControl({
           });
         }}
       >
-        Restore Vault
+        {t("security.restore.submit")}
       </Button>
     );
   }
@@ -68,15 +70,14 @@ export function RestoreVaultControl({
     >
       <Stack gap="4">
         <Heading as="h2" size="md">
-          Restore Vault
+          {t("security.restore.title")}
         </Heading>
         <Text color="fg.muted" as="p">
-          Restoring replaces this device's Vault with the contents of the selected export after
-          validation succeeds.
+          {t("security.restore.description")}
         </Text>
         <FormError message={error} />
         <SecretField
-          label="Exported Vault's password"
+          label={t("security.restore.passwordLabel")}
           value={password}
           onChange={setPassword}
           htmlName="restore-vault-password"
@@ -89,7 +90,7 @@ export function RestoreVaultControl({
           >
             <Checkbox.HiddenInput />
             <Checkbox.Control />
-            <Checkbox.Label>Replace my current Vault and its data</Checkbox.Label>
+            <Checkbox.Label>{t("security.restore.confirmLabel")}</Checkbox.Label>
           </Checkbox.Root>
         ) : null}
         <Button
@@ -98,7 +99,7 @@ export function RestoreVaultControl({
           disabled={requiresConfirmation && !confirmed}
           loading={restore.isPending}
         >
-          Restore Vault
+          {t("security.restore.submit")}
         </Button>
         <Button
           variant="ghost"
@@ -108,7 +109,7 @@ export function RestoreVaultControl({
             setError(null);
           }}
         >
-          Cancel
+          {t("security.restore.cancel")}
         </Button>
       </Stack>
     </form>

@@ -1,5 +1,7 @@
 import { Decimal } from "decimal.js";
 
+import { appLanguage } from "./app-language";
+
 type DecimalInstance = Decimal;
 
 const DecimalNumber = Decimal.clone({ precision: 50, rounding: Decimal.ROUND_HALF_UP });
@@ -35,16 +37,33 @@ export const divideDecimal = (left: DecimalValue, right: DecimalValue) => {
 export const compareDecimal = (left: DecimalValue, right: DecimalValue) =>
   parse(left).cmp(parse(right));
 
-const localeParts = new Intl.NumberFormat(undefined, { useGrouping: true }).formatToParts(
-  1234567.89,
-);
-const groupingSeparator = localeParts.find((part) => part.type === "group")?.value ?? ",";
-const decimalSeparator = localeParts.find((part) => part.type === "decimal")?.value ?? ".";
-const minusSign =
-  new Intl.NumberFormat(undefined).formatToParts(-1).find((part) => part.type === "minusSign")
-    ?.value ?? "-";
+type LocaleSeparators = {
+  readonly grouping: string;
+  readonly decimal: string;
+  readonly minus: string;
+};
 
-const groupInteger = (value: string) => value.replace(/\B(?=(\d{3})+(?!\d))/g, groupingSeparator);
+const separatorsByLocale = new Map<string, LocaleSeparators>();
+
+const localeSeparators = (locale: string): LocaleSeparators => {
+  const cached = separatorsByLocale.get(locale);
+  if (cached !== undefined) return cached;
+  const groupingParts = new Intl.NumberFormat(locale, { useGrouping: true }).formatToParts(
+    1234567.89,
+  );
+  const separators: LocaleSeparators = {
+    grouping: groupingParts.find((part) => part.type === "group")?.value ?? ",",
+    decimal: groupingParts.find((part) => part.type === "decimal")?.value ?? ".",
+    minus:
+      new Intl.NumberFormat(locale).formatToParts(-1).find((part) => part.type === "minusSign")
+        ?.value ?? "-",
+  };
+  separatorsByLocale.set(locale, separators);
+  return separators;
+};
+
+const groupInteger = (value: string, groupingSeparator: string) =>
+  value.replace(/\B(?=(\d{3})+(?!\d))/g, groupingSeparator);
 
 export const formatDecimal = (
   value: DecimalValue,
@@ -52,6 +71,7 @@ export const formatDecimal = (
     readonly minimumFractionDigits?: number;
     readonly maximumFractionDigits?: number;
   } = {},
+  locale: string = appLanguage(),
 ) => {
   const maximumFractionDigits = Math.max(options.maximumFractionDigits ?? 8, 0);
   const minimumFractionDigits = options.minimumFractionDigits ?? 0;
@@ -64,15 +84,17 @@ export const formatDecimal = (
   const fraction = `${trimmedFraction}${"0".repeat(
     Math.max(0, minimumFractionDigits - trimmedFraction.length),
   )}`;
-  return `${negative ? minusSign : ""}${groupInteger(integer)}${
-    fraction.length === 0 ? "" : `${decimalSeparator}${fraction}`
+  const { grouping, decimal, minus } = localeSeparators(locale);
+  return `${negative ? minus : ""}${groupInteger(integer, grouping)}${
+    fraction.length === 0 ? "" : `${decimal}${fraction}`
   }`;
 };
 
-export const formatSignedAmount = (value: DecimalValue, currencyIso: string) =>
-  `${compareDecimal(value, "0") > 0 ? "+" : ""}${formatAmount(value, currencyIso)}`;
+export const formatSignedAmount = (value: DecimalValue, currencyIso: string, locale?: string) =>
+  `${compareDecimal(value, "0") > 0 ? "+" : ""}${formatAmount(value, currencyIso, locale)}`;
 
-export const formatQuantity = (value: DecimalValue) => formatDecimal(value);
+export const formatQuantity = (value: DecimalValue, locale?: string) =>
+  formatDecimal(value, {}, locale);
 
 type CurrencyToken =
   | { readonly kind: "currency"; readonly text: string }
@@ -85,12 +107,13 @@ const currencyTokens = new Map<string, readonly CurrencyToken[] | null>();
 // rendering differs from its ISO code; otherwise amounts keep the code suffix.
 // Tokens are derived from a negative sample so the sign's true position in the
 // pattern is preserved (for example "-$1.234,56" versus "$-1.234,56").
-const currencyLayout = (currencyIso: string): readonly CurrencyToken[] | null => {
-  const cached = currencyTokens.get(currencyIso);
+const currencyLayout = (currencyIso: string, locale: string): readonly CurrencyToken[] | null => {
+  const cacheKey = `${locale}|${currencyIso}`;
+  const cached = currencyTokens.get(cacheKey);
   if (cached !== undefined) return cached;
   let tokens: readonly CurrencyToken[] | null = null;
   try {
-    const formatter = new Intl.NumberFormat(undefined, {
+    const formatter = new Intl.NumberFormat(locale, {
       style: "currency",
       currency: currencyIso,
       currencyDisplay: "narrowSymbol",
@@ -116,13 +139,14 @@ const currencyLayout = (currencyIso: string): readonly CurrencyToken[] | null =>
   } catch {
     tokens = null;
   }
-  currencyTokens.set(currencyIso, tokens);
+  currencyTokens.set(cacheKey, tokens);
   return tokens;
 };
 
-const renderCurrencyAmount = (numberText: string, currencyIso: string) => {
-  const tokens = currencyLayout(currencyIso);
+const renderCurrencyAmount = (numberText: string, currencyIso: string, locale: string) => {
+  const tokens = currencyLayout(currencyIso, locale);
   if (tokens === null) return `${numberText} ${currencyIso}`;
+  const { minus: minusSign } = localeSeparators(locale);
   const negative = numberText.startsWith(minusSign);
   const unsigned = negative
     ? numberText.slice(minusSign.length)
@@ -143,30 +167,38 @@ const renderCurrencyAmount = (numberText: string, currencyIso: string) => {
     .trim();
 };
 
-export const formatAmount = (value: DecimalValue, currencyIso: string) =>
+export const formatAmount = (value: DecimalValue, currencyIso: string, locale?: string) =>
   renderCurrencyAmount(
-    formatDecimal(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    formatDecimal(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }, locale),
     currencyIso,
+    locale ?? appLanguage(),
   );
 
-export const formatWholeAmount = (value: DecimalValue, currencyIso: string) =>
-  renderCurrencyAmount(formatDecimal(value, { maximumFractionDigits: 0 }), currencyIso);
+export const formatWholeAmount = (value: DecimalValue, currencyIso: string, locale?: string) =>
+  renderCurrencyAmount(
+    formatDecimal(value, { maximumFractionDigits: 0 }, locale),
+    currencyIso,
+    locale ?? appLanguage(),
+  );
 
-export const formatMarketPrice = (value: DecimalValue) =>
-  formatDecimal(value, { maximumFractionDigits: 4 });
+export const formatMarketPrice = (value: DecimalValue, locale?: string) =>
+  formatDecimal(value, { maximumFractionDigits: 4 }, locale);
 
-export const currencySymbol = (currencyIso: string): string | null => {
-  const tokens = currencyLayout(currencyIso);
+export const currencySymbol = (currencyIso: string, locale?: string): string | null => {
+  const tokens = currencyLayout(currencyIso, locale ?? appLanguage());
   if (tokens === null) return null;
   const token = tokens.find((entry) => entry.kind === "currency");
   return token !== undefined && token.kind === "currency" ? token.text : null;
 };
 
-export const formatMarketPriceAmount = (value: DecimalValue, currencyIso: string) =>
-  renderCurrencyAmount(formatMarketPrice(value), currencyIso);
+export const formatMarketPriceAmount = (
+  value: DecimalValue,
+  currencyIso: string,
+  locale?: string,
+) => renderCurrencyAmount(formatMarketPrice(value, locale), currencyIso, locale ?? appLanguage());
 
-export const formatFxRate = (value: DecimalValue) =>
-  formatDecimal(value, { maximumFractionDigits: 6 });
+export const formatFxRate = (value: DecimalValue, locale?: string) =>
+  formatDecimal(value, { maximumFractionDigits: 6 }, locale);
 
-export const formatFxAmount = (value: DecimalValue, currencyIso: string) =>
-  renderCurrencyAmount(formatFxRate(value), currencyIso);
+export const formatFxAmount = (value: DecimalValue, currencyIso: string, locale?: string) =>
+  renderCurrencyAmount(formatFxRate(value, locale), currencyIso, locale ?? appLanguage());

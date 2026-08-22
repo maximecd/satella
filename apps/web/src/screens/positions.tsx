@@ -4,6 +4,7 @@ import type { PositionEdit, UpdatePositionInput } from "@satella-app/engine/api"
 import { DecimalFromNonEmptyString } from "@satella-app/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   DeleteButton,
@@ -23,8 +24,8 @@ import {
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { useAssets, useDeletePosition, usePositionEdit, useUpdatePosition } from "../portfolio";
 
-const errorMessage = (cause: unknown) =>
-  cause instanceof Error ? cause.message : "The request failed.";
+const errorMessage = (cause: unknown, fallback: string) =>
+  cause instanceof Error ? cause.message : fallback;
 
 const PositionFormInput = Schema.Struct({
   quantity: DecimalFromNonEmptyString,
@@ -38,11 +39,18 @@ type PositionUpdatePayload = {
 };
 
 export function EditPositionScreen({ positionId }: { readonly positionId: string }) {
+  const { t } = useTranslation();
   const query = usePositionEdit(positionId);
   const assets = useAssets();
   if (query.isPending || assets.isPending) return <PageState kind="pending" />;
-  if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
-  if (assets.isError) return <PageState kind="error" message={errorMessage(assets.error)} />;
+  if (query.isError)
+    return (
+      <PageState kind="error" message={errorMessage(query.error, t("errors.requestFailed"))} />
+    );
+  if (assets.isError)
+    return (
+      <PageState kind="error" message={errorMessage(assets.error, t("errors.requestFailed"))} />
+    );
   return <LoadedEditPosition edit={query.data} cashAssets={assets.data} />;
 }
 
@@ -58,6 +66,7 @@ function LoadedEditPosition({
   }>;
 }) {
   const { position, account } = edit;
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [resetRequested, setResetRequested] = useState(false);
@@ -66,7 +75,8 @@ function LoadedEditPosition({
   const initialAverage = position.averageUnitPurchasePrice;
   const canEditPurchasePrice = position.assetCategory !== "cash";
   const isManual = account.connectorAccountId === null;
-  const accountLabel = account.isDefaultCustodian ? "Other holdings" : account.name;
+  const requestFailed = t("errors.requestFailed");
+  const accountLabel = account.isDefaultCustodian ? t("positions.otherHoldings") : account.name;
   const form = useAppForm({
     defaultValues: {
       quantity: position.quantity,
@@ -82,7 +92,7 @@ function LoadedEditPosition({
       try {
         quantity = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(value.quantity);
       } catch (cause) {
-        setError(errorMessage(cause));
+        setError(errorMessage(cause, requestFailed));
         return;
       }
       const payload: PositionUpdatePayload = {};
@@ -97,11 +107,11 @@ function LoadedEditPosition({
           try {
             price = await Schema.decodeUnknownPromise(DecimalFromNonEmptyString)(averageText);
           } catch {
-            setError("Enter a valid average unit purchase price.");
+            setError(t("positions.invalidAveragePrice"));
             return;
           }
           if (compareDecimal(price, "0") <= 0) {
-            setError("Average unit purchase price must be greater than zero.");
+            setError(t("positions.averagePriceNotPositive"));
             return;
           }
           const unchangedSyncedValue =
@@ -122,7 +132,7 @@ function LoadedEditPosition({
         await update.mutateAsync(payload);
         await navigate({ to: "/accounts/$accountId", params: { accountId: account.id } });
       } catch (cause) {
-        setError(errorMessage(cause));
+        setError(errorMessage(cause, requestFailed));
       }
     },
   });
@@ -131,26 +141,26 @@ function LoadedEditPosition({
     value: asset.id,
     label: asset.symbol ?? asset.name,
   }));
-  const title = `Edit ${position.assetName}`;
+  const title = t("positions.editTitle", { name: position.assetName });
   return (
     <>
       <PageBreadcrumbs
         items={
           account.connectorAccountId === null
             ? [
-                { label: "Dashboard", href: "/" },
+                { label: t("positions.breadcrumbs.dashboard"), href: "/" },
                 { label: accountLabel, href: `/accounts/${account.id}` },
-                { label: "Edit" },
+                { label: t("positions.breadcrumbs.edit") },
               ]
             : [
-                { label: "Settings", href: "/settings" },
-                { label: "Custodians", href: "/settings/custodians" },
+                { label: t("positions.breadcrumbs.settings"), href: "/settings" },
+                { label: t("positions.breadcrumbs.custodians"), href: "/settings/custodians" },
                 {
                   label: account.custodianName,
                   href: `/settings/custodians/${account.custodianId}`,
                 },
                 { label: accountLabel, href: `/accounts/${account.id}` },
-                { label: "Edit" },
+                { label: t("positions.breadcrumbs.edit") },
               ]
         }
       />
@@ -158,10 +168,10 @@ function LoadedEditPosition({
         title={title}
         subtitle={
           !canEditPurchasePrice
-            ? "Cash positions are excluded from Unrealized P&L."
+            ? t("positions.cashSubtitle")
             : isManual
-              ? "Set quantity to zero to preserve the position and its history."
-              : `Quantity is supplied by ${account.custodianName}; purchase price remains editable.`
+              ? t("positions.manualSubtitle")
+              : t("positions.syncedSubtitle", { custodian: account.custodianName })
         }
       />
       <FormError message={error} />
@@ -174,7 +184,9 @@ function LoadedEditPosition({
         >
           <form.AppField
             name="quantity"
-            children={(field) => <field.TextField label="Quantity" number disabled={!isManual} />}
+            children={(field) => (
+              <field.TextField label={t("positions.quantityLabel")} number disabled={!isManual} />
+            )}
           />
           {canEditPurchasePrice ? (
             <>
@@ -182,7 +194,7 @@ function LoadedEditPosition({
                 name="averageUnitPurchasePrice"
                 children={(field) => (
                   <field.TextField
-                    label="Average unit purchase price"
+                    label={t("positions.averageUnitPurchasePriceLabel")}
                     number
                     optional
                     onValueChange={() => setResetRequested(false)}
@@ -192,19 +204,21 @@ function LoadedEditPosition({
               <form.AppField
                 name="purchaseCurrencyAssetId"
                 children={(field) => (
-                  <field.SelectField label="Purchase currency" options={currencyOptions} />
+                  <field.SelectField
+                    label={t("positions.purchaseCurrencyLabel")}
+                    options={currencyOptions}
+                  />
                 )}
               />
               {initialAverage?.source === "synced" ? (
                 <Text color="fg.muted" fontSize="sm">
-                  Current value supplied by {account.custodianName}; editing it creates a manual
-                  override.
+                  {t("positions.syncedOverrideNote", { custodian: account.custodianName })}
                 </Text>
               ) : null}
               {position.acquisitionCost !== null ? (
                 <Stack gap="0">
                   <Text color="fg.muted" fontSize="sm">
-                    Acquisition cost
+                    {t("positions.acquisitionCost")}
                   </Text>
                   <Text fontVariantNumeric="tabular-nums">
                     {formatAmount(
@@ -226,7 +240,7 @@ function LoadedEditPosition({
                         : "fg.muted"
                 }
               >
-                Unrealized P&amp;L:{" "}
+                {t("positions.unrealizedPnlLabel")}{" "}
                 {position.unrealizedPnl === null
                   ? "—"
                   : `${formatSignedAmount(position.unrealizedPnl, account.baseCurrencyIso)}${
@@ -244,7 +258,7 @@ function LoadedEditPosition({
             </>
           ) : null}
           <Stack direction="row" gap="2" wrap="wrap">
-            <form.SubmitButton label="Save changes" />
+            <form.SubmitButton label={t("positions.saveChanges")} />
             {canEditPurchasePrice ? (
               <Button
                 type="button"
@@ -255,7 +269,7 @@ function LoadedEditPosition({
                   form.setFieldValue("averageUnitPurchasePrice", "");
                 }}
               >
-                Reset purchase price
+                {t("positions.resetPurchasePrice")}
               </Button>
             ) : null}
           </Stack>
@@ -270,7 +284,7 @@ function LoadedEditPosition({
               await remove.mutateAsync();
               await navigate({ to: "/accounts/$accountId", params: { accountId: account.id } });
             } catch (cause) {
-              setError(errorMessage(cause));
+              setError(errorMessage(cause, requestFailed));
             }
           }}
         />

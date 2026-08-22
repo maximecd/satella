@@ -14,6 +14,7 @@ import {
 import { Link as RouterLink, Outlet } from "@tanstack/react-router";
 import type { FormEvent, ReactNode } from "react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { BreadcrumbCurrentLink, BreadcrumbLink, BreadcrumbRoot } from "./components/ui/breadcrumb";
 import {
@@ -78,8 +79,9 @@ export type PageBreadcrumb = {
 };
 
 export function PageBreadcrumbs({ items }: { readonly items: ReadonlyArray<PageBreadcrumb> }) {
+  const { t } = useTranslation();
   return (
-    <BreadcrumbRoot aria-label="Breadcrumb">
+    <BreadcrumbRoot aria-label={t("breadcrumb")}>
       {items.map((item) =>
         item.href ? (
           <BreadcrumbLink key={item.href} asChild>
@@ -100,10 +102,11 @@ export function PageState({
   readonly kind: "pending" | "error";
   readonly message?: string;
 }) {
+  const { t } = useTranslation();
   if (kind === "pending") {
     return (
       <Text color="fg.muted" as="p" role="status">
-        Loading…
+        {t("app.loading")}
       </Text>
     );
   }
@@ -111,10 +114,8 @@ export function PageState({
     <Alert.Root status="error">
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>Something went wrong</Alert.Title>
-        <Alert.Description>
-          {message ?? "The engine could not complete this request."}
-        </Alert.Description>
+        <Alert.Title>{t("errors.pageError")}</Alert.Title>
+        <Alert.Description>{message ?? t("errors.pageErrorFallback")}</Alert.Description>
       </Alert.Content>
     </Alert.Root>
   );
@@ -145,11 +146,12 @@ export function FormFrame({
 }
 
 export function FormError({ message }: { readonly message: string | null }) {
+  const { t } = useTranslation();
   return message === null ? null : (
     <Alert.Root status="error">
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>Could not save</Alert.Title>
+        <Alert.Title>{t("form.couldNotSave")}</Alert.Title>
         <Alert.Description>{message}</Alert.Description>
       </Alert.Content>
     </Alert.Root>
@@ -165,25 +167,23 @@ export function DeleteButton({
   readonly onDelete: () => void | Promise<void>;
   readonly isPending?: boolean;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <Stack gap="4">
       <Separator />
       <Button colorPalette="red" variant="outline" onClick={() => setOpen(true)}>
-        Delete {entity}
+        {t("delete.button", { entity })}
       </Button>
       <DialogRoot role="alertdialog" open={open} onOpenChange={(details) => setOpen(details.open)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {entity}?</DialogTitle>
+            <DialogTitle>{t("delete.title", { entity })}</DialogTitle>
           </DialogHeader>
-          <DialogBody>
-            This permanently deletes the record and its dependent history. This action cannot be
-            undone.
-          </DialogBody>
+          <DialogBody>{t("delete.description")}</DialogBody>
           <DialogFooter>
             <DialogActionTrigger asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button variant="outline">{t("delete.cancel")}</Button>
             </DialogActionTrigger>
             <Button
               colorPalette="red"
@@ -192,7 +192,7 @@ export function DeleteButton({
                 void onDelete();
               }}
             >
-              Delete permanently
+              {t("delete.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

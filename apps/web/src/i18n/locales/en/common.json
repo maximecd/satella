@@ -1,0 +1,22 @@
+{
+  "app": {
+    "name": "Satella",
+    "loading": "Loading…"
+  },
+  "errors": {
+    "requestFailed": "The request failed.",
+    "pageError": "Something went wrong",
+    "pageErrorFallback": "The engine could not complete this request."
+  },
+  "form": {
+    "couldNotSave": "Could not save"
+  },
+  "delete": {
+    "button": "Delete {{entity}}",
+    "title": "Delete {{entity}}?",
+    "description": "This permanently deletes the record and its dependent history. This action cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Delete permanently"
+  },
+  "breadcrumb": "Breadcrumb"
+}
