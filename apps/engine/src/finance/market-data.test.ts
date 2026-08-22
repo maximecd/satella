@@ -7,7 +7,12 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import { encryptedDatabaseLayer } from "../database/database.test-utils.js";
 import type { MarketDataProvider, MarketDataRegistry, ProviderLookup } from "./market-data.js";
-import { refreshPrices } from "./market-data.js";
+import {
+  makeSearchCache,
+  refreshPrices,
+  SEARCH_CACHE_CAPACITY,
+  SEARCH_CACHE_TTL_MS,
+} from "./market-data.js";
 import * as Finance from "./finance.test-utils.js";
 
 const directories: string[] = [];
@@ -558,5 +563,27 @@ describe("market data coordinator", () => {
       }),
     );
     expect(requests).toBe(1);
+  });
+});
+
+describe("market-data search cache", () => {
+  it("keeps freshness, LRU capacity, and explicit clearing at the module seam", () => {
+    let now = 0;
+    const cache = makeSearchCache({ now: () => now, capacity: 3, ttlMs: 100 });
+    cache.set("one", []);
+    cache.set("two", []);
+    cache.set("three", []);
+    expect(cache.size()).toBe(3);
+    expect(cache.get("one")).toEqual([]);
+    cache.set("four", []);
+    expect(cache.get("two")).toBeUndefined();
+    expect(cache.get("one")).toEqual([]);
+    now = 101;
+    expect(cache.get("one")).toBeUndefined();
+    expect(cache.size()).toBe(2);
+    cache.clear();
+    expect(cache.size()).toBe(0);
+    expect(SEARCH_CACHE_CAPACITY).toBe(100);
+    expect(SEARCH_CACHE_TTL_MS).toBe(60_000);
   });
 });

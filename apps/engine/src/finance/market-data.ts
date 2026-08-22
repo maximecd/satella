@@ -1,9 +1,9 @@
-import Coingecko from "@coingecko/coingecko-typescript";
+import type Coingecko from "@coingecko/coingecko-typescript";
 import { SqlClient } from "effect/unstable/sql";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { randomUUID } from "node:crypto";
-import YahooFinance from "yahoo-finance2";
+import type YahooFinance from "yahoo-finance2";
 
 import {
   DEFAULT_MARKET_DATA_POLICY,
@@ -66,9 +66,10 @@ export interface MarketDataProvider {
     lookups: ReadonlyArray<ProviderLookup>,
     reportingCurrency: string,
   ) => Effect.Effect<ProviderBatchResult, ProviderBatchError>;
+  readonly close?: () => Effect.Effect<void>;
 }
 
-const makeCoinGeckoClient = () => {
+const makeCoinGeckoClient = (Constructor: typeof Coingecko) => {
   const demoAPIKey = process.env["COINGECKO_DEMO_API_KEY"]?.trim() || null;
   const clientOptions = {
     environment: "demo",
@@ -81,7 +82,7 @@ const makeCoinGeckoClient = () => {
   if (demoAPIKey === null) {
     Object.assign(clientOptions, { defaultHeaders: { "x-cg-demo-api-key": null } });
   }
-  return new Coingecko(clientOptions);
+  return new Constructor(clientOptions);
 };
 
 const finitePositive = (value: number | null | undefined): value is number =>
@@ -126,7 +127,7 @@ const asBatchError = (provider: MarketDataProviderId, cause: unknown) => {
 };
 
 export const makeYahooFinanceProvider = (
-  client: InstanceType<typeof YahooFinance> = new YahooFinance(),
+  client: InstanceType<typeof YahooFinance>,
 ): MarketDataProvider => ({
   id: "yahoo-finance",
   chunkSize: 50,
@@ -201,7 +202,9 @@ export const makeYahooFinanceProvider = (
     }),
 });
 
-export const makeCoinGeckoProvider = (client = makeCoinGeckoClient()): MarketDataProvider => ({
+export const makeCoinGeckoProvider = (
+  client: InstanceType<typeof Coingecko>,
+): MarketDataProvider => ({
   id: "coingecko",
   chunkSize: 500,
   fetchPrices: (lookups, reportingCurrency) =>
@@ -287,17 +290,126 @@ export const makeCoinGeckoProvider = (client = makeCoinGeckoClient()): MarketDat
 
 export type MarketDataRegistry = ReadonlyMap<MarketDataProviderId, MarketDataProvider>;
 
+const lazyProvider = (
+  id: MarketDataProviderId,
+  chunkSize: number,
+  load: () => Promise<MarketDataProvider>,
+): MarketDataProvider => {
+  let loaded: Promise<MarketDataProvider> | undefined;
+  const loadOnce = () => {
+    if (loaded !== undefined) return loaded;
+    loaded = load().catch((cause: unknown) => {
+      loaded = undefined;
+      throw cause;
+    });
+    return loaded;
+  };
+  return {
+    id,
+    chunkSize,
+    fetchPrices: (lookups, reportingCurrency) =>
+      Effect.tryPromise({
+        try: loadOnce,
+        catch: (cause) =>
+          new ProviderBatchError(
+            `${id} provider could not be loaded${cause instanceof Error ? `: ${cause.message}` : ""}`,
+            { transient: false },
+          ),
+      }).pipe(Effect.flatMap((provider) => provider.fetchPrices(lookups, reportingCurrency))),
+    close: () =>
+      Effect.sync(() => {
+        loaded = undefined;
+      }),
+  };
+};
+
+const LiveYahooFinanceProvider = lazyProvider("yahoo-finance", 50, async () => {
+  const { default: YahooFinanceConstructor } = await import("yahoo-finance2");
+  return makeYahooFinanceProvider(new YahooFinanceConstructor());
+});
+
+const LiveCoinGeckoProvider = lazyProvider("coingecko", 500, async () => {
+  const { default: CoingeckoConstructor } = await import("@coingecko/coingecko-typescript");
+  return makeCoinGeckoProvider(makeCoinGeckoClient(CoingeckoConstructor));
+});
+
 export const LiveMarketDataRegistry: MarketDataRegistry = new Map([
-  ["yahoo-finance", makeYahooFinanceProvider()],
-  ["coingecko", makeCoinGeckoProvider()],
+  ["yahoo-finance", LiveYahooFinanceProvider],
+  ["coingecko", LiveCoinGeckoProvider],
 ]);
 
-const yahooSearchClient = new YahooFinance();
-const coinGeckoSearchClient = makeCoinGeckoClient();
-const searchCache = new Map<
-  string,
-  { readonly expiresAt: number; readonly results: ReadonlyArray<AssetSearchResult> }
->();
+export const SEARCH_CACHE_TTL_MS = 60_000;
+export const SEARCH_CACHE_CAPACITY = 100;
+
+interface SearchCacheEntry {
+  readonly expiresAt: number;
+  readonly results: ReadonlyArray<AssetSearchResult>;
+}
+
+export interface SearchCache {
+  readonly get: (key: string) => ReadonlyArray<AssetSearchResult> | undefined;
+  readonly set: (key: string, results: ReadonlyArray<AssetSearchResult>) => void;
+  readonly clear: () => void;
+  readonly size: () => number;
+}
+
+export const makeSearchCache = (
+  options: {
+    readonly now?: () => number;
+    readonly ttlMs?: number;
+    readonly capacity?: number;
+  } = {},
+): SearchCache => {
+  const now = options.now ?? (() => Date.now());
+  const ttlMs = options.ttlMs ?? SEARCH_CACHE_TTL_MS;
+  const capacity = options.capacity ?? SEARCH_CACHE_CAPACITY;
+  const entries = new Map<string, SearchCacheEntry>();
+  return {
+    get: (key) => {
+      const entry = entries.get(key);
+      if (entry === undefined) return undefined;
+      if (entry.expiresAt <= now()) {
+        entries.delete(key);
+        return undefined;
+      }
+      entries.delete(key);
+      entries.set(key, entry);
+      return entry.results;
+    },
+    set: (key, results) => {
+      entries.delete(key);
+      entries.set(key, { expiresAt: now() + ttlMs, results });
+      while (entries.size > capacity) {
+        const oldest = entries.keys().next().value as string | undefined;
+        if (oldest === undefined) break;
+        entries.delete(oldest);
+      }
+    },
+    clear: () => entries.clear(),
+    size: () => entries.size,
+  };
+};
+
+const searchCache = makeSearchCache();
+let yahooSearchClient: InstanceType<typeof YahooFinance> | undefined;
+let coinGeckoSearchClient: InstanceType<typeof Coingecko> | undefined;
+
+const clearSearchClients = () => {
+  yahooSearchClient = undefined;
+  coinGeckoSearchClient = undefined;
+};
+
+/** Releases Vault-scoped provider clients and search results on Vault close. */
+export const releaseMarketDataResources = () =>
+  Effect.gen(function* () {
+    searchCache.clear();
+    clearSearchClients();
+    for (const provider of LiveMarketDataRegistry.values()) {
+      if (provider.close !== undefined) yield* provider.close();
+    }
+  });
+
+export const clearMarketDataSearchCache = () => searchCache.clear();
 
 export const searchAssets = (
   queryInput: string,
@@ -307,12 +419,16 @@ export const searchAssets = (
   if (query.length < 2) return Effect.succeed([]);
   const cacheKey = `${assetCategory}:${query.toLocaleLowerCase()}`;
   const cached = searchCache.get(cacheKey);
-  if (cached !== undefined && cached.expiresAt > Date.now()) return Effect.succeed(cached.results);
+  if (cached !== undefined) return Effect.succeed(cached);
 
   return Effect.tryPromise({
     try: async () => {
       let results: ReadonlyArray<AssetSearchResult>;
       if (assetCategory === "stocks_etfs") {
+        if (yahooSearchClient === undefined) {
+          const { default: YahooFinanceConstructor } = await import("yahoo-finance2");
+          yahooSearchClient = new YahooFinanceConstructor();
+        }
         const controller = new AbortController();
         const timeout = setTimeout(
           () => controller.abort(),
@@ -339,6 +455,10 @@ export const searchAssets = (
             : [],
         );
       } else {
+        if (coinGeckoSearchClient === undefined) {
+          const { default: CoingeckoConstructor } = await import("@coingecko/coingecko-typescript");
+          coinGeckoSearchClient = makeCoinGeckoClient(CoingeckoConstructor);
+        }
         const response = await coinGeckoSearchClient.search.get({ query });
         results = response.coins.slice(0, 10).map((coin) => ({
           provider: "coingecko" as const,
@@ -348,7 +468,7 @@ export const searchAssets = (
           identifiers: [{ type: "coingecko_coin_id", value: coin.id }],
         }));
       }
-      searchCache.set(cacheKey, { expiresAt: Date.now() + 60_000, results });
+      searchCache.set(cacheKey, results);
       return results;
     },
     catch: () => new FinanceApiError({ code: "validation", message: "Market-data search failed" }),

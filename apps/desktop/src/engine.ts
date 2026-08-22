@@ -6,6 +6,55 @@ import { join } from "node:path";
 export const DEFAULT_ENGINE_PORT = 3001;
 export const ENGINE_TOKEN_HEADER = "x-satella-engine-token";
 
+export interface ManagedOperationalMessage {
+  readonly type: "operational-state";
+  readonly autoRefresh: {
+    readonly lastCycleAt: string | null;
+    readonly lastCycleOutcome: "success" | "partial" | "failed" | null;
+  };
+  readonly vault: {
+    readonly state: "absent" | "locked" | "open";
+    readonly screenLock: boolean;
+  };
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const hasOnlyKeys = (value: Record<string, unknown>, keys: ReadonlyArray<string>) => {
+  const allowed = new Set(keys);
+  const actual = Object.keys(value);
+  return actual.length === allowed.size && actual.every((key) => allowed.has(key));
+};
+
+/** Accepts only the private operational schema; financial payloads are ignored. */
+export const decodeManagedOperationalMessage = (
+  value: unknown,
+): ManagedOperationalMessage | undefined => {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["type", "autoRefresh", "vault"])) return undefined;
+  if (value.type !== "operational-state" || !isRecord(value.autoRefresh) || !isRecord(value.vault))
+    return undefined;
+  if (!hasOnlyKeys(value.autoRefresh, ["lastCycleAt", "lastCycleOutcome"])) return undefined;
+  if (!hasOnlyKeys(value.vault, ["state", "screenLock"])) return undefined;
+  if (value.autoRefresh.lastCycleAt !== null && typeof value.autoRefresh.lastCycleAt !== "string")
+    return undefined;
+  if (
+    value.autoRefresh.lastCycleOutcome !== null &&
+    value.autoRefresh.lastCycleOutcome !== "success" &&
+    value.autoRefresh.lastCycleOutcome !== "partial" &&
+    value.autoRefresh.lastCycleOutcome !== "failed"
+  )
+    return undefined;
+  if (
+    value.vault.state !== "absent" &&
+    value.vault.state !== "locked" &&
+    value.vault.state !== "open"
+  )
+    return undefined;
+  if (typeof value.vault.screenLock !== "boolean") return undefined;
+  return value as unknown as ManagedOperationalMessage;
+};
+
 export const newEngineToken = () => randomBytes(32).toString("base64url");
 
 const parsePort = (name: string, value: string | undefined, fallback: number) => {
@@ -73,6 +122,16 @@ export const screenLockRequest = (engineUrl: string, token: string) => ({
   headers: { [ENGINE_TOKEN_HEADER]: token },
 });
 
+export const vaultActivityRequest = (engineUrl: string, token: string, activityAt: number) => ({
+  url: `${engineUrl.replace(/\/$/, "")}/api/vault/activity`,
+  method: "POST" as const,
+  headers: {
+    [ENGINE_TOKEN_HEADER]: token,
+    "content-type": "application/json",
+  },
+  body: JSON.stringify({ activityAt }),
+});
+
 export const vaultStatusRequest = (engineUrl: string, token: string) => ({
   url: `${engineUrl.replace(/\/$/, "")}/api/vault/status`,
   method: "GET" as const,
@@ -85,7 +144,6 @@ export const managedEngineEnvironment = (
     readonly port: number;
     readonly dataDirectory: string;
     readonly logDirectory?: string;
-    readonly parentPid?: number;
     readonly production?: boolean;
     readonly engineToken?: string;
   },
@@ -102,11 +160,7 @@ export const managedEngineEnvironment = (
   if (options.logDirectory !== undefined) {
     Object.assign(managedEnvironment, { SATELLA_LOG_DIR: options.logDirectory });
   }
-  if (options.parentPid !== undefined) {
-    Object.assign(managedEnvironment, {
-      SATELLA_ENGINE_PARENT_PID: String(options.parentPid),
-    });
-  }
+  Object.assign(managedEnvironment, { SATELLA_ENGINE_MANAGED: "1" });
   if (options.production === true) {
     Object.assign(managedEnvironment, {
       SATELLA_CANONICAL_DATA_DIR: options.dataDirectory,
@@ -152,4 +206,4 @@ export const stopManagedEngine = async (child: ChildProcess | undefined) => {
 export const spawnManagedEngine = (
   command: { readonly command: string; readonly args: ReadonlyArray<string> },
   env: NodeJS.ProcessEnv,
-) => spawn(command.command, [...command.args], { env, stdio: ["ignore", "pipe", "pipe"] });
+) => spawn(command.command, [...command.args], { env, stdio: ["ignore", "pipe", "pipe", "ipc"] });

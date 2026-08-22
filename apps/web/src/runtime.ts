@@ -7,7 +7,7 @@ export interface SatellaRuntimeConfiguration {
   readonly showVaultSaveDialog?: (defaultPath?: string) => Promise<string | undefined>;
   readonly showVaultOpenDialog?: () => Promise<string | undefined>;
   readonly onVaultLocked?: (listener: () => void) => () => void;
-  readonly reportVaultOpen?: (open: boolean) => void;
+  readonly reportVaultActivity?: (activityAt: number) => void;
   readonly reportAppLanguage?: (language: AppLanguage) => void;
 }
 declare global {

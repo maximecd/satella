@@ -81,6 +81,100 @@ export const closeToTray =
     window.hide();
   };
 
+export const WINDOW_DORMANCY_GRACE_MS = 60_000;
+
+export type WindowLifecycleState = "active" | "hidden" | "dormant";
+
+export interface WindowLifecycleWindow {
+  readonly hide: () => void;
+  readonly destroy: () => void;
+  readonly isMinimized: () => boolean;
+  readonly restore: () => void;
+  readonly show: () => void;
+  readonly focus: () => void;
+}
+
+export interface WindowLifecycle {
+  readonly state: () => WindowLifecycleState;
+  readonly attach: (window: WindowLifecycleWindow) => void;
+  readonly handleClose: (
+    window: WindowLifecycleWindow,
+    event: { readonly preventDefault: () => void },
+  ) => void;
+  readonly open: () => "focused" | "create";
+  readonly dispose: () => void;
+}
+
+/** Manages the active → hidden grace period → dormant renderer lifecycle. */
+export const createWindowLifecycle = (options: {
+  readonly createWindow: () => void;
+  readonly isQuitting: () => boolean;
+  readonly focus?: (window: WindowLifecycleWindow) => void;
+  readonly gracePeriodMs?: number;
+  readonly schedule?: (callback: () => void, delayMs: number) => unknown;
+  readonly cancel?: (handle: unknown) => void;
+  readonly onDormant?: () => void;
+}): WindowLifecycle => {
+  const focus = options.focus ?? focusWindow;
+  const schedule = options.schedule ?? ((callback, delayMs) => setTimeout(callback, delayMs));
+  const cancel =
+    options.cancel ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+  const gracePeriodMs = options.gracePeriodMs ?? WINDOW_DORMANCY_GRACE_MS;
+  let current: WindowLifecycleWindow | undefined;
+  let currentState: WindowLifecycleState = "dormant";
+  let dormancyTimer: unknown;
+
+  const cancelDormancy = () => {
+    if (dormancyTimer !== undefined) {
+      cancel(dormancyTimer);
+      dormancyTimer = undefined;
+    }
+  };
+
+  const enterDormancy = (window: WindowLifecycleWindow) => {
+    if (current !== window || currentState !== "hidden") return;
+    dormancyTimer = undefined;
+    current = undefined;
+    currentState = "dormant";
+    options.onDormant?.();
+    window.destroy();
+  };
+
+  const scheduleDormancy = (window: WindowLifecycleWindow) => {
+    cancelDormancy();
+    dormancyTimer = schedule(() => enterDormancy(window), gracePeriodMs);
+  };
+
+  return {
+    state: () => currentState,
+    attach: (window) => {
+      cancelDormancy();
+      current = window;
+      currentState = "active";
+    },
+    handleClose: (window, event) => {
+      if (options.isQuitting() || current !== window) return;
+      event.preventDefault();
+      if (currentState === "active") {
+        currentState = "hidden";
+        window.hide();
+        scheduleDormancy(window);
+      }
+    },
+    open: () => {
+      if (current !== undefined && currentState !== "dormant") {
+        cancelDormancy();
+        currentState = "active";
+        focus(current);
+        return "focused";
+      }
+      options.createWindow();
+      return "create";
+    },
+    dispose: cancelDormancy,
+  };
+};
+
 export const trayIconPath = (
   moduleDir = __dirname,
   options: { readonly isPackaged?: boolean; readonly resourcesPath?: string } = {},

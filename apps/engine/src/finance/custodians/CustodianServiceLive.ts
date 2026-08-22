@@ -25,9 +25,19 @@ export const make = Effect.gen(function* () {
       withSql(withHttp(Operations.connectCustodian(input))),
     ),
     refresh: Effect.fn("CustodianService.refresh")((id: string) =>
-      // Manual refreshes share the serialized queue with automatic ones; jobs
-      // run on the queue worker, so every requirement is provided here.
-      queue.submit(id, withSql(withHttp(Operations.refreshCustodian(id)))),
+      // Manual and automatic refreshes share the same queued reconciliation.
+      // Queueing the manual completion separately keeps that behavior complete
+      // when an automatic reconciliation is already in flight.
+      queue
+        .submit(id, withSql(withHttp(Operations.reconcileCustodian(id))))
+        .pipe(
+          Effect.andThen(
+            queue.submit(
+              `manual-complete:${id}`,
+              withSql(withHttp(Operations.completeCustodianRefresh(id))),
+            ),
+          ),
+        ),
     ),
     update: Effect.fn("CustodianService.update")((id, input) =>
       withSql(withHttp(Operations.updateCustodian(id, input))),

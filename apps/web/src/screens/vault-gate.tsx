@@ -1,8 +1,9 @@
 import { Text } from "@chakra-ui/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { createActivityReporter } from "../activity-reporter";
 import { engineApi } from "../api";
 import { vaultStatusQuery } from "../queries";
 import { OnboardingScreen } from "./onboarding";
@@ -31,12 +32,7 @@ export function VaultGate({ children }: { readonly children: ReactNode }) {
   const [firstAssetPending, setFirstAssetPending] = useState(
     () => sessionStorage.getItem(FIRST_ASSET_KEY) === "1",
   );
-  const lock = useMutation({
-    mutationFn: engineApi.lockScreen,
-    onSuccess: (status) => queryClient.setQueryData(vaultStatusQuery.queryKey, status),
-  });
   const status = statusQuery.data;
-  const timeoutMinutes = status?.state === "open" ? status.screenLockTimeoutMinutes : 15;
 
   useEffect(() => {
     const listener = () => setFirstAssetPending(sessionStorage.getItem(FIRST_ASSET_KEY) === "1");
@@ -54,30 +50,27 @@ export function VaultGate({ children }: { readonly children: ReactNode }) {
     [queryClient],
   );
 
-  // Keep the tray's "Lock Now" item in sync without waiting for its poll.
-  useEffect(() => {
-    window.satellaRuntime?.reportVaultOpen?.(status?.state === "open" && !status.screenLock);
-  }, [status]);
-
   useEffect(() => {
     if (status?.state !== "open" || status.screenLock) return;
-    let last = Date.now();
-    const bump = () => {
-      last = Date.now();
-    };
-    const timer = window.setInterval(() => {
-      if (Date.now() - last >= timeoutMinutes * 60_000) {
-        lock.mutate();
-      }
-    }, 15_000);
+    const reporter = createActivityReporter({
+      send: (activityAt) => {
+        const report = window.satellaRuntime?.reportVaultActivity;
+        if (report !== undefined) {
+          report(activityAt);
+        } else {
+          void Promise.resolve(engineApi.reportVaultActivity(activityAt)).catch(() => undefined);
+        }
+      },
+    });
+    const bump = () => reporter.report();
     window.addEventListener("pointerdown", bump);
     window.addEventListener("keydown", bump);
     return () => {
-      window.clearInterval(timer);
+      reporter.dispose();
       window.removeEventListener("pointerdown", bump);
       window.removeEventListener("keydown", bump);
     };
-  }, [lock, status, timeoutMinutes]);
+  }, [status]);
 
   if (statusQuery.isPending) {
     return (

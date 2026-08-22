@@ -14,6 +14,7 @@ import {
   ResetVaultInput,
   RestoreVaultInput,
   ScreenLockTimeoutInput,
+  ScreenLockActivityInput,
   UnlockScreenInput,
   UnlockVaultInput,
   VaultApiError,
@@ -370,6 +371,13 @@ export const VaultApi = HttpApiGroup.make("vault")
     HttpApiEndpoint.patch("setScreenLockTimeout", "/api/vault/screen-lock-timeout", {
       payload: ScreenLockTimeoutInput,
       success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("reportActivity", "/api/vault/activity", {
+      payload: ScreenLockActivityInput,
+      success: Schema.Void,
       error: VaultApiError,
     }),
   )

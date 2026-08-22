@@ -3,10 +3,12 @@ import { join } from "node:path";
 
 import {
   chooseAvailableEnginePort,
+  decodeManagedOperationalMessage,
   managedEngineCommand,
   managedEngineEnvironment,
   newEngineToken,
   screenLockRequest,
+  vaultActivityRequest,
   vaultStatusRequest,
 } from "./engine.js";
 import {
@@ -188,6 +190,26 @@ describe("desktop main process helpers", () => {
     expect(request.headers["x-satella-engine-token"]).toBe("token-value");
   });
 
+  it("reports authenticated renderer activity to the engine", () => {
+    const request = vaultActivityRequest("http://127.0.0.1:3001/", "token-value", 1234);
+    expect(request.url).toBe("http://127.0.0.1:3001/api/vault/activity");
+    expect(request.method).toBe("POST");
+    expect(request.headers["x-satella-engine-token"]).toBe("token-value");
+    expect(request.body).toBe(JSON.stringify({ activityAt: 1234 }));
+  });
+
+  it("accepts only operational managed-engine messages", () => {
+    const message = {
+      type: "operational-state" as const,
+      autoRefresh: { lastCycleAt: null, lastCycleOutcome: null },
+      vault: { state: "locked" as const, screenLock: false },
+    };
+    expect(decodeManagedOperationalMessage(message)).toEqual(message);
+    expect(
+      decodeManagedOperationalMessage({ ...message, positions: [{ assetId: "secret" }] }),
+    ).toBeUndefined();
+  });
+
   it("reads the vault status with the engine token", () => {
     const request = vaultStatusRequest("http://127.0.0.1:3001", "token-value");
     expect(request.url).toBe("http://127.0.0.1:3001/api/vault/status");
@@ -215,7 +237,7 @@ describe("desktop main process helpers", () => {
     ).toBeUndefined();
   });
 
-  it("points a packaged engine at a local data directory", () => {
+  it("marks the packaged engine as managed for IPC lifecycle ownership", () => {
     expect(
       managedEngineEnvironment(
         { PATH: "/bin" },
@@ -227,11 +249,9 @@ describe("desktop main process helpers", () => {
       SATELLA_DATA_DIR: "/tmp/satella-data",
     });
     expect(
-      managedEngineEnvironment(
-        {},
-        { port: 4123, dataDirectory: "/tmp/satella-data", parentPid: 1234 },
-      ).SATELLA_ENGINE_PARENT_PID,
-    ).toBe("1234");
+      managedEngineEnvironment({}, { port: 4123, dataDirectory: "/tmp/satella-data" })
+        .SATELLA_ENGINE_MANAGED,
+    ).toBe("1");
   });
 
   it("passes the Electron logs directory to the engine when provided", () => {

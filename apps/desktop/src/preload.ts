@@ -27,7 +27,8 @@ const satellaRuntime = {
       ipcRenderer.removeListener("satella:vault-locked", wrapped);
     };
   },
-  reportVaultOpen: (open: boolean) => ipcRenderer.send("satella:vault-open", open),
+  reportVaultActivity: (activityAt: number) =>
+    ipcRenderer.send("satella:vault-activity", activityAt),
   reportAppLanguage: (language: string) => ipcRenderer.send("satella:app-language", language),
 };
 if (engineUrl !== undefined) Object.assign(satellaRuntime, { engineUrl });

@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import {
   ConnectorAuthenticationError,
   ConnectorFetchAccountsError,
+  type ConnectorRegistry,
 } from "@satella-app/connector-core";
 
 import { HttpClient } from "effect/unstable/http";
@@ -19,8 +20,12 @@ import type {
 import { ConnectorCredentials, FinanceApiError as FinanceError } from "../contracts.js";
 import * as Schema from "effect/Schema";
 import { CONNECTOR_CAPABILITIES, DEFAULT_MANUAL_CUSTODIAN_ID } from "../config.js";
-import { syncRegisteredConnector, type ConnectorSyncError } from "../connector-service.js";
-import { refreshPrices } from "../market-data.js";
+import {
+  syncRegisteredConnector,
+  syncRegisteredConnectorFrom,
+  type ConnectorSyncError,
+} from "../connector-service.js";
+import { refreshPrices, type MarketDataRegistry } from "../market-data.js";
 import { captureSnapshot, type CaptureSnapshotOptions } from "../portfolio/PortfolioSql.js";
 import {
   db,
@@ -156,6 +161,7 @@ export const connectCustodian = (
 /** Re-authenticates with the stored connector credentials and reconciles holdings, without prices or snapshots. */
 export const refreshCustodianHoldings = (
   id: string,
+  options: { readonly registry?: ConnectorRegistry } = {},
 ): Effect.Effect<void, FinanceApiError, SqlClient.SqlClient | HttpClient.HttpClient> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
@@ -176,20 +182,44 @@ export const refreshCustodianHoldings = (
     if (Object.keys(credentials).length === 0) {
       return yield* Effect.fail(failure("validation", "Stored connector credentials are missing"));
     }
-    yield* syncRegisteredConnector(id, row.connector_id, credentials).pipe(
-      Effect.mapError(connectorSyncFailure),
-    );
+    const sync =
+      options.registry === undefined
+        ? syncRegisteredConnector(id, row.connector_id, credentials)
+        : syncRegisteredConnectorFrom(options.registry, id, row.connector_id, credentials);
+    yield* sync.pipe(Effect.mapError(connectorSyncFailure));
     yield* db(sql`UPDATE custodians SET updated_at = ${nowIso()} WHERE id = ${id}`);
   });
 
 /** Re-authenticates with the stored connector credentials and reconciles a complete snapshot. */
 export const refreshCustodian = (
   id: string,
+  options: {
+    readonly connectorRegistry?: ConnectorRegistry;
+    readonly registry?: MarketDataRegistry;
+  } = {},
 ): Effect.Effect<
   CustodianRefreshResult,
   FinanceApiError,
   SqlClient.SqlClient | HttpClient.HttpClient
-> => refreshCustodianHoldings(id).pipe(Effect.andThen(completeCustodianRefresh(id)));
+> =>
+  refreshCustodianHoldings(
+    id,
+    options.connectorRegistry === undefined ? {} : { registry: options.connectorRegistry },
+  ).pipe(
+    Effect.andThen(
+      completeCustodianRefresh(
+        id,
+        options.registry === undefined ? {} : { registry: options.registry },
+      ),
+    ),
+  );
+
+/** Reconciles a synced Custodian without doing market-data or Snapshot work. */
+export const reconcileCustodian = (
+  id: string,
+  options: { readonly registry?: ConnectorRegistry } = {},
+): Effect.Effect<Custodian, FinanceApiError, SqlClient.SqlClient | HttpClient.HttpClient> =>
+  refreshCustodianHoldings(id, options).pipe(Effect.andThen(getCustodian(id)));
 
 /** Records today's Portfolio snapshot after a synced custodian import or Refresh. */
 export const completeCustodianRefresh = (

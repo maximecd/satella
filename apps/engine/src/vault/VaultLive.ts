@@ -5,10 +5,12 @@ import { join } from "node:path";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Scope from "effect/Scope";
 import { Reactivity } from "effect/unstable/reactivity";
 import { SqlClient } from "effect/unstable/sql";
+import { releaseMarketDataResources } from "../finance/market-data.js";
 
 import {
   DatabaseConfig,
@@ -31,6 +33,8 @@ import {
 } from "../database/encrypted-client.js";
 import { buildContainer, parseContainer, VaultContainerError } from "./container.js";
 import { VaultEvents } from "./VaultEvents.js";
+import { makeScreenLockDeadline } from "./ScreenLockDeadline.js";
+import { ManagedRuntime } from "../runtime/ManagedRuntime.js";
 import {
   createEnvelope,
   loadEnvelope,
@@ -348,6 +352,8 @@ export const VaultLive = Layer.effect(
   Effect.gen(function* () {
     const config = yield* DatabaseConfig;
     const events = yield* VaultEvents;
+    const managedRuntime = yield* Effect.serviceOption(ManagedRuntime);
+    const effectContext = yield* Effect.context<never>();
     const sessionRef = yield* Ref.make<Session>({ _tag: "Closed" });
 
     const envelopePresent = () => Effect.promise(() => fileExists(config.envelopePath));
@@ -370,8 +376,28 @@ export const VaultLive = Layer.effect(
         return statusFrom(hasEnvelope, session);
       });
 
+    const publishStatus = (status: VaultStatus) =>
+      Option.isSome(managedRuntime) ? managedRuntime.value.publishVault(status) : Effect.void;
+
+    const inactivityDeadline = makeScreenLockDeadline({
+      onExpire: () => {
+        void Effect.runPromiseWith(effectContext)(
+          Effect.gen(function* () {
+            const session = yield* Ref.get(sessionRef);
+            if (session._tag !== "Open" || session.screenLock) return;
+            session.screenLock = true;
+            session.pinFailures = 0;
+            session.pinEntryDisabled = false;
+            yield* publishStatus(yield* currentStatus());
+          }),
+        );
+      },
+    });
+    yield* Effect.addFinalizer(() => Effect.sync(inactivityDeadline.cancel));
+
     const openWithDek = (envelope: KeyEnvelope, dek: Uint8Array) =>
       Effect.gen(function* () {
+        inactivityDeadline.cancel();
         yield* Ref.get(sessionRef).pipe(Effect.flatMap(closeSession));
         const scope = yield* Scope.make();
         const client = yield* makeSqliteClient(config, dek).pipe(
@@ -400,7 +426,9 @@ export const VaultLive = Layer.effect(
           timeoutMinutes: timeout ?? DEFAULT_SCREEN_LOCK_TIMEOUT_MINUTES,
         };
         yield* Ref.set(sessionRef, open);
+        inactivityDeadline.start(open.timeoutMinutes * 60_000);
         yield* events.notifyUnlocked();
+        yield* publishStatus(yield* currentStatus());
         return open;
       });
 
@@ -418,7 +446,7 @@ export const VaultLive = Layer.effect(
         ),
       );
 
-    return VaultService.of({
+    const service = VaultService.of({
       status: currentStatus,
       initialize: (input) =>
         Effect.gen(function* () {
@@ -484,9 +512,13 @@ export const VaultLive = Layer.effect(
       close: () =>
         Effect.gen(function* () {
           const session = yield* Ref.get(sessionRef);
+          inactivityDeadline.cancel();
           yield* closeSession(session);
+          yield* releaseMarketDataResources();
           yield* Ref.set(sessionRef, { _tag: "Closed" });
-          return yield* currentStatus();
+          const status = yield* currentStatus();
+          yield* publishStatus(status);
+          return status;
         }),
       lockScreen: () =>
         Effect.gen(function* () {
@@ -494,7 +526,15 @@ export const VaultLive = Layer.effect(
           session.screenLock = true;
           session.pinFailures = 0;
           session.pinEntryDisabled = false;
-          return yield* currentStatus();
+          inactivityDeadline.cancel();
+          const status = yield* currentStatus();
+          yield* publishStatus(status);
+          return status;
+        }),
+      reportActivity: (activityAt) =>
+        Effect.gen(function* () {
+          const session = yield* requireOpen();
+          if (!session.screenLock) inactivityDeadline.activity(activityAt);
         }),
       unlockScreen: (pin) =>
         Effect.gen(function* () {
@@ -534,7 +574,10 @@ export const VaultLive = Layer.effect(
           session.screenLock = false;
           session.pinFailures = 0;
           session.pinEntryDisabled = false;
-          return yield* currentStatus();
+          inactivityDeadline.start(session.timeoutMinutes * 60_000);
+          const status = yield* currentStatus();
+          yield* publishStatus(status);
+          return status;
         }).pipe(Effect.mapError(asStateOnly("The Screen lock could not be dismissed."))),
       unlockScreenWithPassword: (password) =>
         Effect.gen(function* () {
@@ -546,7 +589,10 @@ export const VaultLive = Layer.effect(
           session.screenLock = false;
           session.pinFailures = 0;
           session.pinEntryDisabled = false;
-          return yield* currentStatus();
+          inactivityDeadline.start(session.timeoutMinutes * 60_000);
+          const status = yield* currentStatus();
+          yield* publishStatus(status);
+          return status;
         }),
       changePassword: (current, next) =>
         Effect.gen(function* () {
@@ -596,6 +642,7 @@ export const VaultLive = Layer.effect(
           const timestamp = new Date().toISOString();
           yield* session.sql`UPDATE vault_security SET screen_lock_timeout_minutes = ${minutes}, updated_at = ${timestamp} WHERE id = 1`;
           session.timeoutMinutes = minutes;
+          if (!session.screenLock) inactivityDeadline.start(minutes * 60_000);
         }).pipe(Effect.mapError(asStateOnly("The Screen-lock timeout could not be saved."))),
       verifyPassword: (password) =>
         Effect.gen(function* () {
@@ -616,7 +663,9 @@ export const VaultLive = Layer.effect(
             );
           }
           const session = yield* Ref.get(sessionRef);
+          inactivityDeadline.cancel();
           yield* closeSession(session);
+          yield* releaseMarketDataResources();
           yield* Ref.set(sessionRef, { _tag: "Closed" });
           yield* Effect.tryPromise({
             try: () => rm(config.dataDirectory, { recursive: true, force: true }),
@@ -624,7 +673,9 @@ export const VaultLive = Layer.effect(
           });
           yield* ensureVaultDirectories();
           yield* claimDatabaseOwnership(config.dataDirectory);
-          return yield* currentStatus();
+          const status = yield* currentStatus();
+          yield* publishStatus(status);
+          return status;
         }).pipe(
           Effect.mapError((error) =>
             error instanceof VaultStateError
@@ -813,7 +864,9 @@ export const VaultLive = Layer.effect(
           yield* Scope.close(scope, Exit.void);
 
           yield* commitRestoredVault(config, stagedDatabasePath, stagedEnvelopePath);
-          return yield* currentStatus();
+          const status = yield* currentStatus();
+          yield* publishStatus(status);
+          return status;
         }).pipe(
           Effect.mapError((error) => {
             if (
@@ -843,5 +896,7 @@ export const VaultLive = Layer.effect(
         }),
       assertOpenVault: () => requireOpen().pipe(Effect.asVoid),
     });
+    yield* publishStatus(yield* currentStatus());
+    return service;
   }),
 );
