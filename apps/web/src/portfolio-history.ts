@@ -1,4 +1,4 @@
-import type { PortfolioHistoryPoint } from "@optimus/engine/api";
+import type { PortfolioHistoryPoint } from "@satella-app/engine/api";
 
 import {
   compareDecimal,

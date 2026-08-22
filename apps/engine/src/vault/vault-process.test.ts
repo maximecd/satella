@@ -20,7 +20,7 @@ const waitForEngineHello = async (port: number) => {
   throw new Error("Engine HTTP was not ready");
 };
 
-const MARKER = "OPTIMUS_VAULT_MARKER_9f3c1a";
+const MARKER = "SATELLA_VAULT_MARKER_9f3c1a";
 const PASSWORD = "correct-horse-battery";
 const NEXT_PASSWORD = "new-horse-battery-x";
 const PIN = "2468";
@@ -45,11 +45,14 @@ const filesContainMarker = async (directory: string) => {
   return false;
 };
 
+let activeToken = "";
+
 const json = async (port: number, path: string, init: RequestInit = {}) => {
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
+      "x-satella-engine-token": activeToken,
       ...init.headers,
     },
   });
@@ -72,13 +75,14 @@ describe("engine Vault process", () => {
   });
 
   const start = async () => {
-    const directory = await mkdtemp(join(tmpdir(), "optimus-vault-process-"));
+    const directory = await mkdtemp(join(tmpdir(), "satella-vault-process-"));
     directories.push(directory);
     const engine = await startEngine({
       cwd: process.cwd(),
-      env: { OPTIMUS_DATA_DIR: directory },
+      env: { SATELLA_DATA_DIR: directory },
     });
     engines.push(engine);
+    activeToken = engine.token;
     await waitForEngineHello(engine.port);
     return { directory, engine };
   };
@@ -164,9 +168,10 @@ describe("engine Vault process", () => {
     await engine.stop();
     const restarted = await startEngine({
       cwd: process.cwd(),
-      env: { OPTIMUS_DATA_DIR: directory },
+      env: { SATELLA_DATA_DIR: directory },
     });
     engines.push(restarted);
+    activeToken = restarted.token;
     await waitForEngineHello(restarted.port);
     expect((await json(restarted.port, "/api/vault/status")).body).toEqual({ state: "locked" });
     expect((await json(restarted.port, "/api/dashboard")).status).toBe(403);
@@ -177,11 +182,11 @@ describe("engine Vault process", () => {
     });
     await json(restarted.port, "/api/vault/reset", {
       method: "POST",
-      body: JSON.stringify({ confirmation: "Reset Optimus" }),
+      body: JSON.stringify({ confirmation: "Reset Satella" }),
     });
     expect((await json(restarted.port, "/api/vault/status")).body).toEqual({ state: "absent" });
     const remaining = await collectFiles(directory);
-    expect(remaining.some((path) => path.endsWith("optimus.sqlite"))).toBe(false);
+    expect(remaining.some((path) => path.endsWith("satella.sqlite"))).toBe(false);
     expect(remaining.some((path) => path.endsWith("vault.envelope.json"))).toBe(false);
   }, 90_000);
 });

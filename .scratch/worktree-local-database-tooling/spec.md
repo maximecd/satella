@@ -4,13 +4,13 @@ Status: ready-for-agent
 
 ## Problem Statement
 
-Optimus development currently resolves SQLite to a shared operating-system application-data directory. Every repository checkout and Git worktree therefore opens the same database unless the developer manually configures an override. Developers and agents working in parallel can change, migrate, or erase one another's data, including the developer's own data, with no visible relationship between the checkout and the database being mutated.
+Satella development currently resolves SQLite to a shared operating-system application-data directory. Every repository checkout and Git worktree therefore opens the same database unless the developer manually configures an override. Developers and agents working in parallel can change, migrate, or erase one another's data, including the developer's own data, with no visible relationship between the checkout and the database being mutated.
 
 There is also no supported command for returning a development database to a known migrated state, and no deterministic way to populate realistic manual portfolio data without configuring and running a Connector. This makes development, agent execution, and UI verification unpredictable.
 
 ## Solution
 
-Give every development checkout and Git worktree a private SQLite data directory at `<worktree-root>/.optimus`. Resolve that directory automatically for all repository development entry points, regardless of whether the checkout is the main Git worktree or a linked worktree. Keep `.optimus` outside version control.
+Give every development checkout and Git worktree a private SQLite data directory at `<worktree-root>/.satella`. Resolve that directory automatically for all repository development entry points, regardless of whether the checkout is the main Git worktree or a linked worktree. Keep `.satella` outside version control.
 
 Provide root-level database commands that act only on the current worktree:
 
@@ -31,8 +31,8 @@ There is no production build or production database location yet. Production sta
 5. As a developer running multiple worktrees concurrently, I want each engine to use a different SQLite file, so that they do not contend for or overwrite shared state.
 6. As a developer running multiple processes in the same worktree, I want them to agree on one database location, so that the checkout has one predictable state.
 7. As a developer, I want the main checkout and linked worktrees to follow identical rules, so that there is no hidden privileged or protected database.
-8. As a developer, I want the local database, WAL files, shared-memory files, backups, and ownership metadata contained under `.optimus`, so that generated state does not clutter source directories.
-9. As a developer, I want `.optimus` ignored by Git, so that local database state cannot be committed accidentally.
+8. As a developer, I want the local database, WAL files, shared-memory files, backups, and ownership metadata contained under `.satella`, so that generated state does not clutter source directories.
+9. As a developer, I want `.satella` ignored by Git, so that local database state cannot be committed accidentally.
 10. As a developer invoking a development command from a nested package, I want the Git worktree root resolved automatically, so that the selected database does not depend on my current subdirectory.
 11. As a developer, I want an explicit absolute data-directory override to remain available, so that tests and exceptional workflows can select an isolated location deliberately.
 12. As a developer, I want an invalid or relative explicit override rejected, so that ambiguous database paths cannot be used silently.
@@ -41,7 +41,7 @@ There is no production build or production database location yet. Production sta
 15. As a developer resetting a database, I want all prior database state and associated SQLite sidecar files removed, so that the result is genuinely clean.
 16. As a developer resetting a database, I want all registered migrations applied before the command succeeds, so that the result is immediately usable by the current engine.
 17. As a developer resetting a database, I want stale backups removed with the discarded local state, so that a reset does not retain misleading remnants of the old database.
-18. As a developer, I want reset to affect only the current worktree's `.optimus` directory, so that other worktrees remain unchanged.
+18. As a developer, I want reset to affect only the current worktree's `.satella` directory, so that other worktrees remain unchanged.
 19. As a developer, I want reset to fail before deleting anything when the current worktree's engine owns the database, so that active SQLite state is never removed underneath a running process.
 20. As a developer, I want a clear reset failure message naming the selected database and explaining that the engine must be stopped, so that recovery is straightforward.
 21. As a developer, I want stale process-ownership metadata ignored or repaired when no owning process remains, so that an abnormal engine exit does not permanently block tooling.
@@ -71,12 +71,12 @@ There is no production build or production database location yet. Production sta
 
 ## Implementation Decisions
 
-- The canonical development data directory is `.optimus` under the current Git worktree root. The database remains named `optimus.sqlite`, and backups and SQLite sidecar files remain contained by that directory.
+- The canonical development data directory is `.satella` under the current Git worktree root. The database remains named `satella.sqlite`, and backups and SQLite sidecar files remain contained by that directory.
 - Repository development entry points resolve the Git worktree root rather than deriving storage from the process working directory. The main worktree and linked worktrees use exactly the same algorithm.
 - The existing explicit data-directory override remains supported for tests and exceptional workflows. It must remain a non-empty absolute path and takes precedence over automatic development resolution.
 - Development startup must supply or select an explicit development database context. There is no operating-system application-data fallback.
 - Production startup without a deliberately configured production database directory throws a typed, actionable configuration error. The production configuration branch contains a TODO explaining that packaging must define data ownership before production startup is enabled.
-- `.optimus` is ignored as a directory. All generated database state, backups, SQLite sidecars, and live ownership metadata are kept inside it.
+- `.satella` is ignored as a directory. All generated database state, backups, SQLite sidecars, and live ownership metadata are kept inside it.
 - The engine records ownership of the selected database for its process lifetime. Database mutation commands check that ownership before changing files, reject a live owner, and tolerate stale ownership left by a process that no longer exists.
 - The root command interface is `db:reset`, `db:seed`, and `db:reset --seed`. Commands operate on the current worktree unless the existing explicit absolute data-directory override is supplied.
 - `db:reset` removes the selected development data directory's database state, including backups and SQLite sidecars, recreates private directories, opens a new database, and runs the complete registered migration chain.
@@ -101,7 +101,7 @@ There is no production build or production database location yet. Production sta
 ## Testing Decisions
 
 - The primary test seam is one process-level integration suite exercising the public development and `db:*` command boundary in temporary Git repositories. Tests assert externally visible command results and resulting engine/database behavior rather than private path helpers or individual SQL statements.
-- The suite creates a temporary Git repository and at least one linked worktree, invokes the same public commands a developer or agent uses, and verifies that each checkout selects a distinct `.optimus/optimus.sqlite`.
+- The suite creates a temporary Git repository and at least one linked worktree, invokes the same public commands a developer or agent uses, and verifies that each checkout selects a distinct `.satella/satella.sqlite`.
 - Isolation tests create distinguishable state in each checkout and prove that reset and seed in one checkout do not change the other checkout.
 - Resolution tests invoke commands from the worktree root and from a nested workspace location and verify that both resolve the same worktree-local database.
 - Override tests use an explicit absolute data directory and verify precedence over worktree resolution; invalid relative and empty overrides remain rejected.

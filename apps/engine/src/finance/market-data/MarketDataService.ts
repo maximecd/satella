@@ -16,7 +16,7 @@ export class MarketDataService extends Context.Service<
       readonly requireFresh?: boolean;
     }) => Effect.Effect<PriceRefreshResult, FinanceApiError>;
   }
->()("@optimus/engine/finance/MarketDataService") {}
+>()("@satella-app/engine/finance/MarketDataService") {}
 
 export const make = Effect.gen(function* () {
   const withSql = yield* makeWithVaultSql;

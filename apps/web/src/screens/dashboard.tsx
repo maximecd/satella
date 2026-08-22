@@ -1,5 +1,5 @@
 import { Alert, Box, Card, Grid, Heading, Stack, Text } from "@chakra-ui/react";
-import type { DashboardAccountRow, DashboardCustodianGroup } from "@optimus/engine/api";
+import type { DashboardAccountRow, DashboardCustodianGroup } from "@satella-app/engine/api";
 import { useState } from "react";
 
 import { NavRow, PageHeader, PageState } from "../components";
@@ -75,7 +75,7 @@ export function DashboardScreen() {
         <PageHeader title="Dashboard" action={<AddAssetsButton />} />
         <EmptyState
           title="No assets yet"
-          description="Connect a provider or track assets manually. Optimus will show Portfolio value, allocation, and accounts here."
+          description="Connect a provider or track assets manually. Satella will show Portfolio value, allocation, and accounts here."
         >
           <AddAssetsButton />
         </EmptyState>

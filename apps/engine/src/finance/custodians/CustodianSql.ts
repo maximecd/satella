@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import * as Effect from "effect/Effect";
-import { ConnectorAuthenticationError, ConnectorFetchAccountsError } from "@optimus/connector-core";
+import {
+  ConnectorAuthenticationError,
+  ConnectorFetchAccountsError,
+} from "@satella-app/connector-core";
 
 import { HttpClient } from "effect/unstable/http";
 import { SqlClient } from "effect/unstable/sql";

@@ -8,7 +8,7 @@ export class IdGenerator extends Context.Service<
   {
     readonly uuid: Effect.Effect<string>;
   }
->()("@optimus/engine/IdGenerator") {}
+>()("@satella-app/engine/IdGenerator") {}
 
 export const IdGeneratorLive = Layer.succeed(
   IdGenerator,

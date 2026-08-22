@@ -228,10 +228,10 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
     try {
       const reset = await runDb(["reset"], {
         cwd: checkouts.main,
-        env: commandEnv({ OPTIMUS_DATA_DIR: override }),
+        env: commandEnv({ SATELLA_DATA_DIR: override }),
       });
       expect(reset.code).toBe(0);
-      expect(reset.output).toContain(join(override, "optimus.sqlite"));
+      expect(reset.output).toContain(join(override, "satella.sqlite"));
       await inspectDirectory(override, Finance.createAccount({ name: "Override" }));
 
       const worktreeReset = await runDb(["reset"], { cwd: checkouts.main });
@@ -241,11 +241,11 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
 
       const relative = await runDb(["reset"], {
         cwd: checkouts.main,
-        env: commandEnv({ OPTIMUS_DATA_DIR: "relative-data" }),
+        env: commandEnv({ SATELLA_DATA_DIR: "relative-data" }),
       });
       const empty = await runDb(["reset"], {
         cwd: checkouts.main,
-        env: commandEnv({ OPTIMUS_DATA_DIR: "" }),
+        env: commandEnv({ SATELLA_DATA_DIR: "" }),
       });
       expect(relative.code).not.toBe(0);
       expect(empty.code).not.toBe(0);
@@ -273,9 +273,9 @@ describe("worktree-local database tooling", { timeout: 60_000 }, () => {
 
       const names = await readdir(directory).catch(() => []);
       expect(names).not.toContain("vault.envelope.json");
-      expect(names).not.toContain("optimus.sqlite");
-      expect(names).not.toContain("optimus.sqlite-wal");
-      expect(names).not.toContain("optimus.sqlite-shm");
+      expect(names).not.toContain("satella.sqlite");
+      expect(names).not.toContain("satella.sqlite-wal");
+      expect(names).not.toContain("satella.sqlite-shm");
       expect(await vaultStatusForDirectory(directory)).toEqual({ state: "absent" });
     } finally {
       await checkouts.dispose();

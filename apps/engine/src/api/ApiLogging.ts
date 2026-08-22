@@ -30,7 +30,7 @@ const causeSummary = <E>(cause: Cause.Cause<E>): string => {
 
 const requestPath = (request: HttpServerRequest.HttpServerRequest): string => {
   try {
-    return new URL(request.url, "http://optimus.local").pathname;
+    return new URL(request.url, "http://satella.local").pathname;
   } catch {
     return request.url.split("?", 1)[0] ?? request.url;
   }

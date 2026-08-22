@@ -155,7 +155,7 @@ const historyMismatch = (
     cause: undefined,
     message:
       applied.length > expected.length
-        ? "The SQLite database was created by a newer Optimus schema"
+        ? "The SQLite database was created by a newer Satella schema"
         : "The SQLite migration history is not an exact prefix of the running binary",
   });
 

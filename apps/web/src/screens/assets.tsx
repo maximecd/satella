@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
-import type { Asset } from "@optimus/engine/api";
-import { DecimalFromNonEmptyString } from "@optimus/engine/api";
+import type { Asset } from "@satella-app/engine/api";
+import { DecimalFromNonEmptyString } from "@satella-app/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
 

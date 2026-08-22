@@ -8,7 +8,7 @@ import { OnboardingScreen } from "./onboarding";
 import { ScreenLockScreen } from "./screen-lock";
 import { UnlockScreen } from "./unlock";
 
-const FIRST_ASSET_KEY = "optimus.onboarding.first-asset";
+const FIRST_ASSET_KEY = "satella.onboarding.first-asset";
 const firstAssetListeners = new Set<() => void>();
 
 export const markFirstAssetPending = () => {

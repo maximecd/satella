@@ -26,8 +26,8 @@ export const tsxCli = join(dirname(require.resolve("tsx/package.json")), "dist/c
 export const dbCli = join(databaseDir, "cli.ts");
 export const engineMain = join(engineSrc, "main.ts");
 
-export const databaseFile = (worktree: string) => join(worktree, ".optimus", "optimus.sqlite");
-export const dataDirectory = (worktree: string) => join(worktree, ".optimus");
+export const databaseFile = (worktree: string) => join(worktree, ".satella", "satella.sqlite");
+export const dataDirectory = (worktree: string) => join(worktree, ".satella");
 
 export interface CommandResult {
   readonly code: number;
@@ -50,18 +50,23 @@ const git = (cwd: string, args: ReadonlyArray<string>) =>
     encoding: "utf8",
     env: {
       ...process.env,
-      GIT_AUTHOR_NAME: "Optimus",
-      GIT_AUTHOR_EMAIL: "optimus@example.test",
-      GIT_COMMITTER_NAME: "Optimus",
-      GIT_COMMITTER_EMAIL: "optimus@example.test",
+      GIT_AUTHOR_NAME: "Satella",
+      GIT_AUTHOR_EMAIL: "satella@example.test",
+      GIT_COMMITTER_NAME: "Satella",
+      GIT_COMMITTER_EMAIL: "satella@example.test",
     },
   });
 
 export const commandEnv = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => {
   const env: NodeJS.ProcessEnv = { ...process.env };
-  delete env["OPTIMUS_DATA_DIR"];
-  delete env["OPTIMUS_DATABASE_CONTEXT"];
-  return { ...env, OPTIMUS_VAULT_KDF: "fast", ...overrides };
+  delete env["SATELLA_DATA_DIR"];
+  delete env["SATELLA_DATABASE_CONTEXT"];
+  return {
+    ...env,
+    SATELLA_VAULT_KDF: "fast",
+    SATELLA_ENGINE_TOKEN: "test-engine-token-0123456789abcdef-test",
+    ...overrides,
+  };
 };
 
 export const runNodeScript = (
@@ -146,7 +151,7 @@ export const inspectDirectory = <A>(
   );
 
 export const createGitCheckouts = async (): Promise<GitCheckouts> => {
-  const root = await mkdtemp(join(tmpdir(), "optimus-db-tooling-"));
+  const root = await mkdtemp(join(tmpdir(), "satella-db-tooling-"));
   const main = join(root, "main");
   const linked = join(root, "linked");
   const nested = join(main, "packages", "nested");
@@ -188,9 +193,10 @@ export const startEngine = async (options: {
   readonly env?: NodeJS.ProcessEnv;
 }) => {
   const port = await chooseFreePort();
+  const token = options.env?.SATELLA_ENGINE_TOKEN ?? commandEnv().SATELLA_ENGINE_TOKEN!;
   const env = commandEnv({
-    OPTIMUS_DATABASE_CONTEXT: "development",
-    OPTIMUS_ENGINE_PORT: String(port),
+    SATELLA_DATABASE_CONTEXT: "development",
+    SATELLA_ENGINE_PORT: String(port),
     ...options.env,
   });
   const child = spawn(process.execPath, ["--conditions=development", tsxCli, engineMain], {
@@ -235,6 +241,7 @@ export const startEngine = async (options: {
   return {
     output: () => output,
     port,
+    token,
     async stop() {
       if (child.exitCode !== null || child.signalCode !== null) return;
       child.kill("SIGTERM");

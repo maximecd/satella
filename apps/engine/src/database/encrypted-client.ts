@@ -31,7 +31,7 @@ export interface EngineSqliteClient extends Client.SqlClient {
 export class EngineSqliteClientTag extends Context.Service<
   EngineSqliteClientTag,
   EngineSqliteClient
->()("@optimus/engine/EngineSqliteClient") {}
+>()("@satella-app/engine/EngineSqliteClient") {}
 
 interface SqliteConnection extends Connection {
   readonly backup: (destination: string) => Effect.Effect<BackupMetadata, SqlError>;

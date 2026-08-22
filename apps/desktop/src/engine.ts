@@ -1,8 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { join } from "node:path";
 
 export const DEFAULT_ENGINE_PORT = 3001;
+export const ENGINE_TOKEN_HEADER = "x-satella-engine-token";
+
+export const newEngineToken = () => randomBytes(32).toString("base64url");
 
 const parsePort = (name: string, value: string | undefined, fallback: number) => {
   if (value === undefined) return fallback;
@@ -42,7 +46,7 @@ export const chooseAvailableEnginePort = async (
 export const enginePortForDevelopment = (
   env: NodeJS.ProcessEnv = process.env,
   fallback = DEFAULT_ENGINE_PORT,
-) => parsePort("OPTIMUS_ENGINE_PORT", env["OPTIMUS_ENGINE_PORT"], fallback);
+) => parsePort("SATELLA_ENGINE_PORT", env["SATELLA_ENGINE_PORT"], fallback);
 
 export const managedEngineCommand = (
   developmentUrl: string | undefined,
@@ -63,9 +67,10 @@ export const managedEngineCommand = (
   };
 };
 
-export const screenLockRequest = (engineUrl: string) => ({
+export const screenLockRequest = (engineUrl: string, token: string) => ({
   url: `${engineUrl.replace(/\/$/, "")}/api/vault/lock`,
   method: "POST" as const,
+  headers: { [ENGINE_TOKEN_HEADER]: token },
 });
 
 export const managedEngineEnvironment = (
@@ -75,23 +80,27 @@ export const managedEngineEnvironment = (
     readonly dataDirectory: string;
     readonly parentPid?: number;
     readonly production?: boolean;
+    readonly engineToken?: string;
   },
 ): NodeJS.ProcessEnv => {
   const managedEnvironment = {
     ...env,
     ELECTRON_RUN_AS_NODE: "1",
-    OPTIMUS_ENGINE_PORT: String(options.port),
-    OPTIMUS_DATA_DIR: options.dataDirectory,
+    SATELLA_ENGINE_PORT: String(options.port),
+    SATELLA_DATA_DIR: options.dataDirectory,
   };
+  if (options.engineToken !== undefined) {
+    Object.assign(managedEnvironment, { SATELLA_ENGINE_TOKEN: options.engineToken });
+  }
   if (options.parentPid !== undefined) {
     Object.assign(managedEnvironment, {
-      OPTIMUS_ENGINE_PARENT_PID: String(options.parentPid),
+      SATELLA_ENGINE_PARENT_PID: String(options.parentPid),
     });
   }
   if (options.production === true) {
     Object.assign(managedEnvironment, {
-      OPTIMUS_CANONICAL_DATA_DIR: options.dataDirectory,
-      OPTIMUS_DATABASE_CONTEXT: "production",
+      SATELLA_CANONICAL_DATA_DIR: options.dataDirectory,
+      SATELLA_DATABASE_CONTEXT: "production",
     });
   }
   return managedEnvironment;

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 
 const defaults = {
@@ -60,17 +61,20 @@ const runToCompletion = (command, args, env) =>
   });
 
 const run = async () => {
-  const enginePort = await choosePort("OPTIMUS_ENGINE_PORT", defaults.engine);
-  const webPort = await choosePort("OPTIMUS_WEB_PORT", defaults.web);
+  const enginePort = await choosePort("SATELLA_ENGINE_PORT", defaults.engine);
+  const webPort = await choosePort("SATELLA_WEB_PORT", defaults.web);
   const engineUrl = `http://127.0.0.1:${enginePort}`;
   const webUrl = `http://127.0.0.1:${webPort}`;
+  const engineToken = process.env["SATELLA_ENGINE_TOKEN"] ?? randomBytes(32).toString("base64url");
   const env = {
     ...process.env,
-    OPTIMUS_ENGINE_PORT: String(enginePort),
-    OPTIMUS_DATABASE_CONTEXT: "development",
-    OPTIMUS_WEB_ORIGIN: webUrl,
-    OPTIMUS_WEB_URL: webUrl,
+    SATELLA_ENGINE_PORT: String(enginePort),
+    SATELLA_DATABASE_CONTEXT: "development",
+    SATELLA_ENGINE_TOKEN: engineToken,
+    SATELLA_WEB_ORIGIN: webUrl,
+    SATELLA_WEB_URL: webUrl,
     VITE_ENGINE_URL: engineUrl,
+    VITE_ENGINE_TOKEN: engineToken,
   };
   const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
@@ -87,9 +91,9 @@ const run = async () => {
     [
       "--kill-others-on-fail",
       "pnpm --filter './packages/connector-*' --parallel dev",
-      "pnpm --filter @optimus/engine dev",
-      `pnpm --filter @optimus/web dev -- --port ${webPort} --strictPort`,
-      `wait-on ${engineUrl}/api/hello ${webUrl} && pnpm --filter @optimus/desktop dev`,
+      "pnpm --filter @satella-app/engine dev",
+      `pnpm --filter @satella-app/web dev -- --port ${webPort} --strictPort`,
+      `wait-on ${engineUrl}/api/hello ${webUrl} && pnpm --filter @satella-app/desktop dev`,
     ],
     { env, stdio: "inherit" },
   );

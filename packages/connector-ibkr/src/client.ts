@@ -8,7 +8,7 @@ import type { IbkrFlexCredentials } from "./schemas.js";
 export const IBKR_FLEX_ORIGIN = "https://ndcdyn.interactivebrokers.com";
 export const IBKR_FLEX_SEND_REQUEST_PATH = "/AccountManagement/FlexWebService/SendRequest";
 export const IBKR_FLEX_GET_STATEMENT_PATH = "/AccountManagement/FlexWebService/GetStatement";
-export const IBKR_FLEX_USER_AGENT = "Optimus/0.0 (IBKR Flex connector)";
+export const IBKR_FLEX_USER_AGENT = "Satella/0.0 (IBKR Flex connector)";
 export const DEFAULT_MAX_FLEX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 export interface IbkrHttpRequest {

@@ -24,4 +24,4 @@ export class CustodianService extends Context.Service<
     ) => Effect.Effect<Custodian, FinanceApiError>;
     readonly delete: (id: string) => Effect.Effect<void, FinanceApiError>;
   }
->()("@optimus/engine/finance/CustodianService") {}
+>()("@satella-app/engine/finance/CustodianService") {}

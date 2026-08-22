@@ -3,12 +3,19 @@ import { HttpApiBuilder } from "effect/unstable/httpapi";
 
 import { EngineApi } from "./Api.js";
 import { VaultApiError } from "../vault/contracts.js";
+import { VaultContainerError } from "../vault/container.js";
 import { VaultUnlockError } from "../vault/envelope.js";
 import { VaultStateError } from "../vault/errors.js";
 import { VaultService } from "../vault/Vault.js";
 
 const toApiError = (cause: unknown): VaultApiError => {
   if (cause instanceof VaultApiError) return cause;
+  if (cause instanceof VaultContainerError) {
+    return new VaultApiError({
+      code: cause.reason === "unsupported-version" ? "unsupported-container" : "invalid-container",
+      message: cause.message,
+    });
+  }
   if (cause instanceof VaultUnlockError) {
     return new VaultApiError({ code: "unlock-failed", message: cause.message });
   }
@@ -28,9 +35,13 @@ const toApiError = (cause: unknown): VaultApiError => {
                   ? "screen-locked"
                   : cause.reason === "reset-confirmation"
                     ? "reset-confirmation"
-                    : cause.reason === "closed"
-                      ? "closed"
-                      : "validation";
+                    : cause.reason === "vault-open"
+                      ? "vault-open"
+                      : cause.reason === "filesystem"
+                        ? "filesystem"
+                        : cause.reason === "closed"
+                          ? "closed"
+                          : "validation";
     return new VaultApiError({ code, message: cause.message });
   }
   return new VaultApiError({
@@ -119,6 +130,22 @@ export const VaultApiLive = HttpApiBuilder.group(EngineApi, "vault", (handlers) 
       run(
         Effect.gen(function* () {
           return yield* (yield* VaultService).reset(payload.confirmation);
+        }),
+      ),
+    )
+    .handle("exportVault", ({ payload }) =>
+      run(
+        Effect.gen(function* () {
+          const vault = yield* VaultService;
+          yield* vault.exportVault(payload.password, payload.destinationPath);
+          return yield* vault.status();
+        }),
+      ),
+    )
+    .handle("restoreVault", ({ payload }) =>
+      run(
+        Effect.gen(function* () {
+          return yield* (yield* VaultService).restoreVault(payload.sourcePath, payload.password);
         }),
       ),
     ),

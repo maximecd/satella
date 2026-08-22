@@ -21,7 +21,7 @@ The remainder of this note preserves the earlier investigation of margin and der
 
 `GET /api/v5/account/positions` does not close this gap: the official request/response schema supports `MARGIN`, `FUTURES`, `SWAP`, `OPTION`, and `EVENTS`, not ordinary Spot holdings ([Get positions](https://www.okx.com/docs-v5/en/#trading-account-get-positions)). The private WebSocket `positions` channel has the same non-Spot instrument scope ([Positions channel](https://www.okx.com/docs-v5/en/#websocket-positions-channel)).
 
-Spot fills do include `instId`, `fillPx`, `fillSz`, and fees, so a client could calculate a pair-level result from trade history. That is not a lifetime exchange-maintained position, however: `GET /api/v5/trade/fills-history` only retrieves the last three months. Reconstructing a lifetime cost basis would require Optimus to retain all fills, define its own lot/cost method, and account for transfers and other balance changes ([Transaction details history](https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-transaction-details-history)).
+Spot fills do include `instId`, `fillPx`, `fillSz`, and fees, so a client could calculate a pair-level result from trade history. That is not a lifetime exchange-maintained position, however: `GET /api/v5/trade/fills-history` only retrieves the last three months. Reconstructing a lifetime cost basis would require Satella to retain all fills, define its own lot/cost method, and account for transfers and other balance changes ([Transaction details history](https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-transaction-details-history)).
 
 The OKX product documentation confirms that Spot cost price and P&L are calculated for an asset/token and that the Open API fields are `spotBal`, `openAvgPx`, `accAvgPx`, `spotUpl`, `spotUplRatio`, `totalPnl`, and `totalPnlRatio`; this does not add a pair-keyed API position ([Spot cost price](https://www.okx.com/en-sg/help/i-introduction-of-spot)).
 
@@ -47,7 +47,7 @@ OKX can provide reliable **current-position** acquisition data and unrealized P&
 The current OKX connector calls `account/config`, `account/balance`, `asset/balances`, and `finance/savings/balance`. Its normalized model represents currency assets, not instrument positions. Therefore, for the current Spot and Funding scope:
 
 - Do **not** map `details[].openAvgPx`, `details[].accAvgPx`, `details[].spotUpl`, or `details[].totalPnl` to `averageUnitPurchasePrice` or pair-level P&L. They are currency-level USD fields, and importing them as if they belonged to a trading pair would misstate acquisition cost.
-- Keep OKX Spot and Funding balances without pair-level cost or P&L. A future pair-level implementation would need Optimus to retain complete fills and define its own accounting, with the limitations described above.
+- Keep OKX Spot and Funding balances without pair-level cost or P&L. A future pair-level implementation would need Satella to retain complete fills and define its own accounting, with the limitations described above.
 - Funding and Earn balances do not provide a comparable acquisition-cost field in the endpoints currently used by the connector.
 - The derivative and margin position findings remain documented above for history, but are out of scope for this implementation.
 
@@ -59,6 +59,6 @@ The current client already signs GET query strings, synchronizes against `GET /a
 
 ## Recommendation
 
-For the current scope, report OKX Spot and Funding as balance-only: do not promise pair-level spot cost basis or P&L, and do not import currency-level `openAvgPx` as pair P&L. A pair-level result would require Optimus to retain and account for the complete fill history, rather than relying on the three-month fills-history endpoint.
+For the current scope, report OKX Spot and Funding as balance-only: do not promise pair-level spot cost basis or P&L, and do not import currency-level `openAvgPx` as pair P&L. A pair-level result would require Satella to retain and account for the complete fill history, rather than relying on the three-month fills-history endpoint.
 
 The earlier recommendation that derivatives/margin P&L is implementable from `account/positions` is preserved in this note for future work, but it is explicitly out of scope here. The current connector intentionally remains balance-only for Spot and Funding.

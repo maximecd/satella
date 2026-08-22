@@ -19,7 +19,7 @@ export class TempDirectoryError extends Data.TaggedError("TempDirectoryError")<{
 
 export const acquireTestDirectory = Effect.acquireRelease(
   Effect.tryPromise({
-    try: () => mkdtemp(join(tmpdir(), "optimus-engine-")),
+    try: () => mkdtemp(join(tmpdir(), "satella-engine-")),
     catch: (cause) => new TempDirectoryError({ cause }),
   }),
   (directory) => Effect.promise(() => rm(directory, { recursive: true, force: true })),

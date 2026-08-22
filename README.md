@@ -1,4 +1,4 @@
-# Optimus
+# Satella
 
 Personal finance workspace. Node **26.7.0**, pnpm **11.21.0**, Vite+ **0.2.9**, Effect **4.0.0-rc.108**.
 

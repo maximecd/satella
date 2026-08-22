@@ -9,8 +9,10 @@ export * from "../vault/contracts.js";
 import {
   ChangeScreenLockPinInput,
   ChangeVaultPasswordInput,
+  ExportVaultInput,
   InitializeVaultInput,
   ResetVaultInput,
+  RestoreVaultInput,
   ScreenLockTimeoutInput,
   UnlockScreenInput,
   UnlockVaultInput,
@@ -369,6 +371,20 @@ export const VaultApi = HttpApiGroup.make("vault")
   .add(
     HttpApiEndpoint.post("reset", "/api/vault/reset", {
       payload: ResetVaultInput,
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("exportVault", "/api/vault/export", {
+      payload: ExportVaultInput,
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("restoreVault", "/api/vault/restore", {
+      payload: RestoreVaultInput,
       success: VaultStatus,
       error: VaultApiError,
     }),

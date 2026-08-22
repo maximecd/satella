@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vite-plus/test";
 
-import { FinanceApiError } from "@optimus/engine/api";
+import { FinanceApiError } from "@satella-app/engine/api";
 import { populatedDashboardFor, settings } from "../finance.route-harness.test-utils";
 import {
   createMemoryPortfolioEngine,

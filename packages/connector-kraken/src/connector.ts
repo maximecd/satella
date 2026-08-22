@@ -10,7 +10,7 @@ import {
   addDecimal,
   canonicalDecimal,
   validateConnectorOutput,
-} from "@optimus/connector-core";
+} from "@satella-app/connector-core";
 import {
   KRAKEN_REST_ORIGIN,
   KrakenTransportError,

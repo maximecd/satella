@@ -1,4 +1,4 @@
-import { FinanceApiError } from "@optimus/engine/api";
+import { FinanceApiError } from "@satella-app/engine/api";
 import * as Schema from "effect/Schema";
 
 export const PORTFOLIO_FAILURE_CODES = [

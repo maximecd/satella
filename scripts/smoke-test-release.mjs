@@ -29,7 +29,7 @@ const parseArguments = (args) => {
     }
   }
   if (values.artifact === undefined) {
-    throw new Error("Usage: pnpm release:smoke --artifact ./release/Optimus-1.2.3-macOS-arm64.zip");
+    throw new Error("Usage: pnpm release:smoke --artifact ./release/Satella-1.2.3-macOS-arm64.zip");
   }
   const port = Number(values.port ?? "3001");
   if (!Number.isInteger(port) || port < 1 || port >= 65_535) {
@@ -44,7 +44,7 @@ const waitFor = async (check, timeoutMs = 60_000) => {
     if (await check()) return;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error("Packaged Optimus did not become ready before the smoke-test timeout");
+  throw new Error("Packaged Satella did not become ready before the smoke-test timeout");
 };
 
 const waitForStopped = async (check, timeoutMs = 5_000) => {
@@ -53,7 +53,7 @@ const waitForStopped = async (check, timeoutMs = 5_000) => {
     if (await check()) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error("Packaged Optimus did not stop its engine before the smoke-test timeout");
+  throw new Error("Packaged Satella did not stop its engine before the smoke-test timeout");
 };
 
 const occupyPort = async (port) => {
@@ -76,7 +76,7 @@ const waitForChildExit = async (child, timeoutMs = 5_000) => {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      reject(new Error("Packaged Optimus second instance did not exit"));
+      reject(new Error("Packaged Satella second instance did not exit"));
     }, timeoutMs);
     child.once("exit", (code) => {
       clearTimeout(timer);
@@ -94,10 +94,10 @@ const pathExists = async (path) => {
   }
 };
 
-const requestJson = async (url, body) => {
+const requestJson = async (url, body, token) => {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-satella-engine-token": token },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -106,22 +106,23 @@ const requestJson = async (url, body) => {
 };
 
 export const smokeTestArtifact = async ({ artifact, port }) => {
-  const versionMatch = basename(artifact).match(/^Optimus-(.+)-macOS-arm64\.zip$/);
+  const versionMatch = basename(artifact).match(/^Satella-(.+)-macOS-arm64\.zip$/);
   if (versionMatch === null) {
     throw new Error(`Unexpected release artifact name: ${artifact}`);
   }
   if (!Number.isInteger(port) || port >= 65_535) {
     throw new Error("Smoke-test occupied port must be below 65535");
   }
-  const extractionDirectory = await mkdtemp(join(tmpdir(), "optimus-release-smoke-"));
+  const extractionDirectory = await mkdtemp(join(tmpdir(), "satella-release-smoke-"));
   const homeDirectory = join(extractionDirectory, "home");
   const temporaryDirectory = join(extractionDirectory, "tmp");
   const redirectedDirectory = join(extractionDirectory, "redirected");
   const userDataDirectory = join(extractionDirectory, "electron-user-data");
-  const appDirectory = join(extractionDirectory, "Optimus.app");
+  const appDirectory = join(extractionDirectory, "Satella.app");
   const vaultDataDirectory = join(userDataDirectory, "data");
   const preferenceMarker = join(userDataDirectory, "preferences-marker");
   const occupiedServer = await occupyPort(port);
+  const engineToken = `smoke-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}-token`;
   let child;
   let output = "";
   let failure;
@@ -129,7 +130,7 @@ export const smokeTestArtifact = async ({ artifact, port }) => {
     await mkdir(userDataDirectory, { recursive: true });
     await writeFile(preferenceMarker, "preserve");
     await execFileAsync("unzip", ["-q", artifact, "-d", extractionDirectory]);
-    const executable = join(appDirectory, "Contents", "MacOS", "Optimus");
+    const executable = join(appDirectory, "Contents", "MacOS", "Satella");
     await stat(executable);
 
     child = spawn(executable, [`--user-data-dir=${userDataDirectory}`], {
@@ -137,8 +138,9 @@ export const smokeTestArtifact = async ({ artifact, port }) => {
         ...process.env,
         HOME: homeDirectory,
         TMPDIR: temporaryDirectory,
-        OPTIMUS_DATA_DIR: redirectedDirectory,
-        OPTIMUS_SMOKE_ENGINE_PORT: String(port),
+        SATELLA_DATA_DIR: redirectedDirectory,
+        SATELLA_SMOKE_ENGINE_PORT: String(port),
+        SATELLA_ENGINE_TOKEN: engineToken,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -168,25 +170,63 @@ export const smokeTestArtifact = async ({ artifact, port }) => {
       stdio: "ignore",
     });
     if ((await waitForChildExit(secondChild)) !== 0) {
-      throw new Error("Packaged Optimus second instance exited unsuccessfully");
+      throw new Error("Packaged Satella second instance exited unsuccessfully");
     }
     if (!(await fetch(`${baseUrl}/api/hello`)).ok) {
-      throw new Error("Packaged Optimus lost its engine after a second launch");
+      throw new Error("Packaged Satella lost its engine after a second launch");
     }
-    await requestJson(`${baseUrl}/api/vault/initialize`, {
-      password: "smoke-test-password",
-      pin: "0000",
-    });
+    const unauthenticated = await fetch(`${baseUrl}/api/vault/status`);
+    if (unauthenticated.status !== 401) {
+      throw new Error(
+        `Unauthenticated privileged request was not rejected (HTTP ${unauthenticated.status})`,
+      );
+    }
+    await requestJson(
+      `${baseUrl}/api/vault/initialize`,
+      {
+        password: "smoke-test-password",
+        pin: "0000",
+      },
+      engineToken,
+    );
+    const exportPath = join(extractionDirectory, "smoke.satella-vault");
+    await requestJson(
+      `${baseUrl}/api/vault/export`,
+      {
+        password: "smoke-test-password",
+        destinationPath: exportPath,
+      },
+      engineToken,
+    );
+    if (!(await pathExists(exportPath))) {
+      throw new Error("Vault export did not produce a recovery file");
+    }
+    await requestJson(`${baseUrl}/api/vault/close`, {}, engineToken);
+    await requestJson(
+      `${baseUrl}/api/vault/restore`,
+      {
+        sourcePath: exportPath,
+        password: "smoke-test-password",
+      },
+      engineToken,
+    );
+    await requestJson(
+      `${baseUrl}/api/vault/unlock`,
+      {
+        password: "smoke-test-password",
+      },
+      engineToken,
+    );
     if (
       !(await pathExists(join(vaultDataDirectory, "vault.envelope.json"))) ||
-      !(await pathExists(join(vaultDataDirectory, "optimus.sqlite")))
+      !(await pathExists(join(vaultDataDirectory, "satella.sqlite")))
     ) {
       throw new Error("Packaged Vault files were not created under userData/data");
     }
-    await requestJson(`${baseUrl}/api/vault/reset`, { confirmation: "Reset Optimus" });
+    await requestJson(`${baseUrl}/api/vault/reset`, { confirmation: "Reset Satella" }, engineToken);
     if (
       (await pathExists(join(vaultDataDirectory, "vault.envelope.json"))) ||
-      (await pathExists(join(vaultDataDirectory, "optimus.sqlite")))
+      (await pathExists(join(vaultDataDirectory, "satella.sqlite")))
     ) {
       throw new Error("Packaged Vault reset left encrypted Vault files behind");
     }

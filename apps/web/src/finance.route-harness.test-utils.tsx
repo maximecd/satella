@@ -1,7 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
-import type { Account, Custodian, Dashboard, PositionEdit, Settings } from "@optimus/engine/api";
+import type {
+  Account,
+  Custodian,
+  Dashboard,
+  PositionEdit,
+  Settings,
+} from "@satella-app/engine/api";
 import { vi } from "vite-plus/test";
 
 import { engineApi } from "./api";

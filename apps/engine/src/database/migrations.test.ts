@@ -159,7 +159,7 @@ describe("SQLite migration startup", () => {
       );
       const state = yield* readEncrypted(
         directory,
-        join(directory, "optimus.sqlite"),
+        join(directory, "satella.sqlite"),
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
           return {
@@ -190,7 +190,7 @@ describe("SQLite migration startup", () => {
         Effect.flip,
       );
       expect(String(emptyError)).toContain(
-        "The SQLite database was created by a newer Optimus schema",
+        "The SQLite database was created by a newer Satella schema",
       );
       const duplicate: MigrationRegistry = {
         "0001_first": Effect.void,

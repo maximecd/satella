@@ -24,11 +24,11 @@ const removeDataDirectory = (dataDirectory: string) =>
         reason: "filesystem",
         path: dataDirectory,
         cause,
-        message: `Could not remove the Optimus data directory: ${dataDirectory}`,
+        message: `Could not remove the Satella data directory: ${dataDirectory}`,
       }),
   });
 
-const kdf = () => (process.env["OPTIMUS_VAULT_KDF"] === "fast" ? FAST_KDF : PRODUCTION_KDF);
+const kdf = () => (process.env["SATELLA_VAULT_KDF"] === "fast" ? FAST_KDF : PRODUCTION_KDF);
 
 const withVault = <A, E>(
   dataDirectory: string,

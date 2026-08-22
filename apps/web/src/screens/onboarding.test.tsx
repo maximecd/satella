@@ -4,8 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { engineApi } from "../api";
 import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
+import { chooseVaultImportSource } from "../runtime";
 
 vi.mock("../api", async () => import("../engine-api.test-utils"));
+vi.mock("../runtime", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../runtime")>()),
+  chooseVaultImportSource: vi.fn(),
+}));
 
 const typePin = async (user: UserEvent, label: string, pin: string) => {
   for (const [index, digit] of [...pin].entries()) {
@@ -34,8 +39,8 @@ describe("onboarding and Vault start", () => {
       return status;
     });
     renderRoute("/");
-    expect(await screen.findByRole("heading", { name: "Welcome to Optimus" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("heading", { name: "Welcome to Satella" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create a new Vault" }));
     const password = await screen.findByLabelText("Vault password");
     await user.click(screen.getAllByRole("button", { name: "Show" })[0]!);
     await user.type(password, "correct horse");
@@ -73,7 +78,63 @@ describe("onboarding and Vault start", () => {
     await user.type(screen.getByLabelText("Vault password"), "wrong-password");
     await user.click(screen.getByRole("button", { name: "Unlock Vault" }));
     expect(await screen.findByText("The Vault could not be unlocked.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Reset Optimus" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Reset Satella" })).toBeInTheDocument();
+  });
+
+  it("offers Restore Vault from Welcome and from Unlock", async () => {
+    vi.mocked(engineApi.vaultStatus).mockResolvedValue({ state: "absent" });
+    renderRoute("/");
+    expect(await screen.findByRole("button", { name: "Restore Vault" })).toBeInTheDocument();
+
+    vi.mocked(engineApi.vaultStatus).mockResolvedValue({ state: "locked" });
+    renderRoute("/");
+    expect(await screen.findByRole("button", { name: "Restore Vault" })).toBeInTheDocument();
+  });
+
+  it("restores from Unlock only after replacement confirmation and returns to unlock", async () => {
+    const user = userEvent.setup();
+    vi.mocked(engineApi.vaultStatus).mockResolvedValue({ state: "locked" });
+    vi.mocked(engineApi.restoreVault).mockResolvedValue({ state: "locked" });
+    vi.mocked(chooseVaultImportSource).mockResolvedValue({
+      kind: "path",
+      path: "/Backups/vault.satella-vault",
+    });
+    renderRoute("/");
+
+    await user.click(await screen.findByRole("button", { name: "Restore Vault" }));
+    const password = await screen.findByLabelText("Exported Vault's password");
+    await user.type(password, "export-password");
+    const submit = screen.getByRole("button", { name: "Restore Vault" });
+    expect(submit).toBeDisabled();
+
+    await user.click(screen.getByLabelText("Replace my current Vault and its data"));
+    await user.click(submit);
+    await waitFor(() =>
+      expect(engineApi.restoreVault).toHaveBeenCalledWith(
+        "/Backups/vault.satella-vault",
+        "export-password",
+      ),
+    );
+    expect(await screen.findByRole("heading", { name: "Unlock your Vault" })).toBeInTheDocument();
+  });
+
+  it("reports a failed restore validation without changing the screen state", async () => {
+    const user = userEvent.setup();
+    vi.mocked(engineApi.vaultStatus).mockResolvedValue({ state: "absent" });
+    vi.mocked(engineApi.restoreVault).mockRejectedValue(
+      new Error("This file is not a valid Satella Vault export."),
+    );
+    vi.mocked(chooseVaultImportSource).mockResolvedValue({
+      kind: "path",
+      path: "/Backups/broken.satella-vault",
+    });
+    renderRoute("/");
+
+    await user.click(await screen.findByRole("button", { name: "Restore Vault" }));
+    await user.type(await screen.findByLabelText("Exported Vault's password"), "whatever");
+    await user.click(screen.getByRole("button", { name: "Restore Vault" }));
+    expect(await screen.findByText(/not a valid Satella Vault export/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Welcome to Satella" })).toBeInTheDocument();
   });
 });
 
@@ -93,7 +154,7 @@ describe("Screen lock", () => {
     });
     vi.mocked(engineApi.closeVault).mockResolvedValue({ state: "locked" });
     renderRoute("/");
-    expect(await screen.findByRole("heading", { name: "Optimus is locked" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Satella is locked" })).toBeInTheDocument();
     expect(screen.getByText(/Background Refresh may continue/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Use Vault password instead" })).toBeInTheDocument();

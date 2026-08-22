@@ -21,4 +21,4 @@ export class PortfolioService extends Context.Service<
     readonly history: () => Effect.Effect<ReadonlyArray<PortfolioHistoryPoint>, FinanceApiError>;
     readonly dashboard: () => Effect.Effect<Dashboard, FinanceApiError>;
   }
->()("@optimus/engine/finance/PortfolioService") {}
+>()("@satella-app/engine/finance/PortfolioService") {}

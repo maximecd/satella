@@ -7,7 +7,7 @@ import type {
   ConnectorAuthenticationError,
   ConnectorFetchAccountsError,
   ConnectorRegistry,
-} from "@optimus/connector-core";
+} from "@satella-app/connector-core";
 import { HttpClient } from "effect/unstable/http";
 import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";

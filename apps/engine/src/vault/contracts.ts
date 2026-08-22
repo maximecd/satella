@@ -18,6 +18,10 @@ export class VaultApiError extends Schema.TaggedError<VaultApiError>()(
       "screen-locked",
       "reset-confirmation",
       "validation",
+      "vault-open",
+      "filesystem",
+      "invalid-container",
+      "unsupported-container",
     ]),
     message: Schema.String,
   },
@@ -66,4 +70,14 @@ export const ScreenLockTimeoutInput = Schema.Struct({
 
 export const ResetVaultInput = Schema.Struct({
   confirmation: Schema.String,
+});
+
+export const ExportVaultInput = Schema.Struct({
+  password: Schema.String,
+  destinationPath: Schema.String,
+});
+
+export const RestoreVaultInput = Schema.Struct({
+  sourcePath: Schema.String,
+  password: Schema.String,
 });

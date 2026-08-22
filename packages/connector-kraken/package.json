@@ -1,5 +1,5 @@
 {
-  "name": "@optimus/connector-kraken",
+  "name": "@satella-app/connector-kraken",
   "version": "0.0.0",
   "private": true,
   "files": [
@@ -26,7 +26,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@optimus/connector-core": "workspace:*",
+    "@satella-app/connector-core": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

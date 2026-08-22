@@ -28,7 +28,7 @@ export function Sidebar() {
       flexShrink={0}
     >
       <Heading size="md" px="2">
-        Optimus
+        Satella
       </Heading>
       <Stack gap="1" flex="1">
         <NavItem href="/" label="Dashboard" icon={LayoutDashboard} selected={isDashboard} />

@@ -43,11 +43,11 @@ export type { DatabaseError } from "./errors.js";
 export type { MigrationRegistry, MigrationRunOptions } from "./migrations.js";
 
 export class DatabaseKey extends Context.Service<DatabaseKey, { readonly dek: Uint8Array }>()(
-  "@optimus/engine/DatabaseKey",
+  "@satella-app/engine/DatabaseKey",
 ) {}
 
 export class DatabaseReady extends Context.Service<DatabaseReady, { readonly ready: true }>()(
-  "@optimus/engine/DatabaseReady",
+  "@satella-app/engine/DatabaseReady",
 ) {}
 
 export interface DatabaseLiveOptions extends Omit<MigrationRunOptions, "registry"> {

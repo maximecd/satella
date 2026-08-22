@@ -324,16 +324,16 @@ importers:
       '@journeyapps/sqlcipher':
         specifier: 6.0.0
         version: 6.0.0
-      '@optimus/connector-core':
+      '@satella-app/connector-core':
         specifier: workspace:*
         version: link:../../packages/connector-core
-      '@optimus/connector-ibkr':
+      '@satella-app/connector-ibkr':
         specifier: workspace:*
         version: link:../../packages/connector-ibkr
-      '@optimus/connector-kraken':
+      '@satella-app/connector-kraken':
         specifier: workspace:*
         version: link:../../packages/connector-kraken
-      '@optimus/connector-okx':
+      '@satella-app/connector-okx':
         specifier: workspace:*
         version: link:../../packages/connector-okx
       decimal.js:
@@ -376,7 +376,7 @@ importers:
       '@emotion/react':
         specifier: ^11.14.0
         version: 11.14.0(@types/react@19.2.18)(react@19.2.8)(supports-color@10.2.2)
-      '@optimus/engine':
+      '@satella-app/engine':
         specifier: workspace:*
         version: link:../engine
       '@tanstack/react-form':
@@ -480,7 +480,7 @@ importers:
 
   packages/connector-ibkr:
     dependencies:
-      '@optimus/connector-core':
+      '@satella-app/connector-core':
         specifier: workspace:*
         version: link:../connector-core
       effect:
@@ -508,7 +508,7 @@ importers:
 
   packages/connector-kraken:
     dependencies:
-      '@optimus/connector-core':
+      '@satella-app/connector-core':
         specifier: workspace:*
         version: link:../connector-core
       effect:
@@ -533,7 +533,7 @@ importers:
 
   packages/connector-okx:
     dependencies:
-      '@optimus/connector-core':
+      '@satella-app/connector-core':
         specifier: workspace:*
         version: link:../connector-core
       effect:

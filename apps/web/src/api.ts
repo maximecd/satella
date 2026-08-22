@@ -1,8 +1,9 @@
 import { FetchHttpClient } from "effect/unstable/http";
 import { HttpApiClient } from "effect/unstable/httpapi";
-import { EngineApi } from "@optimus/engine/api";
+import { EngineApi } from "@satella-app/engine/api";
 import * as Effect from "effect/Effect";
 
+import { engineFetch } from "./engine-fetch";
 import { engineUrl } from "./runtime";
 
 const clientEffect = HttpApiClient.make(EngineApi, { baseUrl: engineUrl() });
@@ -10,7 +11,11 @@ type EngineClient = Effect.Success<typeof clientEffect>;
 
 const request = <A, E>(operation: (client: EngineClient) => Effect.Effect<A, E>) =>
   Effect.runPromise(
-    clientEffect.pipe(Effect.flatMap(operation), Effect.provide(FetchHttpClient.layer)),
+    clientEffect.pipe(
+      Effect.flatMap(operation),
+      Effect.provideService(FetchHttpClient.Fetch, engineFetch),
+      Effect.provide(FetchHttpClient.layer),
+    ),
   );
 
 export const getHello = () => request((client) => client.system.hello({}));
@@ -35,4 +40,8 @@ export const engineApi = {
     request((client) => client.vault.setScreenLockTimeout({ payload: { minutes } })),
   resetVault: (confirmation: string) =>
     request((client) => client.vault.reset({ payload: { confirmation } })),
+  exportVault: (password: string, destinationPath: string) =>
+    request((client) => client.vault.exportVault({ payload: { password, destinationPath } })),
+  restoreVault: (sourcePath: string, password: string) =>
+    request((client) => client.vault.restoreVault({ payload: { sourcePath, password } })),
 };

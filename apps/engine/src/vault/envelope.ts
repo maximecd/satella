@@ -15,7 +15,7 @@ import {
 export { FAST_KDF, PRODUCTION_KDF };
 export type { Argon2idParameters };
 
-export const ENVELOPE_AAD_PREFIX = "optimus-vault";
+export const ENVELOPE_AAD_PREFIX = "satella-vault";
 export const ENVELOPE_VERSION = 1;
 export const ENVELOPE_MAX_BYTES = 8_192;
 const NONCE_BYTES = 12;
@@ -57,7 +57,7 @@ const genericUnlockFailure = () =>
 const aadFor = (vaultId: string) =>
   Buffer.from(`${ENVELOPE_AAD_PREFIX}|${ENVELOPE_VERSION}|${vaultId}`, "utf8");
 
-const encodeEnvelope = (envelope: KeyEnvelope): Buffer =>
+export const encodeEnvelope = (envelope: KeyEnvelope): Buffer =>
   Buffer.from(
     JSON.stringify({
       version: envelope.version,

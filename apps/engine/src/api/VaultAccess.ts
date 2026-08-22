@@ -17,7 +17,7 @@ export const VaultFinanceAccess = HttpRouter.middleware(
       const request = yield* HttpServerRequest.HttpServerRequest;
       let path = request.url;
       try {
-        path = new URL(request.url, "http://optimus.local").pathname;
+        path = new URL(request.url, "http://satella.local").pathname;
       } catch {
         path = request.url.split("?", 1)[0] ?? request.url;
       }

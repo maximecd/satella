@@ -15,7 +15,7 @@ import type {
   UpdateCustodianInput,
   UpdatePositionInput,
   UpdateSettingsInput,
-} from "@optimus/engine/api";
+} from "@satella-app/engine/api";
 import type { ReactNode } from "react";
 import { createContext, useContext } from "react";
 

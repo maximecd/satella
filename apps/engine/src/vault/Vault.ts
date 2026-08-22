@@ -3,6 +3,7 @@ import * as Context from "effect/Context";
 import type { SqlClient } from "effect/unstable/sql";
 import type * as Effect from "effect/Effect";
 
+import type { VaultContainerError } from "./container.js";
 import type { VaultUnlockError } from "./envelope.js";
 import type { VaultStateError } from "./errors.js";
 import type { Argon2idParameters } from "./kdf.js";
@@ -65,11 +66,19 @@ export class VaultService extends Context.Service<
       password: string,
     ) => Effect.Effect<void, VaultStateError | VaultUnlockError>;
     readonly reset: (confirmation: string) => Effect.Effect<VaultStatus, VaultStateError>;
+    readonly exportVault: (
+      password: string,
+      destinationPath: string,
+    ) => Effect.Effect<void, VaultStateError | VaultUnlockError | VaultContainerError>;
+    readonly restoreVault: (
+      sourcePath: string,
+      password: string,
+    ) => Effect.Effect<VaultStatus, VaultStateError | VaultUnlockError | VaultContainerError>;
     readonly currentSql: () => Effect.Effect<SqlClient.SqlClient, VaultStateError>;
     readonly assertRendererFinanceAccess: () => Effect.Effect<void, VaultStateError>;
     readonly assertOpenVault: () => Effect.Effect<void, VaultStateError>;
   }
->()("@optimus/engine/VaultService") {}
+>()("@satella-app/engine/VaultService") {}
 
 export const pinHash = (pin: string, salt: Uint8Array) =>
   createHmac("sha256", Buffer.from(salt)).update(pin, "utf8").digest("hex");

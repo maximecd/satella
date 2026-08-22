@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, powerMonitor, session } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, powerMonitor, session, shell } from "electron";
 import { join } from "node:path";
 
 import {
@@ -7,31 +7,67 @@ import {
   enginePortForDevelopment,
   managedEngineCommand,
   managedEngineEnvironment,
+  newEngineToken,
   screenLockRequest,
   spawnManagedEngine,
   stopManagedEngine,
   waitForEngineHello,
 } from "./engine.js";
 import { APP_ID, APP_NAME, productionDataDirectory } from "./runtime.js";
-import { focusWindow, shouldQuitOnLastWindow, windowLoadTarget } from "./window.js";
+import {
+  externalUrlAction,
+  focusWindow,
+  navigationPermission,
+  shouldQuitOnLastWindow,
+  windowLoadTarget,
+} from "./window.js";
 
-const developmentUrl = process.env["OPTIMUS_WEB_URL"];
+const developmentUrl = process.env["SATELLA_WEB_URL"];
 let enginePort = DEFAULT_ENGINE_PORT;
-let engineUrl = process.env["OPTIMUS_ENGINE_URL"] ?? `http://127.0.0.1:${enginePort}`;
+let engineUrl = process.env["SATELLA_ENGINE_URL"] ?? `http://127.0.0.1:${enginePort}`;
 let engineProcess: ReturnType<typeof spawnManagedEngine> | undefined;
 let mainWindow: BrowserWindow | undefined;
+let engineToken = process.env["SATELLA_ENGINE_TOKEN"] ?? newEngineToken();
 let quitting = false;
 let pendingSecondInstance = false;
 
 app.setName(APP_NAME);
 app.setAppUserModelId(APP_ID);
-ipcMain.handle("optimus:clear-vault-caches", async () => {
+ipcMain.handle("satella:clear-vault-caches", async () => {
   await session.defaultSession.clearCache();
+});
+ipcMain.handle("satella:show-save-dialog", async (_event, defaultPath: string) => {
+  const fallback = join(app.getPath("downloads"), `satella-vault-export.satella-vault`);
+  const options: Electron.SaveDialogOptions = {
+    defaultPath: defaultPath.length > 0 ? defaultPath : fallback,
+    filters: [{ name: "Satella Vault", extensions: ["satella-vault"] }],
+    properties: ["createDirectory", "showOverwriteConfirmation"],
+    title: "Export Vault",
+  };
+  const result =
+    mainWindow === undefined
+      ? await dialog.showSaveDialog(options)
+      : await dialog.showSaveDialog(mainWindow, options);
+  return result.canceled ? undefined : result.filePath;
+});
+ipcMain.handle("satella:show-open-dialog", async () => {
+  const options: Electron.OpenDialogOptions = {
+    filters: [{ name: "Satella Vault", extensions: ["satella-vault"] }],
+    properties: ["openFile"],
+    title: "Restore Vault",
+  };
+  const result =
+    mainWindow === undefined
+      ? await dialog.showOpenDialog(options)
+      : await dialog.showOpenDialog(mainWindow, options);
+  return result.canceled ? undefined : result.filePaths[0];
 });
 
 const lockViaEngine = () => {
-  const request = screenLockRequest(engineUrl);
-  void fetch(request.url, { method: request.method }).catch(() => undefined);
+  const request = screenLockRequest(engineUrl, engineToken);
+  void fetch(request.url, { method: request.method, headers: request.headers }).catch(
+    () => undefined,
+  );
 };
 
 const createWindow = async () => {
@@ -41,13 +77,16 @@ const createWindow = async () => {
     minHeight: 560,
     minWidth: 720,
     show: false,
-    title: "Optimus",
+    title: "Satella",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       preload: join(__dirname, "preload.cjs"),
       sandbox: true,
-      additionalArguments: [`--optimus-engine-url=${engineUrl}`],
+      additionalArguments: [
+        `--satella-engine-url=${engineUrl}`,
+        `--satella-engine-token=${engineToken}`,
+      ],
     },
     width: 1120,
   });
@@ -58,6 +97,22 @@ const createWindow = async () => {
   }
 
   window.once("ready-to-show", () => window.show());
+
+  window.webContents.on("will-navigate", (event, url) => {
+    const permission = navigationPermission(url, {
+      developmentUrl,
+      isPackaged: app.isPackaged,
+    });
+    if (permission.type === "allow") return;
+    event.preventDefault();
+    const external = externalUrlAction(url);
+    if (external.action === "open-external") void shell.openExternal(external.url);
+  });
+  window.webContents.setWindowOpenHandler((details) => {
+    const external = externalUrlAction(details.url);
+    if (external.action === "open-external") void shell.openExternal(external.url);
+    return { action: "deny" };
+  });
 
   const target = windowLoadTarget(developmentUrl, __dirname, {
     isPackaged: app.isPackaged,
@@ -72,10 +127,10 @@ const createWindow = async () => {
 
 const startManagedEngine = async () => {
   const smokePort =
-    process.env["OPTIMUS_SMOKE_ENGINE_PORT"] === undefined
+    process.env["SATELLA_SMOKE_ENGINE_PORT"] === undefined
       ? undefined
       : enginePortForDevelopment({
-          OPTIMUS_ENGINE_PORT: process.env["OPTIMUS_SMOKE_ENGINE_PORT"],
+          SATELLA_ENGINE_PORT: process.env["SATELLA_SMOKE_ENGINE_PORT"],
         });
   enginePort = app.isPackaged
     ? await chooseAvailableEnginePort(smokePort)
@@ -90,7 +145,7 @@ const startManagedEngine = async () => {
 
   const dataDirectory = app.isPackaged
     ? productionDataDirectory(app.getPath("userData"))
-    : join(process.cwd(), ".optimus");
+    : join(process.cwd(), ".satella");
   engineProcess = spawnManagedEngine(
     command,
     managedEngineEnvironment(process.env, {
@@ -98,6 +153,7 @@ const startManagedEngine = async () => {
       dataDirectory,
       parentPid: process.pid,
       production: app.isPackaged,
+      engineToken,
     }),
   );
   engineProcess.stdout?.on("data", (chunk: Buffer) => process.stdout.write(`[engine] ${chunk}`));

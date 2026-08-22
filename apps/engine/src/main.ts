@@ -8,6 +8,7 @@ import { FetchHttpClient } from "effect/unstable/http";
 import { HttpRouter } from "effect/unstable/http";
 
 import { ApiErrorLogging } from "./api/ApiLogging.js";
+import { EngineTokenAuth, EngineTokenFromSecret, ENGINE_TOKEN_ENV } from "./api/EngineToken.js";
 import { EngineApiLive } from "./api/FinanceApiLive.js";
 import { VaultFinanceAccess } from "./api/VaultAccess.js";
 import { DatabaseConfig, DatabaseConfigLive } from "./database/index.js";
@@ -26,11 +27,11 @@ const parsePort = (value: string | undefined, fallback: number): number => {
   return Number.isInteger(port) && port >= 1 && port <= 65_535 ? port : fallback;
 };
 
-const enginePort = parsePort(process.env["OPTIMUS_ENGINE_PORT"], 3001);
-const webOrigin = process.env["OPTIMUS_WEB_ORIGIN"];
-const parentPid = Number(process.env["OPTIMUS_ENGINE_PARENT_PID"]);
+const enginePort = parsePort(process.env["SATELLA_ENGINE_PORT"], 3001);
+const webOrigin = process.env["SATELLA_WEB_ORIGIN"];
+const parentPid = Number(process.env["SATELLA_ENGINE_PARENT_PID"]);
 const parentDataDirectory =
-  process.env["OPTIMUS_CANONICAL_DATA_DIR"] ?? process.env["OPTIMUS_DATA_DIR"];
+  process.env["SATELLA_CANONICAL_DATA_DIR"] ?? process.env["SATELLA_DATA_DIR"];
 
 const parentWatch =
   Number.isInteger(parentPid) && parentPid > 0
@@ -73,6 +74,7 @@ const OwnershipLive = Layer.effectDiscard(
 const routesLayer = EngineApiLive.pipe(
   Layer.provideMerge(VaultFinanceAccess),
   Layer.provideMerge(ApiErrorLogging),
+  Layer.provideMerge(EngineTokenAuth),
   Layer.provideMerge(
     HttpRouter.cors({
       allowedOrigins: [
@@ -100,6 +102,7 @@ const ServerLive = HttpServerLive.pipe(
   Layer.provide(OwnershipLive),
   Layer.provide(DatabaseConfigLive),
   Layer.provide(IdGeneratorLive),
+  Layer.provide(EngineTokenFromSecret(process.env[ENGINE_TOKEN_ENV])),
 );
 
 Layer.launch(ServerLive.pipe(Layer.provide(FetchHttpClient.layer))).pipe(NodeRuntime.runMain);

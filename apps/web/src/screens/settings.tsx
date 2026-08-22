@@ -66,7 +66,7 @@ export function SettingsScreen() {
           <NavRow
             href="/settings/security"
             label="Security"
-            description="Vault password, Screen lock, and Reset Optimus."
+            description="Vault password, Screen lock, and Reset Satella."
           />
         </Box>
       </Stack>
