@@ -22,6 +22,10 @@ _Avoid_: Asset class, account kind
 The current combined value of all holdings expressed in the reporting currency. It is not investment performance because deposits and withdrawals are not yet modeled as cash flows.
 _Avoid_: Performance, return
 
+**Snapshot**:
+A point-in-time record of every Position quantity and Asset price, captured when a Refresh completes, from which portfolio value history is derived.
+_Avoid_: History entry, balance record, backup
+
 **Fiat currency**:
 A government-issued currency modeled as a Cash asset identified by its ISO code. Accounts and the reporting currency are denominated in one.
 _Avoid_: Fiat asset, real currency
@@ -63,6 +67,10 @@ The technical integration used to create and refresh a synced custodian. This is
 **Refresh**:
 A request for the latest accounts, holdings, and prices from a synced custodian. Refreshing from an account page refreshes the entire custodian that owns the account.
 _Avoid_: Resync
+
+**Auto-refresh**:
+The automatic repetition of Refresh for every synced custodian, followed by market-data updates, at a fixed interval while the vault is unlocked. It continues while the Screen lock is active.
+_Avoid_: Background sync, scheduled refresh
 
 **Market-data source**:
 An external service that supplies asset prices. Its identity, quote time, and routine freshness status are operational details hidden during normal use.
