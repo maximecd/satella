@@ -2,9 +2,8 @@ import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
 
 /**
- * Target finance schema. Pre-production history is discarded; this is the
- * single initial migration. Business rules (cash-account constraints, synced
- * read-only, other-asset placement) are validated in the engine, not here.
+ * Initial finance schema released in the first Satella nightly. This file is
+ * immutable. Later schema changes belong in new timestamped migrations.
  */
 export const initialFinanceModel = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
@@ -121,8 +120,7 @@ export const initialFinanceModel = Effect.gen(function* () {
 
   yield* sql`CREATE TABLE app_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    reporting_currency_asset_id TEXT NOT NULL REFERENCES assets(id),
-    app_language TEXT NOT NULL CHECK (app_language IN ('en', 'fr'))
+    reporting_currency_asset_id TEXT NOT NULL REFERENCES assets(id)
   ) STRICT`;
 
   yield* sql`CREATE TABLE vault_security (
@@ -154,8 +152,7 @@ export const initialFinanceModel = Effect.gen(function* () {
     yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
       VALUES (${`identifier:iso:${iso}`}, ${assetId}, 'iso_currency', ${iso})`;
   }
-  yield* sql`INSERT INTO app_settings (id, reporting_currency_asset_id, app_language)
-    VALUES (1, 'fiat:USD', 'en')`;
+  yield* sql`INSERT INTO app_settings (id, reporting_currency_asset_id) VALUES (1, 'fiat:USD')`;
 
   yield* sql`INSERT INTO custodians (id, name, connector_id, config_json, created_at, updated_at)
     VALUES ('custodian:manual', 'Manual custodian', NULL, NULL, ${timestamp}, ${timestamp})`;

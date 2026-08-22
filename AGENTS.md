@@ -4,12 +4,22 @@ Project-specific guidance for AI coding agents.
 
 ## Project status
 
-Satella has no released installations yet. Until the first alpha is published, prefer the clean target design; schema resets and breaking technical changes are acceptable without migration work. The first alpha establishes the permanent migration lineage. From that release onward, preserve existing Vault data across updates by appending migrations; internal APIs and implementation details may still break freely.
+Nightly installations contain persistent Vault data, so the migration lineage is permanent now. Preserve existing Vault data across every nightly and versioned update. Internal APIs and implementation details may still break freely.
+
+## Database migrations
+
+- Never edit, rename, reorder, or delete a migration that has a `.sha256` sidecar.
+- Add one file named `<UTC yyyymmddHHMMSS>_<name>.ts` under `apps/engine/src/database/migrations/` for each schema change. Use the actual creation time, not a sequence number copied from another branch.
+- Register the migration in timestamp order in `ProductionMigrations`. When merging worktrees, keep every branch's migration and registry entry. If two files have the same timestamp, rename the later unpublished file before sealing it.
+- Run `pnpm migration:seal` once the new migration is final and before staging it. The command seals only new untracked migration files. It refuses changed migrations and tracked migrations whose checksum was removed.
+- Test both a fresh Vault and an upgrade from the last released schema. `pnpm check` rejects changed migrations, timestamp collisions, missing checksums, omitted registry entries, and incorrect order.
 
 <!-- CHAKRA:START -->
+
 Chakra UI v3 in `apps/web`. Wrap the tree in `Provider` from `src/components/ui/provider`.
 
 RULES:
+
 - Layout with Stack, Flex, Grid, SimpleGrid, Container — not raw spacing divs.
 - Forms: wrap every input in Field; use PasswordInput for secrets and `PinField` for the four-digit Screen-lock PIN.
 - Semantic tokens (`bg`, `fg.muted`, `border`) over raw palette/hex.
@@ -17,6 +27,7 @@ RULES:
 - Compound snippets live in `src/components/ui/`.
 - Wrap lucide-react icons in `Icon` with `asChild` so they inherit Chakra size and color.
 - v3 props: `disabled` not `isDisabled`, `colorPalette` not `colorScheme`, `open` not `isOpen`.
+
 <!-- CHAKRA:END -->
 
 ## Agent skills

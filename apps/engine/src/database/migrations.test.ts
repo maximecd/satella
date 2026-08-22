@@ -15,6 +15,7 @@ import {
 } from "./database.test-utils.js";
 import { makeEncryptedSqliteClient } from "./encrypted-client.js";
 import { Reactivity } from "effect/unstable/reactivity";
+import { getSettings } from "../finance/settings/SettingsSql.js";
 
 const readEncrypted = <A, E>(
   dataDirectory: string,
@@ -59,9 +60,40 @@ const rebuildRecords: MigrationRegistry = {
   }),
 };
 
+const releasedInitialSchemaWithoutAppLanguage: MigrationRegistry = {
+  "20260821194600_initial_finance_model": Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* sql`CREATE TABLE assets (
+      id TEXT PRIMARY KEY,
+      asset_category TEXT NOT NULL,
+      name TEXT NOT NULL,
+      symbol TEXT
+    ) STRICT`;
+    yield* sql`CREATE TABLE asset_identifiers (
+      id TEXT PRIMARY KEY,
+      asset_id TEXT NOT NULL REFERENCES assets(id),
+      identifier_type TEXT NOT NULL,
+      identifier_value TEXT NOT NULL
+    ) STRICT`;
+    yield* sql`CREATE TABLE app_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      reporting_currency_asset_id TEXT NOT NULL REFERENCES assets(id)
+    ) STRICT`;
+    yield* sql`INSERT INTO assets (id, asset_category, name, symbol)
+      VALUES ('fiat:USD', 'cash', 'US dollar', 'USD')`;
+    yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
+      VALUES ('identifier:iso:USD', 'fiat:USD', 'iso_currency', 'USD')`;
+    yield* sql`INSERT INTO app_settings (id, reporting_currency_asset_id)
+      VALUES (1, 'fiat:USD')`;
+  }),
+};
+
 describe("SQLite migration startup", () => {
-  it("ships a single squashed finance-model migration", () => {
-    expect(Object.keys(ProductionMigrations)).toEqual(["20260821194600_initial_finance_model"]);
+  it("registers production migrations in timestamp order", () => {
+    expect(Object.keys(ProductionMigrations)).toEqual([
+      "20260821194600_initial_finance_model",
+      "20260822165422_add_app_language",
+    ]);
   });
 
   it.effect("creates the database ledger and runs migrations once across restart", () =>
@@ -98,6 +130,47 @@ describe("SQLite migration startup", () => {
         catch: (cause) => new TempDirectoryError({ cause }),
       });
       expect(backups).toEqual([]);
+    }),
+  );
+
+  it.effect("upgrades the released schema before Settings queries app_language", () =>
+    Effect.gen(function* () {
+      const oldDirectory = yield* acquireTestDirectory;
+      yield* scopedCustomMigrations(
+        oldDirectory,
+        releasedInitialSchemaWithoutAppLanguage,
+        Effect.void,
+      );
+
+      const oldSettings = yield* scopedCustomMigrations(
+        oldDirectory,
+        ProductionMigrations,
+        getSettings(),
+      );
+
+      expect(oldSettings.language).toBe("en");
+      expect(oldSettings.reportingCurrency.iso).toBe("USD");
+
+      const newDirectory = yield* acquireTestDirectory;
+      yield* scopedCustomMigrations(
+        newDirectory,
+        releasedInitialSchemaWithoutAppLanguage,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`ALTER TABLE app_settings ADD COLUMN app_language TEXT NOT NULL DEFAULT 'en'
+            CHECK (app_language IN ('en', 'fr'))`;
+          yield* sql`UPDATE app_settings SET app_language = 'fr' WHERE id = 1`;
+        }),
+      );
+
+      const newSettings = yield* scopedCustomMigrations(
+        newDirectory,
+        ProductionMigrations,
+        getSettings(),
+      );
+
+      expect(newSettings.language).toBe("fr");
+      expect(newSettings.reportingCurrency.iso).toBe("USD");
     }),
   );
 
