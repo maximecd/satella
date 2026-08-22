@@ -123,7 +123,12 @@ const productionPackage = (version, enginePackage) => ({
   dependencies: enginePackage.dependencies ?? {},
 });
 
-const builderConfiguration = ({ appDirectory, outputDirectory, artifactName }) => ({
+export const builderConfiguration = ({
+  root = repositoryRoot,
+  appDirectory,
+  outputDirectory,
+  artifactName,
+}) => ({
   appId: "app.satella",
   productName: "Satella",
   directories: {
@@ -264,6 +269,7 @@ export const packageRelease = async ({ root = repositoryRoot, outputDirectory, v
     configPath,
     JSON.stringify(
       builderConfiguration({
+        root,
         appDirectory,
         outputDirectory: output,
         artifactName: releaseArtifactName(normalizedVersion),
