@@ -42,6 +42,14 @@ test("Ship Satella creates its tag only after packaging validation", async () =>
   for (const gate of ["resolve", "check", "test", "build", "package"]) {
     assert.match(publishNeeds, new RegExp(`- ${gate}`));
   }
+  // The resolve job's outputs live inside the job; a mis-indented "outputs:"
+  // becomes an invalid top-level job and breaks the whole workflow file.
+  assert.doesNotMatch(ship, /\n {2}outputs:/);
+  assert.match(ship, / {4}outputs:\n {6}version:/);
+  const packageNeeds = ship
+    .slice(ship.indexOf("  package:"), ship.indexOf("  publish:"))
+    .slice(0, ship.slice(ship.indexOf("  package:"), ship.indexOf("  publish:")).indexOf("steps:"));
+  assert.match(packageNeeds, /- resolve/);
   const tagStep = publish.slice(
     publish.indexOf("Create exact commit tag only after validation passed"),
     publish.indexOf("Publish immutable prerelease"),
