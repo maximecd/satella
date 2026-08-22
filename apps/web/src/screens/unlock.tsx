@@ -1,10 +1,11 @@
-import { Button, Heading, Stack, Text } from "@chakra-ui/react";
+import { Button, Stack } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { engineApi } from "../api";
 import { FormError } from "../components";
 import { vaultStatusQuery } from "../queries";
+import { GateLayout } from "./gate-layout";
 import { SecretField } from "./secret-field";
 import { ResetOptimusControl } from "./reset-optimus";
 
@@ -23,14 +24,10 @@ export function UnlockScreen() {
     onError: (cause) => setError(errorMessage(cause)),
   });
   return (
-    <Stack gap="6" p={{ base: 6, md: 8 }} maxW="xl" mx="auto">
-      <Heading as="h1" size="xl">
-        Unlock your Vault
-      </Heading>
-      <Text as="p">
-        Enter your Vault password. Optimus cannot recover it. An incorrect password is
-        indistinguishable from damaged Vault data.
-      </Text>
+    <GateLayout
+      title="Unlock your Vault"
+      description="Enter your Vault password. Optimus cannot recover it. An incorrect password is indistinguishable from damaged Vault data."
+    >
       <form
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
@@ -58,6 +55,6 @@ export function UnlockScreen() {
         </Stack>
       </form>
       <ResetOptimusControl />
-    </Stack>
+    </GateLayout>
   );
 }

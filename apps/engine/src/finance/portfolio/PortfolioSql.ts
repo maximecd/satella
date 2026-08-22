@@ -177,7 +177,7 @@ const allocationCells = (
     readonly key: string;
     readonly name: string;
     readonly symbol: string | null;
-    readonly assetCategory: AssetCategory;
+    readonly assetCategory?: AssetCategory;
     readonly value: string;
   }>,
 ): ReadonlyArray<AllocationCell> => {
@@ -317,6 +317,35 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
         value: assets.reduce((sum, [, asset]) => addDecimal(sum, asset.value), "0"),
       })),
     );
+    const custodianValues = new Map<string, { readonly name: string; readonly value: string }>();
+    for (const account of valued) {
+      let value = "0";
+      for (const position of account.positions) {
+        if (
+          compareDecimal(position.quantity, "0") === 0 ||
+          position.reportingValue === null ||
+          compareDecimal(position.reportingValue, "0") <= 0
+        )
+          continue;
+        value = addDecimal(value, position.reportingValue);
+      }
+      const current = custodianValues.get(account.custodianId) ?? {
+        name: account.isDefaultCustodian ? "Other holdings" : account.custodianName,
+        value: "0",
+      };
+      custodianValues.set(account.custodianId, {
+        name: current.name,
+        value: addDecimal(current.value, value),
+      });
+    }
+    const custodianAllocation = allocationCells(
+      [...custodianValues].map(([custodianId, group]) => ({
+        key: custodianId,
+        name: group.name,
+        symbol: null,
+        value: group.value,
+      })),
+    );
     const fxPivotId = yield* usdAssetId;
     const fx = yield* loadFxMap(fxPivotId);
     let unrealizedPnl = "0";
@@ -357,6 +386,7 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
       negativeHoldingCount,
       hasMeaningfulAssets: meaningful.length > 0,
       custodians,
+      custodianAllocation,
       assetAllocation,
       categoryAllocation,
       history,

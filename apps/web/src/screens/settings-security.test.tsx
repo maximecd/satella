@@ -1,11 +1,17 @@
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { engineApi } from "../api";
 import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
 
 vi.mock("../api", async () => import("../engine-api.test-utils"));
+
+const typePin = async (user: UserEvent, label: string, pin: string) => {
+  for (const [index, digit] of [...pin].entries()) {
+    await user.type(screen.getByLabelText(`${label} digit ${index + 1}`), digit);
+  }
+};
 
 describe("Settings → Security", () => {
   beforeEach(() => {
@@ -16,7 +22,7 @@ describe("Settings → Security", () => {
     renderRoute("/settings/security");
     expect(await screen.findByRole("heading", { name: "Security" })).toBeInTheDocument();
     expect(screen.getByLabelText("Current Vault password")).toBeInTheDocument();
-    expect(screen.getByLabelText("New Screen-lock PIN")).toBeInTheDocument();
+    expect(screen.getByLabelText("New Screen-lock PIN digit 1")).toBeInTheDocument();
     expect(screen.getByLabelText("Screen-lock timeout")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Lock now" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reset Optimus" })).toBeInTheDocument();
@@ -26,8 +32,8 @@ describe("Settings → Security", () => {
     const user = userEvent.setup();
     renderRoute("/settings/security");
     await user.type(await screen.findByLabelText("Vault password"), "correct-horse-battery");
-    await user.type(screen.getByLabelText("New Screen-lock PIN"), "1357");
-    await user.type(screen.getByLabelText("Confirm Screen-lock PIN"), "1357");
+    await typePin(user, "New Screen-lock PIN", "1357");
+    await typePin(user, "Confirm Screen-lock PIN", "1357");
     await user.click(screen.getByRole("button", { name: "Change Screen-lock PIN" }));
     await waitFor(() =>
       expect(engineApi.changeScreenLockPin).toHaveBeenCalledWith({

@@ -38,6 +38,8 @@ describe("dashboard screen", () => {
     expect(screen.getByText(/(\+\$90[.,]00|\+90[.,]00 \$) \(\+8[.,]91%\)/)).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Portfolio value history" })).toBeInTheDocument();
     expect(screen.getByText("Incomplete valuation")).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("radio", { name: "Assets" }));
     const apple = await screen.findByRole("img", {
       name: /Apple \(AAPL\), (\$800[.,]00|800[.,]00 \$), 80%/,
     });
@@ -80,19 +82,28 @@ describe("dashboard screen", () => {
     expect(screen.getByText(/\+\$90[.,]00|\+90[.,]00 \$/)).toBeInTheDocument();
   });
 
-  it("toggles allocation between Assets and Asset categories", async () => {
+  it("defaults allocation to Custodians and toggles between Custodians, Categories, and Assets", async () => {
     const user = userEvent.setup();
     seedPortfolioEngine({ dashboard: populatedDashboardFor() });
     renderRoute("/");
     expect(
-      await screen.findByRole("img", { name: /Apple \(AAPL\), (\$800[.,]00|800[.,]00 \$), 80%/ }),
+      await screen.findByRole("img", { name: /IBKR, (\$800[.,]00|800[.,]00 \$), 80%/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: /BNP Paribas, (\$200[.,]00|200[.,]00 \$), 20%/ }),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "Categories" }));
     expect(
       screen.getByRole("img", { name: /Stocks & ETFs, (\$800[.,]00|800[.,]00 \$), 80%/ }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("img", { name: /Apple \(AAPL\)/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /IBKR/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Assets" }));
+    expect(
+      screen.getByRole("img", { name: /Apple \(AAPL\), (\$800[.,]00|800[.,]00 \$), 80%/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /Stocks & ETFs/ })).not.toBeInTheDocument();
   });
 
   it("shows an allocation tooltip near the hovered cell", async () => {
@@ -107,6 +118,7 @@ describe("dashboard screen", () => {
       },
     });
     renderRoute("/");
+    await user.click(await screen.findByRole("radio", { name: "Assets" }));
     const apple = await screen.findByRole("img", {
       name: /Apple \(AAPL\), (\$800[.,]25|800[.,]25 \$), 80%/,
     });

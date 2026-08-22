@@ -62,7 +62,9 @@ const pnlPercent = (value: string | null) =>
 export function DashboardScreen() {
   const query = useDashboard();
   const [range, setRange] = useState<PortfolioValueRange>("1M");
-  const [allocationView, setAllocationView] = useState<"assets" | "categories">("assets");
+  const [allocationView, setAllocationView] = useState<"custodians" | "categories" | "assets">(
+    "custodians",
+  );
   if (query.isPending) return <PageState kind="pending" />;
   if (query.isError) return <PageState kind="error" message={errorMessage(query.error)} />;
   const dashboard = query.data;
@@ -83,7 +85,11 @@ export function DashboardScreen() {
   const history = observationsInRange(dashboard.history, range);
   const change = periodChange(history);
   const allocation =
-    allocationView === "assets" ? dashboard.assetAllocation : dashboard.categoryAllocation;
+    allocationView === "assets"
+      ? dashboard.assetAllocation
+      : allocationView === "categories"
+        ? dashboard.categoryAllocation
+        : dashboard.custodianAllocation;
   const unpriced =
     dashboard.unpricedAssetCount === 0
       ? null
@@ -156,18 +162,20 @@ export function DashboardScreen() {
               <Heading as="h2" size="md">
                 Allocation
               </Heading>
-              <Box alignSelf="flex-start">
+              <Box overflowX="auto" maxW="full">
                 <SegmentedControl
                   aria-label="Allocation"
                   size="sm"
+                  w="fit-content"
                   value={allocationView}
                   onValueChange={(details) => {
-                    // SAFETY: The segmented control items are exactly the two allocation view literals.
-                    setAllocationView(details.value as "assets" | "categories");
+                    // SAFETY: The segmented control items are exactly the three allocation view literals.
+                    setAllocationView(details.value as "custodians" | "categories" | "assets");
                   }}
                   items={[
-                    { value: "assets", label: "Assets" },
+                    { value: "custodians", label: "Custodians" },
                     { value: "categories", label: "Categories" },
+                    { value: "assets", label: "Assets" },
                   ]}
                 />
               </Box>

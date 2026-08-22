@@ -81,6 +81,7 @@ export const emptyDashboard: Dashboard = {
   negativeHoldingCount: 0,
   hasMeaningfulAssets: false,
   custodians: [],
+  custodianAllocation: [],
   assetAllocation: [],
   categoryAllocation: [],
   history: [],
@@ -149,6 +150,22 @@ export const populatedDashboardFor = (now = new Date()): Dashboard => {
             totalIncomplete: true,
           },
         ],
+      },
+    ],
+    custodianAllocation: [
+      {
+        key: "ibkr",
+        name: "IBKR",
+        symbol: null,
+        value: "800",
+        percent: "80",
+      },
+      {
+        key: "bnp",
+        name: "BNP Paribas",
+        symbol: null,
+        value: "200",
+        percent: "20",
       },
     ],
     assetAllocation: [

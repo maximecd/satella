@@ -439,7 +439,7 @@ export const AllocationCell = Schema.Struct({
   key: Schema.String,
   name: Schema.String,
   symbol: Schema.NullOr(Schema.String),
-  assetCategory: AssetCategory,
+  assetCategory: Schema.optional(AssetCategory),
   value: DecimalString,
   percent: DecimalString,
 });
@@ -455,6 +455,7 @@ export const Dashboard = Schema.Struct({
   negativeHoldingCount: Schema.Number,
   hasMeaningfulAssets: Schema.Boolean,
   custodians: Schema.Array(DashboardCustodianGroup),
+  custodianAllocation: Schema.Array(AllocationCell),
   assetAllocation: Schema.Array(AllocationCell),
   categoryAllocation: Schema.Array(AllocationCell),
   history: Schema.Array(PortfolioHistoryPoint),

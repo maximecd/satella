@@ -1,11 +1,17 @@
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { engineApi } from "../api";
 import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
 
 vi.mock("../api", async () => import("../engine-api.test-utils"));
+
+const typePin = async (user: UserEvent, label: string, pin: string) => {
+  for (const [index, digit] of [...pin].entries()) {
+    await user.type(screen.getByLabelText(`${label} digit ${index + 1}`), digit);
+  }
+};
 
 describe("onboarding and Vault start", () => {
   beforeEach(() => {
@@ -35,8 +41,11 @@ describe("onboarding and Vault start", () => {
     await user.type(password, "correct horse");
     await user.type(screen.getByLabelText("Confirm Vault password"), "correct horse");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await user.type(await screen.findByLabelText("Screen-lock PIN"), "2468");
-    await user.type(screen.getByLabelText("Confirm Screen-lock PIN"), "2468");
+    await screen.findByLabelText("Screen-lock PIN digit 1");
+    await typePin(user, "Screen-lock PIN", "2468");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByLabelText("Confirm Screen-lock PIN digit 1");
+    await typePin(user, "Confirm Screen-lock PIN", "2468");
     await user.click(screen.getByRole("button", { name: "Create Vault" }));
     await waitFor(() =>
       expect(engineApi.initializeVault).toHaveBeenCalledWith({
@@ -73,7 +82,7 @@ describe("Screen lock", () => {
     resetFinanceMocks();
   });
 
-  it("hides financial screens and keeps Vault-password fallback visible", async () => {
+  it("logs out to the Vault-password screen via the fallback button", async () => {
     const user = userEvent.setup();
     vi.mocked(engineApi.vaultStatus).mockResolvedValue({
       state: "open",
@@ -82,13 +91,14 @@ describe("Screen lock", () => {
       pinEntryDisabled: false,
       screenLockTimeoutMinutes: 15,
     });
+    vi.mocked(engineApi.closeVault).mockResolvedValue({ state: "locked" });
     renderRoute("/");
     expect(await screen.findByRole("heading", { name: "Optimus is locked" })).toBeInTheDocument();
     expect(screen.getByText(/Background Refresh may continue/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Use Vault password instead" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Use Vault password instead" }));
-    expect(await screen.findByLabelText("Vault password")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Unlock your Vault" })).toBeInTheDocument();
   });
 
   it("keeps financial screens hidden after three incorrect PIN attempts", async () => {
@@ -109,11 +119,12 @@ describe("Screen lock", () => {
       throw new Error("The Screen-lock PIN is incorrect.");
     });
     renderRoute("/");
-    await user.type(await screen.findByLabelText("Screen-lock PIN"), "0000");
+    await screen.findByLabelText("Screen-lock PIN digit 1");
+    await typePin(user, "Screen-lock PIN", "0000");
     await user.click(screen.getByRole("button", { name: "Unlock" }));
-    await user.type(await screen.findByLabelText("Screen-lock PIN"), "0000");
+    await typePin(user, "Screen-lock PIN", "0000");
     await user.click(screen.getByRole("button", { name: "Unlock" }));
-    await user.type(await screen.findByLabelText("Screen-lock PIN"), "0000");
+    await typePin(user, "Screen-lock PIN", "0000");
     await user.click(screen.getByRole("button", { name: "Unlock" }));
     expect(await screen.findByText(/Enter the Vault password/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();

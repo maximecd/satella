@@ -1,4 +1,4 @@
-import { Button, Heading, Stack, Text } from "@chakra-ui/react";
+import { Button, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
@@ -8,13 +8,14 @@ import { FormError } from "../components";
 import { vaultStatusQuery } from "../queries";
 import { passwordGuidance, SecretField } from "./secret-field";
 import { PinField } from "./pin-field";
+import { GateLayout } from "./gate-layout";
 import { useAddAssets } from "./add-assets";
 import { clearFirstAssetPending, markFirstAssetPending } from "./vault-gate";
 
 const errorMessage = (cause: unknown) =>
   cause instanceof Error ? cause.message : "The request failed.";
 
-type Step = "welcome" | "password" | "pin" | "first-asset";
+type Step = "welcome" | "password" | "pin" | "pin-confirm" | "first-asset";
 
 export function OnboardingScreen() {
   const queryClient = useQueryClient();
@@ -37,34 +38,29 @@ export function OnboardingScreen() {
 
   if (step === "welcome") {
     return (
-      <Stack gap="6" p={{ base: 6, md: 8 }} maxW="xl" mx="auto">
-        <Heading as="h1" size="xl">
-          Welcome to Optimus
-        </Heading>
-        <Text as="p">
-          Optimus keeps your portfolio, custodians, and credentials in one local Vault on this
-          computer. Financial data stays local except when Optimus talks directly to Connectors and
-          market-data sources you configure.
-        </Text>
-        <Text as="p">
-          Encryption protects copied files while the Vault is closed. It does not protect an open
-          Vault from malware, administrators, or memory inspection.
-        </Text>
+      <GateLayout title="Welcome to Optimus">
+        <Stack gap="4">
+          <Text as="p">
+            Optimus keeps your portfolio, custodians, and credentials in one local Vault on this
+            computer. Financial data stays local except when Optimus talks directly to Connectors
+            and market-data sources you configure.
+          </Text>
+          <Text as="p">
+            Encryption protects copied files while the Vault is closed. It does not protect an open
+            Vault from malware, administrators, or memory inspection.
+          </Text>
+        </Stack>
         <Button colorPalette="blue" onClick={() => setStep("password")}>
           Continue
         </Button>
-      </Stack>
+      </GateLayout>
     );
   }
 
   if (step === "password") {
     const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
     return (
-      <Stack gap="6" p={{ base: 6, md: 8 }} maxW="xl" mx="auto">
-        <Heading as="h1" size="xl">
-          Create a Vault password
-        </Heading>
-        <Text as="p">{passwordGuidance(password)}</Text>
+      <GateLayout title="Create a Vault password" description={passwordGuidance(password)}>
         <form
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
@@ -104,21 +100,16 @@ export function OnboardingScreen() {
             </Button>
           </Stack>
         </form>
-      </Stack>
+      </GateLayout>
     );
   }
 
   if (step === "pin") {
-    const mismatch = confirmPin.length > 0 && pin !== confirmPin;
     return (
-      <Stack gap="6" p={{ base: 6, md: 8 }} maxW="xl" mx="auto">
-        <Heading as="h1" size="xl">
-          Create a Screen-lock PIN
-        </Heading>
-        <Text as="p">
-          Lock hides the interface behind this four-digit PIN while the Vault stays open. Background
-          Refresh may continue. Lock is not Vault encryption.
-        </Text>
+      <GateLayout
+        title="Create a Screen-lock PIN"
+        description="Lock hides the interface behind this four-digit PIN while the Vault stays open. Background Refresh may continue. Lock is not Vault encryption."
+      >
         <form
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
@@ -126,12 +117,8 @@ export function OnboardingScreen() {
               setError("Screen-lock PIN must be exactly four digits.");
               return;
             }
-            if (pin !== confirmPin) {
-              setError("Screen-lock PIN and confirmation do not match.");
-              return;
-            }
             setError(null);
-            create.mutate({ password, pin });
+            setStep("pin-confirm");
           }}
         >
           <Stack gap="4">
@@ -141,14 +128,41 @@ export function OnboardingScreen() {
               value={pin}
               onChange={setPin}
               htmlName="screen-lock-pin"
+              autoFocus
             />
+            <Button type="submit" colorPalette="blue">
+              Continue
+            </Button>
+          </Stack>
+        </form>
+      </GateLayout>
+    );
+  }
+
+  if (step === "pin-confirm") {
+    return (
+      <GateLayout title="Confirm your Screen-lock PIN" description="Re-enter the same four digits.">
+        <form
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            if (pin !== confirmPin) {
+              setError("Screen-lock PINs do not match. Start again.");
+              setConfirmPin("");
+              setStep("pin");
+              return;
+            }
+            setError(null);
+            create.mutate({ password, pin });
+          }}
+        >
+          <Stack gap="4">
+            <FormError message={error} />
             <PinField
               label="Confirm Screen-lock PIN"
               value={confirmPin}
               onChange={setConfirmPin}
               htmlName="screen-lock-pin-confirm"
-              invalid={mismatch}
-              errorText={mismatch ? "PINs do not match." : undefined}
+              autoFocus
             />
             <Button
               type="submit"
@@ -160,16 +174,15 @@ export function OnboardingScreen() {
             </Button>
           </Stack>
         </form>
-      </Stack>
+      </GateLayout>
     );
   }
 
   return (
-    <Stack gap="6" p={{ base: 6, md: 8 }} maxW="xl" mx="auto">
-      <Heading as="h1" size="xl">
-        Add your first asset
-      </Heading>
-      <Text as="p">You can start with the same Add assets flow you will use later, or skip.</Text>
+    <GateLayout
+      title="Add your first asset"
+      description="You can start with the same Add assets flow you will use later, or skip."
+    >
       <Stack direction="row" gap="3">
         <Button
           colorPalette="blue"
@@ -189,6 +202,6 @@ export function OnboardingScreen() {
           Go to dashboard
         </Button>
       </Stack>
-    </Stack>
+    </GateLayout>
   );
 }
