@@ -134,6 +134,7 @@ const builderConfiguration = ({ appDirectory, outputDirectory, artifactName }) =
   extraResources: [
     { from: join(appDirectory, "resources", "web"), to: "web" },
     { from: join(appDirectory, "resources", "engine"), to: "engine" },
+    { from: join(root, "apps", "desktop", "assets"), to: "assets" },
     { from: join(appDirectory, "node_modules"), to: "node_modules" },
   ],
   asar: true,

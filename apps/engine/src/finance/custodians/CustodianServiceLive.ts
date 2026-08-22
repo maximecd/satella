@@ -5,9 +5,11 @@ import { HttpClient } from "effect/unstable/http";
 import * as Operations from "./CustodianSql.js";
 import { CustodianService } from "./CustodianService.js";
 import { makeWithVaultSql } from "../with-vault-sql.js";
+import { RefreshQueue } from "../refresh/RefreshQueue.js";
 
 export const make = Effect.gen(function* () {
   const http = yield* HttpClient.HttpClient;
+  const queue = yield* RefreshQueue;
   const withSql = yield* makeWithVaultSql;
   const withHttp = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     effect.pipe(Effect.provideService(HttpClient.HttpClient, http));
@@ -23,7 +25,9 @@ export const make = Effect.gen(function* () {
       withSql(withHttp(Operations.connectCustodian(input))),
     ),
     refresh: Effect.fn("CustodianService.refresh")((id: string) =>
-      withSql(withHttp(Operations.refreshCustodian(id))),
+      // Manual refreshes share the serialized queue with automatic ones; jobs
+      // run on the queue worker, so every requirement is provided here.
+      queue.submit(id, withSql(withHttp(Operations.refreshCustodian(id)))),
     ),
     update: Effect.fn("CustodianService.update")((id, input) =>
       withSql(withHttp(Operations.updateCustodian(id, input))),

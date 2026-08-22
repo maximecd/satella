@@ -78,6 +78,7 @@ export const managedEngineEnvironment = (
   options: {
     readonly port: number;
     readonly dataDirectory: string;
+    readonly logDirectory?: string;
     readonly parentPid?: number;
     readonly production?: boolean;
     readonly engineToken?: string;
@@ -91,6 +92,9 @@ export const managedEngineEnvironment = (
   };
   if (options.engineToken !== undefined) {
     Object.assign(managedEnvironment, { SATELLA_ENGINE_TOKEN: options.engineToken });
+  }
+  if (options.logDirectory !== undefined) {
+    Object.assign(managedEnvironment, { SATELLA_LOG_DIR: options.logDirectory });
   }
   if (options.parentPid !== undefined) {
     Object.assign(managedEnvironment, {

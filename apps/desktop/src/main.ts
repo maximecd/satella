@@ -1,4 +1,15 @@
-import { app, BrowserWindow, dialog, ipcMain, powerMonitor, session, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
+  powerMonitor,
+  session,
+  shell,
+  Tray,
+} from "electron";
 import { join } from "node:path";
 
 import {
@@ -15,12 +26,15 @@ import {
 } from "./engine.js";
 import { APP_ID, APP_NAME, productionDataDirectory } from "./runtime.js";
 import {
+  closeToTray,
   externalUrlAction,
   focusWindow,
   navigationPermission,
   shouldQuitOnLastWindow,
+  trayIconPath,
   windowLoadTarget,
 } from "./window.js";
+import { trayMenuItems, type RefreshStatus, type TrayActions } from "./tray.js";
 
 const developmentUrl = process.env["SATELLA_WEB_URL"];
 let enginePort = DEFAULT_ENGINE_PORT;
@@ -28,6 +42,7 @@ let engineUrl = process.env["SATELLA_ENGINE_URL"] ?? `http://127.0.0.1:${engineP
 let engineProcess: ReturnType<typeof spawnManagedEngine> | undefined;
 let mainWindow: BrowserWindow | undefined;
 let engineToken = process.env["SATELLA_ENGINE_TOKEN"] ?? newEngineToken();
+let tray: Tray | undefined;
 let quitting = false;
 let pendingSecondInstance = false;
 
@@ -70,6 +85,17 @@ const lockViaEngine = () => {
   );
 };
 
+const fetchRefreshStatus = async (): Promise<RefreshStatus | null> => {
+  try {
+    const response = await fetch(`${engineUrl.replace(/\/$/, "")}/api/auto-refresh/status`);
+    if (!response.ok) return null;
+    // SAFETY: the engine's OpenAPI contract guarantees the auto-refresh status shape.
+    return (await response.json()) as RefreshStatus;
+  } catch {
+    return null;
+  }
+};
+
 const createWindow = async () => {
   const window = new BrowserWindow({
     backgroundColor: "#f6f5f2",
@@ -91,6 +117,10 @@ const createWindow = async () => {
     width: 1120,
   });
   mainWindow = window;
+  window.on(
+    "close",
+    closeToTray(window, () => quitting),
+  );
   if (pendingSecondInstance) {
     pendingSecondInstance = false;
     focusWindow(window);
@@ -125,6 +155,14 @@ const createWindow = async () => {
   }
 };
 
+const openWindow = () => {
+  if (mainWindow === undefined || mainWindow.isDestroyed()) {
+    void createWindow();
+    return;
+  }
+  focusWindow(mainWindow);
+};
+
 const startManagedEngine = async () => {
   const smokePort =
     process.env["SATELLA_SMOKE_ENGINE_PORT"] === undefined
@@ -151,6 +189,7 @@ const startManagedEngine = async () => {
     managedEngineEnvironment(process.env, {
       port: enginePort,
       dataDirectory,
+      logDirectory: app.getPath("logs"),
       parentPid: process.pid,
       production: app.isPackaged,
       engineToken,
@@ -159,6 +198,39 @@ const startManagedEngine = async () => {
   engineProcess.stdout?.on("data", (chunk: Buffer) => process.stdout.write(`[engine] ${chunk}`));
   engineProcess.stderr?.on("data", (chunk: Buffer) => process.stderr.write(`[engine] ${chunk}`));
   await waitForEngineHello(enginePort);
+};
+
+const createTray = () => {
+  if (process.platform !== "darwin") return;
+  const icon = nativeImage.createFromPath(
+    trayIconPath(__dirname, {
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+    }),
+  );
+  icon.setTemplateImage(true);
+  // Keep a module-level reference so Electron cannot garbage-collect the tray.
+  tray = new Tray(icon);
+
+  const actions: TrayActions = {
+    open: openWindow,
+    lockNow: lockViaEngine,
+    quit: () => app.quit(),
+  };
+  let refreshStatus: RefreshStatus | null = null;
+
+  const rebuildMenu = () => {
+    tray?.setContextMenu(Menu.buildFromTemplate(trayMenuItems(refreshStatus, actions)));
+  };
+  rebuildMenu();
+  tray?.on("click", openWindow);
+
+  const poll = async () => {
+    refreshStatus = await fetchRefreshStatus();
+    rebuildMenu();
+  };
+  void poll();
+  setInterval(() => void poll(), 60_000);
 };
 
 if (!app.requestSingleInstanceLock()) {
@@ -174,6 +246,7 @@ if (!app.requestSingleInstanceLock()) {
     .then(async () => {
       await startManagedEngine();
       await createWindow();
+      createTray();
 
       powerMonitor.on("lock-screen", lockViaEngine);
       powerMonitor.on("resume", lockViaEngine);

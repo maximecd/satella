@@ -12,6 +12,7 @@ import * as Layer from "effect/Layer";
 import { SqlClient } from "effect/unstable/sql";
 
 import { DatabaseConfigFromDirectory } from "./index.js";
+import { layer as VaultEventsLive } from "../vault/VaultEvents.js";
 import { VaultLive } from "../vault/VaultLive.js";
 import { VaultService } from "../vault/Vault.js";
 import { FAST_KDF } from "../vault/kdf.js";
@@ -119,7 +120,12 @@ export const vaultStatusForDirectory = (directory: string) =>
         const vault = yield* VaultService;
         return yield* vault.status();
       }).pipe(
-        Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(directory)))),
+        Effect.provide(
+          VaultLive.pipe(
+            Layer.provide(DatabaseConfigFromDirectory(directory)),
+            Layer.provide(VaultEventsLive),
+          ),
+        ),
       ),
     ),
   );
@@ -145,7 +151,12 @@ export const inspectDirectory = <A>(
         const sql = yield* vault.currentSql();
         return yield* program.pipe(Effect.provideService(SqlClient.SqlClient, sql));
       }).pipe(
-        Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(directory)))),
+        Effect.provide(
+          VaultLive.pipe(
+            Layer.provide(DatabaseConfigFromDirectory(directory)),
+            Layer.provide(VaultEventsLive),
+          ),
+        ),
       ),
     ),
   );

@@ -14,6 +14,7 @@ import {
   DEVELOPMENT_VAULT_PASSWORD,
   VaultLive,
 } from "../vault/VaultLive.js";
+import { layer as VaultEventsLive } from "../vault/VaultEvents.js";
 import { VaultService } from "../vault/Vault.js";
 
 const removeDataDirectory = (dataDirectory: string) =>
@@ -50,7 +51,12 @@ const withVault = <A, E>(
       const sql = yield* vault.currentSql();
       return yield* program.pipe(Effect.provideService(SqlClient.SqlClient, sql));
     }).pipe(
-      Effect.provide(VaultLive.pipe(Layer.provide(DatabaseConfigFromDirectory(dataDirectory)))),
+      Effect.provide(
+        VaultLive.pipe(
+          Layer.provide(DatabaseConfigFromDirectory(dataDirectory)),
+          Layer.provide(VaultEventsLive),
+        ),
+      ),
     ),
   );
 

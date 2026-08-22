@@ -67,7 +67,27 @@ export const externalUrlAction = (target: string | URL): ExternalUrlAction => {
   return { action: "deny" };
 };
 
-export const shouldQuitOnLastWindow = (_platform: NodeJS.Platform) => true;
+/**
+ * The macOS tray keeps the app alive when the last window closes. Other
+ * platforms have no tray yet, so closing their last window still quits.
+ */
+export const shouldQuitOnLastWindow = (platform: NodeJS.Platform) => platform !== "darwin";
+
+export const closeToTray =
+  (window: { readonly hide: () => void }, isQuitting: () => boolean) =>
+  (event: { preventDefault: () => void }) => {
+    if (isQuitting()) return;
+    event.preventDefault();
+    window.hide();
+  };
+
+export const trayIconPath = (
+  moduleDir = __dirname,
+  options: { readonly isPackaged?: boolean; readonly resourcesPath?: string } = {},
+) =>
+  options.isPackaged === true && options.resourcesPath !== undefined
+    ? join(options.resourcesPath, "assets", "trayTemplate.png")
+    : join(moduleDir, "../assets/trayTemplate.png");
 
 export const focusWindow = (window: {
   readonly isMinimized: () => boolean;

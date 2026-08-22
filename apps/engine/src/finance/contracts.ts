@@ -498,3 +498,10 @@ export const AssetSearchResult = Schema.Struct({
   identifiers: Schema.Array(IdentifierInput),
 });
 export type AssetSearchResult = typeof AssetSearchResult.Type;
+
+/** Minimal auto-refresh telemetry for the tray line; carries no financial data. */
+export const AutoRefreshStatus = Schema.Struct({
+  lastCycleAt: Schema.NullOr(Schema.String),
+  lastCycleOutcome: Schema.NullOr(Schema.Literals(["success", "partial", "failed"])),
+});
+export type AutoRefreshStatus = typeof AutoRefreshStatus.Type;

@@ -11,9 +11,6 @@ export const make = Effect.gen(function* () {
     captureSnapshot: Effect.fn("PortfolioService.captureSnapshot")((options) =>
       withSql(Operations.captureSnapshot(options)),
     ),
-    captureSnapshotIfDue: Effect.fn("PortfolioService.captureSnapshotIfDue")((options) =>
-      withSql(Operations.captureSnapshotIfDue(options)),
-    ),
     history: Effect.fn("PortfolioService.history")(() => withSql(Operations.getPortfolioHistory())),
     dashboard: Effect.fn("PortfolioService.dashboard")(() => withSql(Operations.getDashboard())),
   });

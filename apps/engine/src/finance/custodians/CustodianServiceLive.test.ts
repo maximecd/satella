@@ -1,12 +1,75 @@
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Layer from "effect/Layer";
 import { SqlClient } from "effect/unstable/sql";
 
 import { engineTestLayer } from "../../database/database.test-utils.js";
 import { describe, expect, it } from "@effect/vitest";
 import { reconcileConnectorAccounts } from "../connector-service.js";
 import * as Finance from "../finance.test-utils.js";
+import type { VaultStatus } from "../../vault/Vault.js";
+import { VaultService } from "../../vault/Vault.js";
+import { layer as CustodianServiceLive } from "./CustodianServiceLive.js";
+import { CustodianService } from "./CustodianService.js";
+import { layer as RefreshQueueLive } from "../refresh/RefreshQueue.js";
+
+const serviceLayer = CustodianServiceLive.pipe(
+  Layer.provideMerge(
+    Layer.effect(
+      VaultService,
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        return VaultService.of({
+          status: () =>
+            Effect.succeed({
+              state: "open",
+              screenLock: false,
+              pinAttemptsRemaining: 3,
+              pinEntryDisabled: false,
+              screenLockTimeoutMinutes: 5,
+            } satisfies VaultStatus),
+          currentSql: () => Effect.succeed(sql),
+          initialize: () => Effect.die("unexpected"),
+          unlock: () => Effect.die("unexpected"),
+          close: () => Effect.die("unexpected"),
+          lockScreen: () => Effect.die("unexpected"),
+          unlockScreen: () => Effect.die("unexpected"),
+          unlockScreenWithPassword: () => Effect.die("unexpected"),
+          changePassword: () => Effect.die("unexpected"),
+          changePin: () => Effect.die("unexpected"),
+          setScreenLockTimeout: () => Effect.die("unexpected"),
+          verifyPassword: () => Effect.die("unexpected"),
+          reset: () => Effect.die("unexpected"),
+          assertRendererFinanceAccess: () => Effect.die("unexpected"),
+          exportVault: () => Effect.die("unexpected"),
+          restoreVault: () => Effect.die("unexpected"),
+          assertOpenVault: () => Effect.die("unexpected"),
+        });
+      }),
+    ).pipe(Layer.provideMerge(engineTestLayer())),
+  ),
+  Layer.provideMerge(RefreshQueueLive),
+);
 
 describe("custodians", () => {
+  it.effect("coalesces concurrent manual refreshes of one custodian into a single sync", () =>
+    Effect.gen(function* () {
+      yield* Finance.seedSyncedCustodian({
+        id: "okx",
+        name: "OKX",
+        connectorId: "test-only",
+        credentials: { token: "x" },
+      });
+      const custodians = yield* CustodianService;
+      const first = yield* Effect.forkChild(custodians.refresh("okx").pipe(Effect.flip));
+      const second = yield* Effect.forkChild(custodians.refresh("okx").pipe(Effect.flip));
+      const firstError = yield* Fiber.join(first);
+      const secondError = yield* Fiber.join(second);
+      // One queued job means both callers observe the very same failure.
+      expect(firstError).toBe(secondError);
+      expect(firstError.code).toBe("connector_unavailable");
+    }).pipe(Effect.provide(serviceLayer)),
+  );
   it.effect("stores connector credentials for later refresh", () =>
     Effect.gen(function* () {
       yield* Finance.seedSyncedCustodian({

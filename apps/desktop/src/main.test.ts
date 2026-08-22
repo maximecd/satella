@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import { join } from "node:path";
 
 import {
   chooseAvailableEnginePort,
@@ -8,12 +9,15 @@ import {
   screenLockRequest,
 } from "./engine.js";
 import {
+  closeToTray,
   externalUrlAction,
   focusWindow,
   navigationPermission,
   shouldQuitOnLastWindow,
+  trayIconPath,
   windowLoadTarget,
 } from "./window.js";
+import { formatLastRefresh, trayMenuItems } from "./tray.js";
 
 describe("desktop main process helpers", () => {
   it("loads the development URL when provided", () => {
@@ -40,10 +44,86 @@ describe("desktop main process helpers", () => {
     });
   });
 
-  it("quits when the last window closes, including on macOS", () => {
-    expect(shouldQuitOnLastWindow("darwin")).toBe(true);
+  it("keeps running when the last window closes on macOS, quits elsewhere", () => {
+    expect(shouldQuitOnLastWindow("darwin")).toBe(false);
     expect(shouldQuitOnLastWindow("linux")).toBe(true);
     expect(shouldQuitOnLastWindow("win32")).toBe(true);
+  });
+
+  it("hides the window instead of closing it unless the app is quitting", () => {
+    const calls: string[] = [];
+    const event = { preventDefault: () => calls.push("preventDefault") };
+    const window = { hide: () => calls.push("hide") };
+
+    closeToTray(window, () => false)(event);
+    expect(calls).toEqual(["preventDefault", "hide"]);
+
+    calls.length = 0;
+    closeToTray(window, () => true)(event);
+    expect(calls).toEqual([]);
+  });
+
+  it("resolves the tray template icon next to the module during development", () => {
+    const development = trayIconPath("/app/dist");
+    expect(development).toMatch(/assets[/\\]trayTemplate\.png$/);
+
+    const packaged = trayIconPath("/app/dist", {
+      isPackaged: true,
+      resourcesPath: "/opt/app/resources",
+    });
+    expect(packaged.endsWith(join("assets", "trayTemplate.png"))).toBe(true);
+    expect(packaged.startsWith("/opt/app/resources")).toBe(true);
+  });
+
+  it("formats the last refresh time for the tray line", () => {
+    const now = new Date(2026, 7, 22, 18, 5);
+    expect(formatLastRefresh(null, now)).toBe("Not refreshed yet");
+    expect(formatLastRefresh(new Date(2026, 7, 22, 9, 41).toISOString(), now)).toBe(
+      "Last refreshed today at 09:41",
+    );
+    expect(formatLastRefresh(new Date(2026, 6, 4, 23, 8).toISOString(), now)).toBe(
+      "Last refreshed Jul 4 at 23:08",
+    );
+  });
+
+  it("maps the tray menu to its engine actions", () => {
+    const calls: string[] = [];
+    const items = trayMenuItems(
+      { lastCycleAt: new Date(2026, 7, 22, 12, 30).toISOString(), lastCycleOutcome: "success" },
+      {
+        open: () => calls.push("open"),
+        lockNow: () => calls.push("lock"),
+        quit: () => calls.push("quit"),
+      },
+      new Date(2026, 7, 22, 13, 0),
+    );
+
+    expect(items.map(({ label }) => label)).toEqual([
+      "Open Satella",
+      "Lock Now",
+      "Last refreshed today at 12:30",
+      "Quit",
+    ]);
+    const [openItem, lockItem, lastRefreshed, quitItem] = items;
+    expect(lastRefreshed?.enabled).toBe(false);
+    openItem?.click?.();
+    lockItem?.click?.();
+    quitItem?.click?.();
+    expect(calls).toEqual(["open", "lock", "quit"]);
+  });
+
+  it("does not allow an inherited data directory to replace the canonical one", () => {
+    expect(
+      managedEngineEnvironment(
+        { SATELLA_DATA_DIR: "/inherited", PATH: "/bin" },
+        { port: 4123, dataDirectory: "/canonical", production: true },
+      ),
+    ).toMatchObject({
+      ELECTRON_RUN_AS_NODE: "1",
+      SATELLA_CANONICAL_DATA_DIR: "/canonical",
+      SATELLA_DATA_DIR: "/canonical",
+      SATELLA_DATABASE_CONTEXT: "production",
+    });
   });
 
   it("does not spawn a second engine during development URL loads", () => {
@@ -103,7 +183,7 @@ describe("desktop main process helpers", () => {
     ).toBe("1234");
   });
 
-  it("does not allow an inherited data directory to replace the canonical one", () => {
+  it("passes the Electron logs directory to the engine when provided", () => {
     expect(
       managedEngineEnvironment(
         { SATELLA_DATA_DIR: "/inherited", PATH: "/bin" },
@@ -114,6 +194,20 @@ describe("desktop main process helpers", () => {
       SATELLA_DATA_DIR: "/canonical",
       SATELLA_DATABASE_CONTEXT: "production",
     });
+    expect(
+      managedEngineEnvironment(
+        { PATH: "/bin" },
+        {
+          port: 4123,
+          dataDirectory: "/tmp/satella-data",
+          logDirectory: "/Users/x/Library/Logs/Satella",
+        },
+      ).SATELLA_LOG_DIR,
+    ).toBe("/Users/x/Library/Logs/Satella");
+    expect(
+      managedEngineEnvironment({ PATH: "/bin" }, { port: 4123, dataDirectory: "/tmp/d" })
+        .SATELLA_LOG_DIR,
+    ).toBeUndefined();
   });
 
   it("chooses the first available loopback port", async () => {

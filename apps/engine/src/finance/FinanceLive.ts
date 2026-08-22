@@ -10,6 +10,7 @@ import { layer as SettingsLive } from "./settings/SettingsServiceLive.js";
 import { layer as MarketDataLive } from "./market-data/MarketDataService.js";
 import { layer as PortfolioLive } from "./portfolio/PortfolioServiceLive.js";
 import { layer as PositionLive } from "./positions/PositionServiceLive.js";
+import { layer as RefreshQueueLive } from "./refresh/RefreshQueue.js";
 
 export const FinanceLive = Layer.mergeAll(
   AssetLive,
@@ -22,4 +23,4 @@ export const FinanceLive = Layer.mergeAll(
   ConnectorCatalogLive,
   ConnectorSyncLive,
   MarketDataLive,
-);
+).pipe(Layer.provideMerge(RefreshQueueLive));

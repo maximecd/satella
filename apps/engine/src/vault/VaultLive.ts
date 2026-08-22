@@ -30,6 +30,7 @@ import {
   type EngineSqliteClient,
 } from "../database/encrypted-client.js";
 import { buildContainer, parseContainer, VaultContainerError } from "./container.js";
+import { VaultEvents } from "./VaultEvents.js";
 import {
   createEnvelope,
   loadEnvelope,
@@ -346,6 +347,7 @@ export const VaultLive = Layer.effect(
   VaultService,
   Effect.gen(function* () {
     const config = yield* DatabaseConfig;
+    const events = yield* VaultEvents;
     const sessionRef = yield* Ref.make<Session>({ _tag: "Closed" });
 
     const envelopePresent = () => Effect.promise(() => fileExists(config.envelopePath));
@@ -398,6 +400,7 @@ export const VaultLive = Layer.effect(
           timeoutMinutes: timeout ?? DEFAULT_SCREEN_LOCK_TIMEOUT_MINUTES,
         };
         yield* Ref.set(sessionRef, open);
+        yield* events.notifyUnlocked();
         return open;
       });
 

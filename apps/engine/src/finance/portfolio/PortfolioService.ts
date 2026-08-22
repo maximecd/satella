@@ -15,9 +15,6 @@ export class PortfolioService extends Context.Service<
     readonly captureSnapshot: (
       options?: CaptureSnapshotOptions,
     ) => Effect.Effect<SnapshotResult, FinanceApiError>;
-    readonly captureSnapshotIfDue: (
-      options?: CaptureSnapshotOptions,
-    ) => Effect.Effect<SnapshotResult | null, FinanceApiError>;
     readonly history: () => Effect.Effect<ReadonlyArray<PortfolioHistoryPoint>, FinanceApiError>;
     readonly dashboard: () => Effect.Effect<Dashboard, FinanceApiError>;
   }
