@@ -6,14 +6,23 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 test("every push to main publishes an immutable nightly prerelease after the CI gate", async () => {
   const ci = await read("../.github/workflows/ci.yml");
-  const nightly = ci.slice(ci.indexOf("  nightly:"));
-  assert.match(nightly, /if: >-?\s*\n\s*\$\{\{ github\.event_name == 'push'/);
-  assert.match(nightly, /needs:\s*\n\s*- CI/);
+  const nightly = await read("../.github/workflows/nightly.yml");
+  assert.doesNotMatch(ci, /^ {2}nightly:/m);
+  assert.match(nightly, /name: Nightly/);
+  assert.match(nightly, /workflow_run:/);
+  assert.match(nightly, /workflows:\s*\n\s*- CI/);
+  assert.match(nightly, /types:\s*\n\s*- completed/);
+  assert.match(nightly, /branches:\s*\n\s*- main/);
+  assert.match(nightly, /if: >-?\s*\n\s*\$\{\{ github\.event\.workflow_run\.event == 'push'/);
+  assert.match(nightly, /github\.event\.workflow_run\.head_branch == 'main'/);
+  assert.match(nightly, /github\.event\.workflow_run\.conclusion == 'success'/);
   assert.match(nightly, /runs-on: macos-14/);
   assert.match(nightly, /group: satella-nightly\n\s*cancel-in-progress: false/);
   assert.match(nightly, /contents: write/);
+  assert.match(nightly, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
+  assert.match(nightly, /COMMIT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
   assert.match(nightly, /next-nightly/);
-  assert.match(nightly, /git tag -a "\$\{TAG\}" "\$\{GITHUB_SHA\}"/);
+  assert.match(nightly, /git tag -a "\$\{TAG\}" "\$\{COMMIT_SHA\}"/);
   assert.match(nightly, /--prerelease/);
   assert.match(nightly, /--generate-notes/);
   // Nightly tags must never be mistaken for release versions by Ship Satella.
