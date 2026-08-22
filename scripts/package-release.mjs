@@ -62,6 +62,15 @@ const findNativeBinding = async (directory) => {
   return undefined;
 };
 
+const resolves = async (path) => {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const copyPortableNodeModules = async (source, target) => {
   await mkdir(target, { recursive: true });
   const flattenedSource = join(source, ".pnpm", "node_modules");
@@ -69,23 +78,28 @@ const copyPortableNodeModules = async (source, target) => {
     cp(sourcePath, targetPath, {
       recursive: true,
       dereference: true,
-      filter: (path) => {
+      filter: async (path) => {
         const relativePath = relative(sourcePath, path);
-        return relativePath.length === 0 || !relativePath.startsWith("node_modules");
+        if (relativePath.length > 0 && relativePath.startsWith("node_modules")) return false;
+        return await resolves(path);
       },
     });
   const entries = await readdir(flattenedSource, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name === ".bin" || entry.name.startsWith(".")) continue;
+    if (entry.name === "@satella-app") continue;
     const sourcePath = join(flattenedSource, entry.name);
     const targetPath = join(target, entry.name);
     if (entry.name.startsWith("@") && entry.isDirectory()) {
       await mkdir(targetPath, { recursive: true });
       const scopedEntries = await readdir(sourcePath, { withFileTypes: true });
       for (const scopedEntry of scopedEntries) {
-        await copyPackage(join(sourcePath, scopedEntry.name), join(targetPath, scopedEntry.name));
+        const scopedSourcePath = join(sourcePath, scopedEntry.name);
+        if (!(await resolves(scopedSourcePath))) continue;
+        await copyPackage(scopedSourcePath, join(targetPath, scopedEntry.name));
       }
     } else {
+      if (!(await resolves(sourcePath))) continue;
       await copyPackage(sourcePath, targetPath);
     }
   }
@@ -124,7 +138,7 @@ const builderConfiguration = ({ appDirectory, outputDirectory, artifactName }) =
   ],
   asar: true,
   asarUnpack: ["**/*.node"],
-  npmRebuild: true,
+  npmRebuild: false,
   electronVersion: "43.3.0",
   mac: {
     target: [{ target: "zip", arch: ["arm64"] }],
@@ -188,9 +202,14 @@ export const stageProductionTree = async ({ root = repositoryRoot, stagingDirect
       join(engineDeployment, "node_modules"),
       join(appDirectory, "node_modules"),
     );
-    for (const packageName of ["connector-core", "connector-ibkr", "connector-okx"]) {
+    for (const packageName of [
+      "connector-core",
+      "connector-ibkr",
+      "connector-kraken",
+      "connector-okx",
+    ]) {
       const source = join(root, "packages", packageName);
-      const target = join(appDirectory, "node_modules", "@satella", packageName);
+      const target = join(appDirectory, "node_modules", "@satella-app", packageName);
       await mkdir(target, { recursive: true });
       await cp(join(source, "dist"), join(target, "dist"), { recursive: true });
       await cp(join(source, "package.json"), join(target, "package.json"));
@@ -277,9 +296,14 @@ const validateExtractedApplication = async (applicationDirectory, version) => {
     join(resourcesDirectory, "engine", "dist", "main.mjs"),
     "packaged engine build",
   );
-  for (const packageName of ["connector-core", "connector-ibkr", "connector-okx"]) {
+  for (const packageName of [
+    "connector-core",
+    "connector-ibkr",
+    "connector-kraken",
+    "connector-okx",
+  ]) {
     await requireFile(
-      join(resourcesDirectory, "node_modules", "@satella", packageName, "dist", "index.mjs"),
+      join(resourcesDirectory, "node_modules", "@satella-app", packageName, "dist", "index.mjs"),
       `packaged ${packageName} connector`,
     );
   }
@@ -301,7 +325,7 @@ const validateExtractedApplication = async (applicationDirectory, version) => {
   if ((await readPlistValue(join(contentsDirectory, "Info.plist"), "CFBundleName")) !== "Satella") {
     throw new Error("Packaged application has an unexpected name");
   }
-  const expectedVersion = version.split(/[+-]/, 1)[0];
+  const expectedVersion = version;
   if (
     (await readPlistValue(join(contentsDirectory, "Info.plist"), "CFBundleShortVersionString")) !==
     expectedVersion
@@ -357,6 +381,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     })
     .catch((error) => {
       console.error(error instanceof Error ? error.message : error);
+      if (error instanceof Error && "stdout" in error && error.stdout) {
+        console.error(error.stdout);
+      }
+      if (error instanceof Error && "stderr" in error && error.stderr) {
+        console.error(error.stderr);
+      }
       process.exitCode = 1;
     });
 }

@@ -122,7 +122,7 @@ export const smokeTestArtifact = async ({ artifact, port }) => {
   const vaultDataDirectory = join(userDataDirectory, "data");
   const preferenceMarker = join(userDataDirectory, "preferences-marker");
   const occupiedServer = await occupyPort(port);
-  const engineToken = `smoke-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}-token`;
+  const engineToken = `smoke-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}${Math.random().toString(36).slice(2)}token`;
   let child;
   let output = "";
   let failure;
