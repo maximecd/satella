@@ -82,7 +82,7 @@ describe("Screen lock", () => {
     resetFinanceMocks();
   });
 
-  it("hides financial screens and keeps Vault-password fallback visible", async () => {
+  it("logs out to the Vault-password screen via the fallback button", async () => {
     const user = userEvent.setup();
     vi.mocked(engineApi.vaultStatus).mockResolvedValue({
       state: "open",
@@ -91,13 +91,14 @@ describe("Screen lock", () => {
       pinEntryDisabled: false,
       screenLockTimeoutMinutes: 15,
     });
+    vi.mocked(engineApi.closeVault).mockResolvedValue({ state: "locked" });
     renderRoute("/");
     expect(await screen.findByRole("heading", { name: "Optimus is locked" })).toBeInTheDocument();
     expect(screen.getByText(/Background Refresh may continue/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Use Vault password instead" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Use Vault password instead" }));
-    expect(await screen.findByLabelText("Vault password")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Unlock your Vault" })).toBeInTheDocument();
   });
 
   it("keeps financial screens hidden after three incorrect PIN attempts", async () => {

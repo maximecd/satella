@@ -27,6 +27,9 @@ export const PinField = forwardRef<PinFieldHandle, PinFieldProps>(function PinFi
         ref={rootRef}
         value={value === "" ? [] : [...value]}
         onValueChange={(details) => onChange(details.valueAsString)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.closest("form")?.requestSubmit();
+        }}
         count={4}
         otp
         invalid={invalid}

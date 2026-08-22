@@ -162,10 +162,11 @@ export function DashboardScreen() {
               <Heading as="h2" size="md">
                 Allocation
               </Heading>
-              <Box alignSelf="flex-start">
+              <Box overflowX="auto" maxW="full">
                 <SegmentedControl
                   aria-label="Allocation"
                   size="sm"
+                  w="fit-content"
                   value={allocationView}
                   onValueChange={(details) => {
                     // SAFETY: The segmented control items are exactly the three allocation view literals.

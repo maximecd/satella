@@ -21,6 +21,7 @@ export const engineApi = {
     request((client) => client.vault.initialize({ payload })),
   unlockVault: (password: string) =>
     request((client) => client.vault.unlock({ payload: { password } })),
+  closeVault: () => request((client) => client.vault.close({})),
   lockScreen: () => request((client) => client.vault.lockScreen({})),
   unlockScreen: (pin: string) =>
     request((client) => client.vault.unlockScreen({ payload: { pin } })),
