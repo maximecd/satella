@@ -4,7 +4,7 @@ Status: ready-for-agent
 
 ## Problem Statement
 
-Adding assets to Optimus does not match how people actually hold money. "Cash" is offered as a vague asset choice instead of the real-world thing it represents — a checking account or a savings account at a specific bank. There is no way to see which institution holds what: a user cannot glance at their portfolio and see "BNP Paribas → Livret A: €1,200 / LEP: €100"; they must click into each account and drill into its positions. Manually entered assets (a watch, a car) have no obvious home. The recent removal of the custodian concept left accounts as free-floating containers with no owner.
+Adding assets to Satella does not match how people actually hold money. "Cash" is offered as a vague asset choice instead of the real-world thing it represents — a checking account or a savings account at a specific bank. There is no way to see which institution holds what: a user cannot glance at their portfolio and see "BNP Paribas → Livret A: €1,200 / LEP: €100"; they must click into each account and drill into its positions. Manually entered assets (a watch, a car) have no obvious home. The recent removal of the custodian concept left accounts as free-floating containers with no owner.
 
 ## Solution
 

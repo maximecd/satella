@@ -1,4 +1,4 @@
-import { FinanceApiError } from "@optimus/engine/api";
+import { FinanceApiError } from "@satella-app/engine/api";
 import { describe, expect, it } from "vite-plus/test";
 
 import { PortfolioFailure, toPortfolioFailure } from "./failure";

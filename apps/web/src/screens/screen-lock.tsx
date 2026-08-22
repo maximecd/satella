@@ -1,7 +1,7 @@
 import { Button, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState, type FormEvent } from "react";
-import type { VaultStatus } from "@optimus/engine/api";
+import type { VaultStatus } from "@satella-app/engine/api";
 
 import { engineApi } from "../api";
 import { FormError } from "../components";
@@ -41,7 +41,7 @@ export function ScreenLockScreen({
   });
   return (
     <GateLayout
-      title="Optimus is locked"
+      title="Satella is locked"
       description="Screen lock hides the interface. Background Refresh may continue. This is not the same as closing the Vault."
     >
       <FormError message={error} />
@@ -67,7 +67,7 @@ export function ScreenLockScreen({
       </form>
       {status.pinEntryDisabled ? (
         <Text color="fg.muted" fontSize="sm">
-          Too many incorrect PIN attempts. Use your Vault password to unlock Optimus again.
+          Too many incorrect PIN attempts. Use your Vault password to unlock Satella again.
         </Text>
       ) : null}
       <Button

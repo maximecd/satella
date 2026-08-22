@@ -64,7 +64,7 @@ describe("Vault key envelope", () => {
       ...envelope,
       vaultId: "00000000-0000-4000-8000-000000000000",
     };
-    expect(ENVELOPE_AAD_PREFIX).toBe("optimus-vault");
+    expect(ENVELOPE_AAD_PREFIX).toBe("satella-vault");
     await expect(unwrapDatabaseKey(password, tampered)).rejects.toMatchObject({
       _tag: "VaultUnlockError",
     });
@@ -106,7 +106,7 @@ describe("Vault key envelope", () => {
   });
 
   it("replaces the envelope file crash-safely so a leftover temp file keeps the old envelope", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "optimus-envelope-"));
+    const directory = await mkdtemp(join(tmpdir(), "satella-envelope-"));
     const path = join(directory, "vault.envelope.json");
     const first = await createEnvelope(password, kdf);
     await replaceEnvelope(path, first.envelope);

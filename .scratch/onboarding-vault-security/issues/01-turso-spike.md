@@ -4,7 +4,7 @@ Status: resolved
 
 ## Decision
 
-Reject `@tursodatabase/database` for this release. Adopt `@journeyapps/sqlcipher@6.0.0` Community Edition behind the Optimus Vault / `SqlClient` adapter.
+Reject `@tursodatabase/database` for this release. Adopt `@journeyapps/sqlcipher@6.0.0` Community Edition behind the Satella Vault / `SqlClient` adapter.
 
 ## Evidence
 
@@ -25,4 +25,4 @@ Reject `@tursodatabase/database` for this release. Adopt `@journeyapps/sqlcipher
 | Electron native load                                   | pass                                                                         |
 | No plaintext temps under representative load           | pass                                                                         |
 
-Commands: install and run `/tmp/optimus-turso-spike/spike.mjs` and `backup-and-electron.mjs` against 0.7.2. Throwaway spike code is not in this branch.
+Commands: install and run `/tmp/satella-turso-spike/spike.mjs` and `backup-and-electron.mjs` against 0.7.2. Throwaway spike code is not in this branch.

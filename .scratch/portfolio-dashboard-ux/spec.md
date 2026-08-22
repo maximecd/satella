@@ -4,7 +4,7 @@ Status: ready-for-agent
 
 ## Problem Statement
 
-Optimus exposes implementation details instead of presenting a calm, trustworthy portfolio experience. Its sidebar contains missing icons, redundant labels, and a poorly aligned collapse control. The dashboard is only an Account list, so it does not answer the primary questions of total Portfolio value, historical evolution, or allocation. Routine management modes, market-data sources, freshness labels, timestamps, and explanatory banners create noise throughout the application. Settings combines Connections with obsolete institution and diagnostic surfaces instead of providing focused subpages.
+Satella exposes implementation details instead of presenting a calm, trustworthy portfolio experience. Its sidebar contains missing icons, redundant labels, and a poorly aligned collapse control. The dashboard is only an Account list, so it does not answer the primary questions of total Portfolio value, historical evolution, or allocation. Routine management modes, market-data sources, freshness labels, timestamps, and explanatory banners create noise throughout the application. Settings combines Connections with obsolete institution and diagnostic surfaces instead of providing focused subpages.
 
 The underlying model also mixes intrinsic Asset classification with Account kinds. This prevents Add assets and portfolio allocation from sharing one precise taxonomy and misclassifies cases such as cash held in a brokerage Account.
 
@@ -23,7 +23,7 @@ Retain the sidebar for future expansion, but simplify and repair it. Restructure
 1. As a portfolio owner, I want to see my total Portfolio value immediately, so that I understand my current financial position.
 2. As a portfolio owner, I want all portfolio-wide values expressed in one Reporting currency, so that values from different Accounts are comparable.
 3. As a new user, I want USD selected as the initial Reporting currency, so that the dashboard works without setup.
-4. As a portfolio owner, I want to change my Reporting currency in Settings, so that Optimus matches how I think about my wealth.
+4. As a portfolio owner, I want to change my Reporting currency in Settings, so that Satella matches how I think about my wealth.
 5. As a portfolio owner, I want my Reporting currency preference remembered, so that I do not need to select it again.
 6. As a portfolio owner, I want changing Reporting currency to update totals, history, allocations, and Account values together, so that the dashboard remains internally consistent.
 7. As a portfolio owner, I want individual Accounts to retain their native valuation currencies, so that changing the portfolio display does not mutate Account data.
@@ -33,7 +33,7 @@ Retain the sidebar for future expansion, but simplify and repair it. Restructure
 11. As a returning user, I want 1M selected initially, so that I begin with a useful recent view.
 12. As a portfolio owner, I want to see the absolute and percentage change for the selected period, so that I can quantify the movement in Portfolio value.
 13. As a portfolio owner, I want chart tooltips to show the observation date and value, so that I can inspect exact historical values without persistent clutter.
-14. As a portfolio owner, I want missing snapshot days left as missing observations, so that Optimus does not fabricate financial history.
+14. As a portfolio owner, I want missing snapshot days left as missing observations, so that Satella does not fabricate financial history.
 15. As a portfolio owner with little history, I want “Not enough history” instead of a false zero-percent change, so that the application remains honest.
 16. As a portfolio owner, I want a successful Connection refresh to update today’s history point, so that the chart reflects the latest imported data.
 17. As a portfolio owner, I want at most one historical point per day, so that repeated refreshes do not pollute the chart.
@@ -75,7 +75,7 @@ Retain the sidebar for future expansion, but simplify and repair it. Restructure
 53. As a portfolio owner, I want Connection deletion clearly separated as destructive, so that it is difficult to trigger accidentally.
 54. As a portfolio owner, I want obsolete Institutions & wallets and Advanced data sections removed, so that Settings contains only supported user tasks.
 55. As a portfolio owner, I want obsolete Custodian and diagnostic screens deleted, so that technical vocabulary and dead-end routes no longer leak into the product.
-56. As a portfolio owner, I want the sidebar to show only Optimus, Dashboard, and Settings for now, so that it is ready for future destinations without redundant grouping.
+56. As a portfolio owner, I want the sidebar to show only Satella, Dashboard, and Settings for now, so that it is ready for future destinations without redundant grouping.
 57. As a portfolio owner, I want working Dashboard and Settings icons, so that navigation is quickly scannable.
 58. As a portfolio owner, I want the collapse control centered in the sidebar footer, so that it feels intentional and easy to target.
 59. As a portfolio owner, I want the collapsed sidebar to use icon tooltips, so that destinations remain understandable.
@@ -115,7 +115,7 @@ Retain the sidebar for future expansion, but simplify and repair it. Restructure
 - Retain routine workflow language such as Add manually, but remove passive Manual, Connected, Synced, Delayed, source, quote-time, connector-managed, and provider-metadata labels and banners throughout visible screens.
 - Preserve only actionable exceptional states: incomplete valuation, unpriced Assets, refresh failure, and partial refresh failure. Healthy state has no indicator.
 - Refresh is a Connection-wide operation. Show the same ghost refresh IconButton with tooltip and loading state beside a Connection title, beside the title of any Account owned by that Connection, and in each Connections Settings row. Manual Accounts do not show it. Successful refresh uses a toast; failure uses a concise exception message.
-- Retain the SideNav deliberately for expected future navigation. Its header is Optimus only. Remove the Finance workspace subtitle and Workspace section title. Register working semantic icons for Dashboard, Settings, and Refresh.
+- Retain the SideNav deliberately for expected future navigation. Its header is Satella only. Remove the Finance workspace subtitle and Workspace section title. Register working semantic icons for Dashboard, Settings, and Refresh.
 - Use a controlled, locally persisted SideNav collapsed state. Disable the built-in collapse placement and render Astryx SideNavCollapseButton centered in the footer. Collapsed navigation remains icon-only with tooltips.
 - Settings landing contains the inline, auto-saving Reporting currency Selector and a Connections navigation row only. Do not add settings tabs or another settings sidebar yet.
 - Connections Settings lists Connection name, Account count, ghost Refresh action, and Edit navigation. Its empty state points to Add assets.
@@ -135,7 +135,7 @@ Retain the sidebar for future expansion, but simplify and repair it. Restructure
 - Dashboard route tests cover the onboarding state, three-section populated state, default 1M selection, every range selection, change calculation, sparse history, Assets/Categories toggle, accessible treemap cells, exception messages, sorted Account rows, and Reporting-currency values.
 - Settings route tests cover the minimal landing page, immediate Reporting-currency save, success/failure feedback, navigation to Connections, empty/populated Connection lists, refresh, editing, and destructive deletion confirmation.
 - Account and Connection route tests prove title-adjacent refresh visibility and Connection-wide scope. Manual Account tests prove the refresh action is absent.
-- Shell tests prove visible labels and accessible navigation: Optimus-only heading, Dashboard and Settings icons with correct names, no Workspace text, persisted collapse state, and Settings selection on nested routes.
+- Shell tests prove visible labels and accessible navigation: Satella-only heading, Dashboard and Settings icons with correct names, no Workspace text, persisted collapse state, and Settings selection on nested routes.
 - Decluttering regression tests assert that routine management/source/freshness text is absent while incomplete valuation, unpriced Asset, and refresh-failure states remain visible.
 - Test charts through their semantic interface, regardless of whether they are provided by Astryx or a charting library: chart label, focusable cells, tooltip content, range/toggle controls, and empty/sparse states. Do not snapshot or assert generated geometry.
 - Perform browser-based visual verification at wide, intermediate, and narrow viewport sizes for the 2/3–1/3 grid, stacked fallback, Account list alignment, sidebar collapse-button centering, tooltip positioning, chart legibility, focus states, and light/dark theme token behavior.

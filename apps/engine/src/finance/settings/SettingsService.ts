@@ -9,4 +9,4 @@ export class SettingsService extends Context.Service<
     readonly get: () => Effect.Effect<Settings, FinanceApiError>;
     readonly update: (input: UpdateSettingsInput) => Effect.Effect<Settings, FinanceApiError>;
   }
->()("@optimus/engine/finance/SettingsService") {}
+>()("@satella-app/engine/finance/SettingsService") {}

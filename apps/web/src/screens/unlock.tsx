@@ -7,7 +7,8 @@ import { FormError } from "../components";
 import { vaultStatusQuery } from "../queries";
 import { GateLayout } from "./gate-layout";
 import { SecretField } from "./secret-field";
-import { ResetOptimusControl } from "./reset-optimus";
+import { ResetSatellaControl } from "./reset-satella";
+import { RestoreVaultControl } from "./restore-vault";
 
 const errorMessage = (cause: unknown) =>
   cause instanceof Error ? cause.message : "The Vault could not be unlocked.";
@@ -26,7 +27,7 @@ export function UnlockScreen() {
   return (
     <GateLayout
       title="Unlock your Vault"
-      description="Enter your Vault password. Optimus cannot recover it. An incorrect password is indistinguishable from damaged Vault data."
+      description="Enter your Vault password. Satella cannot recover it. An incorrect password is indistinguishable from damaged Vault data."
     >
       <form
         onSubmit={(event: FormEvent) => {
@@ -54,7 +55,8 @@ export function UnlockScreen() {
           </Button>
         </Stack>
       </form>
-      <ResetOptimusControl />
+      <RestoreVaultControl requiresConfirmation />
+      <ResetSatellaControl />
     </GateLayout>
   );
 }

@@ -30,4 +30,4 @@ export class AssetService extends Context.Service<
     ) => Effect.Effect<Asset, FinanceApiError>;
     readonly delete: (id: string) => Effect.Effect<void, FinanceApiError>;
   }
->()("@optimus/engine/finance/AssetService") {}
+>()("@satella-app/engine/finance/AssetService") {}

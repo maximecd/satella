@@ -1,4 +1,4 @@
-import { MIN_VAULT_PASSWORD_LENGTH } from "@optimus/engine/api";
+import { MIN_VAULT_PASSWORD_LENGTH } from "@satella-app/engine/api";
 
 import { Field } from "../components/ui/field";
 import { PasswordInput } from "../components/ui/password-input";
@@ -40,13 +40,13 @@ export function SecretField({
 
 export const passwordGuidance = (password: string) => {
   if (password.length === 0) {
-    return `Choose at least ${MIN_VAULT_PASSWORD_LENGTH} characters. A password manager can create a long secret. Optimus cannot recover a forgotten Vault password.`;
+    return `Choose at least ${MIN_VAULT_PASSWORD_LENGTH} characters. A password manager can create a long secret. Satella cannot recover a forgotten Vault password.`;
   }
   if (password.length < MIN_VAULT_PASSWORD_LENGTH) {
-    return `Vault password must be at least ${MIN_VAULT_PASSWORD_LENGTH} characters. Optimus cannot recover it.`;
+    return `Vault password must be at least ${MIN_VAULT_PASSWORD_LENGTH} characters. Satella cannot recover it.`;
   }
   if (password.length < 16) {
     return "Consider a longer password or a password manager. Forgotten Vault passwords cannot be recovered.";
   }
-  return "Strong length. Optimus cannot recover this Vault password.";
+  return "Strong length. Satella cannot recover this Vault password.";
 };

@@ -5,10 +5,11 @@ import { useState, type FormEvent } from "react";
 import { engineApi } from "../api";
 import { FormError, PageHeader } from "../components";
 import { notify } from "../components/ui/toaster";
+import { chooseVaultExportDestination } from "../runtime";
 import { vaultStatusQuery } from "../queries";
 import { SelectField } from "../select-field";
 import { PinField } from "./pin-field";
-import { ResetOptimusControl } from "./reset-optimus";
+import { ResetSatellaControl } from "./reset-satella";
 import { SecretField } from "./secret-field";
 
 const errorMessage = (cause: unknown) =>
@@ -57,6 +58,25 @@ export function SettingsSecurityScreen() {
       queryClient.setQueryData(vaultStatusQuery.queryKey, status);
       notify.success("Screen-lock timeout saved.");
     },
+  });
+  const [exportPassword, setExportPassword] = useState("");
+  const exportVault = useMutation({
+    mutationFn: async (password: string) => {
+      const choice = await chooseVaultExportDestination();
+      if (choice.kind === "cancelled") return null;
+      await engineApi.exportVault(password, choice.path);
+      return choice.path;
+    },
+    onSuccess: (savedPath) => {
+      if (savedPath === undefined) return;
+      setExportPassword("");
+      notify.success("Vault exported.", `Saved to ${savedPath}`);
+    },
+    onError: (cause) =>
+      notify.error(
+        "Export failed.",
+        cause instanceof Error ? cause.message : "The Vault could not be exported.",
+      ),
   });
   const status = statusQuery.data;
   const timeoutMinutes = status?.state === "open" ? String(status.screenLockTimeoutMinutes) : "15";
@@ -161,6 +181,42 @@ export function SettingsSecurityScreen() {
         </Card.Root>
         <Card.Root>
           <Card.Body>
+            <form
+              onSubmit={(event: FormEvent) => {
+                event.preventDefault();
+                exportVault.mutate(exportPassword);
+              }}
+            >
+              <Stack gap="4">
+                <Heading as="h2" size="md">
+                  Export Vault
+                </Heading>
+                <Text color="fg.muted" as="p">
+                  Save one encrypted .satella-vault recovery file containing the whole Vault,
+                  including connector credentials and Screen-lock settings. The file is protected by
+                  your current Vault password.
+                </Text>
+                <SecretField
+                  label="Vault password for export"
+                  value={exportPassword}
+                  onChange={setExportPassword}
+                  htmlName="export-vault-password"
+                  autoComplete="current-password"
+                />
+                <Button
+                  type="submit"
+                  colorPalette="blue"
+                  disabled={exportPassword.length === 0 || exportVault.isPending}
+                  loading={exportVault.isPending}
+                >
+                  Export Vault
+                </Button>
+              </Stack>
+            </form>
+          </Card.Body>
+        </Card.Root>
+        <Card.Root>
+          <Card.Body>
             <SelectField
               label="Screen-lock timeout"
               helperText="Lock hides the interface after inactivity. There is no Never option."
@@ -188,7 +244,7 @@ export function SettingsSecurityScreen() {
           this application.
         </Text>
         <Separator />
-        <ResetOptimusControl />
+        <ResetSatellaControl />
       </Stack>
     </>
   );

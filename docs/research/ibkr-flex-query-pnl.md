@@ -34,7 +34,7 @@ For this branch, the smallest useful test is to edit the existing **Activity** q
 
 The existing query instructions in `packages/connector-ibkr/src/instructions.md`
 explained why P&L was missing. The connector now requests and consumes the
-Summary row's `Cost Basis Price` as Optimus' `averageUnitPurchasePrice`; the
+Summary row's `Cost Basis Price` as Satella' `averageUnitPurchasePrice`; the
 existing Finance P&L calculation then derives current P&L. IBKR's
 `FIFO Unrealized PNL` remains report-only because its FIFO semantics are not the
-same as Optimus' acquisition-cost formula.
+same as Satella' acquisition-cost formula.

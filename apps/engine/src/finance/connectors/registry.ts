@@ -1,7 +1,7 @@
-import { connectorCapabilities, connectorRegistryFrom } from "@optimus/connector-core";
-import { IbkrConnector } from "@optimus/connector-ibkr";
-import { KrakenConnector } from "@optimus/connector-kraken";
-import { OkxConnector } from "@optimus/connector-okx";
+import { connectorCapabilities, connectorRegistryFrom } from "@satella-app/connector-core";
+import { IbkrConnector } from "@satella-app/connector-ibkr";
+import { KrakenConnector } from "@satella-app/connector-kraken";
+import { OkxConnector } from "@satella-app/connector-okx";
 
 /** The built-in connector selection is application composition, not connector-core policy. */
 export const CONNECTOR_REGISTRY = connectorRegistryFrom([

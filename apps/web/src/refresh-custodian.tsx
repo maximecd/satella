@@ -36,7 +36,7 @@ export function RefreshCustodianButton({
         const message = errorMessage(cause);
         onError?.(message);
         if (onError === undefined) {
-          notify.error(message, true);
+          notify.error(message, undefined, true);
         }
       },
     });

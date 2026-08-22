@@ -16,7 +16,7 @@ export class ConnectorSync extends Context.Service<
       credentials: ConnectorCredentials,
     ) => Effect.Effect<void, FinanceApiError>;
   }
->()("@optimus/engine/finance/ConnectorSync") {}
+>()("@satella-app/engine/finance/ConnectorSync") {}
 
 export const make = Effect.gen(function* () {
   const http = yield* HttpClient.HttpClient;

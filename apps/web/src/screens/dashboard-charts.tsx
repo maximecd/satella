@@ -1,5 +1,5 @@
 import { Box, Stack, Text, useToken } from "@chakra-ui/react";
-import type { AllocationCell, PortfolioHistoryPoint } from "@optimus/engine/api";
+import type { AllocationCell, PortfolioHistoryPoint } from "@satella-app/engine/api";
 import {
   createContext,
   useContext,

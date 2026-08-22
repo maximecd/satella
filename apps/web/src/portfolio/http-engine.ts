@@ -11,7 +11,7 @@ import {
   type UpdateCustodianInput,
   type UpdatePositionInput,
   type UpdateSettingsInput,
-} from "@optimus/engine/api";
+} from "@satella-app/engine/api";
 import * as Effect from "effect/Effect";
 
 import type { PortfolioEngine, SearchableAssetCategory } from "./engine";
@@ -22,10 +22,11 @@ import {
   toPortfolioFailure,
   tryFinanceApiError,
 } from "./failure";
+import { engineFetch } from "../engine-fetch";
 import { engineUrl } from "../runtime";
 
 const fetchEngine = (async (input, init) => {
-  const response = await globalThis.fetch(input, init);
+  const response = await engineFetch(input, init);
   if (response.ok) return response;
   try {
     const parsed: unknown = JSON.parse(await response.clone().text());

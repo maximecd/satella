@@ -4,15 +4,15 @@ Status: ready-for-agent
 
 ## Problem Statement
 
-Optimus shows current Portfolio value and historical value changes, but it cannot explain whether an open investment has gained or lost value relative to what the person paid. Positions contain quantity and current price only. There is no Average unit purchase price, Acquisition cost, or Unrealized P&L, and the existing Portfolio value graph must not be mistaken for investment performance.
+Satella shows current Portfolio value and historical value changes, but it cannot explain whether an open investment has gained or lost value relative to what the person paid. Positions contain quantity and current price only. There is no Average unit purchase price, Acquisition cost, or Unrealized P&L, and the existing Portfolio value graph must not be mistaken for investment performance.
 
 A complete transaction ledger could eventually derive acquisition history, realized gains and losses, income, fees, and cash-flow-adjusted returns, but that is substantially larger than the immediate need. For V0, a person needs a simple Finary-like view of the unrealized gain or loss on the positive non-Cash Positions they currently hold, with direct manual correction even when an Account belongs to a Connection.
 
-Optimus also currently stores financial quantities and prices as binary floating-point values and exposes Derivatives and Commodities as first-class Asset categories. Before adding persisted Acquisition cost and aggregate P&L, financial arithmetic should use decimal representations, and the V0 category taxonomy should be narrowed to the product surface actually supported.
+Satella also currently stores financial quantities and prices as binary floating-point values and exposes Derivatives and Commodities as first-class Asset categories. Before adding persisted Acquisition cost and aggregate P&L, financial arithmetic should use decimal representations, and the V0 category taxonomy should be narrowed to the product surface actually supported.
 
 ## Solution
 
-Add an optional authoritative Average unit purchase price and purchase currency to each positive non-Cash Position. A manual value always overrides a Connection-supplied value. Without a manual override, the latest value supplied by the Connection is retained. When neither source exists, Average unit purchase price, Acquisition cost, and Position Unrealized P&L are unavailable; Optimus does not invent or estimate them.
+Add an optional authoritative Average unit purchase price and purchase currency to each positive non-Cash Position. A manual value always overrides a Connection-supplied value. Without a manual override, the latest value supplied by the Connection is retained. When neither source exists, Average unit purchase price, Acquisition cost, and Position Unrealized P&L are unavailable; Satella does not invent or estimate them.
 
 Quantity changes never alter or blend an authoritative Average unit purchase price. Acquisition cost is derived as current quantity multiplied by Average unit purchase price. Unrealized P&L compares the Position's current value with that Acquisition cost in the purchase currency, thereby including both Asset-price and currency movements, and then expresses the result in the Reporting currency.
 
@@ -29,7 +29,7 @@ Move persisted and contracted financial quantities, prices, FX rates, monetary a
 3. As an investor, I want Unrealized P&L to include currency movements, so that a foreign-currency investment reflects my actual gain or loss in its purchase currency.
 4. As an investor, I want Unrealized P&L expressed in my Reporting currency, so that I can compare Positions and Accounts consistently.
 5. As an investor, I want Portfolio value change and Unrealized P&L labeled separately, so that I do not confuse wealth movement with open-position gain or loss.
-6. As an investor, I want Optimus to avoid calling Unrealized P&L performance or return, so that the product does not promise cash-flow-adjusted analytics it does not calculate.
+6. As an investor, I want Satella to avoid calling Unrealized P&L performance or return, so that the product does not promise cash-flow-adjusted analytics it does not calculate.
 7. As an investor, I want realized gains and losses excluded explicitly, so that an open-position metric is not presented as my complete investing result.
 8. As an investor, I want dividends, fees, and taxes excluded, so that the V0 formula remains narrow and understandable.
 9. As an investor, I want a Position's Acquisition cost calculated from its current quantity and Average unit purchase price, so that the displayed inputs explain the result.
@@ -37,12 +37,12 @@ Move persisted and contracted financial quantities, prices, FX rates, monetary a
 11. As an investor, I want the purchase currency to default to the Account's base currency, so that ordinary entry is fast.
 12. As an investor, I want to enter Average unit purchase price while adding a manual holding, so that P&L is available immediately.
 13. As an investor, I want Average unit purchase price to remain optional, so that missing historical information does not prevent me from tracking a Position.
-14. As an investor, I want a missing purchase price to show as an em dash, so that Optimus does not fabricate a plausible result.
+14. As an investor, I want a missing purchase price to show as an em dash, so that Satella does not fabricate a plausible result.
 15. As an investor, I want Positions without purchase prices excluded from aggregate P&L, so that unknown data is not treated as zero gain.
 16. As an investor, I do not want missing-purchase-price banners or repeated warnings, so that the interface remains quiet.
 17. As an investor, I want the visible Average unit purchase price to be easy to edit, so that I can correct inaccurate data directly.
 18. As an investor, I want to set Average unit purchase price for a connected Position, so that an incomplete or inaccurate Connection does not block correction.
-19. As an investor, I want my manual purchase price to survive every Refresh, so that Optimus never overwrites my correction without consent.
+19. As an investor, I want my manual purchase price to survive every Refresh, so that Satella never overwrites my correction without consent.
 20. As an investor, I want a manual quantity change to preserve my Average unit purchase price, so that changing quantity does not rewrite another fact.
 21. As an investor, I want a Connection quantity change to preserve my manual Average unit purchase price, so that newly reported quantities do not trigger invented blending.
 22. As an investor, I want the total Acquisition cost to update from current quantity and unchanged Average unit purchase price, so that its arithmetic stays transparent.
@@ -50,10 +50,10 @@ Move persisted and contracted financial quantities, prices, FX rates, monetary a
 24. As an investor, I want the last Connection-supplied purchase price retained when a later Refresh omits it, so that a less complete response does not erase an acquisition fact.
 25. As an investor, I want Reset purchase price to remove my override, so that I can return authority to the Connection.
 26. As an investor, I want Reset purchase price to restore the latest Connection value when available, so that I do not have to re-enter provider data.
-27. As an investor, I want Reset purchase price to leave the value unavailable when the Connection has never supplied one, so that Optimus does not estimate it.
+27. As an investor, I want Reset purchase price to leave the value unavailable when the Connection has never supplied one, so that Satella does not estimate it.
 28. As an investor, I want a positive gain and a negative loss formatted clearly, so that I can scan Position results quickly.
 29. As an investor, I want a zero gain displayed neutrally, so that unchanged Positions are not presented as successes or failures.
-30. As an investor, I want no percentage when Acquisition cost is zero or unavailable, so that Optimus never divides by zero or shows a meaningless rate.
+30. As an investor, I want no percentage when Acquisition cost is zero or unavailable, so that Satella never divides by zero or shows a meaningless rate.
 31. As an investor, I want Cash excluded from Unrealized P&L, so that deposits, dividends, interest, and withdrawals affect Portfolio value without masquerading as investment gain.
 32. As an investor, I want negative Positions excluded from Unrealized P&L, so that a long-position formula is not misapplied to shorts.
 33. As an investor, I want zero-quantity Positions excluded, so that closed holdings do not affect current P&L.
@@ -65,7 +65,7 @@ Move persisted and contracted financial quantities, prices, FX rates, monetary a
 39. As an investor, I want changing Reporting currency to re-express P&L consistently, so that the underlying acquisition fact is preserved.
 40. As an investor, I want purchase-price edits to leave Portfolio value and its history unchanged, so that changing cost information cannot rewrite market value.
 41. As an investor, I want only current Unrealized P&L in V0, so that there is no misleading historical performance chart without transaction history.
-42. As an investor, I accept correcting Average unit purchase price after a transfer or stock split, so that Optimus does not guess at corporate actions or transfers.
+42. As an investor, I accept correcting Average unit purchase price after a transfer or stock split, so that Satella does not guess at corporate actions or transfers.
 43. As a connected-account user, I want unsupported derivative or commodity holdings retained as Other assets, so that removing first-class categories does not silently omit reported wealth.
 44. As a connected-account user, I want a complete Refresh to remain atomic when it contains purchase-price data, so that quantities and authoritative provider values cannot become inconsistent.
 45. As a connected-account user, I want Connection credentials and acquisition facts kept separate, so that changing credentials does not change P&L.
@@ -78,7 +78,7 @@ Move persisted and contracted financial quantities, prices, FX rates, monetary a
 52. As a user, I want Stocks & ETFs, Bonds, Crypto, Cash, and Other assets to remain available, so that the reduced taxonomy still covers the intended portfolio.
 53. As a user, I want no transaction-entry workflow in this feature, so that Unrealized P&L ships without an unfinished ledger.
 54. As a user, I want no automatic purchase-price estimation, so that a missing fact remains missing rather than silently becoming today's price.
-55. As a user, I want manual control to be the highest authority, so that Optimus remains usable when external data is wrong.
+55. As a user, I want manual control to be the highest authority, so that Satella remains usable when external data is wrong.
 
 ## Implementation Decisions
 
@@ -102,8 +102,8 @@ Move persisted and contracted financial quantities, prices, FX rates, monetary a
 - Purchase-price edits affect current P&L only. They do not change current market value, historical Position/price snapshots, or Portfolio value history.
 - Do not detect transfers, stock splits, mergers, or other corporate actions. Quantity changes preserve the current authoritative Average unit purchase price. Users may correct it manually.
 - Adopt exact decimal representation across finance persistence and contracts for quantities, unit prices, FX rates, Average unit purchase prices, Acquisition costs, values, P&L amounts, and percentages. Serialize decimals through API boundaries as canonical decimal strings and round only for display.
-- Use a maintained arbitrary-precision decimal implementation behind an Optimus-owned financial-number boundary. Do not scatter library-specific types across unrelated modules or use binary floating-point for financial calculations.
-- Because Optimus is pre-production, reshape/reset the schema and fixtures directly. Do not add compatibility aliases, binary-float conversion support for released users, or preserve existing development portfolio rows.
+- Use a maintained arbitrary-precision decimal implementation behind an Satella-owned financial-number boundary. Do not scatter library-specific types across unrelated modules or use binary floating-point for financial calculations.
+- Because Satella is pre-production, reshape/reset the schema and fixtures directly. Do not add compatibility aliases, binary-float conversion support for released users, or preserve existing development portfolio rows.
 - Remove Derivatives and Commodities from Asset-category schemas, Add assets, allocation labels, Connector capability discovery, fixtures, and tests. Retain Stocks & ETFs, Bonds, Crypto, Cash, and Other assets.
 - Map Connector holdings that were formerly categorized as Derivatives or Commodities to Other assets. Do not silently discard them. Negative holdings remain excluded from P&L under the general rule.
 - Keep current OKX and IBKR behavior valid when they do not supply Average unit purchase price. Extend their output only when authoritative provider data is actually available; never synthesize provider purchase prices.
@@ -147,7 +147,7 @@ Move persisted and contracted financial quantities, prices, FX rates, monetary a
 ## Further Notes
 
 - This specification deliberately narrows the earlier V0 idea of “transactions, cost basis, and performance.” The first release is authoritative purchase price plus current Unrealized P&L. A later transaction-led feature can add realized P&L and returns without making this release wait for the complete ledger.
-- Finary's documented main performance metric is similarly limited to unrealized gain/loss on open positions and excludes realized gains after sales. Optimus uses the more precise term Unrealized P&L and deliberately avoids Performance or Return.
-- “Manual always overrides” is the central correction principle. Optimus values ease of correction over hidden reconciliation heuristics.
+- Finary's documented main performance metric is similarly limited to unrealized gain/loss on open positions and excludes realized gains after sales. Satella uses the more precise term Unrealized P&L and deliberately avoids Performance or Return.
+- “Manual always overrides” is the central correction principle. Satella values ease of correction over hidden reconciliation heuristics.
 - Silent exclusion is deliberate product behavior. Missing Position P&L is visible as an em dash at the Position, but the Dashboard and Account aggregates carry no warning or completeness chrome.
 - Decimal migration is part of this feature because adding persisted acquisition information on top of binary floating-point storage would make a later correction materially more expensive.

@@ -15,9 +15,9 @@ import type {
   AddManualHoldingInput,
   AssetSearchResult,
   ConnectorCapability,
-} from "@optimus/engine/api";
-import { DecimalFromNonEmptyString } from "@optimus/engine/api";
-import { ConnectCustodianInput } from "@optimus/engine/api";
+} from "@satella-app/engine/api";
+import { DecimalFromNonEmptyString } from "@satella-app/engine/api";
+import { ConnectCustodianInput } from "@satella-app/engine/api";
 import * as Schema from "effect/Schema";
 import { ChevronLeft, Search, X } from "lucide-react";
 import {

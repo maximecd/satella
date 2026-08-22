@@ -8,7 +8,7 @@ export default mergeConfig(
   defineConfig({
     plugins: [
       {
-        name: "optimus-connector-text-assets",
+        name: "satella-connector-text-assets",
         apply: "serve",
         enforce: "pre",
         transform(source, id) {

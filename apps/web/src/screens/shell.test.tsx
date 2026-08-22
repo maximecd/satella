@@ -13,9 +13,9 @@ describe("application shell", () => {
     window.localStorage.clear();
   });
 
-  it("shows Optimus, Dashboard, and Settings in the sidebar", async () => {
+  it("shows Satella, Dashboard, and Settings in the sidebar", async () => {
     renderRoute("/");
-    expect(await screen.findByText("Optimus")).toBeInTheDocument();
+    expect(await screen.findByText("Satella")).toBeInTheDocument();
     expect(within(sideNav()).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
     expect(within(sideNav()).getByRole("link", { name: "Settings" })).toHaveAttribute(
       "href",
@@ -35,7 +35,7 @@ describe("application shell", () => {
     });
     renderRoute("/");
     await user.click(await screen.findByRole("button", { name: "Lock" }));
-    expect(await screen.findByRole("heading", { name: "Optimus is locked" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Satella is locked" })).toBeInTheDocument();
   });
 
   it("keeps Settings selected on nested Custodian routes", async () => {

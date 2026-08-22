@@ -20,4 +20,4 @@ export class PositionService extends Context.Service<
     readonly getEdit: (id: string) => Effect.Effect<PositionEdit, FinanceApiError>;
     readonly delete: (id: string) => Effect.Effect<void, FinanceApiError>;
   }
->()("@optimus/engine/finance/PositionService") {}
+>()("@satella-app/engine/finance/PositionService") {}

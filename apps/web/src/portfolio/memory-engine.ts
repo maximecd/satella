@@ -20,7 +20,7 @@ import type {
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdateSettingsInput,
-} from "@optimus/engine/api";
+} from "@satella-app/engine/api";
 
 import type { ConnectorCapabilities, PortfolioEngine, PortfolioEngineOperation } from "./engine";
 import { abortError, PortfolioFailure } from "./failure";

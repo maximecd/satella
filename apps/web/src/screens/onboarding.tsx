@@ -2,13 +2,14 @@ import { Button, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
-import { MIN_VAULT_PASSWORD_LENGTH } from "@optimus/engine/api";
+import { MIN_VAULT_PASSWORD_LENGTH } from "@satella-app/engine/api";
 import { engineApi } from "../api";
 import { FormError } from "../components";
 import { vaultStatusQuery } from "../queries";
 import { passwordGuidance, SecretField } from "./secret-field";
 import { PinField } from "./pin-field";
 import { GateLayout } from "./gate-layout";
+import { RestoreVaultControl } from "./restore-vault";
 import { useAddAssets } from "./add-assets";
 import { clearFirstAssetPending, markFirstAssetPending } from "./vault-gate";
 
@@ -38,11 +39,11 @@ export function OnboardingScreen() {
 
   if (step === "welcome") {
     return (
-      <GateLayout title="Welcome to Optimus">
+      <GateLayout title="Welcome to Satella">
         <Stack gap="4">
           <Text as="p">
-            Optimus keeps your portfolio, custodians, and credentials in one local Vault on this
-            computer. Financial data stays local except when Optimus talks directly to Connectors
+            Satella keeps your portfolio, custodians, and credentials in one local Vault on this
+            computer. Financial data stays local except when Satella talks directly to Connectors
             and market-data sources you configure.
           </Text>
           <Text as="p">
@@ -51,8 +52,9 @@ export function OnboardingScreen() {
           </Text>
         </Stack>
         <Button colorPalette="blue" onClick={() => setStep("password")}>
-          Continue
+          Create a new Vault
         </Button>
+        <RestoreVaultControl requiresConfirmation={false} />
       </GateLayout>
     );
   }

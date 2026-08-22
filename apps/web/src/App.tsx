@@ -9,7 +9,7 @@ export function App() {
       const response = await getHello();
       notify.success(response.message);
     } catch {
-      notify.error("The engine could not be reached.", true);
+      notify.error("The engine could not be reached.", undefined, true);
     }
   };
 

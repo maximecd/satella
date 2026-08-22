@@ -83,7 +83,7 @@ export const assertDatabaseUnlocked = (dataDirectory: string, databasePath: stri
       new DatabaseOwnedError({
         path: databasePath,
         pid,
-        message: `The Optimus engine (pid ${pid}) owns this database: ${databasePath}. Stop the engine before resetting or seeding.`,
+        message: `The Satella engine (pid ${pid}) owns this database: ${databasePath}. Stop the engine before resetting or seeding.`,
       }),
     );
   });

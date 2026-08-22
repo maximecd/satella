@@ -10,6 +10,8 @@ export class VaultStateError extends Data.TaggedError("VaultStateError")<{
     | "pin-disabled"
     | "invalid-pin"
     | "password-too-short"
-    | "reset-confirmation";
+    | "reset-confirmation"
+    | "vault-open"
+    | "filesystem";
   readonly message: string;
 }> {}

@@ -34,4 +34,4 @@ export class AddAssetsService extends Context.Service<
       input: AddOtherAssetInput,
     ) => Effect.Effect<AddAssetsResult, FinanceApiError>;
   }
->()("@optimus/engine/finance/AddAssetsService") {}
+>()("@satella-app/engine/finance/AddAssetsService") {}

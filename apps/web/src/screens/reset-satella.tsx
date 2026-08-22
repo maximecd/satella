@@ -11,7 +11,7 @@ import { clearVaultDerivedCaches } from "../runtime";
 const errorMessage = (cause: unknown) =>
   cause instanceof Error ? cause.message : "The request failed.";
 
-export function ResetOptimusControl() {
+export function ResetSatellaControl() {
   const queryClient = useQueryClient();
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +27,7 @@ export function ResetOptimusControl() {
   return (
     <Stack gap="4">
       <Heading as="h2" size="lg">
-        Reset Optimus
+        Reset Satella
       </Heading>
       <Text as="p">
         This permanently deletes the Vault, portfolio, custodian credentials, encrypted backups, and
@@ -42,7 +42,7 @@ export function ResetOptimusControl() {
       >
         <Stack gap="3">
           <FormError message={error} />
-          <Field label='Type "Reset Optimus" to confirm'>
+          <Field label='Type "Reset Satella" to confirm'>
             <Input
               name="reset-confirmation"
               value={confirmation}
@@ -55,7 +55,7 @@ export function ResetOptimusControl() {
             disabled={reset.isPending}
             loading={reset.isPending}
           >
-            Reset Optimus
+            Reset Satella
           </Button>
         </Stack>
       </form>

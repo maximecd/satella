@@ -7,17 +7,18 @@ import { isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { DatabaseConfigError } from "./errors.js";
+import { recoverInterruptedRestore } from "../vault/transfer.js";
 
 const execFileAsync = promisify(execFile);
 
-export const DATA_DIRECTORY_ENV = "OPTIMUS_DATA_DIR";
-export const CANONICAL_DATA_DIRECTORY_ENV = "OPTIMUS_CANONICAL_DATA_DIR";
-export const DATABASE_CONTEXT_ENV = "OPTIMUS_DATABASE_CONTEXT";
+export const DATA_DIRECTORY_ENV = "SATELLA_DATA_DIR";
+export const CANONICAL_DATA_DIRECTORY_ENV = "SATELLA_CANONICAL_DATA_DIR";
+export const DATABASE_CONTEXT_ENV = "SATELLA_DATABASE_CONTEXT";
 export const DEVELOPMENT_DATABASE_CONTEXT = "development";
 export const PRODUCTION_DATABASE_CONTEXT = "production";
-export const WORKTREE_DATA_DIRECTORY_NAME = ".optimus";
+export const WORKTREE_DATA_DIRECTORY_NAME = ".satella";
 export const ENVELOPE_FILE_NAME = "vault.envelope.json";
-export const DATABASE_FILE_NAME = "optimus.sqlite";
+export const DATABASE_FILE_NAME = "satella.sqlite";
 
 export class DatabaseConfig extends Context.Service<
   DatabaseConfig,
@@ -29,7 +30,7 @@ export class DatabaseConfig extends Context.Service<
     readonly databaseExisted: boolean;
     readonly worktreeRoot: string | undefined;
   }
->()("@optimus/engine/DatabaseConfig") {}
+>()("@satella-app/engine/DatabaseConfig") {}
 
 export interface DatabaseLocation {
   readonly dataDirectory: string;
@@ -157,7 +158,7 @@ export const resolveDatabaseLocation = (
       path: "",
       cause: undefined,
       message:
-        "Production database location is not configured. Set OPTIMUS_DATA_DIR to an absolute directory, or start the engine through a development command.",
+        "Production database location is not configured. Set SATELLA_DATA_DIR to an absolute directory, or start the engine through a development command.",
     }),
   );
 };
@@ -174,7 +175,7 @@ const makeConfig = (override: string | undefined) =>
             reason: "filesystem",
             path: location.dataDirectory,
             cause,
-            message: `Could not create the Optimus data directory: ${location.dataDirectory}`,
+            message: `Could not create the Satella data directory: ${location.dataDirectory}`,
           }),
       ),
     );
@@ -185,10 +186,26 @@ const makeConfig = (override: string | undefined) =>
             reason: "filesystem",
             path: backupDirectory,
             cause,
-            message: `Could not create the Optimus backup directory: ${backupDirectory}`,
+            message: `Could not create the Satella backup directory: ${backupDirectory}`,
           }),
       ),
     );
+
+    yield* Effect.tryPromise({
+      try: () =>
+        recoverInterruptedRestore({
+          dataDirectory: location.dataDirectory,
+          databasePath: location.databasePath,
+          envelopePath: join(location.dataDirectory, ENVELOPE_FILE_NAME),
+        }),
+      catch: (cause) =>
+        new DatabaseConfigError({
+          reason: "filesystem",
+          path: location.dataDirectory,
+          cause,
+          message: "Could not recover an interrupted Vault restore",
+        }),
+    });
 
     const databaseExisted = yield* pathExists(location.databasePath).pipe(
       Effect.mapError(
@@ -197,7 +214,7 @@ const makeConfig = (override: string | undefined) =>
             reason: "filesystem",
             path: location.databasePath,
             cause,
-            message: `Could not inspect the Optimus database path: ${location.databasePath}`,
+            message: `Could not inspect the Satella database path: ${location.databasePath}`,
           }),
       ),
       Effect.flatMap((info) => {
@@ -210,7 +227,7 @@ const makeConfig = (override: string | undefined) =>
               reason: "invalid-path",
               path: location.databasePath,
               cause: undefined,
-              message: `The Optimus database path is not a regular file: ${location.databasePath}`,
+              message: `The Satella database path is not a regular file: ${location.databasePath}`,
             }),
           );
         }
@@ -254,6 +271,6 @@ export const secureDatabaseFile = (databasePath: string) =>
         reason: "filesystem",
         path: databasePath,
         cause,
-        message: `Could not apply private permissions to the Optimus database: ${databasePath}`,
+        message: `Could not apply private permissions to the Satella database: ${databasePath}`,
       }),
   });

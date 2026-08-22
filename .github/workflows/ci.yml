@@ -41,11 +41,12 @@ jobs:
           run-install: true
       - name: Build connector packages required by source tests
         run: |
-          vp run --filter @optimus/connector-core build
-          vp run --filter @optimus/connector-ibkr build
-          vp run --filter @optimus/connector-kraken build
-          vp run --filter @optimus/connector-okx build
+          vp run --filter @satella-app/connector-core build
+          vp run --filter @satella-app/connector-ibkr build
+          vp run --filter @satella-app/connector-kraken build
+          vp run --filter @satella-app/connector-okx build
       - run: vp run -r test
+      - run: node --test scripts/*.test.mjs
 
   build:
     name: build
@@ -89,3 +90,59 @@ jobs:
             failures=1
           fi
           exit "$failures"
+
+  nightly:
+    name: nightly
+    if: >-
+      ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.CI.result == 'success' }}
+    needs:
+      - CI
+    runs-on: macos-14
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    concurrency:
+      group: satella-nightly
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: .nvmrc
+          cache: true
+          run-install: true
+      - uses: pnpm/action-setup@v4
+      - name: Resolve the nightly version from release tags
+        run: |
+          VERSION="$(node scripts/release-version.mjs next-nightly)"
+          echo "Packaging nightly ${VERSION} for commit ${GITHUB_SHA}."
+          echo "NIGHTLY_VERSION=${VERSION}" >> "$GITHUB_ENV"
+      - run: vp run -r build
+      - name: Package the macOS Apple Silicon nightly
+        run: |
+          pnpm release:package --version "$NIGHTLY_VERSION" \
+            --output-dir "$RUNNER_TEMP/satella-nightly"
+      - name: Tag and publish the immutable nightly prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${NIGHTLY_VERSION}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists." >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" "${GITHUB_SHA}" -m "Satella Nightly ${NIGHTLY_VERSION}"
+          git push origin "${TAG}"
+          gh release create "${TAG}" \
+            "$RUNNER_TEMP/satella-nightly/Satella-${NIGHTLY_VERSION}-macOS-arm64.zip" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Satella Nightly ${NIGHTLY_VERSION} ($(git rev-parse --short "$GITHUB_SHA"))" \
+            --generate-notes \
+            --prerelease

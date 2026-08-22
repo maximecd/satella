@@ -1,7 +1,7 @@
 import { Button, Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
-import type { PositionEdit, UpdatePositionInput } from "@optimus/engine/api";
-import { DecimalFromNonEmptyString } from "@optimus/engine/api";
+import type { PositionEdit, UpdatePositionInput } from "@satella-app/engine/api";
+import { DecimalFromNonEmptyString } from "@satella-app/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
 

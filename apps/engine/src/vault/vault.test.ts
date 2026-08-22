@@ -23,7 +23,7 @@ describe("Vault", () => {
   it.effect("creates an encrypted Vault and requires the Vault password after close", () =>
     Effect.gen(function* () {
       const directory = yield* Effect.tryPromise({
-        try: () => mkdtemp(join(tmpdir(), "optimus-vault-")),
+        try: () => mkdtemp(join(tmpdir(), "satella-vault-")),
         catch: (cause) => new TempDirectoryError({ cause }),
       });
       yield* Effect.gen(function* () {
@@ -43,7 +43,7 @@ describe("Vault", () => {
         catch: (cause) => new TempDirectoryError({ cause }),
       });
       const sqlite = yield* Effect.tryPromise({
-        try: () => readFile(join(directory, "optimus.sqlite")),
+        try: () => readFile(join(directory, "satella.sqlite")),
         catch: (cause) => new TempDirectoryError({ cause }),
       });
       expect(names).toContain("vault.envelope.json");
@@ -54,7 +54,7 @@ describe("Vault", () => {
   it.effect("keeps the Vault open during Screen lock and disables PIN after three failures", () =>
     Effect.gen(function* () {
       const directory = yield* Effect.tryPromise({
-        try: () => mkdtemp(join(tmpdir(), "optimus-vault-")),
+        try: () => mkdtemp(join(tmpdir(), "satella-vault-")),
         catch: (cause) => new TempDirectoryError({ cause }),
       });
       yield* Effect.gen(function* () {
@@ -82,7 +82,7 @@ describe("Vault", () => {
   it.effect("rewraps the database key on password change and resets after typed confirmation", () =>
     Effect.gen(function* () {
       const directory = yield* Effect.tryPromise({
-        try: () => mkdtemp(join(tmpdir(), "optimus-vault-")),
+        try: () => mkdtemp(join(tmpdir(), "satella-vault-")),
         catch: (cause) => new TempDirectoryError({ cause }),
       });
       yield* Effect.gen(function* () {

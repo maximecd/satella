@@ -12,7 +12,7 @@ import * as Finance from "./finance.test-utils.js";
 
 const directories: string[] = [];
 const run = async <A>(program: Effect.Effect<A, unknown, SqlClient.SqlClient>) => {
-  const directory = await mkdtemp(join(tmpdir(), "optimus-market-data-"));
+  const directory = await mkdtemp(join(tmpdir(), "satella-market-data-"));
   directories.push(directory);
   return Effect.runPromise(
     Effect.scoped(program.pipe(Effect.provide(encryptedDatabaseLayer(directory)))),

@@ -11,8 +11,8 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
-import type { Account, Position } from "@optimus/engine/api";
-import { UpdateAccountInput } from "@optimus/engine/api";
+import type { Account, Position } from "@satella-app/engine/api";
+import { UpdateAccountInput } from "@satella-app/engine/api";
 import * as Schema from "effect/Schema";
 import { useState } from "react";
 

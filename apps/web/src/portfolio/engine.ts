@@ -19,7 +19,7 @@ import type {
   UpdateCustodianInput,
   UpdatePositionInput,
   UpdateSettingsInput,
-} from "@optimus/engine/api";
+} from "@satella-app/engine/api";
 
 export type ConnectorCapabilities = {
   readonly connectors: ReadonlyArray<ConnectorCapability>;

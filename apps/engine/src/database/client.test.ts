@@ -15,7 +15,7 @@ describe("SQLite lifecycle", () => {
   it.effect("closes the scoped connection so its temporary directory can be removed", () =>
     Effect.gen(function* () {
       const directory = yield* Effect.tryPromise({
-        try: () => mkdtemp(join(tmpdir(), "optimus-engine-lifecycle-")),
+        try: () => mkdtemp(join(tmpdir(), "satella-engine-lifecycle-")),
         catch: (cause) => new TempDirectoryError({ cause }),
       });
       yield* Effect.addFinalizer(() =>

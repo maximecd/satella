@@ -1,5 +1,9 @@
-import type { AnyConnector, ConnectorCapability, ConnectorRegistry } from "@optimus/connector-core";
-import { connectorCapabilities } from "@optimus/connector-core";
+import type {
+  AnyConnector,
+  ConnectorCapability,
+  ConnectorRegistry,
+} from "@satella-app/connector-core";
+import { connectorCapabilities } from "@satella-app/connector-core";
 import * as Context from "effect/Context";
 import * as Layer from "effect/Layer";
 
@@ -11,7 +15,7 @@ export class ConnectorCatalog extends Context.Service<
     readonly capabilities: () => { readonly connectors: ReadonlyArray<ConnectorCapability> };
     readonly get: (id: string) => AnyConnector | undefined;
   }
->()("@optimus/engine/finance/ConnectorCatalog") {}
+>()("@satella-app/engine/finance/ConnectorCatalog") {}
 
 export const make = (registry: ConnectorRegistry) =>
   ConnectorCatalog.of({

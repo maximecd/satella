@@ -1,7 +1,7 @@
 import { Alert, Box, Button, Flex, Heading, Input, Link, Stack, Text } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
-import type { ConnectorCapability, Custodian } from "@optimus/engine/api";
-import { UpdateCustodianInput } from "@optimus/engine/api";
+import type { ConnectorCapability, Custodian } from "@satella-app/engine/api";
+import { UpdateCustodianInput } from "@satella-app/engine/api";
 import * as Schema from "effect/Schema";
 import { useState, type FormEvent } from "react";
 

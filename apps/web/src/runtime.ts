@@ -1,34 +1,59 @@
-export interface OptimusRuntimeConfiguration {
+export interface SatellaRuntimeConfiguration {
   readonly engineUrl: string;
+  readonly engineToken?: string;
   readonly clearVaultCaches?: () => Promise<void>;
+  readonly showVaultSaveDialog?: (defaultPath?: string) => Promise<string | undefined>;
+  readonly showVaultOpenDialog?: () => Promise<string | undefined>;
 }
-
 declare global {
   interface Window {
-    readonly optimusRuntime?: OptimusRuntimeConfiguration;
+    readonly satellaRuntime?: SatellaRuntimeConfiguration;
   }
 }
 
-const configuredRuntime = () => {
+const configuredRuntime = (): SatellaRuntimeConfiguration | undefined => {
   const browserWindow = globalThis.window;
   if (browserWindow === undefined) return undefined;
-  const runtime = browserWindow.optimusRuntime;
-  return runtime?.engineUrl;
+  return browserWindow.satellaRuntime;
 };
 
+const runtimeEngineUrl = () => configuredRuntime()?.engineUrl;
+
 export const engineUrl = () =>
-  configuredRuntime() ??
+  runtimeEngineUrl() ??
   import.meta.env["VITE_ENGINE_URL"] ??
   (import.meta.env.DEV
     ? "http://127.0.0.1:3001"
     : (() => {
-        throw new Error("Packaged Optimus did not provide a runtime engine URL");
+        throw new Error("Packaged Satella did not provide a runtime engine URL");
       })());
+
+export const engineToken = (): string | undefined =>
+  configuredRuntime()?.engineToken ?? import.meta.env["VITE_ENGINE_TOKEN"] ?? undefined;
+
+const showVaultSaveDialog = (defaultPath?: string) =>
+  configuredRuntime()?.showVaultSaveDialog?.(defaultPath);
+
+const showVaultOpenDialog = () => configuredRuntime()?.showVaultOpenDialog?.();
+
+export const chooseVaultExportDestination = async (): Promise<
+  { readonly kind: "path"; readonly path: string } | { readonly kind: "cancelled" }
+> => {
+  const path = await showVaultSaveDialog();
+  return path === undefined ? { kind: "cancelled" } : { kind: "path", path };
+};
+
+export const chooseVaultImportSource = async (): Promise<
+  { readonly kind: "path"; readonly path: string } | { readonly kind: "cancelled" }
+> => {
+  const path = await showVaultOpenDialog();
+  return path === undefined ? { kind: "cancelled" } : { kind: "path", path };
+};
 
 export const clearVaultDerivedCaches = async () => {
   const browserWindow = globalThis.window;
   if (browserWindow !== undefined) {
-    await browserWindow.optimusRuntime?.clearVaultCaches?.();
+    await browserWindow.satellaRuntime?.clearVaultCaches?.();
   }
   const cacheStorage = globalThis.caches;
   if (cacheStorage === undefined) return;

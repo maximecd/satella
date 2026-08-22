@@ -12,7 +12,7 @@
 - [x] On successful Refresh, import current data, capture a new Portfolio snapshot, invalidate affected reads, and show a success toast; show loading and concise full or partial failure feedback without persistent healthy-state chrome.
 - [x] Delete obsolete Custodian, institution, wallet, and diagnostic routes and screens, preserving only naturally reachable Asset editing and using canonical Account, Asset category, Portfolio value, Reporting currency, Connection, and Refresh copy.
 - [x] Remove routine Manual, Connected, Synced, Delayed, source-name, quote-time, connector-managed, and provider-metadata labels and banners while retaining incomplete valuation, unpriced Asset, and Refresh-failure exceptions and meaningful choices such as Add manually.
-- [x] Reduce the sidebar to Optimus, Dashboard, and Settings with semantic icons, correct nested-route selection, a centered footer collapse control, collapsed-state tooltips, and locally persisted collapse state.
+- [x] Reduce the sidebar to Satella, Dashboard, and Settings with semantic icons, correct nested-route selection, a centered footer collapse control, collapsed-state tooltips, and locally persisted collapse state.
 - [ ] Prove Connection management, Refresh scope, manual-Account behavior, destructive confirmation, shell accessibility, persisted collapse state, obsolete-route removal, and decluttering through service and route-level tests plus browser verification.
 
 ## Comments

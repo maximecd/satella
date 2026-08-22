@@ -27,7 +27,7 @@ export const normalizeReleaseVersion = (value) => {
 };
 
 export const releaseArtifactName = (version) =>
-  `Optimus-${normalizeReleaseVersion(version)}-macOS-arm64.zip`;
+  `Satella-${normalizeReleaseVersion(version)}-macOS-arm64.zip`;
 
 const exists = async (path) => {
   try {
@@ -99,19 +99,19 @@ export const validateSourceResources = async (root = repositoryRoot) => {
 };
 
 const productionPackage = (version, enginePackage) => ({
-  name: "optimus",
+  name: "satella",
   version,
   private: true,
-  productName: "Optimus",
+  productName: "Satella",
   description: "A private, local-first home for your financial life.",
-  author: "Optimus",
+  author: "Satella",
   main: "dist/main.cjs",
   dependencies: enginePackage.dependencies ?? {},
 });
 
 const builderConfiguration = ({ appDirectory, outputDirectory, artifactName }) => ({
-  appId: "com.maxime.optimus",
-  productName: "Optimus",
+  appId: "app.satella",
+  productName: "Satella",
   directories: {
     app: appDirectory,
     output: outputDirectory,
@@ -181,7 +181,7 @@ export const stageProductionTree = async ({ root = repositoryRoot, stagingDirect
     deployStarted = true;
     await execFileAsync(
       "pnpm",
-      ["--filter", "@optimus/engine", "deploy", "--legacy", "--prod", engineDeployment],
+      ["--filter", "@satella-app/engine", "deploy", "--legacy", "--prod", engineDeployment],
       { cwd: root, maxBuffer: 20 * 1024 * 1024 },
     );
     await copyPortableNodeModules(
@@ -190,7 +190,7 @@ export const stageProductionTree = async ({ root = repositoryRoot, stagingDirect
     );
     for (const packageName of ["connector-core", "connector-ibkr", "connector-okx"]) {
       const source = join(root, "packages", packageName);
-      const target = join(appDirectory, "node_modules", "@optimus", packageName);
+      const target = join(appDirectory, "node_modules", "@satella", packageName);
       await mkdir(target, { recursive: true });
       await cp(join(source, "dist"), join(target, "dist"), { recursive: true });
       await cp(join(source, "package.json"), join(target, "package.json"));
@@ -279,7 +279,7 @@ const validateExtractedApplication = async (applicationDirectory, version) => {
   );
   for (const packageName of ["connector-core", "connector-ibkr", "connector-okx"]) {
     await requireFile(
-      join(resourcesDirectory, "node_modules", "@optimus", packageName, "dist", "index.mjs"),
+      join(resourcesDirectory, "node_modules", "@satella", packageName, "dist", "index.mjs"),
       `packaged ${packageName} connector`,
     );
   }
@@ -294,11 +294,11 @@ const validateExtractedApplication = async (applicationDirectory, version) => {
   }
   if (
     (await readPlistValue(join(contentsDirectory, "Info.plist"), "CFBundleIdentifier")) !==
-    "com.maxime.optimus"
+    "app.satella"
   ) {
     throw new Error("Packaged application has an unexpected bundle identifier");
   }
-  if ((await readPlistValue(join(contentsDirectory, "Info.plist"), "CFBundleName")) !== "Optimus") {
+  if ((await readPlistValue(join(contentsDirectory, "Info.plist"), "CFBundleName")) !== "Satella") {
     throw new Error("Packaged application has an unexpected name");
   }
   const expectedVersion = version.split(/[+-]/, 1)[0];
@@ -311,14 +311,14 @@ const validateExtractedApplication = async (applicationDirectory, version) => {
 };
 
 export const validatePackagedArtifact = async (artifact, version) => {
-  const extractionDirectory = await mkdtemp(join(tmpdir(), "optimus-release-validate-"));
+  const extractionDirectory = await mkdtemp(join(tmpdir(), "satella-release-validate-"));
   try {
     const { stdout } = await execFileAsync("unzip", ["-Z1", artifact]);
-    if (/^Optimus\.app\/(?:apps|packages|\.optimus)(?:\/|$)/m.test(stdout)) {
+    if (/^Satella\.app\/(?:apps|packages|\.satella)(?:\/|$)/m.test(stdout)) {
       throw new Error("Release archive contains repository-relative runtime paths");
     }
     await execFileAsync("unzip", ["-q", artifact, "-d", extractionDirectory]);
-    await validateExtractedApplication(join(extractionDirectory, "Optimus.app"), version);
+    await validateExtractedApplication(join(extractionDirectory, "Satella.app"), version);
   } finally {
     await rm(extractionDirectory, { recursive: true, force: true });
   }

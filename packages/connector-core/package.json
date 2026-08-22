@@ -1,5 +1,5 @@
 {
-  "name": "@optimus/connector-core",
+  "name": "@satella-app/connector-core",
   "version": "0.0.0",
   "private": true,
   "files": [

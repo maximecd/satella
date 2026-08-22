@@ -1,6 +1,6 @@
-import { randomBytes } from "node:crypto";
-import { access, chmod, mkdir, rm } from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { chmod, copyFile, mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
+import { join } from "node:path";
 
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -16,8 +16,20 @@ import {
   makeSqliteClient,
   runMigrations,
 } from "../database/index.js";
+import { DATABASE_FILE_NAME, ENVELOPE_FILE_NAME } from "../database/config.js";
+import {
+  DatabaseHistoryError,
+  DatabaseOpenError,
+  DatabasePragmaError,
+  DatabaseValidationError,
+} from "../database/errors.js";
 import { claimDatabaseOwnership } from "../database/ownership.js";
-import { EngineSqliteClientTag } from "../database/encrypted-client.js";
+import {
+  EngineSqliteClientTag,
+  makeEncryptedSqliteClient,
+  type EngineSqliteClient,
+} from "../database/encrypted-client.js";
+import { buildContainer, parseContainer, VaultContainerError } from "./container.js";
 import {
   createEnvelope,
   loadEnvelope,
@@ -29,6 +41,14 @@ import {
 } from "./envelope.js";
 import { VaultStateError } from "./errors.js";
 import { FAST_KDF, PRODUCTION_KDF } from "./kdf.js";
+import {
+  publishAtomically,
+  readVaultFile,
+  restoreJournalPath,
+  restoreStagingDirectory,
+  RESTORE_BACKUP_DATABASE_NAME,
+  RESTORE_BACKUP_ENVELOPE_NAME,
+} from "./transfer.js";
 import {
   DEFAULT_SCREEN_LOCK_TIMEOUT_MINUTES,
   isFourDigitPin,
@@ -54,6 +74,7 @@ interface OpenSession {
   readonly dek: Uint8Array;
   readonly scope: Scope.Closeable;
   readonly sql: SqlClient.SqlClient;
+  readonly sqlite: EngineSqliteClient;
   screenLock: boolean;
   pinFailures: number;
   pinEntryDisabled: boolean;
@@ -63,7 +84,7 @@ interface OpenSession {
 type Session = { readonly _tag: "Closed" } | ({ readonly _tag: "Open" } & OpenSession);
 
 const fileExists = (path: string) =>
-  access(path, fsConstants.F_OK).then(
+  stat(path).then(
     () => true,
     () => false,
   );
@@ -86,7 +107,7 @@ const asCreateError = (cause: unknown) =>
     ? cause
     : (() => {
         console.error(
-          `[Optimus] Vault creation failed (${cause instanceof Error ? cause.constructor.name : Object.prototype.toString.call(cause)})`,
+          `[Satella] Vault creation failed (${cause instanceof Error ? cause.constructor.name : Object.prototype.toString.call(cause)})`,
         );
         return new VaultStateError({
           reason: "closed",
@@ -102,7 +123,7 @@ const asStateOnly = (message: string) => (cause: unknown) =>
         message,
       });
 
-const chosenKdf = () => (process.env["OPTIMUS_VAULT_KDF"] === "fast" ? FAST_KDF : PRODUCTION_KDF);
+const chosenKdf = () => (process.env["SATELLA_VAULT_KDF"] === "fast" ? FAST_KDF : PRODUCTION_KDF);
 
 const requirePassword = (password: string) => {
   if (password.length < MIN_VAULT_PASSWORD_LENGTH) {
@@ -170,6 +191,157 @@ const closeSession = (session: Session) => {
 export const DEVELOPMENT_VAULT_PASSWORD = "password";
 export const DEVELOPMENT_SCREEN_LOCK_PIN = "0000";
 
+const pathFileExists = async (path: string) => {
+  try {
+    return (await stat(path)).isFile();
+  } catch {
+    return false;
+  }
+};
+
+const sha256File = async (path: string) =>
+  createHash("sha256")
+    .update(await readFile(path))
+    .digest("hex");
+
+const syncFile = async (path: string) => {
+  const handle = await open(path, "r");
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+};
+
+const fsyncDirectory = async (path: string) => {
+  try {
+    const handle = await open(path, "r");
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    // Directory fsync is best-effort on platforms that reject it.
+  }
+};
+
+const writeFileDurably = async (path: string, contents: Buffer | string) => {
+  const handle = await open(path, "w", 0o600);
+  try {
+    await handle.writeFile(contents);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+};
+
+const transferFailure = (message: string) => (): VaultStateError =>
+  new VaultStateError({ reason: "filesystem", message });
+
+interface QuickCheckRow {
+  readonly quick_check: string;
+}
+
+// SAFETY: PRAGMA quick_check always yields exactly one column, named
+// quick_check, whose string value is the database status ("ok" when healthy).
+const quickCheckValue = (row: QuickCheckRow): string => row["quick_check"];
+
+// SAFETY: PRAGMA quick_check result rows carry the single column declared above.
+const quickCheckPassed = (rows: ReadonlyArray<unknown>): boolean =>
+  rows.length > 0 && rows.every((row) => quickCheckValue(row as QuickCheckRow) === "ok");
+
+const quickCheckEffect = (client: EngineSqliteClient) =>
+  client`PRAGMA quick_check`.pipe(
+    Effect.mapError(
+      () =>
+        new VaultContainerError({
+          reason: "malformed",
+          message: "The Vault database failed its integrity check.",
+        }),
+    ),
+  );
+
+const verifyEncryptedDatabase = (path: string, dek: Uint8Array) =>
+  Effect.gen(function* () {
+    const scope = yield* Scope.make();
+    const client = yield* makeEncryptedSqliteClient({ filename: path, dek }).pipe(
+      Effect.provide(Reactivity.layer),
+      Effect.provideService(Scope.Scope, scope),
+    );
+    const rows = yield* quickCheckEffect(client);
+    yield* Scope.close(scope, Exit.void);
+    if (!quickCheckPassed(rows)) {
+      return yield* new VaultContainerError({
+        reason: "malformed",
+        message: "The exported Vault database failed its integrity check.",
+      });
+    }
+  }).pipe(
+    Effect.mapError((cause) =>
+      cause instanceof VaultContainerError
+        ? cause
+        : new VaultContainerError({
+            reason: "malformed",
+            message: "The exported Vault database could not be verified.",
+          }),
+    ),
+  );
+
+const parseContainerEffect = (bytes: Uint8Array) =>
+  Effect.try({
+    try: () => parseContainer(bytes),
+    catch: (cause) =>
+      cause instanceof VaultContainerError
+        ? cause
+        : new VaultContainerError({
+            reason: "malformed",
+            message: "This file is not a valid Satella Vault export.",
+          }),
+  });
+
+const commitRestoredVault = (
+  vaultConfig: typeof DatabaseConfig.Service,
+  stagedDatabasePath: string,
+  stagedEnvelopePath: string,
+) =>
+  Effect.tryPromise({
+    try: async () => {
+      const journalPath = restoreJournalPath(vaultConfig.dataDirectory);
+      const previousDatabase = join(vaultConfig.dataDirectory, RESTORE_BACKUP_DATABASE_NAME);
+      const previousEnvelope = join(vaultConfig.dataDirectory, RESTORE_BACKUP_ENVELOPE_NAME);
+      await rm(previousDatabase, { force: true });
+      await rm(previousEnvelope, { force: true });
+      if (await pathFileExists(vaultConfig.databasePath)) {
+        await copyFile(vaultConfig.databasePath, previousDatabase);
+        await syncFile(previousDatabase);
+      }
+      if (await pathFileExists(vaultConfig.envelopePath)) {
+        await copyFile(vaultConfig.envelopePath, previousEnvelope);
+        await syncFile(previousEnvelope);
+      }
+      await writeFileDurably(
+        journalPath,
+        JSON.stringify({
+          version: 1,
+          databaseHash: await sha256File(stagedDatabasePath),
+          envelopeHash: await sha256File(stagedEnvelopePath),
+        }),
+      );
+      await rename(stagedDatabasePath, vaultConfig.databasePath);
+      await rename(stagedEnvelopePath, vaultConfig.envelopePath);
+      await fsyncDirectory(vaultConfig.dataDirectory);
+      await rm(journalPath, { force: true });
+      await rm(restoreStagingDirectory(vaultConfig.dataDirectory), {
+        recursive: true,
+        force: true,
+      });
+      await rm(previousDatabase, { force: true });
+      await rm(previousEnvelope, { force: true });
+    },
+    catch: transferFailure("The restored Vault could not be published."),
+  });
+
 export const VaultLive = Layer.effect(
   VaultService,
   Effect.gen(function* () {
@@ -219,6 +391,7 @@ export const VaultLive = Layer.effect(
           dek,
           scope,
           sql: client,
+          sqlite: client,
           screenLock: false,
           pinFailures: 0,
           pinEntryDisabled: false,
@@ -460,6 +633,199 @@ export const VaultLive = Layer.effect(
           ),
         ),
       currentSql: () => requireOpen().pipe(Effect.map((session) => session.sql)),
+      exportVault: (password, destinationPath) =>
+        Effect.gen(function* () {
+          const session = yield* requireOpen();
+          yield* Effect.tryPromise({
+            try: () => unwrapDatabaseKey(password, session.envelope),
+            catch: asUnlockError,
+          });
+          const stagingRoot = join(config.dataDirectory, "export-staging");
+          yield* Effect.tryPromise({
+            try: async () => {
+              await rm(stagingRoot, { recursive: true, force: true });
+              await mkdir(stagingRoot, { mode: 0o700, recursive: true });
+            },
+            catch: transferFailure("The Vault could not be prepared for export."),
+          });
+          const backupPath = join(stagingRoot, DATABASE_FILE_NAME);
+          yield* session.sqlite.backup(backupPath).pipe(
+            Effect.mapError(
+              () =>
+                new VaultStateError({
+                  reason: "filesystem",
+                  message: "A consistent copy of the Vault database could not be created.",
+                }),
+            ),
+          );
+          yield* verifyEncryptedDatabase(backupPath, session.dek);
+          const databaseBytes = yield* Effect.tryPromise({
+            try: () => readFile(backupPath),
+            catch: transferFailure("The consistent Vault copy could not be read."),
+          });
+          const container = buildContainer(session.envelope, new Uint8Array(databaseBytes));
+          yield* Effect.try({
+            try: () => parseContainer(container),
+            catch: () =>
+              new VaultContainerError({
+                reason: "malformed",
+                message: "The staged export failed its container validation.",
+              }),
+          });
+          yield* Effect.tryPromise({
+            try: () => publishAtomically(destinationPath, container),
+            catch: transferFailure("The Vault export file could not be saved."),
+          });
+          yield* Effect.tryPromise({
+            try: () => rm(stagingRoot, { recursive: true, force: true }),
+            catch: () => undefined,
+          }).pipe(Effect.ignore);
+        }),
+      restoreVault: (sourcePath, password) =>
+        Effect.gen(function* () {
+          const statusBefore = yield* currentStatus();
+          if (statusBefore.state === "open") {
+            return yield* Effect.fail(
+              new VaultStateError({
+                reason: "vault-open",
+                message: "Close the Vault before restoring another one.",
+              }),
+            );
+          }
+          const bytes = yield* Effect.tryPromise({
+            try: () => readVaultFile(sourcePath),
+            catch: transferFailure("The selected Vault export could not be read."),
+          });
+          const parsed = yield* parseContainerEffect(bytes);
+          const dek = yield* Effect.tryPromise({
+            try: () => unwrapDatabaseKey(password, parsed.envelope),
+            catch: asUnlockError,
+          });
+
+          const stagingRoot = restoreStagingDirectory(config.dataDirectory);
+          const stagedVaultDirectory = join(stagingRoot, "vault");
+          yield* Effect.tryPromise({
+            try: async () => {
+              await rm(stagingRoot, { recursive: true, force: true });
+              await mkdir(stagedVaultDirectory, { mode: 0o700, recursive: true });
+              await chmod(stagedVaultDirectory, 0o700);
+            },
+            catch: transferFailure("The restored Vault could not be staged."),
+          });
+          const stagedDatabasePath = join(stagedVaultDirectory, DATABASE_FILE_NAME);
+          const stagedEnvelopePath = join(stagedVaultDirectory, ENVELOPE_FILE_NAME);
+          yield* Effect.tryPromise({
+            try: async () => {
+              const handle = await open(stagedDatabasePath, "w", 0o600);
+              try {
+                await handle.writeFile(parsed.databaseBytes);
+                await handle.sync();
+              } finally {
+                await handle.close();
+              }
+            },
+            catch: transferFailure("The staged Vault database could not be written."),
+          });
+          yield* Effect.tryPromise({
+            try: () => replaceEnvelope(stagedEnvelopePath, parsed.envelope),
+            catch: transferFailure("The staged Vault envelope could not be written."),
+          });
+
+          const scope = yield* Scope.make();
+          const stagedClient = yield* makeEncryptedSqliteClient({
+            filename: stagedDatabasePath,
+            dek,
+          }).pipe(
+            Effect.provide(Reactivity.layer),
+            Effect.provideService(Scope.Scope, scope),
+            Effect.mapError(
+              () =>
+                new VaultContainerError({
+                  reason: "malformed",
+                  message: "The exported database is damaged or was encrypted differently.",
+                }),
+            ),
+          );
+          yield* quickCheckEffect(stagedClient).pipe(
+            Effect.filterOrFail(
+              (rows) => quickCheckPassed(rows),
+              () =>
+                new VaultContainerError({
+                  reason: "malformed",
+                  message: "The exported database failed its integrity check.",
+                }),
+            ),
+            Effect.mapError(
+              () =>
+                new VaultContainerError({
+                  reason: "malformed",
+                  message: "The exported database failed its integrity check.",
+                }),
+            ),
+          );
+          const stagingConfig: typeof DatabaseConfig.Service = {
+            ...config,
+            dataDirectory: stagingRoot,
+            databasePath: stagedDatabasePath,
+            envelopePath: stagedEnvelopePath,
+            backupDirectory: join(stagingRoot, "backups"),
+            databaseExisted: false,
+          };
+          yield* runMigrations({ registry: ProductionMigrations }).pipe(
+            Effect.provideService(DatabaseConfig, stagingConfig),
+            Effect.provideService(SqlClient.SqlClient, stagedClient),
+            Effect.provideService(EngineSqliteClientTag, stagedClient),
+            Effect.catchIf(
+              (error): error is DatabaseHistoryError => error instanceof DatabaseHistoryError,
+              (error) =>
+                Effect.fail(
+                  error.reason === "newer-than-binary"
+                    ? new VaultContainerError({
+                        reason: "unsupported-version",
+                        message:
+                          "This export comes from a newer Satella schema and cannot be opened by this version.",
+                      })
+                    : new VaultContainerError({
+                        reason: "malformed",
+                        message: "The exported database has an unrecognized migration history.",
+                      }),
+                ),
+            ),
+            Effect.mapError((error) =>
+              error instanceof VaultContainerError
+                ? error
+                : error instanceof DatabaseOpenError ||
+                    error instanceof DatabasePragmaError ||
+                    error instanceof DatabaseValidationError
+                  ? new VaultContainerError({
+                      reason: "malformed",
+                      message: "The exported database is damaged or cannot be verified.",
+                    })
+                  : new VaultStateError({
+                      reason: "filesystem",
+                      message: "The exported database could not be prepared for this device.",
+                    }),
+            ),
+          );
+          yield* Scope.close(scope, Exit.void);
+
+          yield* commitRestoredVault(config, stagedDatabasePath, stagedEnvelopePath);
+          return yield* currentStatus();
+        }).pipe(
+          Effect.mapError((error) => {
+            if (
+              error instanceof VaultStateError ||
+              error instanceof VaultUnlockError ||
+              error instanceof VaultContainerError
+            ) {
+              return error;
+            }
+            return new VaultStateError({
+              reason: "filesystem",
+              message: "The Vault could not be restored.",
+            });
+          }),
+        ),
       assertRendererFinanceAccess: () =>
         Effect.gen(function* () {
           const session = yield* requireOpen();
@@ -467,7 +833,7 @@ export const VaultLive = Layer.effect(
             return yield* Effect.fail(
               new VaultStateError({
                 reason: "screen-locked",
-                message: "Optimus is locked.",
+                message: "Satella is locked.",
               }),
             );
           }

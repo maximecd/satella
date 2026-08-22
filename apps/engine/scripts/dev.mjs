@@ -9,7 +9,7 @@ const child = spawn(
   ["watch", "--include", "../../packages/connector-*/dist/**/*", "src/main.ts"],
   {
     cwd: engineRoot,
-    env: { ...process.env, OPTIMUS_DATABASE_CONTEXT: "development" },
+    env: { ...process.env, SATELLA_DATABASE_CONTEXT: "development" },
     stdio: "inherit",
   },
 );

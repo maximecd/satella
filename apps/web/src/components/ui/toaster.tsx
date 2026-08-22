@@ -15,12 +15,13 @@ export const toaster = createToaster({
 });
 
 export const notify = {
-  success: (title: string) => {
-    toaster.create({ title, type: "success" });
+  success: (title: string, description?: string) => {
+    toaster.create({ title, description, type: "success" });
   },
-  error: (title: string, sticky = false) => {
+  error: (title: string, description?: string, sticky = false) => {
     toaster.create({
       title,
+      description,
       type: "error",
       duration: sticky ? Number.POSITIVE_INFINITY : undefined,
     });

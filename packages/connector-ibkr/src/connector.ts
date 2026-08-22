@@ -13,7 +13,7 @@ import {
   addDecimal,
   canonicalDecimal,
   validateConnectorOutput,
-} from "@optimus/connector-core";
+} from "@satella-app/connector-core";
 import {
   IBKR_FLEX_ORIGIN,
   IbkrTransportError,
