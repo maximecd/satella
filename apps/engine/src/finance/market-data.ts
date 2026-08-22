@@ -543,6 +543,33 @@ interface DiscoveredAssetIdentifiers {
   readonly identifiers: ReadonlyArray<IdentifierRow>;
 }
 
+const toDiscoveredIdentifiers = (
+  assetId: string,
+  match: AssetSearchResult | undefined,
+): ReadonlyArray<IdentifierRow> =>
+  match?.identifiers.map(({ type, value }) => ({
+    asset_id: assetId,
+    identifier_type: type,
+    identifier_value: value,
+  })) ?? [];
+
+const searchFallbackIdentifiers = (
+  asset: RefreshAssetRow,
+  search: AssetSearch,
+): Effect.Effect<DiscoveredAssetIdentifiers, never> => {
+  if (asset.asset_category === "cash")
+    return Effect.succeed({ source: "fallback", identifiers: [] });
+  const query = asset.symbol?.trim() || asset.name.trim();
+  if (query.length === 0) return Effect.succeed({ source: "fallback", identifiers: [] });
+  return search(query, asset.asset_category).pipe(
+    Effect.map((results) => ({
+      source: "fallback" as const,
+      identifiers: toDiscoveredIdentifiers(asset.id, selectAutomaticAssetMatch(asset, results)),
+    })),
+    Effect.catch(() => Effect.succeed({ source: "error" as const, identifiers: [] })),
+  );
+};
+
 const discoverAssetIdentifiers = (
   asset: RefreshAssetRow,
   values: ReadonlyArray<IdentifierRow>,
@@ -553,39 +580,22 @@ const discoverAssetIdentifiers = (
   const isin = values.find(({ identifier_type }) => identifier_type === "isin")?.identifier_value;
   if (asset.asset_category === "stocks_etfs" && isin !== undefined && isin.trim().length > 0) {
     return search(isin.trim(), "stocks_etfs").pipe(
-      Effect.map((results) => {
+      Effect.flatMap((results) => {
         const match = selectIsinAssetMatch(asset, results);
-        return {
+        // Some providers do not index every listing by ISIN (Yahoo misses
+        // most US equities). Fall back to the broker's ticker instead of
+        // leaving the asset unpriced.
+        if (match === undefined) return searchFallbackIdentifiers(asset, search);
+        return Effect.succeed({
           source: "isin" as const,
-          identifiers:
-            match?.identifiers.map(({ type, value }) => ({
-              asset_id: asset.id,
-              identifier_type: type,
-              identifier_value: value,
-            })) ?? [],
-        };
+          identifiers: toDiscoveredIdentifiers(asset.id, match),
+        });
       }),
       // A provider outage should not erase a previously reviewed lookup.
       Effect.catch(() => Effect.succeed({ source: "error" as const, identifiers: [] })),
     );
   }
-  const query = asset.symbol?.trim() || asset.name.trim();
-  if (query.length === 0) return Effect.succeed({ source: "fallback", identifiers: [] });
-  return search(query, asset.asset_category).pipe(
-    Effect.map((results) => {
-      const match = selectAutomaticAssetMatch(asset, results);
-      return {
-        source: "fallback" as const,
-        identifiers:
-          match?.identifiers.map(({ type, value }) => ({
-            asset_id: asset.id,
-            identifier_type: type,
-            identifier_value: value,
-          })) ?? [],
-      };
-    }),
-    Effect.catch(() => Effect.succeed({ source: "error" as const, identifiers: [] })),
-  );
+  return searchFallbackIdentifiers(asset, search);
 };
 
 const findExistingAssetIdentifiers = (asset: RefreshAssetRow, sql: SqlClient.SqlClient) => {
@@ -661,7 +671,9 @@ const refreshPriceAssets = (
         // An imported ISIN is more precise than the broker's bare ticker. Use
         // it even when a previous sync left a guessed yahoo_symbol behind.
         const discovered = yield* discoverAssetIdentifiers(asset, values, search);
-        if (discovered.source === "isin") {
+        // A lookup that resolves to nothing (provider gap or outage) must not
+        // erase a previously resolved yahoo_symbol; only replace on a match.
+        if (discovered.identifiers.length > 0) {
           yield* sql`DELETE FROM asset_identifiers
             WHERE asset_id = ${asset.id} AND identifier_type = 'yahoo_symbol'`;
           yield* sql`DELETE FROM asset_prices

@@ -276,6 +276,149 @@ describe("market data coordinator", () => {
     expect(result.refreshed.refreshedAssetIds).toContain(result.asset.id);
   });
 
+  it("falls back to the broker ticker when the provider does not index the ISIN", async () => {
+    const searches: string[] = [];
+    const batches: Array<ReadonlyArray<ProviderLookup>> = [];
+    const yahoo: MarketDataProvider = {
+      id: "yahoo-finance",
+      chunkSize: 50,
+      fetchPrices: (lookups) => {
+        batches.push(lookups);
+        return Effect.succeed({
+          observations: lookups.map(({ lookupKey }) => ({
+            lookupKey,
+            price: "200",
+            currencyIso: "USD",
+            observedAt: new Date(),
+          })),
+          failures: [],
+        });
+      },
+    };
+    const registry: MarketDataRegistry = new Map([["yahoo-finance", yahoo]]);
+    const isin = "US02079K3059";
+
+    const result = await run(
+      Effect.gen(function* () {
+        const alphabet = yield* Finance.createAsset({
+          assetCategory: "stocks_etfs",
+          name: "ALPHABET INC-CL A",
+          symbol: "GOOGL",
+          identifiers: [{ type: "isin", value: isin }],
+        });
+        const account = yield* Finance.createAccount({
+          name: "Portfolio",
+        });
+        yield* Finance.createPosition({
+          accountId: account.id,
+          assetId: alphabet.id,
+          quantity: "1",
+        });
+        const refreshed = yield* refreshPrices({
+          registry,
+          requireFresh: true,
+          searchAssets: (query) => {
+            searches.push(query);
+            if (query === isin) return Effect.succeed([]);
+            return Effect.succeed([
+              {
+                provider: "yahoo-finance" as const,
+                assetCategory: "stocks_etfs" as const,
+                // Yahoo displays a different name than the broker import.
+                name: "Alphabet Inc.",
+                symbol: "GOOGL",
+                identifiers: [{ type: "yahoo_symbol", value: "GOOGL" }],
+              },
+              {
+                provider: "yahoo-finance" as const,
+                assetCategory: "stocks_etfs" as const,
+                name: "Alphabet Inc.",
+                symbol: "GOOG",
+                identifiers: [{ type: "yahoo_symbol", value: "GOOG" }],
+              },
+            ]);
+          },
+        });
+        return {
+          refreshed,
+          asset: yield* Finance.getAsset(alphabet.id),
+          account: yield* Finance.getAccount(account.id),
+        };
+      }),
+    );
+
+    expect(searches).toEqual([isin, "GOOGL"]);
+    expect(batches[0]?.map(({ lookupKey }) => lookupKey)).toEqual(["GOOGL"]);
+    expect(result.asset.identifiers).toEqual([
+      { type: "isin", value: isin },
+      { type: "yahoo_symbol", value: "GOOGL" },
+    ]);
+    expect(result.account.totalIncomplete).toBe(false);
+    expect(result.refreshed.refreshedAssetIds).toContain(result.asset.id);
+  });
+
+  it("keeps a previously resolved lookup when discovery resolves nothing", async () => {
+    const batches: Array<ReadonlyArray<ProviderLookup>> = [];
+    const yahoo: MarketDataProvider = {
+      id: "yahoo-finance",
+      chunkSize: 50,
+      fetchPrices: (lookups) => {
+        batches.push(lookups);
+        return Effect.succeed({
+          observations: lookups.map(({ lookupKey }) => ({
+            lookupKey,
+            price: "200",
+            currencyIso: "USD",
+            observedAt: new Date(),
+          })),
+          failures: [],
+        });
+      },
+    };
+    const registry: MarketDataRegistry = new Map([["yahoo-finance", yahoo]]);
+    const isin = "US02079K3059";
+
+    const result = await run(
+      Effect.gen(function* () {
+        const alphabet = yield* Finance.createAsset({
+          assetCategory: "stocks_etfs",
+          name: "ALPHABET INC-CL A",
+          symbol: "GOOGL",
+          identifiers: [
+            { type: "isin", value: isin },
+            { type: "yahoo_symbol", value: "GOOGL" },
+          ],
+        });
+        const account = yield* Finance.createAccount({
+          name: "Portfolio",
+        });
+        yield* Finance.createPosition({
+          accountId: account.id,
+          assetId: alphabet.id,
+          quantity: "1",
+        });
+        const refreshed = yield* refreshPrices({
+          registry,
+          requireFresh: true,
+          searchAssets: () => Effect.succeed([]),
+        });
+        return {
+          refreshed,
+          asset: yield* Finance.getAsset(alphabet.id),
+          account: yield* Finance.getAccount(account.id),
+        };
+      }),
+    );
+
+    expect(batches[0]?.map(({ lookupKey }) => lookupKey)).toEqual(["GOOGL"]);
+    expect(result.asset.identifiers).toEqual([
+      { type: "isin", value: isin },
+      { type: "yahoo_symbol", value: "GOOGL" },
+    ]);
+    expect(result.account.totalIncomplete).toBe(false);
+    expect(result.refreshed.refreshedAssetIds).toContain(result.asset.id);
+  });
+
   it("deduplicates provider lookups, persists partial success, and reuses fresh observations", async () => {
     const batches: Array<ReadonlyArray<ProviderLookup>> = [];
     const yahoo: MarketDataProvider = {
