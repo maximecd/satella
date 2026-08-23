@@ -1,6 +1,7 @@
 import { Button, Center, Heading, Stack } from "@chakra-ui/react";
 
 import { notify } from "./components/ui/toaster";
+import { errorDetail } from "./components/ui/copy-error";
 
 export function App() {
   const handleGetStarted = async () => {
@@ -8,8 +9,8 @@ export function App() {
       const { getHello } = await import("./api");
       const response = await getHello();
       notify.success(response.message);
-    } catch {
-      notify.error("The engine could not be reached.", undefined, true);
+    } catch (cause) {
+      notify.error("The engine could not be reached.", undefined, true, errorDetail(cause));
     }
   };
 

@@ -471,7 +471,13 @@ export const searchAssets = (
       searchCache.set(cacheKey, results);
       return results;
     },
-    catch: () => new FinanceApiError({ code: "validation", message: "Market-data search failed" }),
+    catch: (cause) =>
+      new FinanceApiError({
+        code: "validation",
+        message: `Market-data search failed: ${
+          cause instanceof Error ? cause.message : String(cause)
+        }`,
+      }),
   });
 };
 
@@ -913,7 +919,12 @@ const refreshPriceAssets = (
     Effect.mapError((cause) =>
       cause instanceof FinanceApiError
         ? cause
-        : new FinanceApiError({ code: "database", message: "Price refresh failed" }),
+        : new FinanceApiError({
+            code: "database",
+            message: `Price refresh failed: ${
+              cause instanceof Error ? cause.message : String(cause)
+            }`,
+          }),
     ),
   );
 
@@ -960,6 +971,11 @@ export const refreshPrices = (
     Effect.mapError((cause) =>
       cause instanceof FinanceApiError
         ? cause
-        : new FinanceApiError({ code: "database", message: "Price refresh failed" }),
+        : new FinanceApiError({
+            code: "database",
+            message: `Price refresh failed: ${
+              cause instanceof Error ? cause.message : String(cause)
+            }`,
+          }),
     ),
   );

@@ -90,10 +90,10 @@ export const connectorSyncFailure = (error: ConnectorSyncError): FinanceApiError
       ? error.category
       : "unknown";
   if (error instanceof ConnectorAuthenticationError) {
-    return failure("validation", `Connector authentication failed (${category})`);
+    return failure("validation", `Connector authentication failed (${category}): ${error.message}`);
   }
   if (error instanceof ConnectorFetchAccountsError) {
-    return failure("validation", `Connector account fetch failed (${category})`);
+    return failure("validation", `Connector account fetch failed (${category}): ${error.message}`);
   }
   return failure("validation", "The connector could not be synchronized");
 };

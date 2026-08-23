@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { notify } from "./components/ui/toaster";
+import { errorDetail } from "./components/ui/copy-error";
 import { useRefreshCustodian } from "./portfolio";
 
 const errorMessage = (cause: unknown) =>
@@ -27,6 +28,9 @@ export function RefreshCustodianButton({
             `Refresh completed with ${result.failures.length} price issue${
               result.failures.length === 1 ? "" : "s"
             }.`,
+            undefined,
+            true,
+            result.failures.map((failure) => failure.message).join("\n"),
           );
           return;
         }
@@ -36,7 +40,7 @@ export function RefreshCustodianButton({
         const message = errorMessage(cause);
         onError?.(message);
         if (onError === undefined) {
-          notify.error(message, undefined, true);
+          notify.error(message, undefined, true, errorDetail(cause));
         }
       },
     });

@@ -46,7 +46,7 @@ const toApiError = (cause: unknown): VaultApiError => {
   }
   return new VaultApiError({
     code: "unlock-failed",
-    message: "The Vault could not be unlocked.",
+    message: `The Vault request failed: ${cause instanceof Error ? cause.message : String(cause)}`,
   });
 };
 

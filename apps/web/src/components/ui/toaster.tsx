@@ -18,12 +18,22 @@ export const notify = {
   success: (title: string, description?: string) => {
     toaster.create({ title, description, type: "success" });
   },
-  error: (title: string, description?: string, sticky = false) => {
+  error: (title: string, description?: string, sticky = false, detail?: string) => {
+    const copyAction =
+      detail === undefined
+        ? undefined
+        : {
+            label: "Copy error",
+            onClick: () => {
+              void navigator.clipboard.writeText(detail);
+            },
+          };
     toaster.create({
       title,
       description,
       type: "error",
       duration: sticky ? Number.POSITIVE_INFINITY : undefined,
+      action: copyAction,
     });
   },
 };

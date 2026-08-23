@@ -163,16 +163,19 @@ function mapErrorCategory(
   return "invalid_response";
 }
 
+const causeMessage = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause);
+
 const authenticationError = (cause: unknown, message?: string) =>
   new ConnectorAuthenticationError({
     category: mapErrorCategory(cause, "authentication"),
-    message: message ?? "OKX authentication failed",
+    message: message ?? `OKX authentication failed: ${causeMessage(cause)}`,
   });
 
 const fetchError = (cause: unknown, message?: string) =>
   new ConnectorFetchAccountsError({
     category: mapErrorCategory(cause, "fetch"),
-    message: message ?? "OKX account fetch failed",
+    message: message ?? `OKX account fetch failed: ${causeMessage(cause)}`,
   });
 
 function apiErrorCategory(
@@ -210,7 +213,7 @@ const ensureAuthenticationSuccess = <A extends { readonly code: string; readonly
   return Effect.fail(
     new ConnectorAuthenticationError({
       category: apiErrorCategory(response.code, "authentication"),
-      message: "OKX rejected the authenticated request",
+      message: `OKX rejected the authenticated request (code ${response.code}: ${response.msg})`,
     }),
   );
 };
@@ -222,7 +225,7 @@ const ensureFetchSuccess = <A extends { readonly code: string; readonly msg: str
   return Effect.fail(
     new ConnectorFetchAccountsError({
       category: apiErrorCategory(response.code, "fetch"),
-      message: "OKX rejected the account request",
+      message: `OKX rejected the account request (code ${response.code}: ${response.msg})`,
     }),
   );
 };

@@ -27,6 +27,7 @@ import {
   PageState,
   ResourceCard,
 } from "../components";
+import { CopyErrorButton } from "../components/ui/copy-error";
 import { EmptyState } from "../components/ui/empty-state";
 import { Tooltip } from "../components/ui/tooltip";
 import { submitThenChangeValidation, useAppForm } from "../form";
@@ -243,7 +244,10 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>{t("accounts.refreshFailed")}</Alert.Title>
-            <Alert.Description>{refreshError}</Alert.Description>
+            <Flex align="center" gap="1" wrap="wrap">
+              <Alert.Description>{refreshError}</Alert.Description>
+              <CopyErrorButton value={refreshError} />
+            </Flex>
           </Alert.Content>
         </Alert.Root>
       )}

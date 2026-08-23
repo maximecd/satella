@@ -5,6 +5,8 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { createHmac } from "node:crypto";
 
+import { describeErrorBody } from "@satella-app/connector-core";
+
 import {
   OkxConfigResponse,
   OkxCredentials,
@@ -96,7 +98,12 @@ export const makeEffectHttpTransport = (
           Effect.mapError((cause) =>
             cause instanceof OkxTransportError
               ? cause
-              : new OkxTransportError("OKX request could not be completed", { transient: true }),
+              : new OkxTransportError(
+                  `OKX request could not be completed: ${
+                    cause instanceof Error ? cause.message : String(cause)
+                  }`,
+                  { transient: true },
+                ),
           ),
         );
       const body = yield* response.json.pipe(Effect.catch(() => Effect.succeed(undefined)));
@@ -153,7 +160,10 @@ const parseResponse = <A>(
     };
     if (retryAfterMs !== undefined) Object.assign(errorOptions, { retryAfterMs });
     return Effect.fail(
-      new OkxTransportError(`OKX request failed with HTTP ${response.status}`, errorOptions),
+      new OkxTransportError(
+        `OKX request failed with HTTP ${response.status}${describeErrorBody(response.body)}`,
+        errorOptions,
+      ),
     );
   }
   return Schema.decodeUnknownEffect(schema)(response.body);
@@ -175,7 +185,10 @@ export const makeOkxClient = <R>(options: OkxClientOptions<R>): OkxClient<R> => 
       Effect.mapError((cause) =>
         cause instanceof OkxTransportError
           ? cause
-          : new OkxTransportError("OKX returned an invalid response", { transient: false }),
+          : new OkxTransportError(
+              `OKX returned an invalid response: ${cause instanceof Error ? cause.message : String(cause)}`,
+              { transient: false },
+            ),
       ),
     );
     const retry = (
