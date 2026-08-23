@@ -35,6 +35,7 @@
     "decimal.js": "10.6.0",
     "effect": "catalog:",
     "hash-wasm": "^4.12.0",
+    "viem": "^2.55.19",
     "yahoo-finance2": "4.0.2"
   },
   "devDependencies": {
