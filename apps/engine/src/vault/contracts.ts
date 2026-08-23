@@ -68,6 +68,10 @@ export const ScreenLockTimeoutInput = Schema.Struct({
   minutes: Schema.Literals(SCREEN_LOCK_TIMEOUTS),
 });
 
+export const ScreenLockActivityInput = Schema.Struct({
+  activityAt: Schema.Number,
+});
+
 export const ResetVaultInput = Schema.Struct({
   confirmation: Schema.String,
 });

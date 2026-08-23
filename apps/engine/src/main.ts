@@ -23,6 +23,7 @@ import { FailureLogDirectory, NodeFailureLogFilesLive } from "./finance/refresh/
 import { layer as FailureLogLive } from "./finance/refresh/FailureLog.js";
 import { layer as AutoRefreshLive } from "./finance/refresh/AutoRefresh.js";
 import { IdGeneratorLive } from "./IdGenerator.js";
+import { ManagedRuntime, layer as ManagedRuntimeLive } from "./runtime/ManagedRuntime.js";
 import { layer as VaultEventsLive } from "./vault/VaultEvents.js";
 import { VaultLive } from "./vault/VaultLive.js";
 
@@ -34,28 +35,10 @@ const parsePort = (value: string | undefined, fallback: number): number => {
 
 const enginePort = parsePort(process.env["SATELLA_ENGINE_PORT"], 3001);
 const webOrigin = process.env["SATELLA_WEB_ORIGIN"];
-const parentPid = Number(process.env["SATELLA_ENGINE_PARENT_PID"]);
 const parentDataDirectory =
   process.env["SATELLA_CANONICAL_DATA_DIR"] ?? process.env["SATELLA_DATA_DIR"];
 
-const parentWatch =
-  Number.isInteger(parentPid) && parentPid > 0
-    ? (() => {
-        const timer = setInterval(() => {
-          if (process.ppid === parentPid) return;
-          clearInterval(timer);
-          if (parentDataDirectory !== undefined) {
-            releaseDatabaseOwnershipSync(parentDataDirectory);
-          }
-          process.exit(0);
-        }, 1_000);
-        timer.unref();
-        return timer;
-      })()
-    : undefined;
-
 process.on("exit", () => {
-  if (parentWatch !== undefined) clearInterval(parentWatch);
   if (parentDataDirectory !== undefined) {
     releaseDatabaseOwnershipSync(parentDataDirectory);
   }
@@ -92,6 +75,25 @@ const EngineFailureLogLive = FailureLogLive.pipe(
   Layer.provide(NodeFailureLogFilesLive),
 );
 
+const ManagedParentLifecycleLive = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const runtime = yield* ManagedRuntime;
+    if (!runtime.managed) return;
+    yield* Effect.forkScoped(
+      runtime.awaitParentDisconnect().pipe(
+        Effect.andThen(
+          Effect.sync(() => {
+            if (parentDataDirectory !== undefined) {
+              releaseDatabaseOwnershipSync(parentDataDirectory);
+            }
+            process.exit(0);
+          }),
+        ),
+      ),
+    );
+  }),
+);
+
 const routesLayer = EngineApiLive.pipe(
   Layer.provideMerge(VaultFinanceAccess),
   Layer.provideMerge(ApiErrorLogging),
@@ -118,6 +120,8 @@ const HttpServerLive = HttpRouter.serve(routesLayer).pipe(
 );
 
 const ServerLive = HttpServerLive.pipe(
+  Layer.provide(ManagedParentLifecycleLive),
+  Layer.provide(ManagedRuntimeLive()),
   Layer.provide(AutoRefreshLive().pipe(Layer.provide(EngineFailureLogLive))),
   Layer.provide(FinanceLive),
   Layer.provide(VaultEventsLive),

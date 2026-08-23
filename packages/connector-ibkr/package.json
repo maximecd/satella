@@ -10,6 +10,12 @@
   "main": "dist/index.mjs",
   "types": "dist/index.d.mts",
   "exports": {
+    "./metadata": {
+      "types": "./src/metadata.ts",
+      "development": "./src/metadata.ts",
+      "import": "./dist/metadata.mjs",
+      "default": "./dist/metadata.mjs"
+    },
     ".": {
       "types": "./src/index.ts",
       "development": "./src/index.ts",

@@ -33,6 +33,7 @@ const serviceLayer = CustodianServiceLive.pipe(
           unlock: () => Effect.die("unexpected"),
           close: () => Effect.die("unexpected"),
           lockScreen: () => Effect.die("unexpected"),
+          reportActivity: () => Effect.die("unexpected"),
           unlockScreen: () => Effect.die("unexpected"),
           unlockScreenWithPassword: () => Effect.die("unexpected"),
           changePassword: () => Effect.die("unexpected"),

@@ -18,7 +18,7 @@ export default mergeConfig(
       },
     ],
     pack: {
-      entry: ["src/index.ts"],
+      entry: ["src/index.ts", "src/metadata.ts"],
       outDir: "dist",
       format: "esm",
       platform: "node",

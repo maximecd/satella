@@ -95,6 +95,23 @@ export interface TrayMenuItem {
   readonly click?: () => void;
 }
 
+export interface TrayStateAdapter {
+  readonly replaceMenu: (items: ReadonlyArray<TrayMenuItem>) => void;
+}
+
+export type TrayTimerHandle = ReturnType<typeof setTimeout> | number;
+
+export interface TrayStateController {
+  readonly setState: (state: {
+    readonly status: RefreshStatus | null;
+    readonly vaultOpen: boolean;
+  }) => void;
+  readonly setRefreshStatus: (status: RefreshStatus | null) => void;
+  readonly setVaultOpen: (open: boolean) => void;
+  readonly setLanguage: (language: string | undefined) => void;
+  readonly dispose: () => void;
+}
+
 export const trayMenuItems = (
   status: RefreshStatus | null,
   vaultOpen: boolean,
@@ -109,3 +126,87 @@ export const trayMenuItems = (
   },
   { label: trayText("quit"), enabled: true, click: actions.quit },
 ];
+
+/**
+ * Keeps one operational projection and replaces the native menu only when a
+ * label or enabled action changes. The adapter is intentionally tiny so this
+ * seam can be tested without importing Electron.
+ */
+export const createTrayState = (options: {
+  readonly adapter: TrayStateAdapter;
+  readonly actions: TrayActions;
+  readonly now?: () => Date;
+  readonly schedule?: (callback: () => void, delayMs: number) => TrayTimerHandle;
+  readonly cancel?: (handle: TrayTimerHandle) => void;
+  readonly initialStatus?: RefreshStatus | null;
+  readonly initialVaultOpen?: boolean;
+}): TrayStateController => {
+  let refreshStatus = options.initialStatus ?? null;
+  let vaultOpen = options.initialVaultOpen ?? false;
+  let disposed = false;
+  let lastProjection: string | undefined;
+  let calendarTimer: TrayTimerHandle | undefined;
+  const schedule = options.schedule ?? ((callback, delayMs) => setTimeout(callback, delayMs));
+  const cancel = options.cancel ?? ((handle) => clearTimeout(handle));
+
+  const rebuild = () => {
+    if (disposed) return;
+    const items = trayMenuItems(
+      refreshStatus,
+      vaultOpen,
+      options.actions,
+      options.now?.() ?? new Date(),
+    );
+    const projection = JSON.stringify(items.map(({ label, enabled }) => ({ label, enabled })));
+    if (projection === lastProjection) return;
+    lastProjection = projection;
+    options.adapter.replaceMenu(items);
+  };
+
+  const cancelCalendarRefresh = () => {
+    if (calendarTimer === undefined) return;
+    cancel(calendarTimer);
+    calendarTimer = undefined;
+  };
+
+  const scheduleCalendarRefresh = () => {
+    cancelCalendarRefresh();
+    const now = options.now?.() ?? new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setHours(24, 0, 0, 0);
+    calendarTimer = schedule(
+      () => {
+        calendarTimer = undefined;
+        rebuild();
+        scheduleCalendarRefresh();
+      },
+      Math.max(1, tomorrow.getTime() - now.getTime()),
+    );
+  };
+
+  rebuild();
+  scheduleCalendarRefresh();
+  return {
+    setState: (state) => {
+      refreshStatus = state.status;
+      vaultOpen = state.vaultOpen;
+      rebuild();
+    },
+    setRefreshStatus: (status) => {
+      refreshStatus = status;
+      rebuild();
+    },
+    setVaultOpen: (open) => {
+      vaultOpen = open;
+      rebuild();
+    },
+    setLanguage: (language) => {
+      setTrayLanguage(language);
+      rebuild();
+    },
+    dispose: () => {
+      disposed = true;
+      cancelCalendarRefresh();
+    },
+  };
+};

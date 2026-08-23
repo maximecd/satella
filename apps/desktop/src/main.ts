@@ -19,23 +19,26 @@ import {
   managedEngineCommand,
   managedEngineEnvironment,
   newEngineToken,
+  decodeManagedOperationalMessage,
+  isFiniteManagedProcessNumber,
+  type ManagedProcessValue,
   screenLockRequest,
+  vaultActivityRequest,
   spawnManagedEngine,
   stopManagedEngine,
-  vaultStatusRequest,
   waitForEngineHello,
 } from "./engine.js";
 import { APP_ID, APP_NAME, productionDataDirectory } from "./runtime.js";
 import {
-  closeToTray,
+  createWindowLifecycle,
   externalUrlAction,
-  focusWindow,
   navigationPermission,
   shouldQuitOnLastWindow,
   trayIconPath,
   windowLoadTarget,
 } from "./window.js";
-import { setTrayLanguage, trayMenuItems, type RefreshStatus } from "./tray.js";
+import { createTrayState, setTrayLanguage, type TrayStateController } from "./tray.js";
+import type { ManagedOperationalMessage } from "./engine.js";
 
 const developmentUrl = process.env["SATELLA_WEB_URL"];
 let enginePort = DEFAULT_ENGINE_PORT;
@@ -44,15 +47,28 @@ let engineProcess: ReturnType<typeof spawnManagedEngine> | undefined;
 let mainWindow: BrowserWindow | undefined;
 let engineToken = process.env["SATELLA_ENGINE_TOKEN"] ?? newEngineToken();
 let tray: Tray | undefined;
-let refreshStatus: RefreshStatus | null = null;
-let vaultOpen = false;
+let trayState: TrayStateController | undefined;
+let operationalState: ManagedOperationalMessage = {
+  type: "operational-state",
+  autoRefresh: { lastCycleAt: null, lastCycleOutcome: null },
+  vault: { state: "locked", screenLock: false },
+};
 let quitting = false;
-let pendingSecondInstance = false;
+let windowLifecycle: ReturnType<typeof createWindowLifecycle>;
 
 app.setName(APP_NAME);
 app.setAppUserModelId(APP_ID);
 ipcMain.handle("satella:clear-vault-caches", async () => {
   await session.defaultSession.clearCache();
+});
+ipcMain.on("satella:vault-activity", (_event, activityAt: ManagedProcessValue) => {
+  if (!isFiniteManagedProcessNumber(activityAt)) return;
+  const request = vaultActivityRequest(engineUrl, engineToken, activityAt);
+  void fetch(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+  }).catch(() => undefined);
 });
 ipcMain.handle("satella:show-save-dialog", async (_event, defaultPath: string) => {
   const fallback = join(app.getPath("downloads"), `satella-vault-export.satella-vault`);
@@ -80,27 +96,24 @@ ipcMain.handle("satella:show-open-dialog", async () => {
       : await dialog.showOpenDialog(mainWindow, options);
   return result.canceled ? undefined : result.filePaths[0];
 });
-// SAFETY: only the paired preload bridge sends "satella:vault-open".
-ipcMain.on("satella:vault-open", (_event, open: boolean) => {
-  vaultOpen = open;
-  rebuildTrayMenu();
-});
 // SAFETY: only the paired preload bridge sends "satella:app-language".
 ipcMain.on("satella:app-language", (_event, language: string) => {
-  setTrayLanguage(language);
-  rebuildTrayMenu();
+  if (trayState === undefined) setTrayLanguage(language);
+  else trayState.setLanguage(language);
 });
 
-const rebuildTrayMenu = () => {
-  tray?.setContextMenu(
-    Menu.buildFromTemplate(
-      trayMenuItems(refreshStatus, vaultOpen, {
-        open: openWindow,
-        lockNow: () => void lockViaEngine(),
-        quit: () => app.quit(),
-      }),
-    ),
-  );
+const handleManagedEngineMessage = (value: ManagedProcessValue) => {
+  const message = decodeManagedOperationalMessage(value);
+  if (message === undefined) return;
+  const wasScreenLocked = operationalState.vault.screenLock;
+  operationalState = message;
+  trayState?.setState({
+    status: message.autoRefresh,
+    vaultOpen: message.vault.state === "open" && !message.vault.screenLock,
+  });
+  if (!wasScreenLocked && message.vault.screenLock) {
+    mainWindow?.webContents.send("satella:vault-locked");
+  }
 };
 
 const lockViaEngine = async () => {
@@ -110,41 +123,8 @@ const lockViaEngine = async () => {
   } catch {
     return;
   }
-  vaultOpen = false;
-  rebuildTrayMenu();
   // Tell the renderer so it swaps to the lock screen immediately.
   mainWindow?.webContents.send("satella:vault-locked");
-};
-
-const fetchRefreshStatus = async (): Promise<RefreshStatus | null> => {
-  try {
-    const response = await fetch(`${engineUrl.replace(/\/$/, "")}/api/auto-refresh/status`);
-    if (!response.ok) return null;
-    // SAFETY: the engine's OpenAPI contract guarantees the auto-refresh status shape.
-    return (await response.json()) as RefreshStatus;
-  } catch {
-    return null;
-  }
-};
-
-const fetchVaultOpen = async (): Promise<boolean | null> => {
-  const request = vaultStatusRequest(engineUrl, engineToken);
-  try {
-    const response = await fetch(request.url, { headers: request.headers });
-    if (!response.ok) return null;
-    // SAFETY: the engine's OpenAPI contract guarantees the Vault status shape.
-    const status = (await response.json()) as { state: string; screenLock?: boolean };
-    return status.state === "open" && status.screenLock !== true;
-  } catch {
-    return null;
-  }
-};
-
-const pollTrayStatus = async () => {
-  const [status, open] = await Promise.all([fetchRefreshStatus(), fetchVaultOpen()]);
-  refreshStatus = status;
-  vaultOpen = open ?? false;
-  rebuildTrayMenu();
 };
 
 const createWindow = async () => {
@@ -168,14 +148,8 @@ const createWindow = async () => {
     width: 1120,
   });
   mainWindow = window;
-  window.on(
-    "close",
-    closeToTray(window, () => quitting),
-  );
-  if (pendingSecondInstance) {
-    pendingSecondInstance = false;
-    focusWindow(window);
-  }
+  windowLifecycle.attach(window);
+  window.on("close", (event) => windowLifecycle.handleClose(window, event));
 
   window.once("ready-to-show", () => window.show());
 
@@ -206,13 +180,15 @@ const createWindow = async () => {
   }
 };
 
-const openWindow = () => {
-  if (mainWindow === undefined || mainWindow.isDestroyed()) {
-    void createWindow();
-    return;
-  }
-  focusWindow(mainWindow);
-};
+const openWindow = () => windowLifecycle.open();
+
+windowLifecycle = createWindowLifecycle({
+  createWindow: () => void createWindow(),
+  isQuitting: () => quitting,
+  onDormant: () => {
+    mainWindow = undefined;
+  },
+});
 
 const startManagedEngine = async () => {
   const smokePort =
@@ -241,11 +217,11 @@ const startManagedEngine = async () => {
       port: enginePort,
       dataDirectory,
       logDirectory: app.getPath("logs"),
-      parentPid: process.pid,
       production: app.isPackaged,
       engineToken,
     }),
   );
+  engineProcess.on("message", handleManagedEngineMessage);
   engineProcess.stdout?.on("data", (chunk: Buffer) => process.stdout.write(`[engine] ${chunk}`));
   engineProcess.stderr?.on("data", (chunk: Buffer) => process.stderr.write(`[engine] ${chunk}`));
   await waitForEngineHello(enginePort);
@@ -262,20 +238,28 @@ const createTray = () => {
   icon.setTemplateImage(true);
   // Keep a module-level reference so Electron cannot garbage-collect the tray.
   tray = new Tray(icon);
-
-  rebuildTrayMenu();
-  tray?.on("click", openWindow);
-
-  void pollTrayStatus();
-  setInterval(() => void pollTrayStatus(), 60_000);
+  trayState = createTrayState({
+    adapter: {
+      replaceMenu: (items) => {
+        tray?.setContextMenu(Menu.buildFromTemplate([...items]));
+      },
+    },
+    actions: {
+      open: () => openWindow(),
+      lockNow: () => void lockViaEngine(),
+      quit: () => app.quit(),
+    },
+    initialStatus: operationalState.autoRefresh,
+    initialVaultOpen: operationalState.vault.state === "open" && !operationalState.vault.screenLock,
+  });
+  tray.on("click", () => openWindow());
 };
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    if (mainWindow === undefined) pendingSecondInstance = true;
-    else focusWindow(mainWindow);
+    openWindow();
   });
 
   void app
@@ -290,11 +274,7 @@ if (!app.requestSingleInstanceLock()) {
       powerMonitor.on("suspend", lockViaEngine);
 
       app.on("activate", () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-          void createWindow();
-        } else if (mainWindow !== undefined) {
-          focusWindow(mainWindow);
-        }
+        openWindow();
       });
     })
     .catch((cause: unknown) => {
@@ -312,6 +292,8 @@ if (!app.requestSingleInstanceLock()) {
     if (quitting) return;
     event.preventDefault();
     quitting = true;
+    windowLifecycle.dispose();
+    trayState?.dispose();
     void stopManagedEngine(engineProcess).finally(() => app.quit());
   });
 

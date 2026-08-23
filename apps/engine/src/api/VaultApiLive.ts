@@ -126,6 +126,13 @@ export const VaultApiLive = HttpApiBuilder.group(EngineApi, "vault", (handlers) 
         }),
       ),
     )
+    .handle("reportActivity", ({ payload }) =>
+      run(
+        Effect.gen(function* () {
+          yield* (yield* VaultService).reportActivity(payload.activityAt);
+        }),
+      ),
+    )
     .handle("reset", ({ payload }) =>
       run(
         Effect.gen(function* () {

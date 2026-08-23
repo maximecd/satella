@@ -47,6 +47,7 @@ export class VaultService extends Context.Service<
     ) => Effect.Effect<VaultStatus, VaultStateError | VaultUnlockError>;
     readonly close: () => Effect.Effect<VaultStatus>;
     readonly lockScreen: () => Effect.Effect<VaultStatus, VaultStateError>;
+    readonly reportActivity: (activityAt?: number) => Effect.Effect<void, VaultStateError>;
     readonly unlockScreen: (pin: string) => Effect.Effect<VaultStatus, VaultStateError>;
     readonly unlockScreenWithPassword: (
       password: string,
