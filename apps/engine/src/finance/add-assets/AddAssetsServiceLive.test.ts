@@ -5,8 +5,48 @@ import { describe, expect } from "vite-plus/test";
 import { it } from "@effect/vitest";
 import { reconcileConnector } from "../connector.js";
 import * as Finance from "../finance.test-utils.js";
+import type { MarketDataProvider, MarketDataRegistry } from "../market-data.js";
+import { addManualHolding } from "./AddAssetsSql.js";
 
 describe("add assets operations", () => {
+  it.effect("fetches a selected market-data asset before returning the holding", () =>
+    Effect.gen(function* () {
+      const yahoo: MarketDataProvider = {
+        id: "yahoo-finance",
+        chunkSize: 50,
+        fetchPrices: (lookups) =>
+          Effect.succeed({
+            observations: lookups.map(({ lookupKey }) => ({
+              lookupKey,
+              price: "420",
+              currencyIso: "USD",
+              observedAt: new Date("2026-08-23T10:00:00.000Z"),
+            })),
+            failures: [],
+          }),
+      };
+      const registry: MarketDataRegistry = new Map([["yahoo-finance", yahoo]]);
+      const created = yield* addManualHolding(
+        {
+          asset: {
+            assetCategory: "stocks_etfs",
+            name: "SpaceX",
+            symbol: "SPACEX",
+            identifiers: [{ type: "yahoo_symbol", value: "SPACEX" }],
+          },
+          custodian: { type: "new", name: "Broker" },
+          account: { type: "new", name: "Portfolio", accountType: "brokerage" },
+          quantity: "1",
+        },
+        { registry },
+      );
+
+      const account = yield* Finance.getAccount(created.accountId);
+      expect(account.totalIncomplete).toBe(false);
+      expect(account.positions[0]?.reportingValue).toBe("420");
+    }).pipe(Effect.provide(engineTestLayer())),
+  );
+
   it.effect("adds a checking account under a new bank with a starting balance", () =>
     Effect.gen(function* () {
       const created = yield* Finance.addCashAccount({
