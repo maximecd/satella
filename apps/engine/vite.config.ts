@@ -1,7 +1,17 @@
 import "vite-plus/test/config";
+import { builtinModules } from "node:module";
 import { defineConfig, mergeConfig } from "vite-plus";
 
 import baseConfig from "../../vite.config.ts";
+
+// The release ships the engine as a self-contained bundle next to its native
+// modules, so every dependency is inlined except the SQLCipher addon, whose
+// .node binary and __dirname-relative loader cannot survive bundling.
+const nativeExternals = ["@journeyapps/sqlcipher"];
+const builtinSpecifiers = new Set([
+  ...builtinModules,
+  ...builtinModules.map((name) => `node:${name}`),
+]);
 
 export default mergeConfig(
   baseConfig,
@@ -25,6 +35,11 @@ export default mergeConfig(
       sourcemap: true,
       clean: true,
       dts: false,
+      deps: {
+        alwaysBundle: (id) =>
+          !nativeExternals.some((name) => id === name || id.startsWith(`${name}/`)) &&
+          !builtinSpecifiers.has(id),
+      },
     },
     test: {
       environment: "node",

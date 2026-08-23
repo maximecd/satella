@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { builderConfiguration } from "./package-release.mjs";
+import { builderConfiguration, nativeModulePackages } from "./package-release.mjs";
 
-const readPackage = (path) => readFile(new URL(path, import.meta.url), "utf8").then(JSON.parse);
+const readText = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 test("builder configuration resolves desktop assets from the repository root", () => {
   const root = "/tmp/satella-source";
@@ -22,23 +22,24 @@ test("builder configuration resolves desktop assets from the repository root", (
   assert.deepEqual(configuration.extraResources, [
     { from: join(appDirectory, "resources", "web"), to: "web" },
     { from: join(appDirectory, "resources", "engine"), to: "engine" },
+    { from: join(appDirectory, "resources", "engine", "node_modules"), to: "engine/node_modules" },
     { from: join(root, "apps", "desktop", "assets"), to: "assets" },
-    { from: join(appDirectory, "node_modules"), to: "node_modules" },
   ]);
 });
 
-test("the production engine declares connector runtime dependencies for pnpm deploy", async () => {
-  const [engine, evmConnector] = await Promise.all([
-    readPackage("../apps/engine/package.json"),
-    readPackage("../packages/connector-evm/package.json"),
-  ]);
+test("the engine bundle externalizes exactly the SQLCipher addon tree", async () => {
+  const engineConfig = await readText("../apps/engine/vite.config.ts");
 
-  for (const [dependency, version] of Object.entries(evmConnector.dependencies)) {
-    if (version.startsWith("workspace:")) continue;
-    assert.equal(
-      engine.dependencies[dependency],
-      version,
-      `apps/engine must declare ${dependency} so pnpm deploy includes it in the release tree`,
-    );
-  }
+  const declaredExternals = engineConfig.match(/nativeExternals = \[([^\]]*)\]/)?.[1];
+  assert.ok(declaredExternals, "apps/engine/vite.config.ts must declare nativeExternals");
+  const externalized = [...declaredExternals.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(externalized, ["@journeyapps/sqlcipher"]);
+});
+
+test("the staged native module tree covers the SQLCipher binding loader", () => {
+  assert.deepEqual(nativeModulePackages, [
+    "@journeyapps/sqlcipher",
+    "bindings",
+    "file-uri-to-path",
+  ]);
 });
