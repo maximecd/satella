@@ -1,34 +1,26 @@
-<svg width="1024" height="1024" viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
   <title>Satella</title>
   <defs>
-    <linearGradient id="frame" x1="52" y1="30" x2="448" y2="470" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FCFAFD"/>
-      <stop offset="0.52" stop-color="#E4D9EA"/>
-      <stop offset="1" stop-color="#B990C7"/>
-    </linearGradient>
-    <linearGradient id="background" x1="0" y1="500" x2="500" y2="0" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#764B95"/>
-      <stop offset="1" stop-color="#A372C3"/>
-    </linearGradient>
-    <linearGradient id="letter" x1="159.1" y1="76962" x2="779.366" y2="76960.3" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#E2E2E2"/>
-      <stop offset="1" stop-color="white"/>
-    </linearGradient>
-    <clipPath id="inner-clip">
-      <rect x="12" y="12" width="476" height="476" rx="108"/>
+    <clipPath id="macos-squircle" clipPathUnits="userSpaceOnUse">
+      <rect x="100" y="100" width="824" height="824" rx="190"/>
     </clipPath>
-    <filter id="shadow" x="-30" y="-30" width="560" height="560" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#3D2050" flood-opacity="0.38"/>
-    </filter>
   </defs>
 
-  <rect x="8" y="8" width="484" height="484" rx="114" fill="url(#frame)" filter="url(#shadow)"/>
+  <g clip-path="url(#macos-squircle)">
+    <svg x="100" y="100" width="824" height="824" viewBox="0 0 500 500" fill="none">
+      <defs>
+        <linearGradient id="background" x1="0" y1="500" x2="500" y2="0" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#764B95"/>
+          <stop offset="1" stop-color="#A372C3"/>
+        </linearGradient>
+        <linearGradient id="letter" x1="159.1" y1="76962" x2="779.366" y2="76960.3" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#E2E2E2"/>
+          <stop offset="1" stop-color="white"/>
+        </linearGradient>
+      </defs>
 
-  <g clip-path="url(#inner-clip)" transform="translate(12 12) scale(0.952)">
-    <rect width="500" height="500" fill="url(#background)"/>
-    <path d="M240.4 389.2C225.733 389.2 210.8 387.333 195.6 383.6C180.4 380.133 167.733 375.467 157.6 369.6L159.6 315.2H163.6L176 341.2C179.733 348.667 183.733 355.333 188 361.2C192.267 366.8 198.133 371.2 205.6 374.4C210.933 377.067 216 378.933 220.8 380C225.867 380.8 231.467 381.2 237.6 381.2C253.867 381.2 266.667 376.8 276 368C285.6 359.2 290.4 347.867 290.4 334C290.4 320.933 287.2 310.8 280.8 303.6C274.4 296.133 264.133 288.933 250 282L233.6 274.8C210.667 264.667 192.667 253.067 179.6 240C166.8 226.667 160.4 209.067 160.4 187.2C160.4 171.467 164.4 157.867 172.4 146.4C180.667 134.933 192 126.133 206.4 120C221.067 113.867 238.133 110.8 257.6 110.8C271.733 110.8 285.067 112.667 297.6 116.4C310.4 120.133 321.467 125.2 330.8 131.6L328.4 179.6H324.4L308 149.6C303.467 140.267 298.933 133.733 294.4 130C289.867 126 284.667 123.2 278.8 121.6C275.333 120.533 272.133 119.867 269.2 119.6C266.267 119.067 262.533 118.8 258 118.8C244.4 118.8 232.933 122.8 223.6 130.8C214.267 138.533 209.6 149.067 209.6 162.4C209.6 176 213.2 186.933 220.4 195.2C227.6 203.2 238.133 210.4 252 216.8L270.4 224.8C296 236 314.4 248 325.6 260.8C336.8 273.333 342.4 289.6 342.4 309.6C342.4 333.067 333.467 352.267 315.6 367.2C298 381.867 272.933 389.2 240.4 389.2Z" fill="url(#letter)"/>
+      <rect width="500" height="500" fill="url(#background)"/>
+      <path d="M240.4 389.2C225.733 389.2 210.8 387.333 195.6 383.6C180.4 380.133 167.733 375.467 157.6 369.6L159.6 315.2H163.6L176 341.2C179.733 348.667 183.733 355.333 188 361.2C192.267 366.8 198.133 371.2 205.6 374.4C210.933 377.067 216 378.933 220.8 380C225.867 380.8 231.467 381.2 237.6 381.2C253.867 381.2 266.667 376.8 276 368C285.6 359.2 290.4 347.867 290.4 334C290.4 320.933 287.2 310.8 280.8 303.6C274.4 296.133 264.133 288.933 250 282L233.6 274.8C210.667 264.667 192.667 253.067 179.6 240C166.8 226.667 160.4 209.067 160.4 187.2C160.4 171.467 164.4 157.867 172.4 146.4C180.667 134.933 192 126.133 206.4 120C221.067 113.867 238.133 110.8 257.6 110.8C271.733 110.8 285.067 112.667 297.6 116.4C310.4 120.133 321.467 125.2 330.8 131.6L328.4 179.6H324.4L308 149.6C303.467 140.267 298.933 133.733 294.4 130C289.867 126 284.667 123.2 278.8 121.6C275.333 120.533 272.133 119.867 269.2 119.6C266.267 119.067 262.533 118.8 258 118.8C244.4 118.8 232.933 122.8 223.6 130.8C214.267 138.533 209.6 149.067 209.6 162.4C209.6 176 213.2 186.933 220.4 195.2C227.6 203.2 238.133 210.4 252 216.8L270.4 224.8C296 236 314.4 248 325.6 260.8C336.8 273.333 342.4 289.6 342.4 309.6C342.4 333.067 333.467 352.267 315.6 367.2C298 381.867 272.933 389.2 240.4 389.2Z" fill="url(#letter)"/>
+    </svg>
   </g>
-
-  <rect x="8.5" y="8.5" width="483" height="483" rx="113.5" stroke="white" stroke-opacity="0.72" stroke-width="2"/>
-  <rect x="12.5" y="12.5" width="475" height="475" rx="107.5" stroke="#5D3575" stroke-opacity="0.3"/>
 </svg>
