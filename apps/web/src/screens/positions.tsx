@@ -14,13 +14,7 @@ import {
   PageHeader,
   PageState,
 } from "../components";
-import {
-  compareDecimal,
-  formatAmount,
-  formatDecimal,
-  formatSignedAmount,
-  multiplyDecimal,
-} from "../financial-number";
+import { compareDecimal, formatAmount } from "../financial-number";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import { useAssets, useDeletePosition, usePositionEdit, useUpdatePosition } from "../portfolio";
 
@@ -228,33 +222,6 @@ function LoadedEditPosition({
                   </Text>
                 </Stack>
               ) : null}
-              <Text
-                fontVariantNumeric="tabular-nums"
-                color={
-                  position.unrealizedPnl === null
-                    ? "fg.muted"
-                    : compareDecimal(position.unrealizedPnl, "0") > 0
-                      ? "green.fg"
-                      : compareDecimal(position.unrealizedPnl, "0") < 0
-                        ? "red.fg"
-                        : "fg.muted"
-                }
-              >
-                {t("positions.unrealizedPnlLabel")}{" "}
-                {position.unrealizedPnl === null
-                  ? "—"
-                  : `${formatSignedAmount(position.unrealizedPnl, account.baseCurrencyIso)}${
-                      position.unrealizedPnlPercent === null
-                        ? ""
-                        : ` (${formatDecimal(
-                            multiplyDecimal(position.unrealizedPnlPercent, "100"),
-                            {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            },
-                          )}%)`
-                    }`}
-              </Text>
             </>
           ) : null}
           <Stack direction="row" gap="2" wrap="wrap">

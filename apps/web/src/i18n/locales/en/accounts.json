@@ -15,7 +15,6 @@
     "incompleteTotalTitle": "Total is incomplete",
     "incompleteTotalDescription": "Unpriced positions are excluded from this total.",
     "valuedTotal": "Valued total",
-    "unrealizedPnl": "Unrealized P&L",
     "positionsHeading": "Positions",
     "zeroPositions": "Zero positions ({{total}})",
     "unpricedPositions": "Unpriced positions ({{total}})",
@@ -28,7 +27,6 @@
       "quantity": "Quantity",
       "marketPrice": "Market price",
       "value": "Value ({{iso}})",
-      "unrealizedPnl": "Unrealized P&L",
       "unpriced": "Unpriced",
       "edit": "Edit"
     },

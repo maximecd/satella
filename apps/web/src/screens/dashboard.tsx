@@ -16,13 +16,7 @@ import {
 } from "../portfolio-history";
 import { AddAssetsButton } from "./add-assets";
 import { AllocationTreemap, PortfolioValueChart } from "./dashboard-charts";
-import {
-  compareDecimal,
-  formatAmount,
-  formatDecimal,
-  formatSignedAmount,
-  multiplyDecimal,
-} from "../financial-number";
+import { compareDecimal, formatAmount, formatDecimal } from "../financial-number";
 
 const rowDescription = (row: DashboardAccountRow, t: TFunction) => {
   const holdings = t("dashboard.accounts.holdingsCount", { count: row.positionCount });
@@ -43,21 +37,6 @@ const changeLabel = (
   const sign = compareDecimal(change.percent, "0") >= 0 ? "+" : "";
   return `${absolute} (${sign}${formatDecimal(change.percent, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)`;
 };
-
-const pnlColor = (value: string) =>
-  compareDecimal(value, "0") > 0
-    ? "green.fg"
-    : compareDecimal(value, "0") < 0
-      ? "red.fg"
-      : "fg.muted";
-
-const pnlPercent = (value: string | null) =>
-  value === null
-    ? ""
-    : ` (${compareDecimal(value, "0") > 0 ? "+" : ""}${formatDecimal(
-        multiplyDecimal(value, "100"),
-        { minimumFractionDigits: 2, maximumFractionDigits: 2 },
-      )}%)`;
 
 export function DashboardScreen() {
   const { t } = useTranslation();
@@ -110,23 +89,6 @@ export function DashboardScreen() {
                 </Heading>
                 <Text fontSize="2xl" fontWeight="semibold" fontVariantNumeric="tabular-nums">
                   {formatAmount(dashboard.portfolioValue, iso)}
-                </Text>
-                <Text fontWeight="medium">{t("dashboard.portfolioValue.unrealizedPnl")}</Text>
-                <Text
-                  fontSize="lg"
-                  fontVariantNumeric="tabular-nums"
-                  color={pnlColor(dashboard.unrealizedPnl)}
-                >
-                  {formatSignedAmount(dashboard.unrealizedPnl, iso)}
-                  {dashboard.unrealizedPnlPercent === null
-                    ? ""
-                    : ` (${compareDecimal(dashboard.unrealizedPnlPercent, "0") > 0 ? "+" : ""}${formatDecimal(
-                        multiplyDecimal(dashboard.unrealizedPnlPercent, "100"),
-                        {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        },
-                      )}%)`}
                 </Text>
                 <Text color="fg.muted">
                   <Text as="span" fontWeight="medium">
@@ -214,11 +176,6 @@ export function DashboardScreen() {
                         endContent={
                           <Stack align="flex-end" gap="0" fontVariantNumeric="tabular-nums">
                             <Text>{formatAmount(row.total, iso)}</Text>
-                            <Text color={pnlColor(row.unrealizedPnl)} fontSize="sm">
-                              {t("dashboard.accounts.pnl")}{" "}
-                              {formatSignedAmount(row.unrealizedPnl, iso)}
-                              {pnlPercent(row.unrealizedPnlPercent)}
-                            </Text>
                           </Stack>
                         }
                       />

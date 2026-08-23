@@ -15,7 +15,6 @@
     "incompleteTotalTitle": "Le total est incomplet",
     "incompleteTotalDescription": "Les positions sans cours sont exclues de ce total.",
     "valuedTotal": "Total valorisé",
-    "unrealizedPnl": "P&L latent",
     "positionsHeading": "Positions",
     "zeroPositions": "Positions à quantité nulle ({{total}})",
     "unpricedPositions": "Positions sans cours ({{total}})",
@@ -28,7 +27,6 @@
       "quantity": "Quantité",
       "marketPrice": "Cours du marché",
       "value": "Valeur ({{iso}})",
-      "unrealizedPnl": "P&L latent",
       "unpriced": "Sans cours",
       "edit": "Modifier"
     },

@@ -8,7 +8,6 @@
     },
     "portfolioValue": {
       "title": "Valeur du portefeuille",
-      "unrealizedPnl": "P&L latent",
       "changeLabel": "Variation de la valeur du portefeuille :",
       "rangeAriaLabel": "Plage de la valeur du portefeuille",
       "notEnoughHistory": "Historique insuffisant"
@@ -29,8 +28,7 @@
     },
     "accounts": {
       "holdingsCount_one": "{{count}} position",
-      "holdingsCount_other": "{{count}} positions",
-      "pnl": "P&L latent"
+      "holdingsCount_other": "{{count}} positions"
     },
     "charts": {
       "historyAriaLabel": "Historique de la valeur du portefeuille",
