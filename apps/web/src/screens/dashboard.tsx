@@ -42,9 +42,7 @@ export function DashboardScreen() {
   const { t } = useTranslation();
   const query = useDashboard();
   const [range, setRange] = useState<PortfolioValueRange>("1M");
-  const [allocationView, setAllocationView] = useState<"custodians" | "categories" | "assets">(
-    "custodians",
-  );
+  const [allocationView, setAllocationView] = useState<"categories" | "assets">("categories");
   const requestFailed = t("errors.requestFailed");
   const errorMessage = (cause: unknown) => (cause instanceof Error ? cause.message : requestFailed);
   if (query.isPending) return <PageState kind="pending" />;
@@ -67,11 +65,7 @@ export function DashboardScreen() {
   const history = observationsInRange(dashboard.history, range);
   const change = periodChange(history);
   const allocation =
-    allocationView === "assets"
-      ? dashboard.assetAllocation
-      : allocationView === "categories"
-        ? dashboard.categoryAllocation
-        : dashboard.custodianAllocation;
+    allocationView === "assets" ? dashboard.assetAllocation : dashboard.categoryAllocation;
   const unpriced =
     dashboard.unpricedAssetCount === 0
       ? null
@@ -129,23 +123,20 @@ export function DashboardScreen() {
               <Heading as="h2" size="md">
                 {t("dashboard.allocation.title")}
               </Heading>
-              <Box overflowX="auto" maxW="full">
-                <SegmentedControl
-                  aria-label={t("dashboard.allocation.ariaLabel")}
-                  size="sm"
-                  w="fit-content"
-                  value={allocationView}
-                  onValueChange={(details) => {
-                    // SAFETY: The segmented control items are exactly the three allocation view literals.
-                    setAllocationView(details.value as "custodians" | "categories" | "assets");
-                  }}
-                  items={[
-                    { value: "custodians", label: t("dashboard.allocation.custodians") },
-                    { value: "categories", label: t("dashboard.allocation.categories") },
-                    { value: "assets", label: t("dashboard.allocation.assets") },
-                  ]}
-                />
-              </Box>
+              <SegmentedControl
+                aria-label={t("dashboard.allocation.ariaLabel")}
+                size="sm"
+                w="fit-content"
+                value={allocationView}
+                onValueChange={(details) => {
+                  // SAFETY: The segmented control items are exactly the allocation view literals.
+                  setAllocationView(details.value as "categories" | "assets");
+                }}
+                items={[
+                  { value: "categories", label: t("dashboard.allocation.categories") },
+                  { value: "assets", label: t("dashboard.allocation.assets") },
+                ]}
+              />
               {allocation.length > 0 ? (
                 <AllocationTreemap cells={allocation} currencyIso={iso} />
               ) : (

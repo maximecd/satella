@@ -16,7 +16,6 @@
       "title": "Répartition",
       "ariaLabel": "Répartition",
       "assets": "Actifs",
-      "custodians": "Établissements",
       "categories": "Catégories",
       "empty": "Aucune répartition valorisée à afficher.",
       "unpricedExcluded_one": "{{count}} actif sans cours exclu de la répartition.",
