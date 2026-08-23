@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,6 +22,8 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 const BROWSER_TIMEOUT_MS = 30_000;
+const WAF_TOKEN_POLL_MS = 250;
+const WAF_TOKEN_ATTEMPTS = 40;
 const TRADE_REPUBLIC_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
@@ -80,38 +83,48 @@ const sessionFrom = (
 const executablePath = () =>
   process.env["SATELLA_PLAYWRIGHT_EXECUTABLE"] ?? chromium.executablePath();
 
-const requestHeaders = (wafToken: string | undefined) => {
+const requestHeaders = (wafToken: string, deviceInfo: string) => {
   const headers = {
-    Accept: "application/json",
+    Accept: "*/*",
+    "Accept-Language": "en",
+    "Cache-Control": "no-cache",
     Origin: TRADE_REPUBLIC_WEB_ORIGIN,
+    Pragma: "no-cache",
     Referer: `${TRADE_REPUBLIC_WEB_ORIGIN}/`,
-    "x-tr-app-version": "web",
-    "x-tr-device-info": "web",
+    "x-tr-app-version": "13.40.5",
+    "x-tr-device-info": deviceInfo,
     "x-tr-platform": "web",
-    "x-tr-protocol-version": "31",
+    "x-aws-waf-token": wafToken,
   };
-  if (wafToken !== undefined) Object.assign(headers, { "x-aws-waf-token": wafToken });
   return headers;
 };
 
-const wafTokenFrom = async (page: Page, context: BrowserContext): Promise<string | undefined> => {
-  let pageToken: string | undefined;
-  try {
-    pageToken = await page.evaluate(() => {
-      // SAFETY: AWSWafIntegration is installed by the Trade Republic page before this evaluation runs.
-      const candidate = (
-        globalThis as { AWSWafIntegration?: { getToken?: () => string | Promise<string> } }
-      ).AWSWafIntegration?.getToken?.();
-      return candidate;
-    });
-  } catch {}
-  if (pageToken !== undefined && pageToken.trim() !== "") return pageToken;
-  try {
-    return (await context.cookies()).find((cookie) => cookie.name === "aws-waf-token")?.value;
-  } catch {
-    return undefined;
-  }
+type WafTokenPage = Pick<Page, "waitForTimeout">;
+type WafTokenContext = {
+  cookies(): Promise<ReadonlyArray<{ name: string; value: string }>>;
 };
+
+export const waitForWafToken = async (
+  page: WafTokenPage,
+  context: WafTokenContext,
+  attempts = WAF_TOKEN_ATTEMPTS,
+): Promise<string | undefined> => {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const token = (await context.cookies()).find(
+        (cookie) => cookie.name.toLowerCase() === "aws-waf-token",
+      )?.value;
+      if (token !== undefined && token.trim() !== "") return token;
+    } catch {}
+    if (attempt + 1 < attempts) await page.waitForTimeout(WAF_TOKEN_POLL_MS);
+  }
+  return undefined;
+};
+
+const deviceInfo = () =>
+  Buffer.from(JSON.stringify({ stableDeviceId: randomBytes(64).toString("hex") })).toString(
+    "base64",
+  );
 
 const makeAttempt = async (
   context: BrowserContext,
@@ -119,6 +132,7 @@ const makeAttempt = async (
   profile: string,
   processId: string,
   expiresAt: Date,
+  stableDeviceInfo: string,
 ): Promise<TradeRepublicBrowserAttempt> => {
   let closed = false;
   const close = () =>
@@ -142,11 +156,16 @@ const makeAttempt = async (
     submitCode: (code) =>
       Effect.tryPromise({
         try: async () => {
-          const nextWafToken = await wafTokenFrom(page, context);
+          const nextWafToken = await waitForWafToken(page, context);
+          if (nextWafToken === undefined)
+            throw authenticationFailure(
+              "Trade Republic did not issue the browser security token required to verify the confirmation code",
+              "invalid_response",
+            );
           const response = await page.request.post(
             `${TRADE_REPUBLIC_API_ORIGIN}/api/v1/auth/web/login/${encodeURIComponent(processId)}/${encodeURIComponent(code)}`,
             {
-              headers: requestHeaders(nextWafToken),
+              headers: requestHeaders(nextWafToken, stableDeviceInfo),
               timeout: BROWSER_TIMEOUT_MS,
             },
           );
@@ -224,11 +243,17 @@ const start = (input: TradeRepublicBrowserStartInput) =>
             waitUntil: "domcontentloaded",
             timeout: BROWSER_TIMEOUT_MS,
           });
-          const wafToken = await wafTokenFrom(page, context);
+          const wafToken = await waitForWafToken(page, context);
+          if (wafToken === undefined)
+            throw authenticationFailure(
+              "Trade Republic did not issue the browser security token required to start authentication",
+              "invalid_response",
+            );
+          const stableDeviceInfo = deviceInfo();
           const response = await page.request.post(
             `${TRADE_REPUBLIC_API_ORIGIN}/api/v1/auth/web/login`,
             {
-              headers: requestHeaders(wafToken),
+              headers: requestHeaders(wafToken, stableDeviceInfo),
               data: { phoneNumber: input.phone, pin: input.pin },
               timeout: BROWSER_TIMEOUT_MS,
             },
@@ -255,7 +280,14 @@ const start = (input: TradeRepublicBrowserStartInput) =>
               `Trade Republic did not return an authentication challenge${describeErrorBody(body)}`,
               "invalid_response",
             );
-          const attempt = await makeAttempt(context, page, profile, processId, input.expiresAt);
+          const attempt = await makeAttempt(
+            context,
+            page,
+            profile,
+            processId,
+            input.expiresAt,
+            stableDeviceInfo,
+          );
           signal.removeEventListener("abort", onAbort);
           return attempt;
         } catch (cause) {
