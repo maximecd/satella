@@ -8,7 +8,7 @@ Satella remains useful in the macOS tray because Auto-refresh keeps the Portfoli
 
 An automatic Refresh cycle with N synced Custodians currently performs N complete Custodian refreshes, each including market-data work and a Snapshot, then performs another market-data pass and Snapshot at the end of the cycle. This produces N+1 market-data passes and N+1 Snapshots where ADR 0007 and the existing Auto-refresh specification require one of each per completed cycle.
 
-The managed engine also wakes once per second to inspect its parent process. The tray makes two HTTP requests every minute and rebuilds its menu even when nothing changed. One request omits the engine token, so the engine rejects it and the last-refresh line never receives valid status through that path. Closing the window hides the full renderer rather than giving it a dormant lifecycle, which retains the React tree, query cache, charts, Chakra system, and browser document. Screen-lock inactivity uses a fifteen-second polling timer while the Vault is open. Connector and Market-data source implementations load eagerly, and the market-data search cache has no capacity limit.
+The managed engine also wakes once per second to inspect its parent process. The previous tray implementation made two HTTP requests every minute and rebuilt its menu even when nothing changed. One request omitted the engine token. Closing the window hides the full renderer rather than giving it a dormant lifecycle, which retains the React tree, query cache, charts, Chakra system, and browser document. Screen-lock inactivity uses a fifteen-second polling timer while the Vault is open. Connector and Market-data source implementations load eagerly, and the market-data search cache has no capacity limit.
 
 No baseline benchmark exists yet. Some costs are certain from control flow, while their effect on CPU and resident memory remains unmeasured. Satella needs to remove the confirmed repeated work, establish a repeatable baseline, and prove that the packaged app uses less CPU and memory in its tray-idle state without making normal use feel sluggish.
 
@@ -18,7 +18,7 @@ Satella will deepen five runtime modules around the confirmed seams.
 
 The Refresh-cycle module will reconcile every synced Custodian through the serialized queue, then perform one market-data pass and capture one Snapshot for the completed automatic cycle. Manual Refresh keeps its complete user-visible behavior.
 
-The managed-runtime lifecycle module will replace the engine's one-second parent check with a blocking process channel owned by Electron. The same private channel will carry small operational state changes needed by the tray. The tray state module will consume those events, maintain one current projection, and rebuild the native menu only when its visible state changes.
+The managed-runtime lifecycle module will replace the engine's one-second parent check with a blocking process channel owned by Electron. The same private channel will carry the Vault state needed by the tray. The tray state module will consume those events, maintain one current projection, and rebuild the native menu only when its visible state changes.
 
 The window lifecycle module will distinguish active, hidden, and dormant states. A short grace period will preserve fast reopen after an accidental close. Once the grace period ends, Satella will release the renderer and recreate it on demand. The Vault module will own the Screen-lock inactivity deadline so the configured timeout still works when no renderer exists. It will use one cancellable deadline rather than a fifteen-second polling loop.
 
@@ -38,12 +38,12 @@ Connector and Market-data source modules will keep catalog metadata cheap, load 
 10. As a user whose Electron process exits unexpectedly, I want the managed engine to notice through the process channel, release Vault ownership, and exit, so that no orphan process retains my Vault.
 11. As a user quitting Satella normally, I want the engine to shut down cleanly, so that removing parent polling does not weaken cleanup.
 12. As a user running the web and engine development runtime without Electron, I want the engine to operate without a managed parent channel, so that development remains supported.
-13. As a tray user, I want the last completed Auto-refresh time to be accurate, so that I can judge Portfolio freshness without opening the window.
+13. As a tray user, I want the menu limited to Open, Lock now, and Quit, so that synchronization details live in Settings rather than the tray.
 14. As a tray user, I want the Lock action to reflect the current Vault and Screen-lock state, so that the menu never offers a stale action.
 15. As a tray user, I want menu text to follow the App language, so that the event-driven tray preserves current localization.
 16. As a tray user, I want the menu rebuilt only when visible state changes, so that idle Satella does no native menu allocation on a fixed schedule.
-17. As a tray user, I want operational status delivered through Satella's private managed process relationship, so that tray state does not depend on unauthenticated HTTP polling.
-18. As a user whose engine is busy, I want tray state updates to coalesce to the latest value, so that old updates never pile up in memory.
+17. As a tray user, I want Vault state delivered through Satella's private managed process relationship, so that the Lock action does not depend on unauthenticated HTTP polling.
+18. As a user whose engine is busy, I want Vault-state updates to coalesce to the latest value, so that old updates never pile up in memory.
 19. As a user closing the window briefly, I want it to reopen immediately during the grace period, so that an accidental close does not feel like a cold launch.
 20. As a user leaving the window closed, I want the renderer to become dormant after the grace period, so that the tray app releases memory it no longer needs.
 21. As a user reopening Satella after it became dormant, I want the window recreated and focused automatically, so that dormancy requires no extra action.
@@ -77,14 +77,13 @@ Connector and Market-data source modules will keep catalog metadata cheap, load 
 - ADR 0007 remains in force. Manual and automatic Refresh jobs still use one serialized FIFO queue with per-Custodian coalescing. The queue worker already blocks while idle and will not be replaced.
 - The Refresh-cycle module will distinguish internal Custodian reconciliation from completion of an automatic cycle. Automatic cycles reconcile each synced Custodian in order, collect failures, then run exactly one market-data pass and capture exactly one Snapshot.
 - A manual Custodian Refresh remains complete from the user's perspective. It reconciles the Custodian, updates market data, captures a Snapshot, and returns the refreshed Custodian with market-data failures.
-- Automatic-cycle status changes only after the cycle's single completion step finishes. Its timestamp and outcome continue to contain no financial data.
 - The repeated N+1 behavior is a correctness defect against ADR 0007, not an optional performance experiment. The implementation must correct it even if local CPU measurements show a small change on an empty Portfolio.
 - The desktop will launch the managed engine with a private bidirectional process channel. Closing that channel signals parent loss. The engine will block on the channel rather than inspect its parent PID on a timer.
 - Database ownership cleanup will remain part of managed engine finalization. Normal shutdown, parent loss, startup failure, and forced termination will share the managed-runtime lifecycle module rather than duplicate cleanup rules.
 - Standalone development uses a separate runtime adapter with no managed parent. Two runtime adapters make the lifecycle seam real.
 - The managed process channel may carry only operational messages required by lifecycle and tray state. It must not carry Portfolio values, Accounts, Positions, credentials, or other Vault financial data.
-- The engine will publish changes to Auto-refresh status and Vault operational state over the managed process channel. The desktop will not poll the engine once per minute for tray state.
-- The tray state module will own the latest operational state, App language, menu projection, and Electron tray lifetime. It will replace the native menu only when the projected labels or enabled actions change.
+- The engine will publish Vault operational state over the managed process channel. The desktop will not poll the engine once per minute for tray state.
+- The tray state module will own the latest Vault state, App language, menu projection, and Electron tray lifetime. It will replace the native menu only when the projected labels or enabled actions change.
 - Removing recurring tray HTTP acquisition also removes the current unauthenticated refresh-status request. Existing HTTP token requirements remain unchanged for all non-public routes.
 - Operational events will use latest-value semantics. A slow desktop consumer may skip intermediate duplicate states but must receive the newest state without an unbounded queue.
 - The window lifecycle has three states: active, hidden during a 60-second grace period, and dormant after the grace period. Reopening during the grace period cancels dormancy and focuses the existing window.
@@ -110,10 +109,10 @@ Connector and Market-data source modules will keep catalog metadata cheap, load 
 Good tests cross the same interface as production callers and assert external behavior. They do not inspect queue maps, timer handles, private helper calls, dynamic import syntax, or the internal shape of Electron objects. Test clocks, fake adapters, and recorded effects are acceptable when they let a test observe time and side effects through the module interface.
 
 - Test the Refresh-cycle module at the existing engine finance seam with a test clock, three fake Custodian adapters, a recording Market-data source adapter, and the test Vault database. One automatic cycle must attempt all Custodians, perform one market-data pass, and persist one Snapshot. Prior art is the Auto-refresh test-clock suite, serialized Refresh queue suite, Custodian refresh suite, and Snapshot tests.
-- Test automatic failure behavior through the same Refresh-cycle seam. One failed Custodian must not block later Custodians or multiply cycle completion work. The cycle outcome must match the combined result visible to the status caller.
+- Test automatic failure behavior through the same Refresh-cycle seam. One failed Custodian must not block later Custodians or multiply cycle completion work. Each attempted Sync must produce one Vault-backed Sync-log entry.
 - Test manual Refresh through the existing Custodian module interface. A manual Refresh must remain complete and must still coalesce with a concurrent automatic job for the same Custodian.
 - Test the managed-runtime lifecycle through its process-level interface with a fake channel adapter for most cases and one child-process integration test for channel closure. Observations are engine readiness, continued life while the parent channel is open, ownership cleanup request, and termination after closure. Prior art is the managed engine readiness and Vault process suites.
-- Test tray state through one projection interface with a recording tray adapter. Feed operational and language events, then assert the visible labels, enabled actions, and number of native menu replacements. Repeated identical state must not replace the menu. Prior art is the existing desktop tray helper suite.
+- Test tray state through one projection interface with a recording tray adapter. Feed Vault-state and language events, then assert the visible labels, enabled actions, and number of native menu replacements. Repeated identical state must not replace the menu. Prior art is the existing desktop tray helper suite.
 - Test that the managed engine channel carries no financial payload by decoding every allowed operational message against a closed schema and rejecting excess fields.
 - Test the Vault Screen-lock deadline through the existing Vault interface with a test clock. Activity before the deadline must postpone Screen lock, inactivity must lock at the configured timeout, and hiding or destroying the renderer must not stop the deadline. Prior art is the Vault lifecycle suite and Auto-refresh test clock.
 - Test activity coalescing through the renderer runtime seam with an injected clock and recording adapter. Frequent pointer and keyboard events must produce no more than one engine update per thirty seconds while preserving the most recent activity time.
@@ -145,6 +144,8 @@ Good tests cross the same interface as production callers and assert external be
 ## Further Notes
 
 The Refresh-cycle correction restores behavior already specified by ADR 0007 and the existing Auto-refresh spec. It does not reopen those decisions.
+
+Auto-refresh timestamps and outcomes are no longer tray state. Settings owns a Vault-backed Sync log, and the tray contains only Open, Lock now, and Quit.
 
 The one-second parent watcher, minute tray poll, missing tray authentication, fifteen-second Screen-lock poll, eager adapter construction, and unbounded search-cache capacity were observed directly in the implementation. Their individual CPU and resident-memory impact has not been benchmarked. The implementation must keep that distinction visible in its measurement notes.
 
