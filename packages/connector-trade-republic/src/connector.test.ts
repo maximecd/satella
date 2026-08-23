@@ -76,6 +76,86 @@ const asJsonValue = <T>(value: T): TradeRepublicJsonValue => {
 };
 
 describe("Trade Republic connector", () => {
+  it("speaks Trade Republic's text WebSocket protocol", async () => {
+    const sessionToken = `header.${Buffer.from(
+      JSON.stringify({
+        act: { acc: { owner: { default: { sec: ["SEC-1"], cash: ["CASH-1"] } } } },
+      }),
+    ).toString("base64url")}.signature`;
+    class ReferenceProtocolSocket extends EventEmitter {
+      readyState = 0;
+
+      send(message: string) {
+        if (message.startsWith("connect 31 ")) {
+          this.emit("message", "connected");
+          return;
+        }
+        const match = /^sub (\d+) (.+)$/.exec(message);
+        if (match === null) return;
+        const [, id, encoded] = match;
+        // SAFETY: this fake socket receives only subscription payloads created by the transport under test.
+        const payload = JSON.parse(encoded ?? "{}") as {
+          type?: string;
+          id?: string;
+          secAccNo?: string;
+          token?: string;
+        };
+        if (payload.token !== sessionToken) return;
+        if (payload.type === "availableCash") {
+          this.emit(
+            "message",
+            `${id} A ${JSON.stringify({ cashAccounts: [{ accountNumber: "CASH-1", balance: "10", currency: "EUR" }] })}`,
+          );
+        } else if (payload.type === "compactPortfolioByType") {
+          if (payload.secAccNo !== "SEC-1") return;
+          this.emit(
+            "message",
+            `${id} A ${JSON.stringify({ categories: [{ positions: [{ isin: "FR0000000001", netSize: "1", averageBuyIn: "10" }] }] })}`,
+          );
+        } else if (payload.type === "ticker") {
+          this.emit(
+            "message",
+            `${id} A ${JSON.stringify({ last: { price: "12.50", time: 1787472000000 }, currency: "EUR" })}`,
+          );
+        }
+      }
+
+      close() {
+        this.readyState = 3;
+        this.emit("close");
+      }
+    }
+
+    const factory: TradeRepublicWebSocketFactory = () => {
+      const socket = new ReferenceProtocolSocket();
+      queueMicrotask(() => {
+        socket.readyState = 1;
+        socket.emit("open");
+      });
+      return socket;
+    };
+    const transport = makeEffectWebSocketTransport(
+      "wss://fixture.invalid/",
+      Duration.millis(10),
+      factory,
+    );
+
+    const result = await Effect.runPromise(
+      transport.fetchSnapshot({ sessionToken, refreshToken: "refresh-token" }),
+    );
+    expect(result).toMatchObject({
+      accounts: [{ accountNumber: "SEC-1" }],
+      cashAccounts: [{ accountNumber: "CASH-1" }],
+    });
+    // SAFETY: this fixture does not emit rotated cookies, so the transport returns the snapshot directly.
+    const parsed = parseTradeRepublicSnapshot(result as TradeRepublicJsonValue);
+    expect(parsed.accounts.map((account) => account.externalId)).toEqual(["SEC-1", "CASH-1"]);
+    expect(parsed.accounts[0]?.positions[0]).toMatchObject({
+      quantity: "1",
+      reportedPrice: { price: "12.5", currencyIso: "EUR" },
+    });
+  });
+
   it("uses the read-only WebSocket topics and accepts rotated session cookies", async () => {
     class FakeSocket extends EventEmitter {
       readyState = 0;
@@ -83,15 +163,17 @@ describe("Trade Republic connector", () => {
 
       send(message: string) {
         this.sent.push(message);
-        // SAFETY: this test controls every message sent by the fake transport.
-        const parsed = JSON.parse(message) as {
-          readonly type: string;
-          readonly id?: string;
-          readonly payload?: { readonly type?: string };
-        };
-        if (parsed.type !== "sub" || parsed.id === undefined) return;
+        if (message.startsWith("connect 31 ")) {
+          this.emit("message", "connected");
+          return;
+        }
+        const match = /^sub (\d+) (.+)$/.exec(message);
+        if (match === null) return;
+        const [, id, encoded] = match;
+        // SAFETY: this fake socket receives only subscription payloads created by the transport under test.
+        const payloadRequest = JSON.parse(encoded ?? "{}") as { type?: string; id?: string };
         const payload =
-          parsed.payload?.type === "compactPortfolioByType"
+          payloadRequest.type === "compactPortfolioByType"
             ? {
                 accounts: [
                   {
@@ -111,10 +193,10 @@ describe("Trade Republic connector", () => {
                   { accountNumber: "CASH-1", type: "cash", currency: "EUR", balance: "10" },
                 ],
               }
-            : parsed.payload?.type === "ticker"
+            : payloadRequest.type === "ticker"
               ? { last: { price: "12.50", time: 1787472000000 }, currency: "EUR" }
               : {};
-        this.emit("message", Buffer.from(JSON.stringify({ id: parsed.id, payload })));
+        this.emit("message", `${id} A ${JSON.stringify(payload)}`);
       }
 
       close() {
@@ -150,15 +232,17 @@ describe("Trade Republic connector", () => {
     );
 
     expect(seenUrl).toBe("wss://fixture.invalid/");
-    expect(seenHeaders?.Cookie).toBe("tr_session=session; tr_refresh=refresh");
-    expect(seenHeaders?.["x-tr-protocol-version"]).toBe("31");
-    expect(socket?.sent.map((message) => JSON.parse(message).type)).toEqual([
+    expect(seenHeaders).toEqual({ Origin: "https://app.traderepublic.com" });
+    expect(socket?.sent[0]).toMatch(/^connect 31 /);
+    expect(socket?.sent.map((message) => message.split(" ", 1)[0])).toEqual([
       "connect",
       "sub",
       "sub",
       "sub",
     ]);
-    expect(JSON.parse(socket?.sent[3] ?? "{}").payload.id).toBe("FR0000000001.LSX");
+    expect(JSON.parse((socket?.sent[3] ?? "").split(" ").slice(2).join(" ")).id).toBe(
+      "FR0000000001.LSX",
+    );
     expect(result).toMatchObject({
       session: { sessionToken: "rotated", refreshToken: "next" },
       snapshot: { accounts: [{ accountNumber: "SEC-1" }], cashAccounts: [{ balance: "10" }] },
@@ -178,22 +262,21 @@ describe("Trade Republic connector", () => {
       readyState = 0;
 
       send(message: string) {
-        // SAFETY: this test controls every message sent by the fake transport.
-        const parsed = JSON.parse(message) as {
-          readonly type: string;
-          readonly id?: string;
-          readonly payload?: { readonly type?: string };
-        };
-        if (parsed.type !== "sub" || parsed.id === undefined) return;
-        if (parsed.payload?.type === "ticker") {
-          this.emit(
-            "message",
-            Buffer.from(JSON.stringify({ type: "error", id: parsed.id, status: 404 })),
-          );
+        if (message.startsWith("connect 31 ")) {
+          this.emit("message", "connected");
+          return;
+        }
+        const match = /^sub (\d+) (.+)$/.exec(message);
+        if (match === null) return;
+        const [, id, encoded] = match;
+        // SAFETY: this fake socket receives only subscription payloads created by the transport under test.
+        const payloadRequest = JSON.parse(encoded ?? "{}") as { type?: string };
+        if (payloadRequest.type === "ticker") {
+          this.emit("message", `${id} E ${JSON.stringify({ status: 404 })}`);
           return;
         }
         const payload =
-          parsed.payload?.type === "compactPortfolioByType"
+          payloadRequest.type === "compactPortfolioByType"
             ? {
                 accounts: [
                   {
@@ -215,7 +298,7 @@ describe("Trade Republic connector", () => {
                   { accountNumber: "CASH-1", type: "cash", currency: "EUR", balance: "10" },
                 ],
               };
-        this.emit("message", Buffer.from(JSON.stringify({ id: parsed.id, payload })));
+        this.emit("message", `${id} A ${JSON.stringify(payload)}`);
       }
 
       close() {

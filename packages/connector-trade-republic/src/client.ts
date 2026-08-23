@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { HttpBody, HttpClient, HttpClientRequest } from "effect/unstable/http";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -111,7 +109,12 @@ const dataOf = (value: TradeRepublicJsonValue): TradeRepublicJsonValue => {
   return value.data ?? value.payload ?? value.result ?? value;
 };
 
-const accountNumbersFromSession = (sessionToken: string): ReadonlyArray<string> => {
+interface SessionAccount {
+  readonly accountNumber: string;
+  readonly wrapper?: string;
+}
+
+const accountsFromSession = (sessionToken: string): ReadonlyArray<SessionAccount> => {
   try {
     const encoded = sessionToken.split(".")[1];
     if (encoded === undefined) return [];
@@ -120,21 +123,34 @@ const accountNumbersFromSession = (sessionToken: string): ReadonlyArray<string> 
     );
     if (!isRecord(payload) || !isRecord(payload.act) || !isRecord(payload.act.acc)) return [];
     const owner = payload.act.acc.owner;
-    const values: string[] = [];
-    const visit = (value: TradeRepublicJsonValue) => {
-      if (Array.isArray(value)) {
-        for (const item of value) visit(item);
-        return;
+    const values: SessionAccount[] = [];
+    if (isRecord(owner)) {
+      for (const [wrapper, value] of Object.entries(owner)) {
+        if (!isRecord(value) || !Array.isArray(value.sec)) continue;
+        for (const account of value.sec) {
+          const accountNumber = text(account);
+          if (accountNumber !== undefined) values.push({ accountNumber, wrapper });
+        }
       }
+    }
+    const visit = (value: TradeRepublicJsonValue) => {
       if (!isRecord(value)) return;
       for (const key of ["accountNumber", "account_number", "number"]) {
         const candidate = text(value[key]);
-        if (candidate !== undefined) values.push(candidate);
+        if (candidate !== undefined) values.push({ accountNumber: candidate });
       }
-      for (const child of Object.values(value)) visit(child);
+      for (const child of Object.values(value)) {
+        if (Array.isArray(child)) {
+          for (const item of child) visit(item);
+        } else visit(child);
+      }
     };
     if (owner !== undefined) visit(owner);
-    return [...new Set(values)];
+    return values.filter(
+      (account, index) =>
+        values.findIndex((candidate) => candidate.accountNumber === account.accountNumber) ===
+        index,
+    );
   } catch {
     return [];
   }
@@ -144,6 +160,7 @@ interface Subscription {
   readonly id: string;
   readonly topic: "availableCash" | "compactPortfolioByType" | "ticker";
   readonly accountNumber?: string;
+  readonly wrapper?: string;
   readonly instrumentId?: string;
   readonly parameters: SubscriptionParameters;
 }
@@ -154,26 +171,32 @@ interface SubscriptionParameters {
 }
 
 const subscriptionsFor = (session: TradeRepublicSession): ReadonlyArray<Subscription> => {
-  const accountNumbers = accountNumbersFromSession(session.sessionToken);
-  const targets = accountNumbers.length === 0 ? [undefined] : accountNumbers;
+  const accounts = accountsFromSession(session.sessionToken);
+  const targets: ReadonlyArray<SessionAccount | undefined> =
+    accounts.length === 0 ? [undefined] : accounts;
+  let nextId = 0;
   const subscription = (
     topic: Subscription["topic"],
     accountNumber: string | undefined,
     parameters: SubscriptionParameters = {},
     instrumentId?: string,
+    wrapper?: string,
   ): Subscription => {
-    const result: Subscription = { id: randomUUID(), topic, parameters };
+    const result: Subscription = { id: String((nextId += 1)), topic, parameters };
     if (accountNumber !== undefined) Object.assign(result, { accountNumber });
     if (instrumentId !== undefined) Object.assign(result, { instrumentId });
+    if (wrapper !== undefined) Object.assign(result, { wrapper });
     return result;
   };
   return [
-    subscription("availableCash", undefined),
-    ...targets.map((accountNumber) =>
+    subscription("availableCash", "tr_cash"),
+    ...targets.map((account) =>
       subscription(
         "compactPortfolioByType",
-        accountNumber,
-        accountNumber === undefined ? {} : { secAccNo: accountNumber },
+        account?.accountNumber,
+        account === undefined ? {} : { secAccNo: account.accountNumber },
+        undefined,
+        account?.wrapper,
       ),
     ),
   ];
@@ -248,6 +271,15 @@ const isPrivatePosition = (record: TradeRepublicJsonObject) => {
   return kind?.includes("private") === true || kind?.includes("unlisted") === true;
 };
 
+const portfolioValue = (
+  value: TradeRepublicJsonObject,
+  wrapper: string | undefined,
+): TradeRepublicJsonObject => {
+  const result: TradeRepublicJsonObject = { ...value, currency: value.currency ?? "EUR" };
+  if (wrapper !== undefined) Object.assign(result, { wrapper });
+  return result;
+};
+
 const topicRows = (value: TradeRepublicJsonValue): ReadonlyArray<TradeRepublicJsonValue> => {
   const data = dataOf(value);
   if (Array.isArray(data)) return data;
@@ -257,6 +289,7 @@ const topicRows = (value: TradeRepublicJsonValue): ReadonlyArray<TradeRepublicJs
       "accountWrappers",
       "securitiesAccounts",
       "cashAccounts",
+      "availableCash",
       "positions",
       "holdings",
       "items",
@@ -294,7 +327,12 @@ const snapshotFromTopics = (
       topicRows(value).map((row) => {
         if (!isRecord(row) || accountNumber === undefined || row.accountNumber !== undefined)
           return row;
-        return { ...row, accountNumber };
+        return {
+          ...row,
+          accountNumber,
+          type: row.type ?? "cash",
+          currency: row.currency ?? "EUR",
+        };
       }),
     );
   const cashAccounts = topics
@@ -420,18 +458,35 @@ const cookieSession = (
     : undefined;
 };
 
-const socketData = (value: RawData): TradeRepublicJsonValue | undefined => {
+const socketText = (value: RawData): string =>
+  isTradeRepublicJsonString(value)
+    ? value
+    : Buffer.isBuffer(value)
+      ? value.toString("utf8")
+      : Array.isArray(value)
+        ? Buffer.concat(value).toString("utf8")
+        : // SAFETY: ws supplies an ArrayBuffer for the final RawData union member.
+          Buffer.from(value as ArrayBuffer).toString("utf8");
+
+interface TradeRepublicSocketMessage {
+  readonly id: string;
+  readonly status: string;
+  readonly payload: TradeRepublicJsonValue;
+}
+
+const socketMessage = (value: RawData): "connected" | TradeRepublicSocketMessage | undefined => {
+  const encoded = socketText(value).trim();
+  if (encoded === "connected") return "connected";
+  const firstSpace = encoded.indexOf(" ");
+  const secondSpace = encoded.indexOf(" ", firstSpace + 1);
+  if (firstSpace <= 0 || secondSpace <= firstSpace + 1) return undefined;
   try {
-    const encoded = isTradeRepublicJsonString(value)
-      ? value
-      : Buffer.isBuffer(value)
-        ? value.toString("utf8")
-        : Array.isArray(value)
-          ? Buffer.concat(value).toString("utf8")
-          : // SAFETY: ws supplies an ArrayBuffer for the final RawData union member.
-            Buffer.from(value as ArrayBuffer).toString("utf8");
-    const parsed: TradeRepublicJsonValue = JSON.parse(encoded);
-    return parsed;
+    const payload: TradeRepublicJsonValue = JSON.parse(encoded.slice(secondSpace + 1));
+    return {
+      id: encoded.slice(0, firstSpace),
+      status: encoded.slice(firstSpace + 1, secondSpace),
+      payload,
+    };
   } catch {
     return undefined;
   }
@@ -477,6 +532,7 @@ export const makeEffectWebSocketTransport = (
         new Promise<TradeRepublicJsonValue | TradeRepublicTransportResponse>((resolve, reject) => {
           const timeoutMs = Math.max(1_000, Duration.toMillis(timeout));
           const subscriptions: Subscription[] = [...subscriptionsFor(session)];
+          let nextSubscriptionId = subscriptions.length;
           const responses = new Set<string>();
           const topics: Array<{
             readonly topic: Subscription["topic"];
@@ -535,27 +591,18 @@ export const makeEffectWebSocketTransport = (
           try {
             socket = socketFactory(url, {
               headers: {
-                Accept: "application/json",
-                Cookie: `tr_session=${session.sessionToken}; tr_refresh=${session.refreshToken}`,
                 Origin: TRADE_REPUBLIC_WEB_ORIGIN,
-                Referer: `${TRADE_REPUBLIC_WEB_ORIGIN}/`,
-                "x-tr-app-version": "web",
-                "x-tr-device-info": "web",
-                "x-tr-platform": "web",
-                "x-tr-protocol-version": TRADE_REPUBLIC_PROTOCOL_VERSION,
               },
               handshakeTimeout: timeoutMs,
             });
             const activeSocket = socket;
             const sendSubscription = (subscription: Subscription) => {
-              const payload = { type: subscription.topic, ...subscription.parameters };
-              activeSocket.send(
-                JSON.stringify({
-                  type: "sub",
-                  id: subscription.id,
-                  payload,
-                }),
-              );
+              const payload = {
+                type: subscription.topic,
+                ...subscription.parameters,
+                token: session.sessionToken,
+              };
+              activeSocket.send(`sub ${subscription.id} ${JSON.stringify(payload)}`);
             };
             const addTickerSubscriptions = (value: TradeRepublicJsonValue) => {
               for (const position of positionRows(value)) {
@@ -570,7 +617,7 @@ export const makeEffectWebSocketTransport = (
                 )
                   continue;
                 const ticker: Subscription = {
-                  id: randomUUID(),
+                  id: String((nextSubscriptionId += 1)),
                   topic: "ticker",
                   instrumentId: tickerId,
                   parameters: { id: tickerId },
@@ -584,24 +631,27 @@ export const makeEffectWebSocketTransport = (
             });
             activeSocket.on("open", () => {
               try {
-                const connectMessage = {
-                  type: "connect",
-                  id: randomUUID(),
-                  payload: {
-                    protocolVersion: TRADE_REPUBLIC_PROTOCOL_VERSION,
-                    platform: "web",
-                    client: "web",
-                  },
+                const connectPayload = {
+                  locale: "fr",
+                  platformId: "webtrading",
+                  platformVersion: "chrome - 125.0.0",
+                  clientId: "app.traderepublic.com",
+                  clientVersion: "3.151.3",
                 };
-                activeSocket.send(JSON.stringify(connectMessage));
-                for (const subscription of subscriptions.slice()) sendSubscription(subscription);
+                activeSocket.send(
+                  `connect ${TRADE_REPUBLIC_PROTOCOL_VERSION} ${JSON.stringify(connectPayload)}`,
+                );
               } catch {
                 finishFailure(socketError("Trade Republic request could not be sent"));
               }
             });
             activeSocket.on("message", (raw) => {
-              const value = socketData(raw);
-              if (!isRecord(value)) {
+              const message = socketMessage(raw);
+              if (message === "connected") {
+                for (const subscription of subscriptions.slice()) sendSubscription(subscription);
+                return;
+              }
+              if (message === undefined) {
                 finishFailure(
                   socketError(
                     "Trade Republic returned an invalid protocol message",
@@ -610,13 +660,17 @@ export const makeEffectWebSocketTransport = (
                 );
                 return;
               }
-              const type = text(value.type)?.toLowerCase();
-              if (type === "error" || type === "auth_error") {
-                const status = Number(value.status ?? value.code);
+              const value = message.payload;
+              const valueRecord = isRecord(value) ? value : undefined;
+              const type = text(valueRecord?.type)?.toLowerCase();
+              if (message.status !== "A" || type === "error" || type === "auth_error") {
+                const status = Number(valueRecord?.status ?? valueRecord?.code);
                 const authenticationExpired =
-                  type === "auth_error" || status === 401 || status === 403;
-                const id = text(value.id);
-                const subscription = subscriptions.find((candidate) => candidate.id === id);
+                  type === "auth_error" ||
+                  status === 401 ||
+                  status === 403 ||
+                  JSON.stringify(value).includes("AUTHENTICATION_ERROR");
+                const subscription = subscriptions.find((candidate) => candidate.id === message.id);
                 if (!authenticationExpired && subscription !== undefined) {
                   partial = true;
                   responses.add(subscription.id);
@@ -634,7 +688,7 @@ export const makeEffectWebSocketTransport = (
                 );
                 return;
               }
-              const snapshot = value.snapshot;
+              const snapshot = valueRecord?.snapshot;
               if (snapshot !== undefined) {
                 topics.push({ topic: "compactPortfolioByType", value: snapshot });
                 for (const subscription of subscriptions)
@@ -643,13 +697,12 @@ export const makeEffectWebSocketTransport = (
                 if (responses.size === subscriptions.length) finishTopics();
                 return;
               }
-              const id = text(value.id);
-              const subscription = subscriptions.find((candidate) => candidate.id === id);
-              const payload = payloadOf(value);
+              const subscription = subscriptions.find((candidate) => candidate.id === message.id);
+              const payload = isRecord(value) ? payloadOf(value) : value;
               const payloadRecord = isRecord(payload) ? payload : undefined;
               const topic =
                 subscription?.topic ??
-                (value.topic === undefined ? undefined : topicName(value.topic)) ??
+                (valueRecord?.topic === undefined ? undefined : topicName(valueRecord.topic)) ??
                 (payloadRecord?.type === undefined ? undefined : topicName(payloadRecord.type));
               if (subscription !== undefined) responses.add(subscription.id);
               const tickerPayload = dataOf(payload);
@@ -658,7 +711,9 @@ export const makeEffectWebSocketTransport = (
                   ? isRecord(tickerPayload)
                     ? { ...tickerPayload, tickerId: subscription.instrumentId }
                     : { tickerId: subscription.instrumentId, quote: tickerPayload }
-                  : tickerPayload;
+                  : subscription?.topic === "compactPortfolioByType" && isRecord(tickerPayload)
+                    ? portfolioValue(tickerPayload, subscription.wrapper)
+                    : tickerPayload;
               if (
                 topic === "availableCash" ||
                 topic === "compactPortfolioByType" ||
@@ -671,10 +726,6 @@ export const makeEffectWebSocketTransport = (
               }
               if (subscription?.topic === "compactPortfolioByType")
                 addTickerSubscriptions(topicValue);
-              if (type === "complete" || type === "done") {
-                if (responses.size === subscriptions.length) finishTopics();
-                return;
-              }
               if (responses.size === subscriptions.length) finishTopics();
             });
             activeSocket.on("error", () => {
