@@ -14,7 +14,7 @@ Make the dashboard the primary portfolio overview. Present a wide, responsive As
 
 Use one intrinsic Asset category taxonomy everywhere: Stocks & ETFs, Bonds, Crypto, Cash, Derivatives, Commodities, and Other assets. Accounts become untyped containers. A Connection is the optional external source of one or more Accounts; manually created Accounts exist without a Connection.
 
-Remove routine provenance and healthy-state metadata from the application. Silence represents healthy and current data. Preserve concise, actionable exceptions when a valuation is incomplete or a refresh fails. Replace “resync” with a consistent, icon-only Connection refresh action.
+Remove routine provenance and healthy-state metadata from the application. Silence represents healthy and current data. Preserve concise, actionable exceptions when a valuation is incomplete or a manual Refresh fails; background diagnostics belong in the Vault-backed Sync log. Replace “resync” with a consistent, icon-only Connection refresh action.
 
 Retain the sidebar for future expansion, but simplify and repair it. Restructure Settings into a focused landing page containing Reporting currency and a link to a dedicated Connections subpage. Delete obsolete pre-production routes and screens instead of maintaining redirects.
 
@@ -35,8 +35,8 @@ Retain the sidebar for future expansion, but simplify and repair it. Restructure
 13. As a portfolio owner, I want chart tooltips to show the observation date and value, so that I can inspect exact historical values without persistent clutter.
 14. As a portfolio owner, I want missing snapshot days left as missing observations, so that Satella does not fabricate financial history.
 15. As a portfolio owner with little history, I want “Not enough history” instead of a false zero-percent change, so that the application remains honest.
-16. As a portfolio owner, I want a successful Connection refresh to update today’s history point, so that the chart reflects the latest imported data.
-17. As a portfolio owner, I want at most one historical point per day, so that repeated refreshes do not pollute the chart.
+16. As a portfolio owner, I want the graph to use the latest Snapshot from each day, so that it reflects the latest imported data without discarding intraday history.
+17. As a portfolio owner, I want the graph to show at most one point per day, so that repeated Refreshes do not crowd the chart.
 18. As a portfolio owner, I want to see my allocation by individual Asset, so that I can identify concentrated holdings.
 19. As a portfolio owner, I want the same Asset held in multiple Accounts combined into one allocation cell, so that exposure is not fragmented by custody.
 20. As a portfolio owner, I want to switch allocation between Assets and Asset categories, so that I can move between detailed and strategic views.
@@ -102,7 +102,7 @@ Retain the sidebar for future expansion, but simplify and repair it. Restructure
 - Aggregate identical Assets across Accounts for the Asset allocation. Category allocation sums those Asset values by intrinsic category. Percentages use the positive, priced allocation denominator.
 - Exclude zero and unpriced Assets from treemap geometry. Report the unpriced count. Do not force negative values into treemap area; report their presence as an exception while retaining them in Portfolio value according to existing valuation semantics.
 - Historical Portfolio values are recomputed in the active Reporting currency using captured historical prices and FX information. Snapshot capture must include the FX data needed for every supported Reporting currency rather than assuming USD.
-- Persistence may store multiple snapshots on the same calendar day. The history API returns those actual observations without generating missing-day values. The client shows at most one point per calendar day (the latest that day) and filters observations into 7D, 1M, 3M, YTD, 1Y, and All ranges.
+- Every completed Refresh persists one Snapshot, including multiple Snapshots on the same calendar day. The history API returns those actual observations without generating missing-day values. The dashboard graph selects the latest Snapshot from each local calendar day for display and filters those displayed points into 7D, 1M, 3M, YTD, 1Y, and All ranges without deleting intraday Snapshots.
 - The selected-period change compares the first and last available points. Fewer than two points yields “Not enough history.” The dashboard defaults to 1M.
 - Build the dashboard with Astryx AppShell/Layout, Grid/GridSpan, Card, Stack, List, SegmentedControl, IconButton, Tooltip, and typography primitives. The Portfolio value and allocation widgets are independent Cards; the dense Account list remains edge-to-edge and is not Card-wrapped.
 - Use a three-column desktop grid: Portfolio value spans two columns, allocation spans one, and Accounts span the full following row. Use responsive reflow so the two visualization cards stack when their contents would become cramped. Expand the page content budget beyond the current narrow layout using Astryx layout APIs and tokens.
@@ -145,7 +145,7 @@ Retain the sidebar for future expansion, but simplify and repair it. Restructure
 
 - True investment performance, time-weighted return, money-weighted return, or any calculation adjusted for deposits and withdrawals.
 - Modeling cash flows or transactions.
-- Intraday snapshots and a 1D chart range.
+- A 1D chart range or displaying multiple intraday Snapshots from the same day.
 - Fabricated or interpolated historical observations.
 - Full liability, debt, or short-position allocation visualization.
 - Treemap click-through or a new portfolio-level Asset detail page.

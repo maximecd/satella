@@ -6,10 +6,6 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import {
-  AutoRefreshStatus,
-  type AutoRefreshStatus as AutoRefreshStatusType,
-} from "../finance/contracts.js";
 import type { VaultStatus } from "../vault/Vault.js";
 
 const ManagedVaultStateSchema = Schema.Struct({
@@ -19,14 +15,12 @@ const ManagedVaultStateSchema = Schema.Struct({
 
 const ManagedOperationalMessageSchema = Schema.Struct({
   type: Schema.Literal("operational-state"),
-  autoRefresh: AutoRefreshStatus,
   vault: ManagedVaultStateSchema,
 });
 
 export type ManagedVaultState = typeof ManagedVaultStateSchema.Type;
 
 export interface ManagedOperationalState {
-  readonly autoRefresh: AutoRefreshStatusType;
   readonly vault: ManagedVaultState;
 }
 
@@ -43,7 +37,6 @@ export class ManagedRuntime extends Context.Service<
   ManagedRuntime,
   {
     readonly managed: boolean;
-    readonly publishAutoRefresh: (status: AutoRefreshStatus) => Effect.Effect<void>;
     readonly publishVault: (status: VaultStatus) => Effect.Effect<void>;
     readonly awaitParentDisconnect: () => Effect.Effect<void>;
   }
@@ -55,13 +48,11 @@ export const vaultOperationalState = (status: VaultStatus): ManagedVaultState =>
 });
 
 const initialState: ManagedOperationalState = {
-  autoRefresh: { lastCycleAt: null, lastCycleOutcome: null },
   vault: { state: "locked", screenLock: false },
 };
 
 const messageFor = (state: ManagedOperationalState): ManagedOperationalMessage => ({
   type: "operational-state",
-  autoRefresh: state.autoRefresh,
   vault: state.vault,
 });
 
@@ -85,14 +76,10 @@ export const decodeManagedOperationalMessage = (
 };
 
 const sameState = (left: ManagedOperationalState, right: ManagedOperationalState) =>
-  left.autoRefresh.lastCycleAt === right.autoRefresh.lastCycleAt &&
-  left.autoRefresh.lastCycleOutcome === right.autoRefresh.lastCycleOutcome &&
-  left.vault.state === right.vault.state &&
-  left.vault.screenLock === right.vault.screenLock;
+  left.vault.state === right.vault.state && left.vault.screenLock === right.vault.screenLock;
 
 const noOp = ManagedRuntime.of({
   managed: false,
-  publishAutoRefresh: () => Effect.void,
   publishVault: () => Effect.void,
   awaitParentDisconnect: () => Effect.never,
 });
@@ -138,7 +125,6 @@ export const make = (channel?: ManagedProcessChannel) =>
 
     return ManagedRuntime.of({
       managed: true,
-      publishAutoRefresh: (status) => publish({ ...state, autoRefresh: status }),
       publishVault: (status) => publish({ ...state, vault: vaultOperationalState(status) }),
       awaitParentDisconnect: () => Deferred.await(disconnected),
     });

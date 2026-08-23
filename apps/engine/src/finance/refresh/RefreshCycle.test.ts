@@ -31,8 +31,8 @@ describe("refresh cycle steps", () => {
 
   it("closes the cycle with a snapshot even when the price step fails", () => {
     return Effect.gen(function* () {
-      const error = yield* captureCycleTail({ registry: new Map() });
-      expect(error).toBeNull();
+      const completion = yield* captureCycleTail({ registry: new Map() });
+      expect(completion.error).toBeNull();
 
       const sql = yield* SqlClient.SqlClient;
       const snapshots = yield* sql<{

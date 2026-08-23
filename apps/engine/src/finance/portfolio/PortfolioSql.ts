@@ -26,6 +26,7 @@ import {
 
 export interface CaptureSnapshotOptions {
   readonly refresh?: boolean;
+  readonly requireFresh?: boolean;
   readonly registry?: MarketDataRegistry;
   readonly now?: () => Date;
 }
@@ -36,11 +37,12 @@ export const captureSnapshot = (
   Effect.gen(function* () {
     if (options.refresh !== false) {
       const refreshOptions = {
-        requireFresh: true,
+        requireFresh: options.requireFresh === true,
         includeAllCashFx: true,
       };
       if (options.registry !== undefined)
         Object.assign(refreshOptions, { registry: options.registry });
+      if (options.now !== undefined) Object.assign(refreshOptions, { now: options.now });
       yield* refreshPrices(refreshOptions);
     }
     const sql = yield* SqlClient.SqlClient;

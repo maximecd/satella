@@ -10,11 +10,6 @@ import {
   type ManagedProcessChannel,
 } from "./ManagedRuntime.js";
 
-const status = (lastCycleAt: string | null) => ({
-  lastCycleAt,
-  lastCycleOutcome: lastCycleAt === null ? null : ("success" as const),
-});
-
 describe("managed runtime channel", () => {
   it("coalesces operational state to the newest unsent value", async () => {
     const sent: ManagedOperationalMessage[] = [];
@@ -30,7 +25,6 @@ describe("managed runtime channel", () => {
     };
     const runtime = await Effect.runPromise(Effect.scoped(make(channel)));
 
-    await Effect.runPromise(runtime.publishAutoRefresh(status("2026-08-22T12:00:00.000Z")));
     await Effect.runPromise(
       runtime.publishVault({
         state: "open",
@@ -40,18 +34,25 @@ describe("managed runtime channel", () => {
         screenLockTimeoutMinutes: 5,
       }),
     );
-    await Effect.runPromise(runtime.publishAutoRefresh(status("2026-08-22T12:01:00.000Z")));
+    await Effect.runPromise(
+      runtime.publishVault({
+        state: "open",
+        screenLock: true,
+        pinAttemptsRemaining: 3,
+        pinEntryDisabled: false,
+        screenLockTimeoutMinutes: 5,
+      }),
+    );
     expect(sent).toHaveLength(1);
     callbacks[0]?.();
     expect(sent).toHaveLength(2);
-    expect(sent[1]?.autoRefresh.lastCycleAt).toBe("2026-08-22T12:01:00.000Z");
+    expect(sent[1]?.vault).toEqual({ state: "open", screenLock: true });
     connected = false;
   });
 
   it("rejects operational messages with financial or unknown fields", () => {
     const valid = {
       type: "operational-state",
-      autoRefresh: status(null),
       vault: { state: "locked", screenLock: false },
     };
     expect(decodeManagedOperationalMessage(valid)).toEqual(valid);

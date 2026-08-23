@@ -17,6 +17,7 @@ import type {
   Position,
   PositionEdit,
   Settings,
+  SyncLogEntry,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdateSettingsInput,
@@ -38,6 +39,7 @@ export type DashboardProjection = (dashboard: Dashboard, settings: Settings) => 
 export type MemoryPortfolioSeed = {
   readonly dashboard?: Dashboard;
   readonly settings?: Settings;
+  readonly syncLog?: ReadonlyArray<SyncLogEntry>;
   readonly projectDashboard?: DashboardProjection;
   readonly custodians?: ReadonlyArray<Custodian>;
   readonly accounts?: ReadonlyArray<Account>;
@@ -219,6 +221,7 @@ export const createMemoryPortfolioEngine = (
   type MemoryState = {
     dashboard: Dashboard;
     settings: Settings;
+    syncLog: SyncLogEntry[];
     projectDashboard: DashboardProjection | undefined;
     custodians: Custodian[];
     accounts: Account[];
@@ -237,6 +240,7 @@ export const createMemoryPortfolioEngine = (
     return {
       dashboard: clone(next.dashboard ?? defaultDashboard),
       settings: clone(next.settings ?? defaultSettings),
+      syncLog: clone([...(next.syncLog ?? [])]),
       projectDashboard: next.projectDashboard,
       custodians: clone([...(next.custodians ?? [])]),
       accounts,
@@ -253,6 +257,7 @@ export const createMemoryPortfolioEngine = (
   const cloneState = (value: MemoryState): MemoryState => ({
     dashboard: clone(value.dashboard),
     settings: clone(value.settings),
+    syncLog: clone(value.syncLog),
     projectDashboard: value.projectDashboard,
     custodians: clone(value.custodians),
     accounts: clone(value.accounts),
@@ -443,7 +448,6 @@ export const createMemoryPortfolioEngine = (
       unrealizedPnl: "0",
       unrealizedPnlPercent: null,
       totalIncomplete: false,
-      hasStalePrices: false,
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
@@ -494,6 +498,28 @@ export const createMemoryPortfolioEngine = (
       rejectIfFailed("getSettings");
       return state.settings;
     },
+    listSyncLog: async (cursor, signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("listSyncLog");
+      const pageSize = 50;
+      const start = cursor === undefined ? 0 : Number(cursor);
+      if (
+        cursor !== undefined &&
+        (!Number.isInteger(start) || start < 0 || String(start) !== cursor)
+      ) {
+        throw new PortfolioFailure("validation", "The Sync log cursor is invalid");
+      }
+      const offset = start;
+      const entries = [...state.syncLog].sort((left, right) => {
+        const completedAt = right.completedAt.localeCompare(left.completedAt);
+        return completedAt === 0 ? right.id.localeCompare(left.id) : completedAt;
+      });
+      const page = entries.slice(offset, offset + pageSize);
+      return {
+        entries: clone(page),
+        nextCursor: offset + page.length < entries.length ? String(offset + page.length) : null,
+      };
+    },
     updateSettings: async (input: UpdateSettingsInput, signal) => {
       throwIfAborted(signal);
       rejectIfFailed("updateSettings");
@@ -539,7 +565,6 @@ export const createMemoryPortfolioEngine = (
               source: "manual",
               observedAt: input.manualPrice.observedAt ?? nowIso(),
               updatedAt: nowIso(),
-              isStale: false,
             };
       const next: Asset = {
         ...current,
@@ -801,6 +826,7 @@ export const createMemoryPortfolioEngine = (
     seed: (next) => {
       if (next.dashboard !== undefined) state.dashboard = clone(next.dashboard);
       if (next.settings !== undefined) state.settings = clone(next.settings);
+      if (next.syncLog !== undefined) state.syncLog = clone([...next.syncLog]);
       if (next.projectDashboard !== undefined) state.projectDashboard = next.projectDashboard;
       if (next.custodians !== undefined) state.custodians = clone([...next.custodians]);
       if (next.accounts !== undefined) {

@@ -5,7 +5,6 @@ import { join } from "node:path";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Scope from "effect/Scope";
 import { Reactivity } from "effect/unstable/reactivity";
@@ -352,7 +351,7 @@ export const VaultLive = Layer.effect(
   Effect.gen(function* () {
     const config = yield* DatabaseConfig;
     const events = yield* VaultEvents;
-    const managedRuntime = yield* Effect.serviceOption(ManagedRuntime);
+    const managedRuntime = yield* ManagedRuntime;
     const effectContext = yield* Effect.context<never>();
     const sessionRef = yield* Ref.make<Session>({ _tag: "Closed" });
 
@@ -376,8 +375,7 @@ export const VaultLive = Layer.effect(
         return statusFrom(hasEnvelope, session);
       });
 
-    const publishStatus = (status: VaultStatus) =>
-      Option.isSome(managedRuntime) ? managedRuntime.value.publishVault(status) : Effect.void;
+    const publishStatus = (status: VaultStatus) => managedRuntime.publishVault(status);
 
     const inactivityDeadline = makeScreenLockDeadline({
       onExpire: () => {

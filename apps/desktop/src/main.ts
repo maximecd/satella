@@ -51,7 +51,6 @@ let tray: Tray | undefined;
 let trayState: TrayStateController | undefined;
 let operationalState: ManagedOperationalMessage = {
   type: "operational-state",
-  autoRefresh: { lastCycleAt: null, lastCycleOutcome: null },
   vault: { state: "locked", screenLock: false },
 };
 let quitting = false;
@@ -109,7 +108,6 @@ const handleManagedEngineMessage = (value: ManagedProcessValue) => {
   const wasScreenLocked = operationalState.vault.screenLock;
   operationalState = message;
   trayState?.setState({
-    status: message.autoRefresh,
     vaultOpen: message.vault.state === "open" && !message.vault.screenLock,
   });
   if (!wasScreenLocked && message.vault.screenLock) {
@@ -244,7 +242,6 @@ const startManagedEngine = async () => {
     managedEngineEnvironment(process.env, {
       port: enginePort,
       dataDirectory,
-      logDirectory: app.getPath("logs"),
       production: app.isPackaged,
       engineToken,
     }),
@@ -277,7 +274,6 @@ const createTray = () => {
       lockNow: () => void lockViaEngine(),
       quit: () => app.quit(),
     },
-    initialStatus: operationalState.autoRefresh,
     initialVaultOpen: operationalState.vault.state === "open" && !operationalState.vault.screenLock,
   });
   tray.on("click", () => openWindow());

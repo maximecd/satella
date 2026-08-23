@@ -15,6 +15,7 @@ import type {
   ManualHoldingLookup,
   PositionEdit,
   Settings,
+  SyncLogPage,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdatePositionInput,
@@ -30,6 +31,7 @@ export type SearchableAssetCategory = AssetSearchResult["assetCategory"];
 export type PortfolioEngine = {
   readonly getDashboard: (signal?: AbortSignal) => Promise<Dashboard>;
   readonly getSettings: (signal?: AbortSignal) => Promise<Settings>;
+  readonly listSyncLog: (cursor?: string, signal?: AbortSignal) => Promise<SyncLogPage>;
   readonly updateSettings: (input: UpdateSettingsInput, signal?: AbortSignal) => Promise<Settings>;
   readonly listAssets: (signal?: AbortSignal) => Promise<ReadonlyArray<Asset>>;
   readonly getAsset: (id: string, signal?: AbortSignal) => Promise<Asset>;

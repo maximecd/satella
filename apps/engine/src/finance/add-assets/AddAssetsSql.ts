@@ -20,6 +20,7 @@ import { DEFAULT_MANUAL_ACCOUNT_ID, DEFAULT_MANUAL_CUSTODIAN_ID } from "../confi
 import { getAccount, assertAccountAcceptsAsset } from "../accounts/AccountSql.js";
 import { createCustodian, getCustodian } from "../custodians/CustodianSql.js";
 import { findByStrongIdentifier, getAsset } from "../assets/AssetSql.js";
+import { refreshPrices, type MarketDataRegistry } from "../market-data.js";
 import {
   assertCash,
   databaseFailure,
@@ -233,13 +234,21 @@ const toAddAssetsResult = (
   positionOutcome,
 });
 
-export const addManualHolding = (input: AddManualHoldingInput): FinanceEffect<AddAssetsResult> =>
+export interface AddManualHoldingOptions {
+  readonly registry?: MarketDataRegistry;
+  readonly now?: () => Date;
+}
+
+export const addManualHolding = (
+  input: AddManualHoldingInput,
+  options: AddManualHoldingOptions = {},
+): FinanceEffect<AddAssetsResult> =>
   Effect.gen(function* () {
     const quantity = yield* requireFinite(input.quantity, "Quantity");
     const average = yield* normalizeAverageUnitPurchasePrice(input.averageUnitPurchasePrice);
     const expectedType = input.asset.assetCategory === "crypto" ? "crypto_wallet" : "brokerage";
     const sql = yield* SqlClient.SqlClient;
-    return yield* sql
+    const added = yield* sql
       .withTransaction(
         Effect.gen(function* () {
           const assetId = yield* resolveProviderAssetId(input.asset);
@@ -255,7 +264,7 @@ export const addManualHolding = (input: AddManualHoldingInput): FinanceEffect<Ad
             quantity,
             average,
           );
-          return toAddAssetsResult(yield* getAccount(accountId), positionOutcome);
+          return { accountId, assetId, positionOutcome };
         }),
       )
       .pipe(
@@ -264,6 +273,15 @@ export const addManualHolding = (input: AddManualHoldingInput): FinanceEffect<Ad
         ),
         Effect.catchDefect((cause) => Effect.fail(databaseFailure(cause))),
       );
+    const refreshOptions = {
+      assetIds: [added.assetId],
+      requireFresh: true,
+    };
+    if (options.registry !== undefined)
+      Object.assign(refreshOptions, { registry: options.registry });
+    if (options.now !== undefined) Object.assign(refreshOptions, { now: options.now });
+    yield* refreshPrices(refreshOptions);
+    return toAddAssetsResult(yield* getAccount(added.accountId), added.positionOutcome);
   });
 
 export const addCashAccount = (input: AddCashAccountInput): FinanceEffect<AddAssetsResult> =>

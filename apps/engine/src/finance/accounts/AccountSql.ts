@@ -24,7 +24,6 @@ import {
   db,
   failure,
   firstOrNotFound,
-  isStalePrice,
   loadFxMap,
   nowIso,
   requireNonEmpty,
@@ -187,7 +186,6 @@ export const loadPosition = (
             source: row.source,
             observedAt: row.observed_at,
             updatedAt: row.price_updated_at,
-            isStale: isStalePrice(row.observed_at),
           },
     reportingValue,
     averageUnitPurchasePrice: averagePurchase,
@@ -290,7 +288,6 @@ export const getAccount = (id: string, valuationCurrencyAssetId?: string): Finan
           ? null
           : divideDecimal(unrealizedPnl, acquisitionCostInReportingCurrency),
       totalIncomplete: positions.some((position) => position.reportingValue === null),
-      hasStalePrices: positions.some((position) => position.price?.isStale === true),
       createdAt: account.created_at,
       updatedAt: account.updated_at,
     };

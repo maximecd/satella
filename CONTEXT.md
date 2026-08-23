@@ -28,8 +28,12 @@ _Avoid_: Asset class, account kind
 The current combined value of all holdings expressed in the reporting currency. It is not investment performance because deposits and withdrawals are not yet modeled as cash flows.
 _Avoid_: Performance, return
 
+**Price observation**:
+A price, currency, and observation time returned by a Market-data source. It remains valid regardless of age; Satella does not classify it as fresh, stale, or delayed.
+_Avoid_: Fresh price, stale price, delayed price
+
 **Snapshot**:
-A point-in-time record of every Position quantity and Asset price, captured when a Refresh completes, from which portfolio value history is derived.
+A point-in-time record of every Position quantity and Asset price from which portfolio value history is derived. Each completed Refresh creates one Snapshot, including multiple Refreshes on the same day.
 _Avoid_: History entry, balance record, backup
 
 **Fiat currency**:
@@ -74,16 +78,24 @@ The technical integration used to create and refresh a synced custodian. This is
 An ERC-20 contract explicitly added to a synced EVM wallet so Refresh reads its current balance on one chain.
 _Avoid_: Indexed token
 
+**Sync**:
+One attempt to update a synced Custodian's Accounts and Positions through its Connector, or to fetch a Price observation for an Asset.
+_Avoid_: Connector sync, Account sync
+
 **Refresh**:
-A request for the latest accounts, holdings, and prices from a synced custodian. Refreshing from an account page refreshes the entire custodian that owns the account.
+A request to run the relevant Sync operations for the latest Accounts, Positions, and prices. Refreshing from an Account page refreshes the entire Custodian that owns the Account.
 _Avoid_: Resync
 
 **Auto-refresh**:
 The automatic repetition of Refresh for every synced custodian, followed by market-data updates, at a fixed interval while the vault is unlocked. It continues while the Screen lock is active.
 _Avoid_: Background sync, scheduled refresh
 
+**Sync log**:
+A chronological record of completed Sync attempts. Each entry identifies the Asset or Custodian, when the attempt completed, and whether it succeeded or failed; a failed entry may include a short sanitized reason. It contains no prices, quantities, credentials, source identity, or raw responses.
+_Avoid_: Refresh history, activity log
+
 **Market-data source**:
-An external service that supplies asset prices. Its identity, quote time, and routine freshness status are operational details hidden during normal use.
+An external service that supplies Price observations. Its identity and quote times are operational details hidden during normal use.
 _Avoid_: Provider
 
 ## Privacy

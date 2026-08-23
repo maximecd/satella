@@ -54,6 +54,34 @@ describe("memory portfolio engine", () => {
     await expect(engine.getDashboard(signal)).rejects.toMatchObject({ name: "AbortError" });
   });
 
+  it("returns Sync-log pages newest first", async () => {
+    const engine = createMemoryPortfolioEngine({
+      syncLog: [
+        {
+          id: "older",
+          completedAt: "2026-08-20T10:00:00.000Z",
+          subjectKind: "asset",
+          subjectName: "Older",
+          action: "price_check",
+          outcome: "success",
+          failureReason: null,
+        },
+        {
+          id: "newer",
+          completedAt: "2026-08-20T11:00:00.000Z",
+          subjectKind: "custodian",
+          subjectName: "Newer",
+          action: "refresh",
+          outcome: "failure",
+          failureReason: "Unavailable",
+        },
+      ],
+    });
+    const page = await engine.listSyncLog();
+    expect(page.entries.map(({ subjectName }) => subjectName)).toEqual(["Newer", "Older"]);
+    expect(page.nextCursor).toBeNull();
+  });
+
   it("restores the original seed on reset", async () => {
     const engine = createMemoryPortfolioEngine({ settings });
     engine.fail(new PortfolioFailure("database", "Vault unavailable"));

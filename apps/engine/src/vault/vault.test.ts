@@ -14,11 +14,13 @@ import { FAST_KDF } from "./kdf.js";
 import { VaultEvents, layer as VaultEventsLive } from "./VaultEvents.js";
 import { RESET_CONFIRMATION, VaultService } from "./Vault.js";
 import { VaultLive } from "./VaultLive.js";
+import { layer as ManagedRuntimeLive } from "../runtime/ManagedRuntime.js";
 
 const vaultLayer = (directory: string) =>
   VaultLive.pipe(
     Layer.provide(DatabaseConfigFromDirectory(directory)),
     Layer.provideMerge(VaultEventsLive),
+    Layer.provideMerge(ManagedRuntimeLive(undefined)),
   );
 
 const password = "correct-horse-battery";

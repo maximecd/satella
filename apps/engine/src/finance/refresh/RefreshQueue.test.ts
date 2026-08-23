@@ -85,6 +85,77 @@ describe("refresh queue", () => {
     }).pipe(Effect.provide(RefreshQueueLive)),
   );
 
+  it.effect("atomically coalesces simultaneous pending registrations", () =>
+    Effect.gen(function* () {
+      const queue = yield* RefreshQueue;
+      const gate = makeGate();
+      const started = yield* Deferred.make<void>();
+      let runs = 0;
+      const job = Effect.gen(function* () {
+        runs += 1;
+        yield* Deferred.succeed(started, undefined);
+        yield* gate.wait;
+        return "shared";
+      });
+      const all = yield* Effect.forkChild(
+        Effect.all(
+          Array.from({ length: 20 }, () => queue.submit("same-key", job)),
+          { concurrency: "unbounded" },
+        ),
+      );
+      yield* Deferred.await(started);
+      yield* Effect.yieldNow;
+      gate.open();
+      expect(yield* Fiber.join(all)).toEqual(Array.from({ length: 20 }, () => "shared"));
+      expect(runs).toBe(1);
+    }).pipe(Effect.provide(RefreshQueueLive)),
+  );
+
+  it.effect("reserves every batch key before the first automatic job starts", () =>
+    Effect.gen(function* () {
+      const queue = yield* RefreshQueue;
+      const gate = makeGate();
+      const firstStarted = yield* Deferred.make<void>();
+      let secondRuns = 0;
+
+      const automatic = yield* Effect.forkChild(
+        queue.submitMany([
+          {
+            key: "first",
+            job: Effect.gen(function* () {
+              yield* Deferred.succeed(firstStarted, undefined);
+              yield* gate.wait;
+              return "first";
+            }),
+          },
+          {
+            key: "second",
+            job: Effect.sync(() => {
+              secondRuns += 1;
+              return "second";
+            }),
+          },
+        ]),
+      );
+      yield* Deferred.await(firstStarted);
+
+      const manual = yield* Effect.forkChild(
+        queue.submit(
+          "second",
+          Effect.sync(() => {
+            secondRuns += 1;
+            return "manual";
+          }),
+        ),
+      );
+      gate.open();
+
+      expect(yield* Fiber.join(automatic)).toEqual(["first", "second"]);
+      expect(yield* Fiber.join(manual)).toBe("second");
+      expect(secondRuns).toBe(1);
+    }).pipe(Effect.provide(RefreshQueueLive)),
+  );
+
   it.effect("runs a fresh submission again after the previous job completed", () =>
     Effect.gen(function* () {
       const queue = yield* RefreshQueue;

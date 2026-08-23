@@ -21,7 +21,6 @@ import {
   trayIconPath,
   windowLoadTarget,
 } from "./window.js";
-import { formatLastRefresh, setTrayLanguage, trayMenuItems } from "./tray.js";
 
 describe("desktop main process helpers", () => {
   it("loads the development URL when provided", () => {
@@ -90,86 +89,6 @@ describe("desktop main process helpers", () => {
     expect(packaged.startsWith("/opt/app/resources")).toBe(true);
   });
 
-  it("formats the last refresh time for the tray line", () => {
-    const now = new Date(2026, 7, 22, 18, 5);
-    expect(formatLastRefresh(null, now)).toBe("Not refreshed yet");
-    expect(formatLastRefresh(new Date(2026, 7, 22, 9, 41).toISOString(), now)).toBe(
-      "Last refreshed today at 09:41",
-    );
-    expect(formatLastRefresh(new Date(2026, 6, 4, 23, 8).toISOString(), now)).toBe(
-      "Last refreshed Jul 4 at 23:08",
-    );
-  });
-
-  it("maps the tray menu to its engine actions", () => {
-    const calls: string[] = [];
-    const items = trayMenuItems(
-      { lastCycleAt: new Date(2026, 7, 22, 12, 30).toISOString(), lastCycleOutcome: "success" },
-      true,
-      {
-        open: () => calls.push("open"),
-        lockNow: () => calls.push("lock"),
-        quit: () => calls.push("quit"),
-      },
-      new Date(2026, 7, 22, 13, 0),
-    );
-
-    expect(items.map(({ label }) => label)).toEqual([
-      "Open Satella",
-      "Lock Now",
-      "Last refreshed today at 12:30",
-      "Quit",
-    ]);
-    const [openItem, lockItem, lastRefreshed, quitItem] = items;
-    expect(lastRefreshed?.enabled).toBe(false);
-    openItem?.click?.();
-    lockItem?.click?.();
-    quitItem?.click?.();
-    expect(calls).toEqual(["open", "lock", "quit"]);
-  });
-
-  it("disables Lock Now when the vault is not open", () => {
-    const actions = { open: () => undefined, lockNow: () => undefined, quit: () => undefined };
-    expect(
-      trayMenuItems(null, true, actions).find(({ label }) => label === "Lock Now")?.enabled,
-    ).toBe(true);
-    expect(
-      trayMenuItems(null, false, actions).find(({ label }) => label === "Lock Now")?.enabled,
-    ).toBe(false);
-  });
-
-  it("translates the tray menu into French when the App language is French", () => {
-    const now = new Date(2026, 7, 22, 18, 5);
-    setTrayLanguage("fr");
-    try {
-      expect(formatLastRefresh(null, now)).toBe("Pas encore actualisé");
-      expect(formatLastRefresh(new Date(2026, 7, 22, 9, 41).toISOString(), now)).toBe(
-        "Dernière actualisation aujourd'hui à 09:41",
-      );
-      expect(formatLastRefresh(new Date(2026, 6, 4, 23, 8).toISOString(), now)).toBe(
-        "Dernière actualisation le 4 juil. à 23:08",
-      );
-      expect(
-        trayMenuItems(null, true, {
-          open: () => undefined,
-          lockNow: () => undefined,
-          quit: () => undefined,
-        }).map(({ label }) => label),
-      ).toEqual(["Ouvrir Satella", "Verrouiller maintenant", "Pas encore actualisé", "Quitter"]);
-    } finally {
-      setTrayLanguage("en");
-    }
-  });
-
-  it("falls back to English for unknown tray languages", () => {
-    setTrayLanguage("de");
-    try {
-      expect(formatLastRefresh(null)).toBe("Not refreshed yet");
-    } finally {
-      setTrayLanguage("en");
-    }
-  });
-
   it("does not allow an inherited data directory to replace the canonical one", () => {
     expect(
       managedEngineEnvironment(
@@ -213,7 +132,6 @@ describe("desktop main process helpers", () => {
   it("accepts only operational managed-engine messages", () => {
     const message = {
       type: "operational-state" as const,
-      autoRefresh: { lastCycleAt: null, lastCycleOutcome: null },
       vault: { state: "locked" as const, screenLock: false },
     };
     expect(decodeManagedOperationalMessage(message)).toEqual(message);
@@ -266,7 +184,7 @@ describe("desktop main process helpers", () => {
     ).toBe("1");
   });
 
-  it("passes the Electron logs directory to the engine when provided", () => {
+  it("keeps the canonical data directory when launching the engine", () => {
     expect(
       managedEngineEnvironment(
         { SATELLA_DATA_DIR: "/inherited", PATH: "/bin" },
@@ -277,20 +195,6 @@ describe("desktop main process helpers", () => {
       SATELLA_DATA_DIR: "/canonical",
       SATELLA_DATABASE_CONTEXT: "production",
     });
-    expect(
-      managedEngineEnvironment(
-        { PATH: "/bin" },
-        {
-          port: 4123,
-          dataDirectory: "/tmp/satella-data",
-          logDirectory: "/Users/x/Library/Logs/Satella",
-        },
-      ).SATELLA_LOG_DIR,
-    ).toBe("/Users/x/Library/Logs/Satella");
-    expect(
-      managedEngineEnvironment({ PATH: "/bin" }, { port: 4123, dataDirectory: "/tmp/d" })
-        .SATELLA_LOG_DIR,
-    ).toBeUndefined();
   });
 
   it("chooses the first available loopback port", async () => {

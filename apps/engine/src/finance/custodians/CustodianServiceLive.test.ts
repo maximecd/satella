@@ -1,7 +1,9 @@
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 import { SqlClient } from "effect/unstable/sql";
+import { connectorRegistryFrom } from "@satella-app/connector-core";
 
 import { engineTestLayer } from "../../database/database.test-utils.js";
 import { describe, expect, it } from "@effect/vitest";
@@ -12,6 +14,8 @@ import { VaultService } from "../../vault/Vault.js";
 import { layer as CustodianServiceLive } from "./CustodianServiceLive.js";
 import { CustodianService } from "./CustodianService.js";
 import { layer as RefreshQueueLive } from "../refresh/RefreshQueue.js";
+import { listSyncLog } from "../sync-log/SyncLogSql.js";
+import { refreshCustodianHoldings } from "./CustodianSql.js";
 
 const serviceLayer = CustodianServiceLive.pipe(
   Layer.provideMerge(
@@ -69,6 +73,65 @@ describe("custodians", () => {
       // One queued job means both callers observe the very same failure.
       expect(firstError).toBe(secondError);
       expect(firstError.code).toBe("connector_unavailable");
+      const log = yield* listSyncLog();
+      expect(log.entries).toHaveLength(1);
+      expect(log.entries[0]).toMatchObject({
+        subjectKind: "custodian",
+        subjectName: "OKX",
+        action: "refresh",
+        outcome: "failure",
+        failureReason: "The Custodian's linked service is unavailable.",
+      });
+    }).pipe(Effect.provide(serviceLayer)),
+  );
+
+  it.effect("records one successful entry for a refresh with several accounts", () =>
+    Effect.gen(function* () {
+      yield* Finance.seedSyncedCustodian({
+        id: "fixture",
+        name: "Fixture bank",
+        connectorId: "test-only",
+        credentials: { token: "x" },
+      });
+      const registry = connectorRegistryFrom([
+        {
+          id: "test-only",
+          name: "Test connector",
+          assetCategories: ["crypto" as const],
+          credentialFields: [],
+          credentialsSchema: Schema.Unknown,
+          authenticate: () =>
+            Effect.succeed({
+              fetchAccounts: () =>
+                Effect.succeed([
+                  {
+                    externalId: "one",
+                    name: "One",
+                    baseCurrencyIso: "USD",
+                    positions: [],
+                  },
+                  {
+                    externalId: "two",
+                    name: "Two",
+                    baseCurrencyIso: "USD",
+                    positions: [],
+                  },
+                ]),
+            }),
+        },
+      ]);
+
+      yield* refreshCustodianHoldings("fixture", { registry });
+
+      const log = yield* listSyncLog();
+      expect(log.entries).toHaveLength(1);
+      expect(log.entries[0]).toMatchObject({
+        subjectKind: "custodian",
+        subjectName: "Fixture bank",
+        action: "refresh",
+        outcome: "success",
+        failureReason: null,
+      });
     }).pipe(Effect.provide(serviceLayer)),
   );
   it.effect("stores connector credentials for later refresh", () =>

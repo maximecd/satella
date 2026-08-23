@@ -33,6 +33,10 @@ describe("settings screen", () => {
       "href",
       "/settings/security",
     );
+    expect(screen.getByRole("link", { name: /Sync log/ })).toHaveAttribute(
+      "href",
+      "/settings/sync-log",
+    );
   });
 
   it("saves Reporting currency immediately", async () => {

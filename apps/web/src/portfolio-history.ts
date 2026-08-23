@@ -12,12 +12,19 @@ export type PortfolioValueRange = (typeof PORTFOLIO_VALUE_RANGES)[number];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+const localCalendarDay = (capturedAt: string) => {
+  const date = new Date(capturedAt);
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
+    .join("-");
+};
+
 export const latestObservationPerDay = (
   points: ReadonlyArray<PortfolioHistoryPoint>,
 ): ReadonlyArray<PortfolioHistoryPoint> => {
   const byDay = new Map<string, PortfolioHistoryPoint>();
   for (const point of points) {
-    const day = point.capturedAt.slice(0, 10);
+    const day = localCalendarDay(point.capturedAt);
     const current = byDay.get(day);
     if (current === undefined || current.capturedAt <= point.capturedAt) {
       byDay.set(day, point);

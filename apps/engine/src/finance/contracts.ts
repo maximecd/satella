@@ -44,7 +44,6 @@ export const Price = Schema.Struct({
   source: Schema.String,
   observedAt: Schema.String,
   updatedAt: Schema.String,
-  isStale: Schema.Boolean,
 });
 export type Price = typeof Price.Type;
 
@@ -108,7 +107,6 @@ export const Account = Schema.Struct({
   unrealizedPnl: DecimalString,
   unrealizedPnlPercent: Schema.NullOr(DecimalString),
   totalIncomplete: Schema.Boolean,
-  hasStalePrices: Schema.Boolean,
   createdAt: Schema.String,
   updatedAt: Schema.String,
 });
@@ -501,6 +499,37 @@ export const UpdateSettingsInput = Schema.Struct({
 });
 export type UpdateSettingsInput = typeof UpdateSettingsInput.Type;
 
+export const SyncLogSubjectKind = Schema.Literals(["asset", "custodian"]);
+export type SyncLogSubjectKind = typeof SyncLogSubjectKind.Type;
+
+export const SyncLogAction = Schema.Literals(["price_check", "refresh"]);
+export type SyncLogAction = typeof SyncLogAction.Type;
+
+export const SyncLogOutcome = Schema.Literals(["success", "failure"]);
+export type SyncLogOutcome = typeof SyncLogOutcome.Type;
+
+export const SyncLogEntry = Schema.Struct({
+  id: Schema.String,
+  completedAt: Schema.String,
+  subjectKind: SyncLogSubjectKind,
+  subjectName: Schema.String,
+  action: SyncLogAction,
+  outcome: SyncLogOutcome,
+  failureReason: Schema.NullOr(Schema.String),
+});
+export type SyncLogEntry = typeof SyncLogEntry.Type;
+
+export const SyncLogParams = Schema.Struct({
+  cursor: Schema.optional(Schema.String),
+  limit: Schema.optional(Schema.String),
+});
+
+export const SyncLogPage = Schema.Struct({
+  entries: Schema.Array(SyncLogEntry),
+  nextCursor: Schema.NullOr(Schema.String),
+});
+export type SyncLogPage = typeof SyncLogPage.Type;
+
 export const SearchAssetsParams = Schema.Struct({
   query: Schema.String,
   assetCategory: SearchableAssetCategory,
@@ -514,10 +543,3 @@ export const AssetSearchResult = Schema.Struct({
   identifiers: Schema.Array(IdentifierInput),
 });
 export type AssetSearchResult = typeof AssetSearchResult.Type;
-
-/** Minimal auto-refresh telemetry for the tray line; carries no financial data. */
-export const AutoRefreshStatus = Schema.Struct({
-  lastCycleAt: Schema.NullOr(Schema.String),
-  lastCycleOutcome: Schema.NullOr(Schema.Literals(["success", "partial", "failed"])),
-});
-export type AutoRefreshStatus = typeof AutoRefreshStatus.Type;

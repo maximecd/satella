@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
 import {
   ConnectorAuthenticationError,
   ConnectorFetchAccountsError,
@@ -28,6 +31,7 @@ import {
 } from "../connector-service.js";
 import { refreshPrices, type MarketDataRegistry } from "../market-data.js";
 import { captureSnapshot, type CaptureSnapshotOptions } from "../portfolio/PortfolioSql.js";
+import { recordSyncLog, sanitizeCustodianFailureReason } from "../sync-log/SyncLogSql.js";
 import {
   db,
   failure,
@@ -169,26 +173,56 @@ export const refreshCustodianHoldings = (
     const row = yield* firstOrNotFound(
       yield* db(
         sql<{
+          readonly name: string;
           readonly connector_id: string | null;
           readonly config_json: string | null;
-        }>`SELECT connector_id, config_json FROM custodians WHERE id = ${id}`,
+        }>`SELECT name, connector_id, config_json FROM custodians WHERE id = ${id}`,
       ),
       "Custodian",
     );
-    const configJson = row.config_json;
-    if (row.connector_id === null || configJson === null) {
-      return yield* Effect.fail(failure("validation", "Only synced custodians can be refreshed"));
-    }
-    const credentials = yield* decodeStoredCredentials(configJson);
-    if (Object.keys(credentials).length === 0) {
-      return yield* Effect.fail(failure("validation", "Stored connector credentials are missing"));
-    }
-    const sync =
-      options.registry === undefined
-        ? syncRegisteredConnector(id, row.connector_id, credentials)
-        : syncRegisteredConnectorFrom(options.registry, id, row.connector_id, credentials);
-    yield* sync.pipe(Effect.mapError(connectorSyncFailure));
-    yield* db(sql`UPDATE custodians SET updated_at = ${nowIso()} WHERE id = ${id}`);
+    const attempt = yield* Effect.exit(
+      Effect.gen(function* () {
+        const configJson = row.config_json;
+        if (row.connector_id === null || configJson === null) {
+          return yield* Effect.fail(
+            failure("validation", "Only synced custodians can be refreshed"),
+          );
+        }
+        const credentials = yield* decodeStoredCredentials(configJson);
+        if (Object.keys(credentials).length === 0) {
+          return yield* Effect.fail(
+            failure("validation", "Stored connector credentials are missing"),
+          );
+        }
+        const sync =
+          options.registry === undefined
+            ? syncRegisteredConnector(id, row.connector_id, credentials)
+            : syncRegisteredConnectorFrom(options.registry, id, row.connector_id, credentials);
+        yield* sync.pipe(Effect.mapError(connectorSyncFailure));
+        yield* db(sql`UPDATE custodians SET updated_at = ${nowIso()} WHERE id = ${id}`);
+      }),
+    );
+    const typedError = Exit.isFailure(attempt)
+      ? Cause.findErrorOption(attempt.cause)
+      : Option.none<FinanceApiError>();
+    yield* recordSyncLog({
+      subjectKind: "custodian",
+      subjectName: row.name,
+      action: "refresh",
+      outcome: attempt._tag === "Success" ? "success" : "failure",
+      failureReason:
+        attempt._tag === "Success"
+          ? null
+          : sanitizeCustodianFailureReason(
+              Option.isSome(typedError) && typedError.value instanceof FinanceError
+                ? typedError.value.code
+                : "unknown",
+              Option.isSome(typedError) && typedError.value instanceof FinanceError
+                ? typedError.value.message
+                : "",
+            ),
+    }).pipe(Effect.ignore);
+    return yield* attempt;
   });
 
 /** Re-authenticates with the stored connector credentials and reconciles a complete snapshot. */
@@ -242,6 +276,7 @@ export const completeRefreshPass = (
       };
       if (options.registry !== undefined)
         Object.assign(refreshOptions, { registry: options.registry });
+      if (options.now !== undefined) Object.assign(refreshOptions, { now: options.now });
       price = yield* refreshPrices(refreshOptions).pipe(
         Effect.map(({ failures }) => ({ failures, error: null })),
         Effect.catch((error) => Effect.succeed({ failures: [], error })),

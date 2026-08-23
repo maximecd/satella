@@ -33,6 +33,7 @@ describe("finance API routes", () => {
     ["addCashAccount", "/api/add-assets/cash"],
     ["addOtherAsset", "/api/add-assets/other"],
     ["listCustodians", "/api/custodians"],
+    ["listSyncLog", "/api/sync-log"],
     ["createCustodian", "/api/custodians"],
     ["connectCustodian", "/api/custodians/connect"],
   ] as const)("declares %s at %s", (name, path) => {

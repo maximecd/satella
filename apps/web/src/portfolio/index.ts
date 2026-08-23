@@ -35,6 +35,7 @@ export {
   useSaveEvmRpcSettings,
   useSaveReportingCurrency,
   useSettings,
+  useSyncLog,
   useUpdateAccount,
   useUpdateCustodian,
   useUpdatePosition,
