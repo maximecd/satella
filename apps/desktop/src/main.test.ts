@@ -12,6 +12,7 @@ import {
   vaultStatusRequest,
 } from "./engine.js";
 import {
+  applicationIconPath,
   closeToTray,
   externalUrlAction,
   focusWindow,
@@ -75,6 +76,17 @@ describe("desktop main process helpers", () => {
       resourcesPath: "/opt/app/resources",
     });
     expect(packaged.endsWith(join("assets", "trayTemplate.png"))).toBe(true);
+    expect(packaged.startsWith("/opt/app/resources")).toBe(true);
+  });
+
+  it("resolves the application icon for development and packaged launches", () => {
+    expect(applicationIconPath("/app/dist")).toMatch(/assets[/\\]Satella\.png$/);
+
+    const packaged = applicationIconPath("/app/dist", {
+      isPackaged: true,
+      resourcesPath: "/opt/app/resources",
+    });
+    expect(packaged.endsWith(join("assets", "Satella.png"))).toBe(true);
     expect(packaged.startsWith("/opt/app/resources")).toBe(true);
   });
 

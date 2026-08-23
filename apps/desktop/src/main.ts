@@ -30,6 +30,7 @@ import {
 } from "./engine.js";
 import { APP_ID, APP_NAME, productionDataDirectory } from "./runtime.js";
 import {
+  applicationIconPath,
   createWindowLifecycle,
   externalUrlAction,
   navigationPermission,
@@ -182,6 +183,17 @@ const createWindow = async () => {
 
 const openWindow = () => windowLifecycle.open();
 
+const setApplicationIcon = () => {
+  if (process.platform !== "darwin") return;
+  const icon = nativeImage.createFromPath(
+    applicationIconPath(__dirname, {
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+    }),
+  );
+  if (!icon.isEmpty()) app.dock?.setIcon(icon);
+};
+
 windowLifecycle = createWindowLifecycle({
   createWindow: () => void createWindow(),
   isQuitting: () => quitting,
@@ -265,6 +277,7 @@ if (!app.requestSingleInstanceLock()) {
   void app
     .whenReady()
     .then(async () => {
+      setApplicationIcon();
       await startManagedEngine();
       await createWindow();
       createTray();

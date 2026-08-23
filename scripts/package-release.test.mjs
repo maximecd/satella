@@ -15,6 +15,7 @@ test("builder configuration resolves desktop assets from the repository root", (
     artifactName: "Satella-0.1.0-macOS-arm64.zip",
   });
 
+  assert.equal(configuration.mac.icon, join(root, "apps", "desktop", "assets", "Satella.icns"));
   assert.deepEqual(configuration.extraResources, [
     { from: join(appDirectory, "resources", "web"), to: "web" },
     { from: join(appDirectory, "resources", "engine"), to: "engine" },
