@@ -102,4 +102,40 @@ describe("accounts screen", () => {
     await user.click(await screen.findByRole("button", { name: "Refresh" }));
     expect((await screen.findAllByText("Custodian refreshed.")).length).toBeGreaterThan(0);
   });
+
+  it("tracks an ERC-20 contract from its EVM chain account", async () => {
+    const user = userEvent.setup();
+    const evmCustodian = {
+      ...syncedCustodian,
+      name: "Vitalik",
+      connectorId: "evm",
+      accounts: [
+        {
+          ...syncedCustodian.accounts[0]!,
+          id: "ethereum-account",
+          name: "Ethereum",
+          connectorAccountId: "eip155:1",
+        },
+      ],
+    };
+    seedPortfolioEngine({
+      custodians: [evmCustodian],
+      accounts: [
+        {
+          ...connectedAccount,
+          id: "ethereum-account",
+          custodianName: "Vitalik",
+          name: "Ethereum",
+          connectorAccountId: "eip155:1",
+        },
+      ],
+    });
+    renderRoute("/accounts/ethereum-account");
+    await user.type(
+      await screen.findByLabelText("Token contract address"),
+      "0x6b175474e89094c44da98b954eedeac495271d0f",
+    );
+    await user.click(screen.getByRole("button", { name: "Track token" }));
+    expect((await screen.findAllByText("Token tracked.")).length).toBeGreaterThan(0);
+  });
 });

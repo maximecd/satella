@@ -1,5 +1,13 @@
 {
   "accounts": {
+    "trackToken": {
+      "action": "Suivre un token",
+      "contractLabel": "Adresse du contrat du token",
+      "helper": "Ajoute ce contrat ERC-20 aux actualisations de cette chaîne.",
+      "submit": "Suivre le token",
+      "saved": "Token suivi.",
+      "invalidAddress": "Saisissez une adresse de contrat 0x valide."
+    },
     "otherHoldings": "Autres positions",
     "breadcrumbs": {
       "dashboard": "Tableau de bord",

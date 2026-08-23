@@ -606,6 +606,17 @@ const lookupForAsset = (
     ({ identifier_type }) => identifier_type === "coingecko_coin_id",
   )?.identifier_value;
   if (coin !== undefined) return { lookupKey: coin, kind: "coin" };
+  const evmContract = values.find(
+    ({ identifier_type }) => identifier_type === "evm_contract_address",
+  )?.identifier_value;
+  if (evmContract !== undefined) {
+    const match = /^eip155:(\d+):(0x[0-9a-fA-F]{40})$/.exec(evmContract);
+    const platform = match === null ? undefined : coinGeckoPlatformForChain(match[1] ?? "");
+    const address = match?.[2];
+    if (platform !== undefined && address !== undefined) {
+      return { lookupKey: address.toLowerCase(), kind: "contract", platform };
+    }
+  }
   const contract = values.find(
     ({ identifier_type }) => identifier_type === "contract_address",
   )?.identifier_value;
@@ -615,6 +626,21 @@ const lookupForAsset = (
   return contract !== undefined && platform !== undefined
     ? { lookupKey: contract, kind: "contract", platform }
     : undefined;
+};
+
+const coinGeckoPlatformForChain = (chainId: string): string | undefined => {
+  switch (chainId) {
+    case "1":
+      return "ethereum";
+    case "10":
+      return "optimistic-ethereum";
+    case "8453":
+      return "base";
+    case "42161":
+      return "arbitrum-one";
+    default:
+      return undefined;
+  }
 };
 
 const normalizeSearchText = (value: string) => value.trim().toLocaleLowerCase();
@@ -730,7 +756,7 @@ const findExistingAssetIdentifiers = (asset: RefreshAssetRow, sql: SqlClient.Sql
         AND candidate.asset_category = ${asset.asset_category}
         AND candidate.symbol IS NOT NULL
         AND lower(trim(candidate.symbol)) = lower(trim(${symbol}))
-        AND ai.identifier_type IN ('coingecko_coin_id', 'coingecko_platform', 'contract_address', 'yahoo_symbol')`;
+        AND ai.identifier_type IN ('coingecko_coin_id', 'coingecko_platform', 'contract_address', 'evm_contract_address', 'yahoo_symbol')`;
     const sourceAssetIds = [...new Set(rows.map(({ source_asset_id }) => source_asset_id))];
     if (sourceAssetIds.length !== 1) return [];
     return rows.map(({ identifier_type, identifier_value }) => ({

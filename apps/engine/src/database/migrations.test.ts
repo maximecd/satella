@@ -93,6 +93,7 @@ describe("SQLite migration startup", () => {
     expect(Object.keys(ProductionMigrations)).toEqual([
       "20260821194600_initial_finance_model",
       "20260822165422_add_app_language",
+      "20260823084456_add_evm_rpc_settings",
     ]);
   });
 

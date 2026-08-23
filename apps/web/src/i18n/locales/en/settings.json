@@ -13,6 +13,21 @@
       "helper": "Portfolio totals, history, and allocation use this currency.",
       "saved": "Reporting currency saved."
     },
+    "rpc": {
+      "title": "EVM RPC",
+      "helper": "RPC providers can see the wallet addresses queried and your IP address. Bring your own endpoints to choose who receives them. Custom URLs stay in your encrypted Vault.",
+      "modeLabel": "RPC source",
+      "public": "Default public RPCs",
+      "custom": "Bring your own",
+      "save": "Save RPC settings",
+      "saved": "RPC settings saved.",
+      "chains": {
+        "ethereum": "Ethereum Mainnet RPC URL",
+        "base": "Base RPC URL",
+        "arbitrum": "Arbitrum One RPC URL",
+        "optimism": "OP Mainnet RPC URL"
+      }
+    },
     "theme": {
       "label": "Theme",
       "helper": "System follows this device and is the default.",

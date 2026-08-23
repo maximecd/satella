@@ -13,6 +13,21 @@
       "helper": "Les totaux, l'historique et la répartition du portefeuille utilisent cette devise.",
       "saved": "Devise de référence enregistrée."
     },
+    "rpc": {
+      "title": "RPC EVM",
+      "helper": "Les fournisseurs RPC peuvent voir les adresses de portefeuille consultées et votre adresse IP. Utilisez vos propres points d'accès pour choisir qui les reçoit. Les URL personnalisées restent dans votre coffre chiffré.",
+      "modeLabel": "Source RPC",
+      "public": "RPC publics par défaut",
+      "custom": "Utiliser les miens",
+      "save": "Enregistrer les RPC",
+      "saved": "Réglages RPC enregistrés.",
+      "chains": {
+        "ethereum": "URL RPC Ethereum Mainnet",
+        "base": "URL RPC Base",
+        "arbitrum": "URL RPC Arbitrum One",
+        "optimism": "URL RPC OP Mainnet"
+      }
+    },
     "theme": {
       "label": "Thème",
       "helper": "Système suit cet appareil et constitue le réglage par défaut.",

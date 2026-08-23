@@ -57,7 +57,7 @@ const fail = (code: FinanceApiError["code"], message: string) =>
   Effect.fail(new FinanceApiError({ code, message }));
 
 const accountTypeForConnector = (connectorId: string): AccountType => {
-  if (connectorId === "okx") return "crypto_wallet";
+  if (connectorId === "okx" || connectorId === "evm") return "crypto_wallet";
   if (connectorId === "ibkr") return "brokerage";
   return "other";
 };
@@ -77,6 +77,7 @@ const marketDataIdentifierTypes = [
   "coingecko_coin_id",
   "coingecko_platform",
   "contract_address",
+  "evm_contract_address",
   "yahoo_symbol",
 ] as const;
 

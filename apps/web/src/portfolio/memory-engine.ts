@@ -82,6 +82,7 @@ const defaultSettings: Settings = {
     { assetId: "fiat:USD", iso: "USD", name: "US dollar" },
   ],
   language: "en",
+  evmRpc: { mode: "public" },
 };
 
 const defaultCapabilities: ConnectorCapabilities = { connectors: [] };
@@ -510,6 +511,7 @@ export const createMemoryPortfolioEngine = (
         ...state.settings,
         reportingCurrency,
         language: input.language ?? state.settings.language,
+        evmRpc: input.evmRpc ?? state.settings.evmRpc,
       });
     },
     listAssets: async (signal) => {

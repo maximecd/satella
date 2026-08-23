@@ -70,6 +70,10 @@ The default custodian created with a vault, holding accounts not tied to a real 
 **Connector**:
 The technical integration used to create and refresh a synced custodian. This is an internal term and should not normally appear in user-facing copy.
 
+**Tracked token**:
+An ERC-20 contract explicitly added to a synced EVM wallet so Refresh reads its current balance on one chain.
+_Avoid_: Indexed token
+
 **Refresh**:
 A request for the latest accounts, holdings, and prices from a synced custodian. Refreshing from an account page refreshes the entire custodian that owns the account.
 _Avoid_: Resync

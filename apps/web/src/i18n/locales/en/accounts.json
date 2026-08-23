@@ -1,5 +1,13 @@
 {
   "accounts": {
+    "trackToken": {
+      "action": "Track token",
+      "contractLabel": "Token contract address",
+      "helper": "Adds this ERC-20 contract to refreshes for this chain.",
+      "submit": "Track token",
+      "saved": "Token tracked.",
+      "invalidAddress": "Enter a valid 0x contract address."
+    },
     "otherHoldings": "Other holdings",
     "breadcrumbs": {
       "dashboard": "Dashboard",
