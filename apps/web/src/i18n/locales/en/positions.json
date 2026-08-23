@@ -8,7 +8,7 @@
       "edit": "Edit"
     },
     "editTitle": "Edit {{name}}",
-    "cashSubtitle": "Cash positions are excluded from Unrealized P&L.",
+    "cashSubtitle": "Cash positions do not track an average purchase price.",
     "manualSubtitle": "Set quantity to zero to preserve the position and its history.",
     "syncedSubtitle": "Quantity is supplied by {{custodian}}; purchase price remains editable.",
     "quantityLabel": "Quantity",
@@ -16,7 +16,6 @@
     "purchaseCurrencyLabel": "Purchase currency",
     "syncedOverrideNote": "Current value supplied by {{custodian}}; editing it creates a manual override.",
     "acquisitionCost": "Acquisition cost",
-    "unrealizedPnlLabel": "Unrealized P&L:",
     "saveChanges": "Save changes",
     "resetPurchasePrice": "Reset purchase price",
     "invalidAveragePrice": "Enter a valid average unit purchase price.",

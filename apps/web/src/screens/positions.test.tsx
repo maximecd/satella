@@ -19,7 +19,7 @@ describe("positions screen", () => {
     renderRoute("/positions/active-position/edit");
     expect(await screen.findByRole("heading", { name: "Edit Unpriced asset" })).toBeInTheDocument();
     expect(screen.getByLabelText("Quantity")).toHaveValue("2");
-    expect(screen.getByText("Unrealized P&L: —")).toBeInTheDocument();
+    expect(screen.queryByText(/Unrealized P&L/)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
       "href",
       "/accounts/account-1",
@@ -101,6 +101,5 @@ describe("positions screen", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(await screen.findByRole("heading", { name: "Trading" })).toBeInTheDocument();
-    expect(screen.getAllByText(/\+\$93[.,]00|\+93[.,]00 \$/).length).toBeGreaterThan(0);
   });
 });

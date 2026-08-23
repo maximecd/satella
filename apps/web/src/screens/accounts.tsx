@@ -38,24 +38,14 @@ import {
   compareDecimal,
   divideDecimal,
   formatAmount,
-  formatDecimal,
   formatFxAmount,
   formatMarketPriceAmount,
   formatQuantity,
-  formatSignedAmount,
   formatWholeAmount,
   multiplyDecimal,
 } from "../financial-number";
 
 const MANUAL_ASSET_CATEGORIES = new Set(["other"]);
-
-const pnlPercent = (value: string | null) =>
-  value === null
-    ? "—"
-    : `${formatDecimal(multiplyDecimal(value, "100"), {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}%`;
 
 const conversionDescription = (position: Position, valuationCurrencyIso: string, t: TFunction) => {
   if (
@@ -97,9 +87,6 @@ function PositionTable({
             </Table.ColumnHeader>
             <Table.ColumnHeader textAlign="end">
               {t("accounts.table.value", { iso: account.baseCurrencyIso })}
-            </Table.ColumnHeader>
-            <Table.ColumnHeader textAlign="end">
-              {t("accounts.table.unrealizedPnl")}
             </Table.ColumnHeader>
             <Table.ColumnHeader />
           </Table.Row>
@@ -151,24 +138,6 @@ function PositionTable({
                         : formatAmount(position.reportingValue, account.baseCurrencyIso)}
                     </Text>
                   </Tooltip>
-                </Table.Cell>
-                <Table.Cell textAlign="end">
-                  <Text
-                    fontVariantNumeric="tabular-nums"
-                    color={
-                      position.unrealizedPnl === null
-                        ? "fg.muted"
-                        : compareDecimal(position.unrealizedPnl, "0") > 0
-                          ? "green.fg"
-                          : compareDecimal(position.unrealizedPnl, "0") < 0
-                            ? "red.fg"
-                            : undefined
-                    }
-                  >
-                    {position.unrealizedPnl === null
-                      ? "—"
-                      : `${formatSignedAmount(position.unrealizedPnl, account.baseCurrencyIso)} (${pnlPercent(position.unrealizedPnlPercent)})`}
-                  </Text>
                 </Table.Cell>
                 <Table.Cell textAlign="end">
                   <Button asChild size="sm" variant="ghost">
@@ -266,25 +235,6 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
           <Text fontSize="2xl" fontWeight="semibold" fontVariantNumeric="tabular-nums">
             {formatAmount(account.total, account.baseCurrencyIso)}
           </Text>
-          <Stack align="flex-end" gap="0">
-            <Text fontWeight="medium">{t("accounts.unrealizedPnl")}</Text>
-            <Text
-              fontSize="lg"
-              fontVariantNumeric="tabular-nums"
-              color={
-                compareDecimal(account.unrealizedPnl, "0") > 0
-                  ? "green.fg"
-                  : compareDecimal(account.unrealizedPnl, "0") < 0
-                    ? "red.fg"
-                    : undefined
-              }
-            >
-              {formatSignedAmount(account.unrealizedPnl, account.baseCurrencyIso)}
-              {account.unrealizedPnlPercent === null
-                ? ""
-                : ` (${pnlPercent(account.unrealizedPnlPercent)})`}
-            </Text>
-          </Stack>
         </Flex>
       </ResourceCard>
       <Flex justify="space-between" align="center" gap="3" wrap="wrap">

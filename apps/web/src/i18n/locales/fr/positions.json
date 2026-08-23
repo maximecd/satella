@@ -8,7 +8,7 @@
       "edit": "Modifier"
     },
     "editTitle": "Modifier {{name}}",
-    "cashSubtitle": "Les positions en espèces sont exclues du P&L latent.",
+    "cashSubtitle": "Les positions en espèces n'ont pas de prix d'achat unitaire moyen.",
     "manualSubtitle": "Définissez la quantité à zéro pour conserver la position et son historique.",
     "syncedSubtitle": "La quantité est fournie par {{custodian}} ; le prix d'achat reste modifiable.",
     "quantityLabel": "Quantité",
@@ -16,7 +16,6 @@
     "purchaseCurrencyLabel": "Devise d'achat",
     "syncedOverrideNote": "Valeur actuelle fournie par {{custodian}} ; sa modification crée une correction manuelle.",
     "acquisitionCost": "Coût d'acquisition",
-    "unrealizedPnlLabel": "P&L latent :",
     "saveChanges": "Enregistrer les modifications",
     "resetPurchasePrice": "Réinitialiser le prix d'achat",
     "invalidAveragePrice": "Saisissez un prix d'achat unitaire moyen valide.",

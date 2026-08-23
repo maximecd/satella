@@ -8,7 +8,6 @@
     },
     "portfolioValue": {
       "title": "Portfolio value",
-      "unrealizedPnl": "Unrealized P&L",
       "changeLabel": "Portfolio value change:",
       "rangeAriaLabel": "Portfolio value range",
       "notEnoughHistory": "Not enough history"
@@ -29,8 +28,7 @@
     },
     "accounts": {
       "holdingsCount_one": "{{count}} holding",
-      "holdingsCount_other": "{{count}} holdings",
-      "pnl": "P&L"
+      "holdingsCount_other": "{{count}} holdings"
     },
     "charts": {
       "historyAriaLabel": "Portfolio value history",
