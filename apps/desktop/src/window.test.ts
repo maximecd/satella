@@ -58,6 +58,41 @@ describe("window lifecycle", () => {
     expect(createRequests).toBe(1);
   });
 
+  it("notifies dock hide on close-to-tray and dock show on reopen", () => {
+    const calls: string[] = [];
+    let timer: (() => void) | undefined;
+    const lifecycle = createWindowLifecycle({
+      createWindow: () => undefined,
+      isQuitting: () => false,
+      schedule: (callback) => {
+        timer = callback;
+        return 1;
+      },
+      cancel: () => {
+        timer = undefined;
+      },
+      onHidden: () => calls.push("dock-hide"),
+      onOpened: () => calls.push("dock-show"),
+    });
+    const window = makeWindow(calls);
+    lifecycle.attach(window);
+
+    lifecycle.handleClose(window, { preventDefault: () => undefined });
+    expect(calls).toEqual(["hide", "dock-hide"]);
+
+    lifecycle.open();
+    expect(calls).toEqual(["hide", "dock-hide", "dock-show", "show", "focus"]);
+    expect(timer).toBeUndefined();
+
+    // Dormant reopen also restores the Dock icon.
+    calls.length = 0;
+    lifecycle.handleClose(window, { preventDefault: () => undefined });
+    timer?.();
+    calls.length = 0;
+    lifecycle.open();
+    expect(calls).toEqual(["dock-show"]);
+  });
+
   it("allows a real close while quitting and does not schedule dormancy", () => {
     const calls: string[] = [];
     const lifecycle = createWindowLifecycle({

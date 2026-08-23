@@ -116,6 +116,8 @@ export const createWindowLifecycle = (options: {
   readonly schedule?: (callback: () => void, delayMs: number) => WindowTimerHandle;
   readonly cancel?: (handle: WindowTimerHandle) => void;
   readonly onDormant?: () => void;
+  readonly onHidden?: () => void;
+  readonly onOpened?: () => void;
 }): WindowLifecycle => {
   const focus = options.focus ?? focusWindow;
   const schedule = options.schedule ?? ((callback, delayMs) => setTimeout(callback, delayMs));
@@ -159,10 +161,12 @@ export const createWindowLifecycle = (options: {
       if (currentState === "active") {
         currentState = "hidden";
         window.hide();
+        options.onHidden?.();
         scheduleDormancy(window);
       }
     },
     open: () => {
+      options.onOpened?.();
       if (current !== undefined && currentState !== "dormant") {
         cancelDormancy();
         currentState = "active";

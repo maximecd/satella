@@ -194,12 +194,28 @@ const setApplicationIcon = () => {
   if (!icon.isEmpty()) app.dock?.setIcon(icon);
 };
 
+/**
+ * While the window is closed to tray the app keeps running, so the Dock icon
+ * must go; dock.show() can reset the custom icon, hence re-applying it.
+ */
+const hideDockIcon = () => {
+  if (process.platform === "darwin") app.dock?.hide();
+};
+
+const showDockIcon = () => {
+  if (process.platform !== "darwin") return;
+  app.dock?.show();
+  setApplicationIcon();
+};
+
 windowLifecycle = createWindowLifecycle({
   createWindow: () => void createWindow(),
   isQuitting: () => quitting,
   onDormant: () => {
     mainWindow = undefined;
   },
+  onHidden: hideDockIcon,
+  onOpened: showDockIcon,
 });
 
 const startManagedEngine = async () => {
