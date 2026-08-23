@@ -184,6 +184,14 @@ export const trayIconPath = (
     ? join(options.resourcesPath, "assets", "trayTemplate.png")
     : join(moduleDir, "../assets/trayTemplate.png");
 
+export const applicationIconPath = (
+  moduleDir = __dirname,
+  options: { readonly isPackaged?: boolean; readonly resourcesPath?: string } = {},
+) =>
+  options.isPackaged === true && options.resourcesPath !== undefined
+    ? join(options.resourcesPath, "assets", "Satella.png")
+    : join(moduleDir, "../assets/Satella.png");
+
 export const focusWindow = (window: {
   readonly isMinimized: () => boolean;
   readonly restore: () => void;

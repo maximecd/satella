@@ -108,6 +108,11 @@ const copyPortableNodeModules = async (source, target) => {
 export const validateSourceResources = async (root = repositoryRoot) => {
   await requireFile(join(root, "apps", "desktop", "dist", "main.cjs"), "desktop main build");
   await requireFile(join(root, "apps", "desktop", "dist", "preload.cjs"), "desktop preload build");
+  await requireFile(
+    join(root, "apps", "desktop", "assets", "Satella.icns"),
+    "macOS application icon",
+  );
+  await requireFile(join(root, "apps", "desktop", "assets", "Satella.png"), "macOS Dock icon");
   await requireFile(join(root, "apps", "web", "dist", "index.html"), "web build");
   await requireFile(join(root, "apps", "engine", "dist", "main.mjs"), "engine build");
 };
@@ -147,6 +152,7 @@ export const builderConfiguration = ({
   npmRebuild: false,
   electronVersion: "43.3.0",
   mac: {
+    icon: join(root, "apps", "desktop", "assets", "Satella.icns"),
     target: [{ target: "zip", arch: ["arm64"] }],
     identity: "-",
   },
