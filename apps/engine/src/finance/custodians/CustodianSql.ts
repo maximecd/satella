@@ -3,6 +3,7 @@ import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
+import * as Clock from "effect/Clock";
 import {
   ConnectorAuthenticationError,
   ConnectorFetchAccountsError,
@@ -58,13 +59,21 @@ const toCustodian = (row: CustodianRow, accounts: ReadonlyArray<AccountSummaryRo
   })),
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+  syncState: row.sync_state,
+  lastRefreshAttemptAt: row.last_refresh_attempt_at,
 });
+
+interface RefreshCustodianHoldingsOptions {
+  registry?: ConnectorRegistry;
+  now?: () => Date;
+}
 
 export const getCustodian = (id: string): FinanceEffect<Custodian> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const custodian = yield* firstOrNotFound(
-      yield* db(sql<CustodianRow>`SELECT id, name, connector_id, created_at, updated_at
+      yield* db(sql<CustodianRow>`SELECT id, name, connector_id, sync_state, last_refresh_attempt_at,
+        created_at, updated_at
         FROM custodians WHERE id = ${id}`),
       "Custodian",
     );
@@ -94,15 +103,43 @@ export const connectorSyncFailure = (error: ConnectorSyncError): FinanceApiError
       ? error.category
       : "unknown";
   if (error instanceof ConnectorAuthenticationError) {
-    return failure("validation", `Connector authentication failed (${category}): ${error.message}`);
+    if (category === "invalid_credentials")
+      return failure("validation", `Re-authentication required: ${error.message}`);
+    if (category === "timeout")
+      return failure("validation", `Connector authentication timed out: ${error.message}`);
+    if (category === "rate_limit")
+      return failure(
+        "validation",
+        `The connector rate limit was reached; try again later: ${error.message}`,
+      );
+    if (category === "network")
+      return failure("validation", `The connector network request failed: ${error.message}`);
+    return failure(
+      "validation",
+      `The connector returned an invalid authentication response: ${error.message}`,
+    );
   }
   if (error instanceof ConnectorFetchAccountsError) {
-    return failure("validation", `Connector account fetch failed (${category}): ${error.message}`);
+    if (category === "authentication_expired")
+      return failure("validation", `Re-authentication required: ${error.message}`);
+    if (category === "timeout")
+      return failure("validation", `Connector account retrieval timed out: ${error.message}`);
+    if (category === "rate_limit")
+      return failure(
+        "validation",
+        `The connector rate limit was reached; try again later: ${error.message}`,
+      );
+    if (category === "network")
+      return failure("validation", `The connector network request failed: ${error.message}`);
+    return failure(
+      "validation",
+      `The connector returned an invalid account response: ${error.message}`,
+    );
   }
   return failure("validation", "The connector could not be synchronized");
 };
 
-const insertSyncedCustodian = (
+export const insertSyncedCustodian = (
   name: string,
   connectorId: string,
   credentials: ConnectorCredentialsType,
@@ -111,9 +148,9 @@ const insertSyncedCustodian = (
     const sql = yield* SqlClient.SqlClient;
     const id = randomUUID();
     const timestamp = nowIso();
-    yield* sql`INSERT INTO custodians
+    yield* db(sql`INSERT INTO custodians
       (id, name, connector_id, config_json, created_at, updated_at)
-      VALUES (${id}, ${name}, ${connectorId}, ${JSON.stringify(credentials)}, ${timestamp}, ${timestamp})`;
+      VALUES (${id}, ${name}, ${connectorId}, ${JSON.stringify(credentials)}, ${timestamp}, ${timestamp})`);
     return id;
   });
 
@@ -154,8 +191,18 @@ export const connectCustodian = (
         failure("connector_unavailable", "No registered connector matches this selection"),
       );
     }
+    if (connector.authenticationMode === "interactive") {
+      return yield* Effect.fail(
+        failure("validation", "This connector requires interactive authentication"),
+      );
+    }
     const name = yield* requireNonEmpty(input.name, "Custodian name");
+    const sql = yield* SqlClient.SqlClient;
     const id = yield* db(insertSyncedCustodian(name, input.connectorId, input.credentials));
+    yield* db(
+      sql`UPDATE custodians SET last_refresh_attempt_at = ${nowIso()}, updated_at = ${nowIso()}
+        WHERE id = ${id}`,
+    );
     yield* syncRegisteredConnector(id, input.connectorId, input.credentials).pipe(
       Effect.mapError(connectorSyncFailure),
       Effect.catch((error) => deleteCustodian(id).pipe(Effect.andThen(Effect.fail(error)))),
@@ -166,7 +213,7 @@ export const connectCustodian = (
 /** Re-authenticates with the stored connector credentials and reconciles holdings, without prices or snapshots. */
 export const refreshCustodianHoldings = (
   id: string,
-  options: { readonly registry?: ConnectorRegistry } = {},
+  options: RefreshCustodianHoldingsOptions = {},
 ): Effect.Effect<void, FinanceApiError, SqlClient.SqlClient | HttpClient.HttpClient> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
@@ -176,7 +223,8 @@ export const refreshCustodianHoldings = (
           readonly name: string;
           readonly connector_id: string | null;
           readonly config_json: string | null;
-        }>`SELECT name, connector_id, config_json FROM custodians WHERE id = ${id}`,
+          readonly sync_state: "ready" | "reauthentication_required";
+        }>`SELECT name, connector_id, config_json, sync_state FROM custodians WHERE id = ${id}`,
       ),
       "Custodian",
     );
@@ -188,17 +236,58 @@ export const refreshCustodianHoldings = (
             failure("validation", "Only synced custodians can be refreshed"),
           );
         }
+        if (row.sync_state === "reauthentication_required") {
+          return yield* Effect.fail(failure("validation", "Re-authentication required"));
+        }
         const credentials = yield* decodeStoredCredentials(configJson);
         if (Object.keys(credentials).length === 0) {
           return yield* Effect.fail(
             failure("validation", "Stored connector credentials are missing"),
           );
         }
+        const persistSession = (session: Readonly<Record<string, string>>) =>
+          db(
+            sql`UPDATE custodians SET config_json = ${JSON.stringify({ ...credentials, ...session })},
+              updated_at = ${nowIso()} WHERE id = ${id}`,
+          );
+        const syncOptions = { onSession: persistSession };
         const sync =
           options.registry === undefined
-            ? syncRegisteredConnector(id, row.connector_id, credentials)
-            : syncRegisteredConnectorFrom(options.registry, id, row.connector_id, credentials);
-        yield* sync.pipe(Effect.mapError(connectorSyncFailure));
+            ? syncRegisteredConnector(id, row.connector_id, credentials, syncOptions)
+            : syncRegisteredConnectorFrom(
+                options.registry,
+                id,
+                row.connector_id,
+                credentials,
+                syncOptions,
+              );
+        const clockMillis = yield* Clock.currentTimeMillis;
+        const attemptAt = options.now?.() ?? new Date(clockMillis);
+        yield* db(
+          sql`UPDATE custodians SET last_refresh_attempt_at = ${attemptAt.toISOString()}, updated_at = ${nowIso()}
+            WHERE id = ${id}`,
+        );
+        yield* sync.pipe(
+          Effect.catch((error) => {
+            const expired =
+              (error instanceof ConnectorAuthenticationError ||
+                error instanceof ConnectorFetchAccountsError) &&
+              (error.category === "authentication_expired" ||
+                error.category === "invalid_credentials");
+            if (!expired) return Effect.fail(error);
+            return db(
+              sql`UPDATE custodians SET sync_state = 'reauthentication_required', updated_at = ${nowIso()}
+                WHERE id = ${id}`,
+            ).pipe(Effect.andThen(Effect.fail(error)));
+          }),
+          Effect.mapError(connectorSyncFailure),
+          Effect.tap(() =>
+            db(
+              sql`UPDATE custodians SET sync_state = 'ready', updated_at = ${nowIso()}
+                WHERE id = ${id}`,
+            ),
+          ),
+        );
         yield* db(sql`UPDATE custodians SET updated_at = ${nowIso()} WHERE id = ${id}`);
       }),
     );
@@ -231,16 +320,20 @@ export const refreshCustodian = (
   options: {
     readonly connectorRegistry?: ConnectorRegistry;
     readonly registry?: MarketDataRegistry;
+    readonly now?: () => Date;
   } = {},
 ): Effect.Effect<
   CustodianRefreshResult,
   FinanceApiError,
   SqlClient.SqlClient | HttpClient.HttpClient
 > =>
-  refreshCustodianHoldings(
-    id,
-    options.connectorRegistry === undefined ? {} : { registry: options.connectorRegistry },
-  ).pipe(
+  (() => {
+    const refreshOptions: RefreshCustodianHoldingsOptions = {};
+    if (options.connectorRegistry !== undefined)
+      Object.assign(refreshOptions, { registry: options.connectorRegistry });
+    if (options.now !== undefined) Object.assign(refreshOptions, { now: options.now });
+    return refreshCustodianHoldings(id, refreshOptions);
+  })().pipe(
     Effect.andThen(
       completeCustodianRefresh(
         id,
@@ -252,7 +345,7 @@ export const refreshCustodian = (
 /** Reconciles a synced Custodian without doing market-data or Snapshot work. */
 export const reconcileCustodian = (
   id: string,
-  options: { readonly registry?: ConnectorRegistry } = {},
+  options: { readonly registry?: ConnectorRegistry; readonly now?: () => Date } = {},
 ): Effect.Effect<Custodian, FinanceApiError, SqlClient.SqlClient | HttpClient.HttpClient> =>
   refreshCustodianHoldings(id, options).pipe(Effect.andThen(getCustodian(id)));
 
@@ -331,11 +424,21 @@ export const updateCustodian = (
       }
       const stored = yield* decodeStoredCredentials(configJson);
       const credentials = { ...stored, ...input.credentials };
-      yield* syncRegisteredConnector(id, custodian.connectorId, credentials).pipe(
-        Effect.mapError(connectorSyncFailure),
-      );
       yield* db(
-        sql`UPDATE custodians SET name = ${name}, config_json = ${JSON.stringify(credentials)},
+        sql`UPDATE custodians SET last_refresh_attempt_at = ${nowIso()}, updated_at = ${nowIso()}
+          WHERE id = ${id}`,
+      );
+      const persistSession = (session: Readonly<Record<string, string>>) =>
+        db(
+          sql`UPDATE custodians SET config_json = ${JSON.stringify({ ...credentials, ...session })},
+            updated_at = ${nowIso()} WHERE id = ${id}`,
+        );
+      const synchronized = yield* syncRegisteredConnector(id, custodian.connectorId, credentials, {
+        onSession: persistSession,
+      }).pipe(Effect.mapError(connectorSyncFailure));
+      const durableConfig = synchronized.session === undefined ? credentials : synchronized.session;
+      yield* db(
+        sql`UPDATE custodians SET name = ${name}, config_json = ${JSON.stringify(durableConfig)},
           updated_at = ${nowIso()} WHERE id = ${id}`,
       );
       return yield* getCustodian(id);

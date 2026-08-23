@@ -6,6 +6,8 @@ import {
   type AddManualHoldingInput,
   type AddOtherAssetInput,
   type ConnectCustodianInput,
+  type StartConnectorAuthenticationInput,
+  type SubmitConnectorAuthenticationInput,
   type MaintainAssetInput,
   type UpdateAccountInput,
   type UpdateCustodianInput,
@@ -117,6 +119,26 @@ export const createHttpPortfolioEngine = (baseUrl = engineUrl()): PortfolioEngin
       run((client) => client.finance.searchAssets({ query: { query, assetCategory } }), signal),
     connectCustodian: (payload: ConnectCustodianInput, signal) =>
       run((client) => client.finance.connectCustodian({ payload }), signal),
+    startConnectorAuthentication: (payload: StartConnectorAuthenticationInput, signal) =>
+      run((client) => client.finance.startConnectorAuthentication({ payload }), signal),
+    submitConnectorAuthentication: (
+      attemptId: string,
+      payload: SubmitConnectorAuthenticationInput,
+      signal,
+    ) =>
+      run(
+        (client) =>
+          client.finance.submitConnectorAuthentication({
+            params: { id: attemptId },
+            payload,
+          }),
+        signal,
+      ),
+    cancelConnectorAuthentication: (attemptId: string, signal) =>
+      run(
+        (client) => client.finance.cancelConnectorAuthentication({ params: { id: attemptId } }),
+        signal,
+      ),
     addManualHolding: (payload: AddManualHoldingInput, signal) =>
       run((client) => client.finance.addManualHolding({ payload }), signal),
     addCashAccount: (payload: AddCashAccountInput, signal) =>

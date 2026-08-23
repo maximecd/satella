@@ -56,7 +56,13 @@
       "nameRequired": "Le nom est requis.",
       "fieldRequired": "Le champ {{field}} est requis.",
       "importedAccounts": "Comptes importés depuis {{name}}.",
-      "connectAndImport": "Connecter et importer"
+      "connectAndImport": "Connecter et importer",
+      "interactiveHint": "Saisissez votre numéro de téléphone et votre PIN. Trade Republic demandera un code de confirmation à quatre chiffres à l'étape suivante.",
+      "startAuthentication": "Démarrer l'authentification",
+      "confirmationCode": "Code de confirmation",
+      "confirmationCodeInvalid": "Saisissez le code de confirmation à quatre chiffres.",
+      "confirmAndImport": "Confirmer et importer",
+      "cancelAuthentication": "Annuler l'authentification"
     },
     "custodian": {
       "fallbackLabel": "Établissement",

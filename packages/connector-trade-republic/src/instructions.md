@@ -1,0 +1,1 @@
+Enter your Trade Republic phone number and PIN. Satella opens a private local browser session and then asks for the four-digit confirmation code sent by Trade Republic. The phone number, PIN, code, browser data, and WAF material are used only during this sign-in attempt.

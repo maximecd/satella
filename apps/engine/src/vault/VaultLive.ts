@@ -396,7 +396,9 @@ export const VaultLive = Layer.effect(
     const openWithDek = (envelope: KeyEnvelope, dek: Uint8Array) =>
       Effect.gen(function* () {
         inactivityDeadline.cancel();
-        yield* Ref.get(sessionRef).pipe(Effect.flatMap(closeSession));
+        const previous = yield* Ref.get(sessionRef);
+        yield* closeSession(previous);
+        if (previous._tag === "Open") yield* events.notifyClosed();
         const scope = yield* Scope.make();
         const client = yield* makeSqliteClient(config, dek).pipe(
           Effect.provide(Reactivity.layer),
@@ -514,6 +516,7 @@ export const VaultLive = Layer.effect(
           yield* closeSession(session);
           yield* releaseMarketDataResources();
           yield* Ref.set(sessionRef, { _tag: "Closed" });
+          yield* events.notifyClosed();
           const status = yield* currentStatus();
           yield* publishStatus(status);
           return status;
@@ -665,6 +668,7 @@ export const VaultLive = Layer.effect(
           yield* closeSession(session);
           yield* releaseMarketDataResources();
           yield* Ref.set(sessionRef, { _tag: "Closed" });
+          yield* events.notifyClosed();
           yield* Effect.tryPromise({
             try: () => rm(config.dataDirectory, { recursive: true, force: true }),
             catch: asVaultError("Vault reset failed."),

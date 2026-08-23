@@ -119,6 +119,7 @@ describe("Kraken connector", () => {
       {
         externalId: "spot",
         name: "Spot",
+        accountType: "crypto_wallet",
         baseCurrencyIso: "USD",
         positions: [
           {
@@ -176,6 +177,7 @@ describe("Kraken connector", () => {
       {
         externalId: "earn",
         name: "Earn",
+        accountType: "crypto_wallet",
         baseCurrencyIso: "USD",
         positions: [
           {
@@ -299,6 +301,7 @@ describe("Kraken connector", () => {
       {
         externalId: "spot",
         name: "Spot",
+        accountType: "crypto_wallet",
         baseCurrencyIso: "USD",
         positions: [
           {
@@ -316,6 +319,7 @@ describe("Kraken connector", () => {
       {
         externalId: "earn",
         name: "Earn",
+        accountType: "crypto_wallet",
         baseCurrencyIso: "USD",
         positions: [
           {

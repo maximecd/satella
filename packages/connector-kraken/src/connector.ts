@@ -334,6 +334,7 @@ const buildAccounts = (
       externalId: "spot",
       name: "Spot",
       baseCurrencyIso: "USD",
+      accountType: "crypto_wallet",
       positions: toPositions(spot.values()),
     });
   }
@@ -342,6 +343,7 @@ const buildAccounts = (
       externalId: "earn",
       name: "Earn",
       baseCurrencyIso: "USD",
+      accountType: "crypto_wallet",
       positions: toPositions(earn.values()),
     });
   }

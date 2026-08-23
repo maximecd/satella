@@ -52,5 +52,27 @@ export const makeLazyConnector = ({ capability, load }: LazyConnectorDefinition)
             >,
         ),
       ),
+    startAuthentication: (credentials) =>
+      Effect.tryPromise({
+        try: loadOnce,
+        catch: (cause) => loadFailure(capability, cause),
+      }).pipe(
+        Effect.flatMap((connector) => {
+          if (connector.startAuthentication === undefined) {
+            return Effect.fail(
+              new ConnectorAuthenticationError({
+                category: "invalid_response",
+                message: `${capability.name} does not support interactive authentication`,
+              }),
+            );
+          }
+          // SAFETY: the loaded connector is the capability described by this lazy proxy.
+          return connector.startAuthentication(credentials) as Effect.Effect<
+            any,
+            ConnectorAuthenticationError,
+            any
+          >;
+        }),
+      ),
   };
 };

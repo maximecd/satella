@@ -44,6 +44,8 @@ export interface CustodianRow {
   readonly id: string;
   readonly name: string;
   readonly connector_id: string | null;
+  readonly sync_state: "ready" | "reauthentication_required";
+  readonly last_refresh_attempt_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }

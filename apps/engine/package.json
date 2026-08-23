@@ -32,10 +32,12 @@
     "@satella-app/connector-ibkr": "workspace:*",
     "@satella-app/connector-kraken": "workspace:*",
     "@satella-app/connector-okx": "workspace:*",
+    "@satella-app/connector-trade-republic": "workspace:*",
     "decimal.js": "10.6.0",
     "effect": "catalog:",
     "hash-wasm": "^4.12.0",
     "viem": "^2.55.19",
+    "playwright": "1.55.0",
     "yahoo-finance2": "4.0.2"
   },
   "devDependencies": {

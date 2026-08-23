@@ -250,18 +250,21 @@ const buildAccounts = (
       externalId: "trading",
       name: "Trading",
       baseCurrencyIso: "USD",
+      accountType: "crypto_wallet",
       positions: tradingPositions,
     },
     {
       externalId: "funding",
       name: "Funding",
       baseCurrencyIso: "USD",
+      accountType: "crypto_wallet",
       positions: fundingPositions,
     },
     {
       externalId: "earn",
       name: "Earn",
       baseCurrencyIso: "USD",
+      accountType: "crypto_wallet",
       positions: earnPositions,
     },
   ];

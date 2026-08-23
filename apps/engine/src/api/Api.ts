@@ -50,6 +50,9 @@ import {
   SnapshotResult,
   SyncLogPage,
   SyncLogParams,
+  ConnectorAuthenticationAttempt,
+  StartConnectorAuthenticationInput,
+  SubmitConnectorAuthenticationInput,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdatePositionInput,
@@ -143,6 +146,28 @@ export const FinanceApi = HttpApiGroup.make("finance")
     HttpApiEndpoint.post("connectCustodian", "/api/custodians/connect", {
       payload: ConnectCustodianInput,
       success: created(Custodian),
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("startConnectorAuthentication", "/api/custodians/authentication/start", {
+      payload: StartConnectorAuthenticationInput,
+      success: ConnectorAuthenticationAttempt,
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("submitConnectorAuthentication", "/api/custodians/authentication/:id", {
+      params: EntityIdParams,
+      payload: SubmitConnectorAuthenticationInput,
+      success: Custodian,
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.delete("cancelConnectorAuthentication", "/api/custodians/authentication/:id", {
+      params: EntityIdParams,
+      success: Schema.Void,
       error: FinanceApiError,
     }),
   )

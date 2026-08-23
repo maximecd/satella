@@ -103,6 +103,7 @@ describe("OKX connector", () => {
       {
         externalId: "trading",
         name: "Trading",
+        accountType: "crypto_wallet",
         baseCurrencyIso: "USD",
         positions: [
           {
@@ -120,6 +121,7 @@ describe("OKX connector", () => {
       {
         externalId: "funding",
         name: "Funding",
+        accountType: "crypto_wallet",
         baseCurrencyIso: "USD",
         positions: [
           {
@@ -147,6 +149,7 @@ describe("OKX connector", () => {
       {
         externalId: "earn",
         name: "Earn",
+        accountType: "crypto_wallet",
         baseCurrencyIso: "USD",
         positions: [
           {

@@ -340,6 +340,7 @@ const mapStatement = (statement: IbkrFlexStatement): ConnectorAccount => {
     externalId: accountId,
     name,
     baseCurrencyIso: baseCurrency,
+    accountType: "brokerage",
     positions,
   };
 };

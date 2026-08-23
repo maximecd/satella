@@ -94,6 +94,7 @@ describe("SQLite migration startup", () => {
       "20260821194600_initial_finance_model",
       "20260822165422_add_app_language",
       "20260823081447_add_sync_log",
+      "20260823082735_add_custodian_sync_state",
       "20260823084456_add_evm_rpc_settings",
       "20260823090830_allow_optional_sync_log_failure_reason",
     ]);

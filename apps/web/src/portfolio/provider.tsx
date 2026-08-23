@@ -8,11 +8,14 @@ import type {
   AppLanguage,
   Asset,
   ConnectCustodianInput,
+  ConnectorAuthenticationAttempt,
   Custodian,
   CustodianRefreshResult,
   EvmRpcSettings,
   MaintainAssetInput,
   Settings,
+  StartConnectorAuthenticationInput,
+  SubmitConnectorAuthenticationInput,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdatePositionInput,
@@ -395,6 +398,44 @@ export const useConnectCustodian = () => {
         assetsQueryKey,
       ]);
     },
+  });
+};
+
+export const useStartConnectorAuthentication = () => {
+  const engine = usePortfolioEngine();
+  return useMutation<
+    ConnectorAuthenticationAttempt,
+    PortfolioFailure,
+    StartConnectorAuthenticationInput
+  >({
+    mutationFn: (input) => engine.startConnectorAuthentication(input),
+  });
+};
+
+export const useSubmitConnectorAuthentication = () => {
+  const engine = usePortfolioEngine();
+  const queryClient = useQueryClient();
+  return useMutation<
+    Custodian,
+    PortfolioFailure,
+    { readonly attemptId: string; readonly input: SubmitConnectorAuthenticationInput }
+  >({
+    mutationFn: ({ attemptId, input }) => engine.submitConnectorAuthentication(attemptId, input),
+    onSuccess: async () => {
+      await invalidate(queryClient, [
+        dashboardQueryKey,
+        custodiansQueryKey,
+        accountsQueryKey,
+        assetsQueryKey,
+      ]);
+    },
+  });
+};
+
+export const useCancelConnectorAuthentication = () => {
+  const engine = usePortfolioEngine();
+  return useMutation<void, PortfolioFailure, string>({
+    mutationFn: (attemptId) => engine.cancelConnectorAuthentication(attemptId),
   });
 };
 

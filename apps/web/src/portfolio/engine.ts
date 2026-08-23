@@ -7,6 +7,7 @@ import type {
   Asset,
   AssetSearchResult,
   ConnectCustodianInput,
+  ConnectorAuthenticationAttempt,
   Custodian,
   CustodianRefreshResult,
   ConnectorCapability,
@@ -16,6 +17,8 @@ import type {
   PositionEdit,
   Settings,
   SyncLogPage,
+  StartConnectorAuthenticationInput,
+  SubmitConnectorAuthenticationInput,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdatePositionInput,
@@ -82,6 +85,19 @@ export type PortfolioEngine = {
     input: ConnectCustodianInput,
     signal?: AbortSignal,
   ) => Promise<Custodian>;
+  readonly startConnectorAuthentication: (
+    input: StartConnectorAuthenticationInput,
+    signal?: AbortSignal,
+  ) => Promise<ConnectorAuthenticationAttempt>;
+  readonly submitConnectorAuthentication: (
+    attemptId: string,
+    input: SubmitConnectorAuthenticationInput,
+    signal?: AbortSignal,
+  ) => Promise<Custodian>;
+  readonly cancelConnectorAuthentication: (
+    attemptId: string,
+    signal?: AbortSignal,
+  ) => Promise<void>;
   readonly addManualHolding: (
     input: AddManualHoldingInput,
     signal?: AbortSignal,

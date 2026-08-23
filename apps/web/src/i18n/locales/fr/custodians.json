@@ -3,6 +3,8 @@
     "title": "Établissements",
     "edit": "Modifier",
     "refreshFailed": "Échec de l'actualisation",
+    "reauthenticationRequired": "Réauthentification requise",
+    "reauthenticationDescription": "Reconnectez-vous pour reprendre les actualisations automatiques de cet établissement.",
     "list": {
       "empty": {
         "title": "Aucun établissement",

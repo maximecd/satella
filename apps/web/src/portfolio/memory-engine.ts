@@ -8,6 +8,7 @@ import type {
   Asset,
   AssetSearchResult,
   ConnectCustodianInput,
+  ConnectorAuthenticationAttempt,
   Custodian,
   CustodianRefreshResult,
   Dashboard,
@@ -18,6 +19,8 @@ import type {
   PositionEdit,
   Settings,
   SyncLogEntry,
+  StartConnectorAuthenticationInput,
+  SubmitConnectorAuthenticationInput,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdateSettingsInput,
@@ -232,6 +235,7 @@ export const createMemoryPortfolioEngine = (
     holdingLookup: ManualHoldingLookup;
     refreshResult: CustodianRefreshResult | undefined;
     addAssetsResult: AddAssetsResult | undefined;
+    authenticationAttempts: Map<string, StartConnectorAuthenticationInput>;
     providerAverages: Map<string, AverageUnitPurchasePrice>;
   };
   const snapshot = (next: MemoryPortfolioSeed): MemoryState => {
@@ -251,6 +255,7 @@ export const createMemoryPortfolioEngine = (
       holdingLookup: clone(next.holdingLookup ?? defaultHoldingLookup),
       refreshResult: next.refreshResult === undefined ? undefined : clone(next.refreshResult),
       addAssetsResult: next.addAssetsResult === undefined ? undefined : clone(next.addAssetsResult),
+      authenticationAttempts: new Map(),
       providerAverages: providerAveragesFrom(accounts, positionEdits),
     };
   };
@@ -268,6 +273,7 @@ export const createMemoryPortfolioEngine = (
     holdingLookup: clone(value.holdingLookup),
     refreshResult: value.refreshResult === undefined ? undefined : clone(value.refreshResult),
     addAssetsResult: value.addAssetsResult === undefined ? undefined : clone(value.addAssetsResult),
+    authenticationAttempts: new Map(value.authenticationAttempts),
     providerAverages: new Map(
       [...value.providerAverages].map(([id, average]) => [id, clone(average)] as const),
     ),
@@ -798,6 +804,69 @@ export const createMemoryPortfolioEngine = (
       };
       state.custodians = [...state.custodians, custodian];
       return custodian;
+    },
+    startConnectorAuthentication: async (
+      input: StartConnectorAuthenticationInput,
+      signal,
+    ): Promise<ConnectorAuthenticationAttempt> => {
+      throwIfAborted(signal);
+      rejectIfFailed("startConnectorAuthentication");
+      if (state.authenticationAttempts.size > 0) {
+        throw new PortfolioFailure(
+          "conflict",
+          "Another connector authentication is already in progress",
+        );
+      }
+      const attemptId = `attempt-${state.authenticationAttempts.size + 1}`;
+      state.authenticationAttempts.set(attemptId, input);
+      return {
+        attemptId,
+        challenge: {
+          kind: "confirmation_code",
+          prompt: "Enter the four-digit confirmation code sent by the connector.",
+          length: 4,
+          expiresAt: new Date(Date.now() + 120_000).toISOString(),
+        },
+      };
+    },
+    submitConnectorAuthentication: async (
+      attemptId: string,
+      _input: SubmitConnectorAuthenticationInput,
+      signal,
+    ) => {
+      throwIfAborted(signal);
+      rejectIfFailed("submitConnectorAuthentication");
+      const input = state.authenticationAttempts.get(attemptId);
+      if (input === undefined) throw notFound("Authentication attempt");
+      state.authenticationAttempts.delete(attemptId);
+      if (input.custodianId !== undefined) {
+        const current = requireCustodian(input.custodianId);
+        const next = { ...current, syncState: "ready" as const, updatedAt: nowIso() };
+        state.custodians = state.custodians.map((candidate) =>
+          candidate.id === current.id ? next : candidate,
+        );
+        return next;
+      }
+      const custodian: Custodian = {
+        id: `custodian-${state.custodians.length + 1}`,
+        name: input.name,
+        connectorId: input.connectorId,
+        isDefault: false,
+        accounts: [],
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+        syncState: "ready",
+        lastRefreshAttemptAt: null,
+      };
+      state.custodians = [...state.custodians, custodian];
+      return custodian;
+    },
+    cancelConnectorAuthentication: async (attemptId: string, signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("cancelConnectorAuthentication");
+      if (!state.authenticationAttempts.delete(attemptId)) {
+        throw notFound("Authentication attempt");
+      }
     },
     addManualHolding: async (input: AddManualHoldingInput, signal) => {
       throwIfAborted(signal);

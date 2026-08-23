@@ -14,6 +14,19 @@ export type ConnectorAssetIdentifier = typeof ConnectorAssetIdentifier.Type;
 
 export type ConnectorCredentialFieldKind = "text" | "password" | "select";
 
+/** Account types understood by the Finance engine. */
+export const ConnectorAccountType = Schema.Literals([
+  "checking",
+  "savings",
+  "brokerage",
+  "crypto_wallet",
+  "other",
+]);
+export type ConnectorAccountType = typeof ConnectorAccountType.Type;
+
+/** Durable state returned after authentication and retained in the Vault. */
+export type ConnectorSession = Readonly<Record<string, string>>;
+
 export interface ConnectorCredentialField {
   readonly key: string;
   readonly label: string;
@@ -35,6 +48,13 @@ export type ConnectorAsset = typeof ConnectorAsset.Type;
 export const ConnectorPosition = Schema.Struct({
   asset: ConnectorAsset,
   quantity: Schema.String,
+  reportedPrice: Schema.optional(
+    Schema.Struct({
+      price: Schema.String,
+      currencyIso: Schema.String,
+      observedAt: Schema.String,
+    }),
+  ),
   averageUnitPurchasePrice: Schema.optional(
     Schema.Struct({
       price: Schema.String,
@@ -48,9 +68,34 @@ export const ConnectorAccount = Schema.Struct({
   externalId: Schema.Trim.check(Schema.isNonEmpty()),
   name: Schema.Trim.check(Schema.isNonEmpty()),
   baseCurrencyIso: Schema.Trim.check(Schema.isNonEmpty()),
+  /** Optional for source compatibility; built-in adapters declare it explicitly. */
+  accountType: Schema.optional(ConnectorAccountType),
   positions: Schema.Array(ConnectorPosition),
 });
 export type ConnectorAccount = typeof ConnectorAccount.Type;
+
+export interface ConnectorSnapshot {
+  readonly accounts: ReadonlyArray<ConnectorAccount>;
+  /** False means absent accounts and positions are not authoritative. */
+  readonly complete: boolean;
+}
+
+export type ConnectorFetchResult = ReadonlyArray<ConnectorAccount> | ConnectorSnapshot;
+
+export interface ConnectorChallenge {
+  readonly kind: "confirmation_code";
+  readonly prompt: string;
+  readonly length: 4;
+  readonly expiresAt: string;
+}
+
+export interface InteractiveConnectorAuthentication<R = never> {
+  readonly challenge: ConnectorChallenge;
+  readonly submit: (
+    code: string,
+  ) => Effect.Effect<AuthenticatedConnector<R>, ConnectorAuthenticationError, R>;
+  readonly cancel: () => Effect.Effect<void, never, R>;
+}
 
 export const ConnectorAuthenticationCategory = Schema.Literals([
   "invalid_credentials",
@@ -89,11 +134,9 @@ export class ConnectorFetchAccountsError extends Schema.TaggedError<ConnectorFet
 ) {}
 
 export interface AuthenticatedConnector<R = never> {
-  readonly fetchAccounts: () => Effect.Effect<
-    ReadonlyArray<ConnectorAccount>,
-    ConnectorFetchAccountsError,
-    R
-  >;
+  /** The minimum durable state required to recreate this authenticated client. */
+  readonly session?: ConnectorSession;
+  readonly fetchAccounts: () => Effect.Effect<ConnectorFetchResult, ConnectorFetchAccountsError, R>;
 }
 
 export interface Connector<Credentials, R = never> {
@@ -105,12 +148,20 @@ export interface Connector<Credentials, R = never> {
   readonly instructions?: string;
   /** Asset categories this connector can be discovered through. Does not filter imported output. */
   readonly assetCategories: ReadonlyArray<ConnectorAssetCategory>;
+  /** Automatic refresh interval in milliseconds. Defaults to fifteen minutes. */
+  readonly autoRefreshIntervalMs?: number;
+  /** Whether the connector needs the engine's start/challenge/complete flow. */
+  readonly authenticationMode?: "immediate" | "interactive";
   /** Public, non-secret metadata used to render connector setup forms. */
   readonly credentialFields: ReadonlyArray<ConnectorCredentialField>;
   readonly credentialsSchema: Schema.Top;
   readonly authenticate: (
     credentials: Credentials,
   ) => Effect.Effect<AuthenticatedConnector<R>, ConnectorAuthenticationError, R>;
+  /** Optional interactive authentication entry point for connectors such as Trade Republic. */
+  readonly startAuthentication?: (
+    credentials: Credentials,
+  ) => Effect.Effect<InteractiveConnectorAuthentication<R>, ConnectorAuthenticationError, R>;
 }
 
 export type AnyConnector = Connector<any, any>;
@@ -148,6 +199,20 @@ export const validateConnectorOutput = (
             ...position,
             quantity,
           };
+          if (position.reportedPrice !== undefined) {
+            const observedAt = new Date(position.reportedPrice.observedAt);
+            if (Number.isNaN(observedAt.getTime())) {
+              throw new Error("Connector returned an invalid reported price observation time");
+            }
+            Object.assign(normalizedPosition, {
+              reportedPrice: {
+                ...position.reportedPrice,
+                price: canonicalDecimal(position.reportedPrice.price),
+                currencyIso: position.reportedPrice.currencyIso.trim().toUpperCase(),
+                observedAt: observedAt.toISOString(),
+              },
+            });
+          }
           if (position.averageUnitPurchasePrice !== undefined) {
             Object.assign(normalizedPosition, {
               averageUnitPurchasePrice: {
@@ -168,3 +233,27 @@ export const validateConnectorOutput = (
         message: cause instanceof Error ? cause.message : "Connector output was invalid",
       }),
   });
+
+/** Validates either the legacy array form or the explicit complete/partial form. */
+export const validateConnectorSnapshot = (
+  result: ConnectorFetchResult,
+): Effect.Effect<ConnectorSnapshot, ConnectorFetchAccountsError> => {
+  const isSnapshot = (value: ConnectorFetchResult): value is ConnectorSnapshot =>
+    value !== null &&
+    Object.prototype.toString.call(value) === "[object Object]" &&
+    "accounts" in value;
+  const snapshot: ConnectorSnapshot = isSnapshot(result)
+    ? result
+    : { accounts: result, complete: true };
+  if (snapshot.complete !== true && snapshot.complete !== false) {
+    return Effect.fail(
+      new ConnectorFetchAccountsError({
+        category: "invalid_response",
+        message: "Connector snapshot completeness was invalid",
+      }),
+    );
+  }
+  return validateConnectorOutput(snapshot.accounts).pipe(
+    Effect.map((accounts) => ({ accounts, complete: snapshot.complete })),
+  );
+};

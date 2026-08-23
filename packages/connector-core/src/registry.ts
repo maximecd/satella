@@ -11,6 +11,8 @@ export interface ConnectorCapability {
   readonly instructions?: string;
   readonly assetCategories: ReadonlyArray<ConnectorAssetCategory>;
   readonly credentialFields: ReadonlyArray<ConnectorCredentialField>;
+  readonly autoRefreshIntervalMs?: number;
+  readonly authenticationMode?: "immediate" | "interactive";
 }
 
 export interface ConnectorRegistry extends Iterable<readonly [string, AnyConnector]> {
@@ -38,7 +40,16 @@ export const connectorCapabilities = (
 ): ReadonlyArray<ConnectorCapability> =>
   Object.freeze(
     [...registry.values()].map(
-      ({ id, name, icon, instructions, assetCategories, credentialFields }) => {
+      ({
+        id,
+        name,
+        icon,
+        instructions,
+        assetCategories,
+        credentialFields,
+        autoRefreshIntervalMs,
+        authenticationMode,
+      }) => {
         const capability = {
           id,
           name,
@@ -47,6 +58,9 @@ export const connectorCapabilities = (
         };
         if (icon !== undefined) Object.assign(capability, { icon });
         if (instructions !== undefined) Object.assign(capability, { instructions });
+        if (autoRefreshIntervalMs !== undefined)
+          Object.assign(capability, { autoRefreshIntervalMs });
+        if (authenticationMode !== undefined) Object.assign(capability, { authenticationMode });
         return Object.freeze(capability);
       },
     ),

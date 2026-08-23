@@ -14,24 +14,40 @@ export class VaultEvents extends Context.Service<
   {
     readonly notifyUnlocked: () => Effect.Effect<void>;
     readonly awaitUnlock: () => Effect.Effect<void>;
+    readonly notifyClosed: () => Effect.Effect<void>;
+    readonly awaitClosed: () => Effect.Effect<void>;
   }
 >()("@satella-app/engine/VaultEvents") {}
 
 export const make = Effect.gen(function* () {
-  const slot = yield* Ref.make(Deferred.makeUnsafe<void>());
+  const unlockSlot = yield* Ref.make(Deferred.makeUnsafe<void>());
+  const closeSlot = yield* Ref.make(Deferred.makeUnsafe<void>());
   return VaultEvents.of({
     notifyUnlocked: () =>
       Effect.gen(function* () {
-        const deferred = yield* Ref.get(slot);
+        const deferred = yield* Ref.get(unlockSlot);
         yield* Effect.sync(() => {
           Deferred.doneUnsafe(deferred, Exit.void);
         });
       }),
     awaitUnlock: () =>
       Effect.gen(function* () {
-        const deferred = yield* Ref.get(slot);
+        const deferred = yield* Ref.get(unlockSlot);
         yield* Deferred.await(deferred);
-        yield* Ref.set(slot, Deferred.makeUnsafe<void>());
+        yield* Ref.set(unlockSlot, Deferred.makeUnsafe<void>());
+      }),
+    notifyClosed: () =>
+      Effect.gen(function* () {
+        const deferred = yield* Ref.get(closeSlot);
+        yield* Effect.sync(() => {
+          Deferred.doneUnsafe(deferred, Exit.void);
+        });
+      }),
+    awaitClosed: () =>
+      Effect.gen(function* () {
+        const deferred = yield* Ref.get(closeSlot);
+        yield* Deferred.await(deferred);
+        yield* Ref.set(closeSlot, Deferred.makeUnsafe<void>());
       }),
   });
 });

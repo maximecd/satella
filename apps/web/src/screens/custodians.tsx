@@ -29,7 +29,7 @@ import {
 } from "../portfolio";
 import { RefreshCustodianButton } from "../refresh-custodian";
 import { SelectField } from "../select-field";
-import { AddAssetsButton } from "./add-assets";
+import { AddAssetsButton, InteractiveConnectorImportForm } from "./add-assets";
 import { SetupInstructions } from "./setup-instructions";
 
 const listedCustodians = (custodians: ReadonlyArray<Custodian>) =>
@@ -84,6 +84,11 @@ export function CustodiansListScreen() {
               })}
               endContent={
                 <Flex gap="2" align="center">
+                  {custodian.syncState === "reauthentication_required" && (
+                    <Text color="fg.error" fontSize="sm">
+                      {t("custodians.reauthenticationRequired")}
+                    </Text>
+                  )}
                   {custodian.connectorId !== null ? (
                     <RefreshCustodianButton custodianId={custodian.id} onError={setRefreshError} />
                   ) : null}
@@ -138,6 +143,15 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
           </Flex>
         }
       />
+      {custodian.syncState === "reauthentication_required" && (
+        <Alert.Root status="error">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{t("custodians.reauthenticationRequired")}</Alert.Title>
+            <Alert.Description>{t("custodians.reauthenticationDescription")}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      )}
       {refreshError !== null && (
         <Alert.Root status="error">
           <Alert.Indicator />
@@ -188,6 +202,7 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
 
 export function EditCustodianScreen({ id }: { readonly id: string }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const query = useCustodian(id);
   const capabilities = useConnectorCapabilities();
   const errorMessage = (cause: unknown) =>
@@ -204,6 +219,30 @@ export function EditCustodianScreen({ id }: { readonly id: string }) {
         );
   if (query.data.connectorId !== null && connector === undefined) {
     return <PageState kind="error" message={t("custodians.editScreen.noLongerEditable")} />;
+  }
+  if (
+    query.data.syncState === "reauthentication_required" &&
+    connector?.authenticationMode === "interactive"
+  ) {
+    return (
+      <Stack gap="5">
+        <Alert.Root status="error">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{t("custodians.reauthenticationRequired")}</Alert.Title>
+            <Alert.Description>{t("custodians.reauthenticationDescription")}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+        <InteractiveConnectorImportForm
+          connector={connector}
+          suggestedName={query.data.name}
+          existingCustodianId={query.data.id}
+          onComplete={() =>
+            void navigate({ to: "/settings/custodians/$custodianId", params: { custodianId: id } })
+          }
+        />
+      </Stack>
+    );
   }
   return <LoadedEditCustodian custodian={query.data} connector={connector} />;
 }

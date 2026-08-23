@@ -19,6 +19,7 @@ import {
 import { initialFinanceModel } from "./migrations/20260821194600_initial_finance_model.js";
 import { addAppLanguage } from "./migrations/20260822165422_add_app_language.js";
 import { addSyncLog } from "./migrations/20260823081447_add_sync_log.js";
+import { addCustodianSyncState } from "./migrations/20260823082735_add_custodian_sync_state.js";
 import { addEvmRpcSettings } from "./migrations/20260823084456_add_evm_rpc_settings.js";
 import { allowOptionalSyncLogFailureReason } from "./migrations/20260823090830_allow_optional_sync_log_failure_reason.js";
 
@@ -33,6 +34,7 @@ export const ProductionMigrations = {
   "20260821194600_initial_finance_model": initialFinanceModel,
   "20260822165422_add_app_language": addAppLanguage,
   "20260823081447_add_sync_log": addSyncLog,
+  "20260823082735_add_custodian_sync_state": addCustodianSyncState,
   "20260823084456_add_evm_rpc_settings": addEvmRpcSettings,
   "20260823090830_allow_optional_sync_log_failure_reason": allowOptionalSyncLogFailureReason,
 } satisfies MigrationRegistry;

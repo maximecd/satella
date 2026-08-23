@@ -8,6 +8,7 @@ import { AccountService } from "../finance/accounts/AccountService.js";
 import { AddAssetsService } from "../finance/add-assets/AddAssetsService.js";
 import { AssetService } from "../finance/assets/AssetService.js";
 import { ConnectorCatalog } from "../finance/connectors/ConnectorCatalog.js";
+import { ConnectorAuthenticationService } from "../finance/connectors/ConnectorAuthentication.js";
 import { CustodianService } from "../finance/custodians/CustodianService.js";
 import { MarketDataService } from "../finance/market-data/MarketDataService.js";
 import { PortfolioService } from "../finance/portfolio/PortfolioService.js";
@@ -89,6 +90,21 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
     .handle("connectCustodian", ({ payload }) =>
       Effect.gen(function* () {
         return yield* (yield* CustodianService).connect(payload);
+      }),
+    )
+    .handle("startConnectorAuthentication", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* ConnectorAuthenticationService).start(payload);
+      }),
+    )
+    .handle("submitConnectorAuthentication", ({ params, payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* ConnectorAuthenticationService).submit(params.id, payload.code);
+      }),
+    )
+    .handle("cancelConnectorAuthentication", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* ConnectorAuthenticationService).cancel(params.id);
       }),
     )
     .handle("refreshCustodian", ({ params }) =>

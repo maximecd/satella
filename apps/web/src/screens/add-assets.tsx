@@ -14,10 +14,15 @@ import {
 import type {
   AddManualHoldingInput,
   AssetSearchResult,
+  ConnectorAuthenticationAttempt,
   ConnectorCapability,
 } from "@satella-app/engine/api";
-import { DecimalFromNonEmptyString } from "@satella-app/engine/api";
-import { ConnectCustodianInput } from "@satella-app/engine/api";
+import {
+  ConnectCustodianInput,
+  DecimalFromNonEmptyString,
+  StartConnectorAuthenticationInput,
+  SubmitConnectorAuthenticationInput,
+} from "@satella-app/engine/api";
 import * as Schema from "effect/Schema";
 import { ChevronLeft, Search, X } from "lucide-react";
 import {
@@ -52,6 +57,9 @@ import {
   useAssetSearch,
   useAssets,
   useConnectCustodian,
+  useStartConnectorAuthentication,
+  useSubmitConnectorAuthentication,
+  useCancelConnectorAuthentication,
   useCustodians,
   useConnectorCapabilities,
   useManualAccounts,
@@ -61,6 +69,7 @@ import {
 import { SelectField } from "../select-field";
 import { compareDecimal } from "../financial-number";
 import { SetupInstructions } from "./setup-instructions";
+import { PinField } from "./pin-field";
 
 const errorMessage = (cause: unknown, fallback: string) =>
   cause instanceof Error ? cause.message : fallback;
@@ -537,6 +546,15 @@ function ConnectorImportForm({
   readonly suggestedName: string;
   readonly onComplete: () => void;
 }) {
+  if (connector.authenticationMode === "interactive") {
+    return (
+      <InteractiveConnectorImportForm
+        connector={connector}
+        suggestedName={suggestedName}
+        onComplete={onComplete}
+      />
+    );
+  }
   const { t } = useTranslation();
   const requestFailed = t("errors.requestFailed");
   const [name, setName] = useState(suggestedName);
@@ -662,6 +680,221 @@ function ConnectorImportForm({
           loading={connect.isPending}
         >
           {t("addAssets.connectors.connectAndImport")}
+        </Button>
+      </FormFrame>
+    </Stack>
+  );
+}
+
+export function InteractiveConnectorImportForm({
+  connector,
+  suggestedName,
+  onComplete,
+  existingCustodianId,
+}: {
+  readonly connector: ConnectorCapability;
+  readonly suggestedName: string;
+  readonly onComplete: () => void;
+  readonly existingCustodianId?: string;
+}) {
+  const { t } = useTranslation();
+  const requestFailed = t("errors.requestFailed");
+  const [name, setName] = useState(suggestedName);
+  const [credentials, setCredentials] = useState<Record<string, string>>(() =>
+    Object.fromEntries(connector.credentialFields.map((field) => [field.key, ""])),
+  );
+  const [attempt, setAttempt] = useState<ConnectorAuthenticationAttempt | null>(null);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const start = useStartConnectorAuthentication();
+  const submit = useSubmitConnectorAuthentication();
+  const cancel = useCancelConnectorAuthentication();
+  const cancelAuthenticationRequest = cancel.mutateAsync;
+
+  useEffect(() => {
+    if (attempt === null) return;
+    const attemptId = attempt.attemptId;
+    return () => {
+      void cancelAuthenticationRequest(attemptId).catch(() => undefined);
+    };
+  }, [attempt, cancelAuthenticationRequest]);
+
+  const clearFieldError = (key: string) => {
+    setFieldErrors((current) => {
+      if (current[key] === undefined) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const startAuthentication = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    const nextFieldErrors: Record<string, string> = {};
+    if (name.trim() === "") nextFieldErrors.name = t("addAssets.connectors.nameRequired");
+    for (const field of connector.credentialFields) {
+      if (field.required && (credentials[field.key] ?? "").trim() === "") {
+        nextFieldErrors[field.key] = t("addAssets.connectors.fieldRequired", {
+          field: field.label,
+        });
+      }
+    }
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) return;
+    try {
+      const payloadInput = {
+        name: name.trim(),
+        connectorId: connector.id,
+        credentials,
+      };
+      if (existingCustodianId !== undefined)
+        Object.assign(payloadInput, { custodianId: existingCustodianId });
+      const payload = await Schema.decodeUnknownPromise(StartConnectorAuthenticationInput)(
+        payloadInput,
+      );
+      const next = await start.mutateAsync(payload);
+      setCredentials((current) => ({ ...current, pin: "" }));
+      setAttempt(next);
+    } catch (cause) {
+      setError(errorMessage(cause, requestFailed));
+    }
+  };
+
+  const submitCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    if (code.length !== 4) {
+      setError(t("addAssets.connectors.confirmationCodeInvalid"));
+      return;
+    }
+    if (attempt === null) return;
+    try {
+      const payload = await Schema.decodeUnknownPromise(SubmitConnectorAuthenticationInput)({
+        code,
+      });
+      const custodian = await submit.mutateAsync({ attemptId: attempt.attemptId, input: payload });
+      notify.success(t("addAssets.connectors.importedAccounts", { name: custodian.name }));
+      onComplete();
+    } catch (cause) {
+      setError(errorMessage(cause, requestFailed));
+    }
+  };
+
+  const cancelAuthentication = async () => {
+    if (attempt === null) return;
+    try {
+      await cancel.mutateAsync(attempt.attemptId);
+      setAttempt(null);
+      setCode("");
+      setError(null);
+    } catch (cause) {
+      setError(errorMessage(cause, requestFailed));
+    }
+  };
+
+  if (attempt !== null) {
+    return (
+      <Stack gap="4">
+        <Text as="p" color="fg.muted">
+          {attempt.challenge.prompt}
+        </Text>
+        <FormError message={error} />
+        <FormFrame onSubmit={(event) => void submitCode(event)}>
+          <PinField
+            label={t("addAssets.connectors.confirmationCode")}
+            value={code}
+            onChange={setCode}
+            htmlName="confirmationCode"
+            invalid={error !== null}
+            errorText={undefined}
+            autoFocus
+          />
+          <Stack direction={{ base: "column", sm: "row" }} gap="2">
+            <Button
+              type="submit"
+              colorPalette="blue"
+              disabled={submit.isPending}
+              loading={submit.isPending}
+            >
+              {t("addAssets.connectors.confirmAndImport")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => void cancelAuthentication()}
+              disabled={cancel.isPending || submit.isPending}
+            >
+              {t("addAssets.connectors.cancelAuthentication")}
+            </Button>
+          </Stack>
+        </FormFrame>
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack gap="4">
+      <Text as="p" color="fg.muted">
+        {t("addAssets.connectors.interactiveHint")}
+      </Text>
+      <SetupInstructions source={connector.instructions} />
+      <FormError message={error} />
+      <FormFrame onSubmit={(event) => void startAuthentication(event)}>
+        <Field
+          label={t("addAssets.connectors.nameField")}
+          invalid={fieldErrors.name !== undefined}
+          errorText={fieldErrors.name}
+        >
+          <Input
+            name="name"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              clearFieldError("name");
+            }}
+          />
+        </Field>
+        {connector.credentialFields.map((field) => {
+          const fieldError = fieldErrors[field.key];
+          return (
+            <Field
+              key={field.key}
+              label={field.label}
+              helperText={field.helpText}
+              invalid={fieldError !== undefined}
+              errorText={fieldError}
+            >
+              {field.kind === "password" ? (
+                <PasswordInput
+                  name={field.key}
+                  value={credentials[field.key] ?? ""}
+                  onChange={(event) => {
+                    setCredentials((current) => ({ ...current, [field.key]: event.target.value }));
+                    clearFieldError(field.key);
+                  }}
+                />
+              ) : (
+                <Input
+                  name={field.key}
+                  value={credentials[field.key] ?? ""}
+                  onChange={(event) => {
+                    setCredentials((current) => ({ ...current, [field.key]: event.target.value }));
+                    clearFieldError(field.key);
+                  }}
+                />
+              )}
+            </Field>
+          );
+        })}
+        <Button
+          type="submit"
+          colorPalette="blue"
+          disabled={start.isPending}
+          loading={start.isPending}
+        >
+          {t("addAssets.connectors.startAuthentication")}
         </Button>
       </FormFrame>
     </Stack>

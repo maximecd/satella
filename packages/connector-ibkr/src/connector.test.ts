@@ -98,6 +98,7 @@ describe("IBKR Flex connector", () => {
       {
         externalId: "U123456",
         name: "PEA (U123456)",
+        accountType: "brokerage",
         baseCurrencyIso: "USD",
         positions: [
           {
@@ -212,6 +213,7 @@ describe("IBKR Flex connector", () => {
       {
         externalId: "UEMPTY",
         name: "UEMPTY",
+        accountType: "brokerage",
         baseCurrencyIso: "USD",
         positions: [],
       },
@@ -240,6 +242,7 @@ describe("IBKR Flex connector", () => {
       {
         externalId: "UEMPTY",
         name: "UEMPTY",
+        accountType: "brokerage",
         baseCurrencyIso: "USD",
         positions: [
           {

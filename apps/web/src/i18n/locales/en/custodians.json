@@ -3,6 +3,8 @@
     "title": "Custodians",
     "edit": "Edit",
     "refreshFailed": "Refresh failed",
+    "reauthenticationRequired": "Re-authentication required",
+    "reauthenticationDescription": "Sign in again to resume automatic refreshes for this Custodian.",
     "list": {
       "empty": {
         "title": "No custodians",

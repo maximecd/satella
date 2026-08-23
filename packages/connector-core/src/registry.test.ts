@@ -2,7 +2,12 @@ import { describe, expect, it } from "vite-plus/test";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-import { connectorCapabilities, connectorRegistryFrom, validateConnectorOutput } from "./index.js";
+import {
+  connectorCapabilities,
+  connectorRegistryFrom,
+  validateConnectorOutput,
+  validateConnectorSnapshot,
+} from "./index.js";
 
 const connector = (id: string, name = id) => ({
   id,
@@ -78,5 +83,46 @@ describe("connector registry", () => {
         ]),
       ),
     ).rejects.toThrow("Connector returned an invalid decimal value");
+  });
+
+  it("keeps partial snapshots non-destructive and normalizes reported prices", async () => {
+    const result = await Effect.runPromise(
+      validateConnectorSnapshot({
+        complete: false,
+        accounts: [
+          {
+            externalId: "account-1",
+            name: "Brokerage",
+            baseCurrencyIso: "eur",
+            accountType: "brokerage",
+            positions: [
+              {
+                asset: {
+                  externalId: "isin:FR0000000001",
+                  assetCategory: "stocks_etfs",
+                  name: "Example",
+                  identifiers: [{ type: "isin", value: "FR0000000001" }],
+                },
+                quantity: "1.2500",
+                reportedPrice: {
+                  price: "12.500",
+                  currencyIso: "eur",
+                  observedAt: "2026-08-23T10:00:00.000Z",
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(result.complete).toBe(false);
+    expect(result.accounts[0]?.accountType).toBe("brokerage");
+    expect(result.accounts[0]?.positions[0]?.quantity).toBe("1.25");
+    expect(result.accounts[0]?.positions[0]?.reportedPrice).toEqual({
+      price: "12.5",
+      currencyIso: "EUR",
+      observedAt: "2026-08-23T10:00:00.000Z",
+    });
   });
 });

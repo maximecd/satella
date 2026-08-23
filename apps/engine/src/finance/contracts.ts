@@ -130,6 +130,8 @@ export const Custodian = Schema.Struct({
   accounts: Schema.Array(AccountSummary),
   createdAt: Schema.String,
   updatedAt: Schema.String,
+  syncState: Schema.optional(Schema.Literals(["ready", "reauthentication_required"])),
+  lastRefreshAttemptAt: Schema.optional(Schema.NullOr(Schema.String)),
 });
 export type Custodian = typeof Custodian.Type;
 
@@ -156,6 +158,8 @@ export const ConnectorCapability = Schema.Struct({
       helpText: Schema.optional(Schema.Trim.check(Schema.isNonEmpty())),
     }),
   ),
+  autoRefreshIntervalMs: Schema.optional(Schema.Number),
+  authenticationMode: Schema.optional(Schema.Literals(["immediate", "interactive"])),
 });
 export type ConnectorCapability = typeof ConnectorCapability.Type;
 
@@ -168,6 +172,34 @@ export const EntityIdPath = Schema.Struct({ id: Schema.String });
 /** Credentials are stored in the connector configuration for later refreshes. */
 export const ConnectorCredentials = Schema.Record(Schema.String, Schema.String);
 export type ConnectorCredentials = typeof ConnectorCredentials.Type;
+
+export const ConnectorAuthenticationChallenge = Schema.Struct({
+  kind: Schema.Literal("confirmation_code"),
+  prompt: Schema.String,
+  length: Schema.Literal(4),
+  expiresAt: Schema.String,
+});
+export type ConnectorAuthenticationChallenge = typeof ConnectorAuthenticationChallenge.Type;
+
+/** Public input for the two-step connector authentication flow. */
+export const StartConnectorAuthenticationInput = Schema.Struct({
+  name: Schema.Trim.check(Schema.isNonEmpty()),
+  connectorId: Schema.Trim.check(Schema.isNonEmpty()),
+  credentials: ConnectorCredentials,
+  custodianId: Schema.optional(Schema.String),
+});
+export type StartConnectorAuthenticationInput = typeof StartConnectorAuthenticationInput.Type;
+
+export const SubmitConnectorAuthenticationInput = Schema.Struct({
+  code: Schema.String,
+});
+export type SubmitConnectorAuthenticationInput = typeof SubmitConnectorAuthenticationInput.Type;
+
+export const ConnectorAuthenticationAttempt = Schema.Struct({
+  attemptId: Schema.String,
+  challenge: ConnectorAuthenticationChallenge,
+});
+export type ConnectorAuthenticationAttempt = typeof ConnectorAuthenticationAttempt.Type;
 
 export const ConnectCustodianInput = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()),

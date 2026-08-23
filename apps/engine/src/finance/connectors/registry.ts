@@ -3,6 +3,7 @@ import { EvmConnectorCapability } from "@satella-app/connector-evm/metadata";
 import { IbkrConnectorCapability } from "@satella-app/connector-ibkr/metadata";
 import { KrakenConnectorCapability } from "@satella-app/connector-kraken/metadata";
 import { OkxConnectorCapability } from "@satella-app/connector-okx/metadata";
+import { TradeRepublicConnectorCapability } from "@satella-app/connector-trade-republic/metadata";
 
 import { makeLazyConnector } from "./LazyConnector.js";
 
@@ -27,6 +28,11 @@ export const CONNECTOR_REGISTRY = connectorRegistryFrom([
   makeLazyConnector({
     capability: IbkrConnectorCapability,
     load: async () => (await import("@satella-app/connector-ibkr")).IbkrConnector,
+  }),
+  makeLazyConnector({
+    capability: TradeRepublicConnectorCapability,
+    load: async () =>
+      (await import("@satella-app/connector-trade-republic")).TradeRepublicConnector,
   }),
 ]);
 

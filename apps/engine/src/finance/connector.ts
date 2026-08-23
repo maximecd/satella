@@ -37,6 +37,7 @@ export interface NormalizedConnectorAccount {
   readonly externalAccountId: string;
   readonly name: string;
   readonly baseCurrencyIso: string;
+  readonly accountType?: AccountType;
   readonly positions: ReadonlyArray<NormalizedConnectorPosition>;
 }
 
@@ -56,7 +57,8 @@ export interface ReconciliationResult {
 const fail = (code: FinanceApiError["code"], message: string) =>
   Effect.fail(new FinanceApiError({ code, message }));
 
-const accountTypeForConnector = (connectorId: string): AccountType => {
+/** Compatibility only for adapters compiled before typed account output existed. */
+const legacyAccountTypeForConnector = (connectorId: string): AccountType => {
   if (connectorId === "okx" || connectorId === "evm") return "crypto_wallet";
   if (connectorId === "ibkr") return "brokerage";
   return "other";
@@ -404,9 +406,10 @@ export const reconcileConnector = (
           if (existing[0] === undefined) {
             yield* sql`INSERT INTO accounts
               (id, custodian_id, name, account_type, base_currency_asset_id, connector_account_id, created_at, updated_at)
-              VALUES (${accountId}, ${custodianId}, ${name}, ${accountTypeForConnector(connectorId)}, ${currencyId}, ${account.externalAccountId}, ${timestamp}, ${timestamp})`;
+              VALUES (${accountId}, ${custodianId}, ${name}, ${account.accountType ?? legacyAccountTypeForConnector(connectorId)}, ${currencyId}, ${account.externalAccountId}, ${timestamp}, ${timestamp})`;
           } else {
             yield* sql`UPDATE accounts SET name = ${name},
+              account_type = ${account.accountType ?? legacyAccountTypeForConnector(connectorId)},
               base_currency_asset_id = ${currencyId},
               updated_at = ${timestamp} WHERE id = ${accountId}`;
           }
@@ -437,9 +440,14 @@ export const reconcileConnector = (
               const priceCurrencyId = yield* ensureCash(position.reportedPrice.currencyIso);
               yield* sql`INSERT INTO asset_prices
                 (asset_id, price, currency_asset_id, source, observed_at, updated_at)
-                SELECT ${assetId}, ${reportedPrice}, ${priceCurrencyId}, ${`connector:${connectorId}`},
-                  ${position.reportedPrice.observedAt.toISOString()}, ${timestamp}
-                WHERE NOT EXISTS (SELECT 1 FROM asset_prices WHERE asset_id = ${assetId})`;
+                VALUES (${assetId}, ${reportedPrice}, ${priceCurrencyId}, ${`connector:${connectorId}`},
+                  ${position.reportedPrice.observedAt.toISOString()}, ${timestamp})
+                ON CONFLICT(asset_id) DO UPDATE SET
+                  price = excluded.price,
+                  currency_asset_id = excluded.currency_asset_id,
+                  source = excluded.source,
+                  observed_at = excluded.observed_at,
+                  updated_at = excluded.updated_at`;
             }
             if (position.averageUnitPurchasePrice !== undefined) {
               const averagePrice = yield* normalizeFiniteDecimal(
@@ -487,7 +495,7 @@ export const reconcileConnector = (
           for (const { id } of missingAccounts) yield* sql`DELETE FROM accounts WHERE id = ${id}`;
         }
         yield* sql`UPDATE custodians SET last_synced_at = ${new Date().toISOString()},
-          updated_at = ${new Date().toISOString()} WHERE id = ${custodianId}`;
+          sync_state = 'ready', updated_at = ${new Date().toISOString()} WHERE id = ${custodianId}`;
         return {
           accountCount: output.accounts.length,
           positionCount,

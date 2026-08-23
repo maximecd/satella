@@ -1,12 +1,15 @@
-import type {
-  Connector,
-  ConnectorAccount,
-  ConnectorAsset,
-  ConnectorAssetIdentifier,
-  AuthenticatedConnector,
-  ConnectorAuthenticationError,
-  ConnectorFetchAccountsError,
-  ConnectorRegistry,
+import {
+  validateConnectorSnapshot,
+  type AuthenticatedConnector,
+  type Connector,
+  type ConnectorAccount,
+  type ConnectorAsset,
+  type ConnectorAssetIdentifier,
+  type ConnectorAuthenticationError,
+  type ConnectorFetchAccountsError,
+  type ConnectorFetchResult,
+  type ConnectorRegistry,
+  type ConnectorSession,
 } from "@satella-app/connector-core";
 import { HttpClient } from "effect/unstable/http";
 import { SqlClient } from "effect/unstable/sql";
@@ -116,10 +119,31 @@ export const normalizeConnectorAccounts = (
                 ),
                 currencyIso: position.averageUnitPurchasePrice.currencyIso,
               };
+        const reportedPrice =
+          position.reportedPrice === undefined
+            ? undefined
+            : yield* Effect.try({
+                try: () => {
+                  const observedAt = new Date(position.reportedPrice!.observedAt);
+                  if (Number.isNaN(observedAt.getTime()))
+                    throw new Error("invalid observation time");
+                  return {
+                    price: canonicalDecimal(position.reportedPrice!.price),
+                    currencyIso: position.reportedPrice!.currencyIso.trim().toUpperCase(),
+                    observedAt,
+                  };
+                },
+                catch: () =>
+                  new FinanceApiError({
+                    code: "validation",
+                    message: "Connector reported an invalid current price",
+                  }),
+              });
         const normalizedPosition = {
           externalAssetId,
           quantity,
         };
+        if (reportedPrice !== undefined) Object.assign(normalizedPosition, { reportedPrice });
         if (averageUnitPurchasePrice !== undefined) {
           Object.assign(normalizedPosition, { averageUnitPurchasePrice });
         }
@@ -129,12 +153,15 @@ export const normalizeConnectorAccounts = (
       const baseCurrencyIso = account.baseCurrencyIso.trim().toUpperCase();
       if (!baseCurrencyIso)
         return yield* validationFailure("Connector returned an empty base currency");
-      normalizedAccounts.push({
+      const normalizedAccount = {
         externalAccountId,
         name: account.name.trim(),
         baseCurrencyIso,
         positions,
-      });
+      };
+      if (account.accountType !== undefined)
+        Object.assign(normalizedAccount, { accountType: account.accountType });
+      normalizedAccounts.push(normalizedAccount);
     }
 
     return {
@@ -143,6 +170,18 @@ export const normalizeConnectorAccounts = (
       accounts: normalizedAccounts,
     } satisfies NormalizedConnectorOutput;
   });
+
+export const normalizeConnectorSnapshot = (
+  result: ConnectorFetchResult,
+): Effect.Effect<NormalizedConnectorOutput, FinanceApiError> =>
+  validateConnectorSnapshot(result).pipe(
+    Effect.mapError((error) => new FinanceApiError({ code: "validation", message: error.message })),
+    Effect.flatMap((snapshot) =>
+      normalizeConnectorAccounts(snapshot.accounts).pipe(
+        Effect.map((output) => ({ ...output, complete: snapshot.complete })),
+      ),
+    ),
+  );
 
 export const reconcileConnectorAccounts = (
   custodianId: string,
@@ -157,18 +196,59 @@ export type ConnectorSyncError =
   | ConnectorAuthenticationError
   | ConnectorFetchAccountsError;
 
-/** Authenticates a connector, fetches its complete account tree, and reconciles it atomically. */
+export interface ConnectorSyncResult extends ReconciliationResult {
+  readonly session?: ConnectorSession;
+}
+
+export interface ConnectorSyncOptions {
+  /** Called immediately after authentication, before any portfolio response is parsed. */
+  readonly onSession?: (
+    session: ConnectorSession,
+  ) => Effect.Effect<void, FinanceApiError, SqlClient.SqlClient>;
+}
+
+/**
+ * Fetches and reconciles an already-authenticated connector. Session state is
+ * persisted before and after the fetch so a rotated token is retained even
+ * when the subsequent response is malformed.
+ */
+export const syncAuthenticatedConnector = <R>(
+  custodianId: string,
+  authenticated: AuthenticatedConnector<R>,
+  options: ConnectorSyncOptions = {},
+): Effect.Effect<ConnectorSyncResult, ConnectorSyncError, R | SqlClient.SqlClient> =>
+  Effect.gen(function* () {
+    const persistSession = () =>
+      authenticated.session !== undefined && options.onSession !== undefined
+        ? options.onSession(authenticated.session)
+        : Effect.void;
+    yield* persistSession();
+    const result = yield* authenticated.fetchAccounts().pipe(
+      Effect.tap(() => persistSession()),
+      Effect.tapError(() => persistSession()),
+    );
+    const output = yield* normalizeConnectorSnapshot(result);
+    const reconciliation = yield* reconcileConnector(custodianId, output);
+    yield* persistSession();
+    return authenticated.session === undefined
+      ? reconciliation
+      : { ...reconciliation, session: authenticated.session };
+  });
+
+/** Authenticates a connector, fetches its account tree, and reconciles it atomically. */
 export const syncConnector = <Credentials, R>(
   custodianId: string,
   connector: Connector<Credentials, R>,
   credentials: Credentials,
-): Effect.Effect<ReconciliationResult, ConnectorSyncError, R | SqlClient.SqlClient> =>
-  connector.authenticate(credentials).pipe(
-    Effect.flatMap((authenticated: AuthenticatedConnector<R>) => authenticated.fetchAccounts()),
-    Effect.flatMap((accounts: ReadonlyArray<ConnectorAccount>) =>
-      reconcileConnectorAccounts(custodianId, accounts),
-    ),
-  );
+  options: ConnectorSyncOptions = {},
+): Effect.Effect<ConnectorSyncResult, ConnectorSyncError, R | SqlClient.SqlClient> =>
+  connector
+    .authenticate(credentials)
+    .pipe(
+      Effect.flatMap((authenticated: AuthenticatedConnector<R>) =>
+        syncAuthenticatedConnector(custodianId, authenticated, options),
+      ),
+    );
 
 /** Runs a connector selected from the compiled registry without exposing the registry to callers. */
 export const syncRegisteredConnectorFrom = (
@@ -176,8 +256,9 @@ export const syncRegisteredConnectorFrom = (
   custodianId: string,
   connectorId: string,
   credentials: ConnectorCredentials,
+  options: ConnectorSyncOptions = {},
 ): Effect.Effect<
-  ReconciliationResult,
+  ConnectorSyncResult,
   ConnectorSyncError,
   SqlClient.SqlClient | HttpClient.HttpClient
 > => {
@@ -192,7 +273,7 @@ export const syncRegisteredConnectorFrom = (
   }
   return Effect.gen(function* () {
     if (connectorId !== "evm") {
-      return yield* syncConnector(custodianId, connector, credentials);
+      return yield* syncConnector(custodianId, connector, credentials, options);
     }
     const settings = yield* getSettings();
     const runtimeCredentials = { ...credentials };
@@ -201,7 +282,7 @@ export const syncRegisteredConnectorFrom = (
         runtimeCredentials[`rpc:${chain}`] = url;
       }
     }
-    return yield* syncConnector(custodianId, connector, runtimeCredentials);
+    return yield* syncConnector(custodianId, connector, runtimeCredentials, options);
   });
 };
 
@@ -209,4 +290,6 @@ export const syncRegisteredConnector = (
   custodianId: string,
   connectorId: string,
   credentials: ConnectorCredentials,
-) => syncRegisteredConnectorFrom(CONNECTOR_REGISTRY, custodianId, connectorId, credentials);
+  options: ConnectorSyncOptions = {},
+) =>
+  syncRegisteredConnectorFrom(CONNECTOR_REGISTRY, custodianId, connectorId, credentials, options);

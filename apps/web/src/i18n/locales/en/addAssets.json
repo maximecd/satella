@@ -56,7 +56,13 @@
       "nameRequired": "Name is required.",
       "fieldRequired": "{{field}} is required.",
       "importedAccounts": "Imported accounts from {{name}}.",
-      "connectAndImport": "Connect and import"
+      "connectAndImport": "Connect and import",
+      "interactiveHint": "Enter your phone number and PIN. Trade Republic will ask for a four-digit confirmation code in the next step.",
+      "startAuthentication": "Start authentication",
+      "confirmationCode": "Confirmation code",
+      "confirmationCodeInvalid": "Enter the four-digit confirmation code.",
+      "confirmAndImport": "Confirm and import",
+      "cancelAuthentication": "Cancel authentication"
     },
     "custodian": {
       "fallbackLabel": "Custodian",
