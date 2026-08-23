@@ -14,6 +14,7 @@ import { mergeConnectorAssetDuplicates } from "./connector.js";
 import type { AssetSearchResult } from "./contracts.js";
 import { FinanceApiError } from "./contracts.js";
 import { canonicalDecimal } from "./financial-number.js";
+import { recordSyncLog, sanitizePriceFailureReason } from "./sync-log/SyncLogSql.js";
 
 export type MarketDataProviderId = "yahoo-finance" | "coingecko";
 
@@ -46,15 +47,21 @@ type CoinGeckoPriceItem = Readonly<Record<string, number>>;
 
 export class ProviderBatchError extends Error {
   readonly transient: boolean;
+  readonly category: ProviderFailure["category"];
   readonly retryAfterMs?: number;
 
   constructor(
     message: string,
-    options: { readonly transient: boolean; readonly retryAfterMs?: number },
+    options: {
+      readonly transient: boolean;
+      readonly category?: ProviderFailure["category"];
+      readonly retryAfterMs?: number;
+    },
   ) {
     super(message);
     this.name = "ProviderBatchError";
     this.transient = options.transient;
+    this.category = options.category ?? (options.transient ? "network" : "invalid-response");
     if (options.retryAfterMs !== undefined) this.retryAfterMs = options.retryAfterMs;
   }
 }
@@ -121,6 +128,14 @@ const asBatchError = (provider: MarketDataProviderId, cause: unknown) => {
       : undefined;
   const errorOptions = {
     transient: status === undefined || status === 429 || status >= 500,
+    category:
+      status === 429
+        ? ("rate-limit" as const)
+        : status !== undefined && status >= 500
+          ? ("server" as const)
+          : status === undefined
+            ? ("network" as const)
+            : ("invalid-response" as const),
   };
   if (retryAfterMs !== undefined) Object.assign(errorOptions, { retryAfterMs });
   return new ProviderBatchError(`${provider} request failed`, errorOptions);
@@ -313,7 +328,7 @@ const lazyProvider = (
         catch: (cause) =>
           new ProviderBatchError(
             `${id} provider could not be loaded${cause instanceof Error ? `: ${cause.message}` : ""}`,
-            { transient: false },
+            { transient: false, category: "server" },
           ),
       }).pipe(Effect.flatMap((provider) => provider.fetchPrices(lookups, reportingCurrency))),
     close: () =>
@@ -487,6 +502,7 @@ interface RefreshAssetRow {
   readonly name: string;
   readonly symbol: string | null;
   readonly observed_at: string | null;
+  readonly updated_at: string | null;
 }
 
 interface IdentifierRow {
@@ -508,6 +524,8 @@ export interface RefreshPricesOptions {
   readonly resolveMissingLookups?: boolean;
   readonly searchAssets?: AssetSearch;
   readonly includeAllCashFx?: boolean;
+  /** Clock used for Satella fetch timestamps and retention tests. */
+  readonly now?: () => Date;
 }
 
 export interface RefreshPricesResult {
@@ -545,7 +563,7 @@ const retryBatch = (
         observations: [],
         failures: batch.map(({ lookupKey }) => ({
           lookupKey,
-          category: error.transient ? ("network" as const) : ("invalid-response" as const),
+          category: error.category,
           message: error.message,
         })),
       });
@@ -783,23 +801,26 @@ const refreshPriceAssets = (
     const includeAllCashFx = options.includeAllCashFx === true;
     const assets =
       selected === undefined
-        ? yield* sql<RefreshAssetRow>`SELECT DISTINCT a.id, a.asset_category, a.name, a.symbol, ap.observed_at
+        ? yield* sql<RefreshAssetRow>`SELECT DISTINCT a.id, a.asset_category, a.name, a.symbol,
+            ap.observed_at, ap.updated_at
           FROM assets a LEFT JOIN asset_prices ap ON ap.asset_id = a.id
           WHERE a.asset_category IN ('stocks_etfs', 'crypto', 'cash') AND (
             EXISTS (SELECT 1 FROM positions p WHERE p.asset_id = a.id) OR
             EXISTS (SELECT 1 FROM accounts ac WHERE ac.base_currency_asset_id = a.id) OR
             (${includeAllCashFx ? 1 : 0} = 1 AND a.asset_category = 'cash')
           )`
-        : yield* sql<RefreshAssetRow>`SELECT a.id, a.asset_category, a.name, a.symbol, ap.observed_at
+        : yield* sql<RefreshAssetRow>`SELECT a.id, a.asset_category, a.name, a.symbol,
+            ap.observed_at, ap.updated_at
           FROM assets a LEFT JOIN asset_prices ap ON ap.asset_id = a.id
           WHERE a.asset_category IN ('stocks_etfs', 'crypto', 'cash') AND a.id IN ${sql.in(selected)}`;
     const freshnessCutoff =
-      Date.now() - Duration.toMillis(DEFAULT_MARKET_DATA_POLICY.priceFreshness);
+      (options.now?.() ?? new Date()).getTime() -
+      Duration.toMillis(DEFAULT_MARKET_DATA_POLICY.priceFreshness);
     const due = assets.filter(
       (asset) =>
         options.requireFresh ||
-        asset.observed_at === null ||
-        Date.parse(asset.observed_at) < freshnessCutoff,
+        asset.updated_at === null ||
+        Date.parse(asset.updated_at) < freshnessCutoff,
     );
     const ids = due.map(({ id }) => id);
     if (ids.length === 0) return { refreshedAssetIds: [], failures: [] };
@@ -896,7 +917,16 @@ const refreshPriceAssets = (
           return Effect.succeed({
             providerId,
             lookups: lookupMap,
-            results: [] satisfies ReadonlyArray<ProviderBatchResult>,
+            results: [
+              {
+                observations: [],
+                failures: [...lookupMap.values()].map(({ lookupKey }) => ({
+                  lookupKey,
+                  category: "server" as const,
+                  message: "Market-data provider unavailable",
+                })),
+              },
+            ] satisfies ReadonlyArray<ProviderBatchResult>,
           });
         return Effect.forEach(
           chunks([...lookupMap.values()], provider.chunkSize),
@@ -910,6 +940,26 @@ const refreshPriceAssets = (
     );
     const refreshed = new Set<string>();
     const failures = [...skipped];
+    const successful = new Set<string>();
+    const attempted = new Map<
+      string,
+      { readonly outcome: "success" | "failure"; readonly category?: string }
+    >();
+    const returnedByProvider = new Map<MarketDataProviderId, Set<string>>();
+    for (const { providerId, results } of providerResults) {
+      returnedByProvider.set(
+        providerId,
+        new Set(
+          results.flatMap((result) => [
+            ...result.observations.map(({ lookupKey }) => lookupKey),
+            ...result.failures.map(({ lookupKey }) => lookupKey),
+          ]),
+        ),
+      );
+    }
+    for (const failure of skipped) {
+      attempted.set(failure.assetId, { outcome: "failure", category: failure.category });
+    }
     yield* sql.withTransaction(
       Effect.gen(function* () {
         for (const { providerId, lookups, results } of providerResults) {
@@ -917,13 +967,22 @@ const refreshPriceAssets = (
             for (const observation of result.observations) {
               const currencyId = yield* ensureFiat(observation.currencyIso.toUpperCase());
               for (const assetId of lookups.get(observation.lookupKey)?.assetIds ?? []) {
-                const updatedAt = new Date().toISOString();
+                const updatedAt = (options.now?.() ?? new Date()).toISOString();
                 yield* sql`INSERT INTO asset_prices (asset_id, price, currency_asset_id, source, observed_at, updated_at)
                   VALUES (${assetId}, ${observation.price}, ${currencyId}, ${providerId}, ${observation.observedAt.toISOString()}, ${updatedAt})
-                  ON CONFLICT(asset_id) DO UPDATE SET price = excluded.price,
-                    currency_asset_id = excluded.currency_asset_id, source = excluded.source,
-                    observed_at = excluded.observed_at, updated_at = excluded.updated_at`;
+                  ON CONFLICT(asset_id) DO UPDATE SET
+                    price = CASE WHEN excluded.observed_at >= asset_prices.observed_at
+                      THEN excluded.price ELSE asset_prices.price END,
+                    currency_asset_id = CASE WHEN excluded.observed_at >= asset_prices.observed_at
+                      THEN excluded.currency_asset_id ELSE asset_prices.currency_asset_id END,
+                    source = CASE WHEN excluded.observed_at >= asset_prices.observed_at
+                      THEN excluded.source ELSE asset_prices.source END,
+                    observed_at = CASE WHEN excluded.observed_at >= asset_prices.observed_at
+                      THEN excluded.observed_at ELSE asset_prices.observed_at END,
+                    updated_at = excluded.updated_at`;
                 refreshed.add(assetId);
+                successful.add(assetId);
+                attempted.set(assetId, { outcome: "success" });
               }
             }
             for (const providerFailure of result.failures) {
@@ -934,9 +993,49 @@ const refreshPriceAssets = (
                   category: providerFailure.category,
                   message: providerFailure.message,
                 });
+                if (!successful.has(assetId)) {
+                  attempted.set(assetId, {
+                    outcome: "failure",
+                    category: providerFailure.category,
+                  });
+                }
               }
             }
           }
+        }
+        for (const { providerId, lookups } of providerResults) {
+          const returned = returnedByProvider.get(providerId) ?? new Set<string>();
+          for (const lookup of lookups.values()) {
+            if (returned.has(lookup.lookupKey)) continue;
+            for (const assetId of lookup.assetIds) {
+              if (successful.has(assetId)) continue;
+              failures.push({
+                assetId,
+                provider: providerId,
+                category: "missing-result",
+                message: "Market-data provider returned no result",
+              });
+              attempted.set(assetId, { outcome: "failure", category: "missing-result" });
+            }
+          }
+        }
+        for (const asset of due) {
+          const result = attempted.get(asset.id);
+          if (result === undefined) continue;
+          const logOptions = options.now === undefined ? {} : { now: options.now };
+          yield* recordSyncLog(
+            {
+              subjectKind: "asset",
+              subjectName: asset.name,
+              action: "price_check",
+              outcome: result.outcome,
+              failureReason:
+                result.outcome === "success"
+                  ? null
+                  : sanitizePriceFailureReason(result.category ?? "unknown"),
+            },
+            logOptions,
+          );
         }
       }),
     );
@@ -978,6 +1077,7 @@ export const refreshPrices = (
       Object.assign(currencyRefreshOptions, { registry: options.registry });
     if (options.requireFresh !== undefined)
       Object.assign(currencyRefreshOptions, { requireFresh: options.requireFresh });
+    if (options.now !== undefined) Object.assign(currencyRefreshOptions, { now: options.now });
     if (options.resolveMissingLookups !== undefined) {
       Object.assign(currencyRefreshOptions, {
         resolveMissingLookups: options.resolveMissingLookups,

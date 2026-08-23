@@ -13,9 +13,7 @@ import { VaultService } from "../../vault/Vault.js";
 import { layer as VaultEventsLive, VaultEvents } from "../../vault/VaultEvents.js";
 import { AUTO_REFRESH_INTERVAL } from "../config.js";
 import type { MarketDataProvider } from "../market-data.js";
-import { FailureLog } from "./FailureLog.js";
 import { layer as RefreshQueueLive } from "./RefreshQueue.js";
-import { AutoRefreshScheduler } from "./AutoRefresh.js";
 import { layer as AutoRefreshLive } from "./AutoRefresh.js";
 
 const OPEN_STATUS: VaultStatus = {
@@ -28,20 +26,6 @@ const OPEN_STATUS: VaultStatus = {
 const LOCKED_STATUS: VaultStatus = { state: "locked" };
 
 const unexpected = (method: string) => Effect.die(`unexpected VaultService.${method} call`);
-
-const makeFailureLog = () => {
-  const entries: Array<{ custodian: string; code: string }> = [];
-  const layer = Layer.succeed(
-    FailureLog,
-    FailureLog.of({
-      record: (entry) =>
-        Effect.sync(() => {
-          entries.push({ custodian: entry.custodianId, code: entry.code });
-        }),
-    }),
-  );
-  return { entries, layer };
-};
 
 describe("auto-refresh", () => {
   it.effect("reconciles every custodian before one shared completion tail", () => {
@@ -87,7 +71,6 @@ describe("auto-refresh", () => {
         },
       },
     ]);
-    const failures = makeFailureLog();
     let marketDataCalls = 0;
     const marketDataProvider: MarketDataProvider = {
       id: "coingecko",
@@ -137,26 +120,92 @@ describe("auto-refresh", () => {
           credentials: { token: id },
         });
       }
-      const scheduler = yield* AutoRefreshScheduler;
       const events = yield* VaultEvents;
       yield* events.notifyUnlocked();
       yield* waitForCycles(1);
       expect(marketDataCalls).toBe(1);
       expect(yield* snapshotCount).toBe(1);
-      expect(yield* scheduler.status()).toMatchObject({ lastCycleOutcome: "success" });
 
       failedToken = "two";
       yield* TestClock.adjust(AUTO_REFRESH_INTERVAL);
       yield* waitForCycles(2);
       expect(marketDataCalls).toBe(2);
       expect(yield* snapshotCount).toBe(2);
-      expect(yield* scheduler.status()).toMatchObject({ lastCycleOutcome: "partial" });
-      expect(failures.entries).toEqual([{ custodian: "two", code: "validation" }]);
     }).pipe(
       Effect.provide(
         AutoRefreshLive({ registry: marketDataRegistry, connectorRegistry }).pipe(
           Layer.provideMerge(fakeVault.pipe(Layer.provideMerge(engineTestLayer()))),
-          Layer.provideMerge(failures.layer),
+          Layer.provideMerge(VaultEventsLive),
+          Layer.provideMerge(RefreshQueueLive),
+        ),
+      ),
+    );
+  });
+
+  it.effect("survives an unexpected cycle defect and runs the next cycle", () => {
+    let authenticateCalls = 0;
+    const connectorRegistry = connectorRegistryFrom([
+      {
+        id: "defective",
+        name: "Defective connector",
+        assetCategories: ["crypto" as const],
+        credentialFields: [],
+        credentialsSchema: Schema.Unknown,
+        authenticate: () => {
+          authenticateCalls += 1;
+          return authenticateCalls === 1
+            ? Effect.die("unexpected connector defect")
+            : Effect.succeed({ fetchAccounts: () => Effect.succeed([]) });
+        },
+      },
+    ]);
+    const fakeVault = Layer.effect(
+      VaultService,
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        return VaultService.of({
+          status: () => Effect.succeed(OPEN_STATUS),
+          currentSql: () => Effect.succeed(sql),
+          initialize: () => unexpected("initialize"),
+          unlock: () => unexpected("unlock"),
+          close: () => unexpected("close"),
+          lockScreen: () => unexpected("lockScreen"),
+          unlockScreen: () => unexpected("unlockScreen"),
+          unlockScreenWithPassword: () => unexpected("unlockScreenWithPassword"),
+          changePassword: () => unexpected("changePassword"),
+          changePin: () => unexpected("changePin"),
+          setScreenLockTimeout: () => unexpected("setScreenLockTimeout"),
+          verifyPassword: () => unexpected("verifyPassword"),
+          reportActivity: () => unexpected("reportActivity"),
+          reset: () => unexpected("reset"),
+          assertRendererFinanceAccess: () => unexpected("assertRendererFinanceAccess"),
+          assertOpenVault: () => unexpected("assertOpenVault"),
+          exportVault: () => unexpected("exportVault"),
+          restoreVault: () => unexpected("restoreVault"),
+        });
+      }),
+    );
+
+    return Effect.gen(function* () {
+      yield* Finance.seedSyncedCustodian({
+        id: "defective",
+        name: "Defective",
+        connectorId: "defective",
+        credentials: { token: "x" },
+      });
+      const events = yield* VaultEvents;
+      yield* events.notifyUnlocked();
+      yield* settle();
+      expect(authenticateCalls).toBe(1);
+      expect(yield* snapshotCount).toBe(0);
+
+      yield* TestClock.adjust(AUTO_REFRESH_INTERVAL);
+      yield* waitForCycles(1);
+      expect(authenticateCalls).toBe(2);
+    }).pipe(
+      Effect.provide(
+        AutoRefreshLive({ registry: new Map(), connectorRegistry }).pipe(
+          Layer.provideMerge(fakeVault.pipe(Layer.provideMerge(engineTestLayer()))),
           Layer.provideMerge(VaultEventsLive),
           Layer.provideMerge(RefreshQueueLive),
         ),
@@ -165,7 +214,6 @@ describe("auto-refresh", () => {
   });
 
   it.effect("cycles on unlock and per tick, stops when the vault closes, resumes on unlock", () => {
-    const failures = makeFailureLog();
     const vaultControl = { open: true };
     const fakeVault = Layer.effect(
       VaultService,
@@ -201,17 +249,11 @@ describe("auto-refresh", () => {
         connectorId: "test-only",
         credentials: { token: "x" },
       });
-      const scheduler = yield* AutoRefreshScheduler;
       const events = yield* VaultEvents;
-      expect(yield* scheduler.status()).toEqual({ lastCycleAt: null, lastCycleOutcome: null });
 
       yield* events.notifyUnlocked();
       yield* waitForCycles(1);
       expect(yield* snapshotCount).toBe(1);
-      expect(yield* scheduler.status()).toMatchObject({
-        lastCycleOutcome: "failed",
-      });
-      expect(failures.entries).toEqual([{ custodian: "okx", code: "connector_unavailable" }]);
 
       yield* settle();
       yield* TestClock.adjust(AUTO_REFRESH_INTERVAL);
@@ -223,17 +265,14 @@ describe("auto-refresh", () => {
       yield* settle();
       yield* TestClock.adjust(AUTO_REFRESH_INTERVAL);
       expect(yield* snapshotCount).toBe(2);
-      expect(failures.entries).toHaveLength(2);
 
       vaultControl.open = true;
       yield* events.notifyUnlocked();
       yield* waitForCycles(3);
-      expect(failures.entries).toHaveLength(3);
     }).pipe(
       Effect.provide(
         AutoRefreshLive({ registry: new Map() }).pipe(
           Layer.provideMerge(fakeVault.pipe(Layer.provideMerge(engineTestLayer()))),
-          Layer.provideMerge(failures.layer),
           Layer.provideMerge(VaultEventsLive),
           Layer.provideMerge(RefreshQueueLive),
         ),

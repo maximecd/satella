@@ -91,7 +91,7 @@ The automatic repetition of Refresh for every synced custodian, followed by mark
 _Avoid_: Background sync, scheduled refresh
 
 **Sync log**:
-A chronological record of completed Sync attempts. Each entry identifies the Asset or Custodian, when the attempt completed, and whether it succeeded or failed.
+A chronological record of completed Sync attempts. Each entry identifies the Asset or Custodian, when the attempt completed, and whether it succeeded or failed; a failed entry may include a short sanitized reason. It contains no prices, quantities, credentials, source identity, or raw responses.
 _Avoid_: Refresh history, activity log
 
 **Market-data source**:

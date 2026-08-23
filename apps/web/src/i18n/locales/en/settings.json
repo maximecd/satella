@@ -42,6 +42,32 @@
     "securityNav": {
       "label": "Security",
       "description": "Vault password, Screen lock, and Reset Satella."
+    },
+    "syncLogNav": {
+      "label": "Sync log",
+      "description": "Review completed Custodian and Asset price checks."
+    },
+    "syncLog": {
+      "title": "Sync log",
+      "empty": {
+        "title": "No Sync history yet",
+        "description": "Completed Custodian refreshes and Asset price checks will appear here."
+      },
+      "loadMore": "Load more",
+      "loadingMore": "Loading…",
+      "actions": {
+        "price_check": "Price check",
+        "refresh": "Refresh"
+      },
+      "subjects": {
+        "asset": "Asset",
+        "custodian": "Custodian"
+      },
+      "outcomes": {
+        "success": "Success",
+        "failure": "Failed"
+      },
+      "failureReason": "Reason"
     }
   }
 }

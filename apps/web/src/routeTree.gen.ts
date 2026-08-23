@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as SettingsSyncLogRouteImport } from './routes/settings.sync-log'
 import { Route as SettingsSecurityRouteImport } from './routes/settings.security'
 import { Route as SettingsCustodiansIndexRouteImport } from './routes/settings.custodians.index'
 import { Route as AccountsAccountIdIndexRouteImport } from './routes/accounts.$accountId.index'
@@ -34,6 +35,11 @@ const IndexRoute = IndexRouteImport.update({
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsSyncLogRoute = SettingsSyncLogRouteImport.update({
+  id: '/sync-log',
+  path: '/sync-log',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsSecurityRoute = SettingsSecurityRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteWithChildren
   '/settings/security': typeof SettingsSecurityRoute
+  '/settings/sync-log': typeof SettingsSyncLogRoute
   '/settings/': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings/security': typeof SettingsSecurityRoute
+  '/settings/sync-log': typeof SettingsSyncLogRoute
   '/settings': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteWithChildren
   '/settings/security': typeof SettingsSecurityRoute
+  '/settings/sync-log': typeof SettingsSyncLogRoute
   '/settings/': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/settings/security'
+    | '/settings/sync-log'
     | '/settings/'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/settings/security'
+    | '/settings/sync-log'
     | '/settings'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/settings/security'
+    | '/settings/sync-log'
     | '/settings/'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
@@ -189,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/settings/'
       preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/sync-log': {
+      id: '/settings/sync-log'
+      path: '/sync-log'
+      fullPath: '/settings/sync-log'
+      preLoaderRoute: typeof SettingsSyncLogRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/security': {
@@ -252,6 +271,7 @@ declare module '@tanstack/react-router' {
 
 interface SettingsRouteChildren {
   SettingsSecurityRoute: typeof SettingsSecurityRoute
+  SettingsSyncLogRoute: typeof SettingsSyncLogRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
   SettingsCustodiansIndexRoute: typeof SettingsCustodiansIndexRoute
   SettingsCustodiansCustodianIdEditRoute: typeof SettingsCustodiansCustodianIdEditRoute
@@ -260,6 +280,7 @@ interface SettingsRouteChildren {
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsSecurityRoute: SettingsSecurityRoute,
+  SettingsSyncLogRoute: SettingsSyncLogRoute,
   SettingsIndexRoute: SettingsIndexRoute,
   SettingsCustodiansIndexRoute: SettingsCustodiansIndexRoute,
   SettingsCustodiansCustodianIdEditRoute:

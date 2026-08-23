@@ -28,7 +28,6 @@ import {
   AddOtherAssetInput,
   Asset,
   AssetSearchResult,
-  AutoRefreshStatus,
   ConnectorCapabilities,
   ConnectCustodianInput,
   CreateAccountInput,
@@ -49,6 +48,8 @@ import {
   SearchAssetsParams,
   Settings,
   SnapshotResult,
+  SyncLogPage,
+  SyncLogParams,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdatePositionInput,
@@ -62,13 +63,9 @@ export const HelloResponse = Schema.Struct({
 const EntityIdParams = { id: Schema.String };
 const created = <S extends Schema.Top>(schema: S) => schema.pipe(HttpApiSchema.status(201));
 
-const SystemApi = HttpApiGroup.make("system")
-  .add(HttpApiEndpoint.get("hello", "/api/hello", { success: HelloResponse }))
-  .add(
-    HttpApiEndpoint.get("getRefreshStatus", "/api/auto-refresh/status", {
-      success: AutoRefreshStatus,
-    }),
-  );
+const SystemApi = HttpApiGroup.make("system").add(
+  HttpApiEndpoint.get("hello", "/api/hello", { success: HelloResponse }),
+);
 
 export const FinanceApi = HttpApiGroup.make("finance")
   .add(
@@ -282,6 +279,13 @@ export const FinanceApi = HttpApiGroup.make("finance")
   .add(
     HttpApiEndpoint.get("portfolioHistory", "/api/history", {
       success: Schema.Array(PortfolioHistoryPoint),
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("listSyncLog", "/api/sync-log", {
+      query: SyncLogParams,
+      success: SyncLogPage,
       error: FinanceApiError,
     }),
   )

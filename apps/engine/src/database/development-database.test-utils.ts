@@ -15,6 +15,7 @@ import { DatabaseConfigFromDirectory } from "./index.js";
 import { layer as VaultEventsLive } from "../vault/VaultEvents.js";
 import { VaultLive } from "../vault/VaultLive.js";
 import { VaultService } from "../vault/Vault.js";
+import { layer as ManagedRuntimeLive } from "../runtime/ManagedRuntime.js";
 import { FAST_KDF } from "../vault/kdf.js";
 import { DEVELOPMENT_SCREEN_LOCK_PIN, DEVELOPMENT_VAULT_PASSWORD } from "../vault/VaultLive.js";
 
@@ -124,6 +125,7 @@ export const vaultStatusForDirectory = (directory: string) =>
           VaultLive.pipe(
             Layer.provide(DatabaseConfigFromDirectory(directory)),
             Layer.provide(VaultEventsLive),
+            Layer.provide(ManagedRuntimeLive(undefined)),
           ),
         ),
       ),
@@ -155,6 +157,7 @@ export const inspectDirectory = <A>(
           VaultLive.pipe(
             Layer.provide(DatabaseConfigFromDirectory(directory)),
             Layer.provide(VaultEventsLive),
+            Layer.provide(ManagedRuntimeLive(undefined)),
           ),
         ),
       ),

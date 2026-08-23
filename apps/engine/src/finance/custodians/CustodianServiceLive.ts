@@ -40,20 +40,22 @@ export const make = Effect.gen(function* () {
       if (!registration.owner) return yield* Deferred.await(registration.deferred);
 
       const result = yield* Effect.exit(
-        queue.submit(id, withSql(withHttp(Operations.reconcileCustodian(id)))).pipe(
-          Effect.andThen(
-            queue.submit(
-              REFRESH_COMPLETION_QUEUE_KEY,
-              withSql(withHttp(Operations.completeRefreshPass())),
-            ),
-          ),
-          Effect.flatMap((completion) => {
-            if (completion.error !== null) return Effect.fail(completion.error);
-            return withSql(withHttp(Operations.getCustodian(id))).pipe(
+        Effect.gen(function* () {
+          const completionGroup = yield* queue.beginCompletionGroup();
+          return yield* Effect.gen(function* () {
+            yield* queue.submit(id, withSql(withHttp(Operations.reconcileCustodian(id))));
+            const completion = yield* completionGroup.complete(
+              queue.submit(
+                REFRESH_COMPLETION_QUEUE_KEY,
+                withSql(withHttp(Operations.completeRefreshPass())),
+              ),
+            );
+            if (completion.error !== null) return yield* Effect.fail(completion.error);
+            return yield* withSql(withHttp(Operations.getCustodian(id))).pipe(
               Effect.map((custodian) => ({ custodian, failures: completion.failures })),
             );
-          }),
-        ),
+          }).pipe(Effect.ensuring(completionGroup.abort()));
+        }),
       );
       yield* Ref.update(manualRefreshes, (active) => {
         if (active.get(id) !== registration.deferred) return active;

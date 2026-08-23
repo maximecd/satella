@@ -1,5 +1,4 @@
 import { createServer } from "node:http";
-import { join } from "node:path";
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
@@ -18,14 +17,9 @@ import {
   releaseDatabaseOwnership,
   releaseDatabaseOwnershipSync,
 } from "./database/ownership.js";
-import { FinanceLive } from "./finance/FinanceLive.js";
-import { FailureLogDirectory, NodeFailureLogFilesLive } from "./finance/refresh/FailureLog.js";
-import { layer as FailureLogLive } from "./finance/refresh/FailureLog.js";
-import { layer as AutoRefreshLive } from "./finance/refresh/AutoRefresh.js";
 import { IdGeneratorLive } from "./IdGenerator.js";
-import { ManagedRuntime, layer as ManagedRuntimeLive } from "./runtime/ManagedRuntime.js";
-import { layer as VaultEventsLive } from "./vault/VaultEvents.js";
-import { VaultLive } from "./vault/VaultLive.js";
+import { EngineServicesLive } from "./runtime/EngineComposition.js";
+import { ManagedRuntime } from "./runtime/ManagedRuntime.js";
 
 const parsePort = (value: string | undefined, fallback: number): number => {
   if (value === undefined) return fallback;
@@ -58,22 +52,6 @@ const OwnershipLive = Layer.effectDiscard(
       : started.pipe(Effect.annotateLogs("worktree_root", config.worktreeRoot));
   }),
 ).pipe(Layer.provide(DatabaseConfigLive));
-
-const FailureLogDirectoryLive = Layer.effect(
-  FailureLogDirectory,
-  Effect.gen(function* () {
-    const config = yield* DatabaseConfig;
-    const override = process.env["SATELLA_LOG_DIR"];
-    return {
-      directory: override ?? join(config.dataDirectory, "logs"),
-    };
-  }),
-).pipe(Layer.provide(DatabaseConfigLive));
-
-const EngineFailureLogLive = FailureLogLive.pipe(
-  Layer.provide(FailureLogDirectoryLive),
-  Layer.provide(NodeFailureLogFilesLive),
-);
 
 const ManagedParentLifecycleLive = Layer.effectDiscard(
   Effect.gen(function* () {
@@ -121,11 +99,7 @@ const HttpServerLive = HttpRouter.serve(routesLayer).pipe(
 
 const ServerLive = HttpServerLive.pipe(
   Layer.provide(ManagedParentLifecycleLive),
-  Layer.provide(ManagedRuntimeLive()),
-  Layer.provide(AutoRefreshLive().pipe(Layer.provide(EngineFailureLogLive))),
-  Layer.provide(FinanceLive),
-  Layer.provide(VaultEventsLive),
-  Layer.provide(VaultLive.pipe(Layer.provide(DatabaseConfigLive), Layer.provide(VaultEventsLive))),
+  Layer.provide(EngineServicesLive),
   Layer.provide(OwnershipLive),
   Layer.provide(DatabaseConfigLive),
   Layer.provide(IdGeneratorLive),

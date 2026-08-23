@@ -8,7 +8,7 @@ Satella's portfolio data is only as current as the last time the user thought to
 
 ## Solution
 
-The engine repeats a full Refresh cycle automatically while the Vault is unlocked: immediately on unlock, then every fifteen minutes. Each cycle refreshes every synced Custodian sequentially, checks market-data prices for all Assets, and captures a Snapshot, so Portfolio value history stays current without any user action. The app gains a macOS tray presence so it keeps running with its window closed; the tray offers Open, Lock now, and Quit.
+The engine repeats a full Refresh cycle automatically while the Vault is unlocked: immediately on unlock, then every fifteen minutes. Vault and scheduler share one unlock signal. Each cycle refreshes every synced Custodian sequentially, checks market-data prices for all Assets, and captures a Snapshot, so Portfolio value history stays current without any user action. The app gains a macOS tray presence so it keeps running with its window closed; the tray offers Open, Lock now, and Quit.
 
 Success is silent. Settings contains a Sync log with one entry for every Asset price check and Custodian refresh. Background failures never interrupt or nag.
 
@@ -42,6 +42,7 @@ Success is silent. Settings contains a Sync log with one entry for every Asset p
 - The scheduler lives **inside the engine**, calling refresh services internally — no self-issued HTTP requests and no traversal of the renderer finance-access middleware (recorded in ADR 0006). Auto-refresh therefore runs identically in the packaged desktop and in development/web runtimes.
 - Cadence is **fixed**: one cycle immediately on vault unlock, then every fifteen minutes via the engine's standard scheduling primitive. No special catch-up logic after machine wake; the schedule's natural behavior governs.
 - A **cycle** = sequential refresh of every synced custodian → price refresh across all assets → snapshot capture. Custodian failures are isolated; the cycle continues with remaining custodians.
+- Automatic cycles reserve all Custodian queue keys before the first queued reconciliation starts, so a manual Refresh cannot slip into an unclaimed later Custodian. If an unexpected defect interrupts a cycle before its shared completion pass, the completion group is released and the scheduler remains usable for the next cycle.
 - Auto-refresh continues during the **Screen lock** (vault unlocked) and stops when the machine sleeps, the vault closes, or the app quits.
 - **All refreshes flow through one serialized queue** owned by the engine (ADR 0007): strict FIFO, single worker, coalescing so at most one pending job exists per custodian. Manual refreshes submit to the same queue as automatic ones. Price refresh remains single-flight within the cycle.
 - The existing **daily snapshot-interval gating is removed**: every successful refresh captures a snapshot, including manual ones.
@@ -62,6 +63,7 @@ Good tests assert external behavior only — what a caller observes — never in
 - one Vault-backed Sync-log entry per attempted Asset price check and Custodian refresh, including sanitized genuine failures and valid older Price observations as successes;
 - removal of fresh, stale, and delayed fields from finance contracts and read models;
 - one custodian's failure not blocking the others in a cycle.
+- an unexpected cycle defect releasing shared completion state and allowing a later scheduled cycle to run.
 
 **Desktop main-process helper seam** (existing): prior art is the desktop helper tests. Covers close-to-tray window-lifecycle semantics and the tray-menu actions mapping to their engine calls. The tray icon visual itself is untested.
 

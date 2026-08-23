@@ -74,7 +74,6 @@ export const account: Account = {
   unrealizedPnl: "0",
   unrealizedPnlPercent: null,
   totalIncomplete: true,
-  hasStalePrices: false,
   createdAt: "2026-08-11T00:00:00.000Z",
   updatedAt: "2026-08-11T00:00:00.000Z",
 };
@@ -284,7 +283,6 @@ export const connectedAccount: Account = {
         source: "coingecko",
         observedAt: "2026-08-11T00:00:00.000Z",
         updatedAt: "2026-08-11T00:00:00.000Z",
-        isStale: false,
       },
       reportingValue: "100",
       averageUnitPurchasePrice: null,

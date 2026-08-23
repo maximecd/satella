@@ -63,6 +63,14 @@ export const createHttpPortfolioEngine = (baseUrl = engineUrl()): PortfolioEngin
   return {
     getDashboard: (signal) => run((client) => client.finance.getDashboard({}), signal),
     getSettings: (signal) => run((client) => client.finance.getSettings({}), signal),
+    listSyncLog: (cursor, signal) =>
+      run(
+        (client) =>
+          client.finance.listSyncLog({
+            query: cursor === undefined ? {} : { cursor },
+          }),
+        signal,
+      ),
     updateSettings: (payload: UpdateSettingsInput, signal) =>
       run((client) => client.finance.updateSettings({ payload }), signal),
     listAssets: (signal) => run((client) => client.finance.listAssets({}), signal),

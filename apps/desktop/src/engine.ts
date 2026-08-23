@@ -8,10 +8,6 @@ export const ENGINE_TOKEN_HEADER = "x-satella-engine-token";
 
 export interface ManagedOperationalMessage {
   readonly type: "operational-state";
-  readonly autoRefresh: {
-    readonly lastCycleAt: string | null;
-    readonly lastCycleOutcome: "success" | "partial" | "failed" | null;
-  };
   readonly vault: {
     readonly state: "absent" | "locked" | "open";
     readonly screenLock: boolean;
@@ -35,16 +31,8 @@ export const isFiniteManagedProcessNumber = (value: ManagedProcessValue): value 
 const isRecord = (value: ManagedProcessValue): value is ManagedProcessRecord =>
   Object.prototype.toString.call(value) === "[object Object]";
 
-const isString = (value: ManagedProcessValue): value is string =>
-  Object.prototype.toString.call(value) === "[object String]";
-
 const isBoolean = (value: ManagedProcessValue): value is boolean =>
   Object.prototype.toString.call(value) === "[object Boolean]";
-
-const isCycleOutcome = (
-  value: ManagedProcessValue,
-): value is "success" | "partial" | "failed" | null =>
-  value === null || value === "success" || value === "partial" || value === "failed";
 
 const isVaultState = (value: ManagedProcessValue): value is "absent" | "locked" | "open" =>
   value === "absent" || value === "locked" || value === "open";
@@ -59,19 +47,13 @@ const hasOnlyKeys = (value: ManagedProcessRecord, keys: ReadonlyArray<string>) =
 export const decodeManagedOperationalMessage = (
   value: ManagedProcessValue,
 ): ManagedOperationalMessage | undefined => {
-  if (!isRecord(value) || !hasOnlyKeys(value, ["type", "autoRefresh", "vault"])) return undefined;
-  if (value.type !== "operational-state" || !isRecord(value.autoRefresh) || !isRecord(value.vault))
-    return undefined;
-  if (!hasOnlyKeys(value.autoRefresh, ["lastCycleAt", "lastCycleOutcome"])) return undefined;
+  if (!isRecord(value) || !hasOnlyKeys(value, ["type", "vault"])) return undefined;
+  if (value.type !== "operational-state" || !isRecord(value.vault)) return undefined;
   if (!hasOnlyKeys(value.vault, ["state", "screenLock"])) return undefined;
-  const { lastCycleAt, lastCycleOutcome } = value.autoRefresh;
-  if (lastCycleAt !== null && !isString(lastCycleAt)) return undefined;
-  if (!isCycleOutcome(lastCycleOutcome)) return undefined;
   if (!isVaultState(value.vault.state)) return undefined;
   if (!isBoolean(value.vault.screenLock)) return undefined;
   return {
     type: "operational-state",
-    autoRefresh: { lastCycleAt, lastCycleOutcome },
     vault: { state: value.vault.state, screenLock: value.vault.screenLock },
   };
 };
@@ -164,7 +146,6 @@ export const managedEngineEnvironment = (
   options: {
     readonly port: number;
     readonly dataDirectory: string;
-    readonly logDirectory?: string;
     readonly production?: boolean;
     readonly engineToken?: string;
   },
@@ -177,9 +158,6 @@ export const managedEngineEnvironment = (
   };
   if (options.engineToken !== undefined) {
     Object.assign(managedEnvironment, { SATELLA_ENGINE_TOKEN: options.engineToken });
-  }
-  if (options.logDirectory !== undefined) {
-    Object.assign(managedEnvironment, { SATELLA_LOG_DIR: options.logDirectory });
   }
   Object.assign(managedEnvironment, { SATELLA_ENGINE_MANAGED: "1" });
   if (options.production === true) {

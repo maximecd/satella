@@ -1,28 +1,18 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
-import * as Ref from "effect/Ref";
 
-import type { AutoRefreshStatus } from "../contracts.js";
 import type { ConnectorRegistry } from "@satella-app/connector-core";
 import { AUTO_REFRESH_INTERVAL } from "../config.js";
 import type { MarketDataRegistry } from "../market-data.js";
 import { VaultEvents } from "../../vault/VaultEvents.js";
 import { VaultService } from "../../vault/Vault.js";
-import { ManagedRuntime } from "../../runtime/ManagedRuntime.js";
 import { runAutomaticRefreshCycle } from "./RefreshCycle.js";
 
-/**
- * Repeats a full refresh cycle while the vault is unlocked: once immediately
- * after each unlock, then at the fixed interval. Sleeps through vault closes
- * and machine sleep without any catch-up burst afterwards.
- */
+/** Runs Refresh immediately after unlock and every fifteen minutes while open. */
 export class AutoRefreshScheduler extends Context.Service<
   AutoRefreshScheduler,
-  {
-    readonly status: () => Effect.Effect<AutoRefreshStatus>;
-  }
+  Record<never, never>
 >()("@satella-app/engine/finance/AutoRefreshScheduler") {}
 
 export const make = (
@@ -34,21 +24,11 @@ export const make = (
   Effect.gen(function* () {
     const vault = yield* VaultService;
     const events = yield* VaultEvents;
-    const managedRuntime = yield* Effect.serviceOption(ManagedRuntime);
-
-    const statusRef = yield* Ref.make<AutoRefreshStatus>({
-      lastCycleAt: null,
-      lastCycleOutcome: null,
-    });
-    const publishStatus = (status: AutoRefreshStatus) =>
-      Option.isSome(managedRuntime) ? managedRuntime.value.publishAutoRefresh(status) : Effect.void;
-    yield* publishStatus(yield* Ref.get(statusRef));
 
     const runCycle = runAutomaticRefreshCycle(options).pipe(
-      Effect.tap(({ status }) =>
-        Ref.set(statusRef, status).pipe(Effect.andThen(publishStatus(status))),
-      ),
-      Effect.ignore,
+      // A defect in one cycle must not kill the scheduler fiber. Expected
+      // connector and price failures are returned by the cycle and logged.
+      Effect.catchCause(() => Effect.void),
     );
 
     yield* Effect.forkScoped(
@@ -66,9 +46,7 @@ export const make = (
       ),
     );
 
-    return AutoRefreshScheduler.of({
-      status: () => Ref.get(statusRef),
-    });
+    return AutoRefreshScheduler.of({});
   });
 
 export const layer = (

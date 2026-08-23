@@ -93,7 +93,9 @@ describe("SQLite migration startup", () => {
     expect(Object.keys(ProductionMigrations)).toEqual([
       "20260821194600_initial_finance_model",
       "20260822165422_add_app_language",
+      "20260823081447_add_sync_log",
       "20260823084456_add_evm_rpc_settings",
+      "20260823090830_allow_optional_sync_log_failure_reason",
     ]);
   });
 
@@ -151,6 +153,30 @@ describe("SQLite migration startup", () => {
 
       expect(oldSettings.language).toBe("en");
       expect(oldSettings.reportingCurrency.iso).toBe("USD");
+      const oldSyncLogTable = yield* scopedCustomMigrations(
+        oldDirectory,
+        ProductionMigrations,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          return yield* sql<{ readonly name: string }>`SELECT name FROM sqlite_master
+            WHERE type = 'table' AND name = 'sync_log'`;
+        }),
+      );
+      expect(oldSyncLogTable).toEqual([{ name: "sync_log" }]);
+      const oldOptionalFailure = yield* scopedCustomMigrations(
+        oldDirectory,
+        ProductionMigrations,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`INSERT INTO sync_log
+            (id, completed_at, subject_kind, subject_name, action, outcome, failure_reason)
+            VALUES ('optional-failure', '2026-08-01T00:00:00.000Z', 'asset', 'Asset',
+              'price_check', 'failure', NULL)`;
+          return yield* sql<{ readonly id: string }>`SELECT id FROM sync_log
+            WHERE id = 'optional-failure'`;
+        }),
+      );
+      expect(oldOptionalFailure).toEqual([{ id: "optional-failure" }]);
 
       const newDirectory = yield* acquireTestDirectory;
       yield* scopedCustomMigrations(
@@ -172,6 +198,16 @@ describe("SQLite migration startup", () => {
 
       expect(newSettings.language).toBe("fr");
       expect(newSettings.reportingCurrency.iso).toBe("USD");
+      const newSyncLogTable = yield* scopedCustomMigrations(
+        newDirectory,
+        ProductionMigrations,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          return yield* sql<{ readonly name: string }>`SELECT name FROM sqlite_master
+            WHERE type = 'table' AND name = 'sync_log'`;
+        }),
+      );
+      expect(newSyncLogTable).toEqual([{ name: "sync_log" }]);
     }),
   );
 

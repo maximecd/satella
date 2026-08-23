@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   Account,
   AddAssetsResult,
@@ -26,6 +26,7 @@ import type { PortfolioFailure } from "./failure";
 
 const dashboardQueryKey = ["dashboard"] as const;
 const settingsQueryKey = ["settings"] as const;
+const syncLogQueryKey = ["sync-log"] as const;
 const custodiansQueryKey = ["custodians"] as const;
 const custodianQueryKey = (id: string) => ["custodians", id] as const;
 const capabilitiesQueryKey = ["connectors", "capabilities"] as const;
@@ -83,6 +84,20 @@ export const useSettings = () => {
   return useQuery({
     queryKey: settingsQueryKey,
     queryFn: ({ signal }) => engine.getSettings(signal),
+    staleTime: 15_000,
+    retry: 1,
+  });
+};
+
+export const useSyncLog = () => {
+  const engine = usePortfolioEngine();
+  return useInfiniteQuery({
+    queryKey: syncLogQueryKey,
+    queryFn: ({ pageParam, signal }) => engine.listSyncLog(pageParam, signal),
+    // SAFETY: the first page has no cursor; later page parameters are strings
+    // returned by the closed Sync-log contract.
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: 15_000,
     retry: 1,
   });

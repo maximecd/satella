@@ -1,6 +1,5 @@
 import { SqlClient } from "effect/unstable/sql";
 import * as Effect from "effect/Effect";
-import * as Duration from "effect/Duration";
 
 import type { AccountType, AssetCategory } from "../contracts.js";
 import { FinanceApiError as FinanceError } from "../contracts.js";
@@ -11,11 +10,7 @@ import {
   multiplyDecimal,
   type DecimalInput,
 } from "../financial-number.js";
-import {
-  DEFAULT_MARKET_DATA_POLICY,
-  DEFAULT_REPORTING_CURRENCY,
-  SUPPORTED_REPORTING_CURRENCIES,
-} from "../config.js";
+import { DEFAULT_REPORTING_CURRENCY, SUPPORTED_REPORTING_CURRENCIES } from "../config.js";
 
 export type FinanceEffect<A> = Effect.Effect<A, FinanceError, SqlClient.SqlClient>;
 
@@ -101,10 +96,6 @@ export interface PositionRow {
 }
 
 export const nowIso = () => new Date().toISOString();
-
-export const isStalePrice = (observedAt: string) =>
-  Date.parse(observedAt) <
-  Date.now() - Duration.toMillis(DEFAULT_MARKET_DATA_POLICY.priceFreshness);
 
 export const failure = (code: FinanceError["code"], message: string) =>
   new FinanceError({ code, message });
@@ -237,6 +228,5 @@ export const loadPrice = (assetId: string) =>
           source: row.source,
           observedAt: row.observed_at,
           updatedAt: row.updated_at,
-          isStale: isStalePrice(row.observed_at),
         };
   });

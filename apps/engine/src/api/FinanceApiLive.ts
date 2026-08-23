@@ -13,16 +13,15 @@ import { MarketDataService } from "../finance/market-data/MarketDataService.js";
 import { PortfolioService } from "../finance/portfolio/PortfolioService.js";
 import { PositionService } from "../finance/positions/PositionService.js";
 import { SettingsService } from "../finance/settings/SettingsService.js";
-import { AutoRefreshScheduler } from "../finance/refresh/AutoRefresh.js";
+import { SyncLogService } from "../finance/sync-log/SyncLogService.js";
+
+type SyncLogQueryInput = {
+  cursor?: string;
+  limit?: number;
+};
 
 export const SystemApiLive = HttpApiBuilder.group(EngineApi, "system", (handlers) =>
-  handlers
-    .handle("hello", () => Effect.succeed({ message: "Hello world" }))
-    .handle("getRefreshStatus", () =>
-      Effect.gen(function* () {
-        return yield* (yield* AutoRefreshScheduler).status();
-      }),
-    ),
+  handlers.handle("hello", () => Effect.succeed({ message: "Hello world" })),
 );
 
 export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handlers) =>
@@ -185,6 +184,14 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
     .handle("portfolioHistory", () =>
       Effect.gen(function* () {
         return yield* (yield* PortfolioService).history();
+      }),
+    )
+    .handle("listSyncLog", ({ query }) =>
+      Effect.gen(function* () {
+        const input: SyncLogQueryInput = {};
+        if (query.cursor !== undefined) input.cursor = query.cursor;
+        if (query.limit !== undefined) input.limit = Number(query.limit);
+        return yield* (yield* SyncLogService).list(input);
       }),
     )
     .handle("refreshPrices", () =>

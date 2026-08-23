@@ -16,6 +16,7 @@ import {
 } from "../vault/VaultLive.js";
 import { layer as VaultEventsLive } from "../vault/VaultEvents.js";
 import { VaultService } from "../vault/Vault.js";
+import { layer as ManagedRuntimeLive } from "../runtime/ManagedRuntime.js";
 
 const removeDataDirectory = (dataDirectory: string) =>
   Effect.tryPromise({
@@ -55,6 +56,7 @@ const withVault = <A, E>(
         VaultLive.pipe(
           Layer.provide(DatabaseConfigFromDirectory(dataDirectory)),
           Layer.provide(VaultEventsLive),
+          Layer.provide(ManagedRuntimeLive(undefined)),
         ),
       ),
     ),

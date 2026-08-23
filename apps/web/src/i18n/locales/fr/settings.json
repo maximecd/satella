@@ -42,6 +42,32 @@
     "securityNav": {
       "label": "Sécurité",
       "description": "Mot de passe du coffre, verrouillage et réinitialisation d'Satella."
+    },
+    "syncLogNav": {
+      "label": "Journal des synchronisations",
+      "description": "Consultez les actualisations terminées des établissements et des actifs."
+    },
+    "syncLog": {
+      "title": "Journal des synchronisations",
+      "empty": {
+        "title": "Aucun historique de synchronisation",
+        "description": "Les actualisations terminées des établissements et les contrôles de prix apparaîtront ici."
+      },
+      "loadMore": "Charger davantage",
+      "loadingMore": "Chargement…",
+      "actions": {
+        "price_check": "Contrôle du prix",
+        "refresh": "Actualisation"
+      },
+      "subjects": {
+        "asset": "Actif",
+        "custodian": "Établissement"
+      },
+      "outcomes": {
+        "success": "Réussi",
+        "failure": "Échec"
+      },
+      "failureReason": "Motif"
     }
   }
 }

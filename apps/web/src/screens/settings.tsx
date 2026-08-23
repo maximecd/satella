@@ -101,6 +101,11 @@ export function SettingsScreen() {
             label={t("settings.securityNav.label")}
             description={t("settings.securityNav.description")}
           />
+          <NavRow
+            href="/settings/sync-log"
+            label={t("settings.syncLogNav.label")}
+            description={t("settings.syncLogNav.description")}
+          />
         </Box>
       </Stack>
     </>

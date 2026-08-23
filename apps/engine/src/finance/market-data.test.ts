@@ -13,6 +13,7 @@ import {
   SEARCH_CACHE_CAPACITY,
   SEARCH_CACHE_TTL_MS,
 } from "./market-data.js";
+import { listSyncLog } from "./sync-log/SyncLogSql.js";
 import * as Finance from "./finance.test-utils.js";
 
 const directories: string[] = [];
@@ -519,6 +520,69 @@ describe("market data coordinator", () => {
     );
     expect(result.refreshedAssetIds).toEqual([]);
     expect(requests).toBe(0);
+  });
+
+  it("records one result per asset across provider chunks", async () => {
+    const batches: Array<ReadonlyArray<ProviderLookup>> = [];
+    const yahoo: MarketDataProvider = {
+      id: "yahoo-finance",
+      chunkSize: 1,
+      fetchPrices: (lookups) => {
+        batches.push(lookups);
+        return Effect.succeed({
+          observations: lookups
+            .filter(({ lookupKey }) => lookupKey === "A")
+            .map(({ lookupKey }) => ({
+              lookupKey,
+              price: "100",
+              currencyIso: "USD",
+              observedAt: new Date("2026-08-20T12:00:00.000Z"),
+            })),
+          failures: [],
+        });
+      },
+    };
+    const registry: MarketDataRegistry = new Map([["yahoo-finance", yahoo]]);
+
+    const result = await run(
+      Effect.gen(function* () {
+        const first = yield* Finance.createAsset({
+          assetCategory: "stocks_etfs",
+          name: "First",
+          identifiers: [{ type: "yahoo_symbol", value: "A" }],
+        });
+        const second = yield* Finance.createAsset({
+          assetCategory: "stocks_etfs",
+          name: "Second",
+          identifiers: [{ type: "yahoo_symbol", value: "B" }],
+        });
+        const account = yield* Finance.createAccount({ name: "Portfolio" });
+        yield* Finance.createPosition({ accountId: account.id, assetId: first.id, quantity: "1" });
+        yield* Finance.createPosition({
+          accountId: account.id,
+          assetId: second.id,
+          quantity: "1",
+        });
+        const refreshed = yield* refreshPrices({ registry, requireFresh: true });
+        const log = yield* listSyncLog();
+        return { first, second, refreshed, log };
+      }),
+    );
+
+    expect(batches).toHaveLength(2);
+    expect(result.refreshed.failures).toEqual([
+      expect.objectContaining({ assetId: result.second.id, category: "missing-result" }),
+    ]);
+    expect(result.log.entries.map(({ subjectName }) => subjectName).sort()).toEqual([
+      "First",
+      "Second",
+    ]);
+    expect(result.log.entries.find(({ subjectName }) => subjectName === "First")?.outcome).toBe(
+      "success",
+    );
+    expect(result.log.entries.find(({ subjectName }) => subjectName === "Second")?.outcome).toBe(
+      "failure",
+    );
   });
 
   it("coalesces simultaneous refreshes for the same provider lookup", async () => {
