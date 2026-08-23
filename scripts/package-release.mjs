@@ -210,6 +210,7 @@ export const stageProductionTree = async ({ root = repositoryRoot, stagingDirect
     );
     for (const packageName of [
       "connector-core",
+      "connector-evm",
       "connector-ibkr",
       "connector-kraken",
       "connector-okx",
@@ -305,6 +306,7 @@ const validateExtractedApplication = async (applicationDirectory, version) => {
   );
   for (const packageName of [
     "connector-core",
+    "connector-evm",
     "connector-ibkr",
     "connector-kraken",
     "connector-okx",
