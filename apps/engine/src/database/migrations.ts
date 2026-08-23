@@ -18,6 +18,7 @@ import {
 } from "./errors.js";
 import { initialFinanceModel } from "./migrations/20260821194600_initial_finance_model.js";
 import { addAppLanguage } from "./migrations/20260822165422_add_app_language.js";
+import { addEvmRpcSettings } from "./migrations/20260823084456_add_evm_rpc_settings.js";
 
 export const MIGRATIONS_TABLE = "effect_sql_migrations";
 export const PRE_MIGRATION_BACKUP_RETENTION = 5;
@@ -29,6 +30,7 @@ export type MigrationRegistry = Readonly<
 export const ProductionMigrations = {
   "20260821194600_initial_finance_model": initialFinanceModel,
   "20260822165422_add_app_language": addAppLanguage,
+  "20260823084456_add_evm_rpc_settings": addEvmRpcSettings,
 } satisfies MigrationRegistry;
 
 export interface MigrationRunOptions {

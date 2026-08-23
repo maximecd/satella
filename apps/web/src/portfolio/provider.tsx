@@ -10,6 +10,7 @@ import type {
   ConnectCustodianInput,
   Custodian,
   CustodianRefreshResult,
+  EvmRpcSettings,
   MaintainAssetInput,
   Settings,
   UpdateAccountInput,
@@ -104,6 +105,17 @@ export const useSaveAppLanguage = () => {
   const queryClient = useQueryClient();
   return useMutation<Settings, PortfolioFailure, AppLanguage>({
     mutationFn: (language) => engine.updateSettings({ language }),
+    onSuccess: (settings) => {
+      queryClient.setQueryData(settingsQueryKey, settings);
+    },
+  });
+};
+
+export const useSaveEvmRpcSettings = () => {
+  const engine = usePortfolioEngine();
+  const queryClient = useQueryClient();
+  return useMutation<Settings, PortfolioFailure, EvmRpcSettings>({
+    mutationFn: (evmRpc) => engine.updateSettings({ evmRpc }),
     onSuccess: (settings) => {
       queryClient.setQueryData(settingsQueryKey, settings);
     },

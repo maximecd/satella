@@ -1,4 +1,5 @@
-import { Box, Card, Stack } from "@chakra-ui/react";
+import { Box, Button, Card, Heading, Input, Stack, Text } from "@chakra-ui/react";
+import type { EvmRpcSettings, EvmRpcUrls } from "@satella-app/engine/api";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,7 +10,12 @@ import { SegmentedControl } from "../components/ui/segmented-control";
 import { notify } from "../components/ui/toaster";
 import { currencySymbol } from "../financial-number";
 import type { AppLanguage } from "../app-language";
-import { useSaveAppLanguage, useSaveReportingCurrency, useSettings } from "../portfolio";
+import {
+  useSaveAppLanguage,
+  useSaveEvmRpcSettings,
+  useSaveReportingCurrency,
+  useSettings,
+} from "../portfolio";
 import { SelectField } from "../select-field";
 
 export function SettingsScreen() {
@@ -78,6 +84,7 @@ export function SettingsScreen() {
             </Stack>
           </Card.Body>
         </Card.Root>
+        <RpcSettingsForm initial={settings.evmRpc} />
         <Card.Root>
           <Card.Body>
             <ThemeField />
@@ -97,6 +104,86 @@ export function SettingsScreen() {
         </Box>
       </Stack>
     </>
+  );
+}
+
+const emptyRpcUrls: EvmRpcUrls = {
+  ethereum: "",
+  base: "",
+  arbitrum: "",
+  optimism: "",
+};
+
+function RpcSettingsForm({ initial }: { readonly initial: EvmRpcSettings }) {
+  const { t } = useTranslation();
+  const save = useSaveEvmRpcSettings();
+  const [mode, setMode] = useState<EvmRpcSettings["mode"]>(initial.mode);
+  const [urls, setUrls] = useState<EvmRpcUrls>(
+    initial.mode === "custom" ? initial.urls : emptyRpcUrls,
+  );
+  const [error, setError] = useState<string | null>(null);
+  const chains = ["ethereum", "base", "arbitrum", "optimism"] as const;
+  return (
+    <Card.Root>
+      <Card.Body>
+        <Stack gap="5">
+          <Stack gap="1">
+            <Heading as="h2" size="md">
+              {t("settings.rpc.title")}
+            </Heading>
+            <Text color="fg.muted">{t("settings.rpc.helper")}</Text>
+          </Stack>
+          <SelectField
+            label={t("settings.rpc.modeLabel")}
+            value={mode}
+            onChange={(value) => {
+              if (value === "public" || value === "custom") setMode(value);
+            }}
+            options={[
+              { value: "public", label: t("settings.rpc.public") },
+              { value: "custom", label: t("settings.rpc.custom") },
+            ]}
+          />
+          {mode === "custom" && (
+            <Stack gap="4">
+              {chains.map((chain) => (
+                <Field key={chain} label={t(`settings.rpc.chains.${chain}`)} required>
+                  <Input
+                    aria-label={t(`settings.rpc.chains.${chain}`)}
+                    type="url"
+                    autoComplete="off"
+                    placeholder="https://…"
+                    value={urls[chain]}
+                    onChange={(event) =>
+                      setUrls((current) => ({ ...current, [chain]: event.target.value }))
+                    }
+                  />
+                </Field>
+              ))}
+            </Stack>
+          )}
+          <FormError message={error} />
+          <Button
+            alignSelf="flex-start"
+            loading={save.isPending}
+            onClick={() => {
+              const evmRpc: EvmRpcSettings =
+                mode === "public" ? { mode: "public" } : { mode: "custom", urls };
+              save.mutate(evmRpc, {
+                onSuccess: () => {
+                  setError(null);
+                  notify.success(t("settings.rpc.saved"));
+                },
+                onError: (cause) =>
+                  setError(cause instanceof Error ? cause.message : t("errors.requestFailed")),
+              });
+            }}
+          >
+            {t("settings.rpc.save")}
+          </Button>
+        </Stack>
+      </Card.Body>
+    </Card.Root>
   );
 }
 

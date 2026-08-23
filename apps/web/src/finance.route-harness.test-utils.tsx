@@ -102,6 +102,7 @@ export const settings: Settings = {
     { assetId: "fiat:USD", iso: "USD", name: "US dollar" },
   ],
   language: "en",
+  evmRpc: { mode: "public" },
 };
 
 export const populatedDashboardFor = (now = new Date()): Dashboard => {

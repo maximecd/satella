@@ -1,0 +1,1 @@
+Enter a public EVM wallet address. Satella reads native ETH and any ERC-20 contracts you explicitly track on Ethereum, Base, Arbitrum, and Optimism. No wallet connection or signing permission is required.

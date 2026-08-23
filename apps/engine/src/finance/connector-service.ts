@@ -23,6 +23,7 @@ import { FinanceApiError } from "./contracts.js";
 import type { ConnectorCredentials } from "./contracts.js";
 import { canonicalDecimal } from "./financial-number.js";
 import { CONNECTOR_REGISTRY } from "./connectors/registry.js";
+import { getSettings } from "./settings/SettingsSql.js";
 
 const validationFailure = (message: string) =>
   Effect.fail(new FinanceApiError({ code: "validation", message }));
@@ -189,7 +190,19 @@ export const syncRegisteredConnectorFrom = (
       }),
     );
   }
-  return syncConnector(custodianId, connector, credentials);
+  return Effect.gen(function* () {
+    if (connectorId !== "evm") {
+      return yield* syncConnector(custodianId, connector, credentials);
+    }
+    const settings = yield* getSettings();
+    const runtimeCredentials = { ...credentials };
+    if (settings.evmRpc.mode === "custom") {
+      for (const [chain, url] of Object.entries(settings.evmRpc.urls)) {
+        runtimeCredentials[`rpc:${chain}`] = url;
+      }
+    }
+    return yield* syncConnector(custodianId, connector, runtimeCredentials);
+  });
 };
 
 export const syncRegisteredConnector = (

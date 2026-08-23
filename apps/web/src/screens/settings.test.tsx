@@ -43,6 +43,21 @@ describe("settings screen", () => {
     expect(screen.getByLabelText("Reporting currency")).toHaveDisplayValue(/€|EUR/);
   });
 
+  it("saves one custom RPC URL for each supported EVM chain", async () => {
+    const user = userEvent.setup();
+    renderRoute("/settings");
+    await user.selectOptions(await screen.findByLabelText("RPC source"), "custom");
+    await user.type(
+      await screen.findByLabelText("Ethereum Mainnet RPC URL"),
+      "https://eth.example.test",
+    );
+    await user.type(screen.getByLabelText("Base RPC URL"), "https://base.example.test");
+    await user.type(screen.getByLabelText("Arbitrum One RPC URL"), "https://arb.example.test");
+    await user.type(screen.getByLabelText("OP Mainnet RPC URL"), "https://op.example.test");
+    await user.click(screen.getByRole("button", { name: "Save RPC settings" }));
+    expect((await screen.findAllByText("RPC settings saved.")).length).toBeGreaterThan(0);
+  });
+
   it("defaults Language to the detected app language and saves a change immediately", async () => {
     const user = userEvent.setup();
     renderRoute("/settings");

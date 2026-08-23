@@ -74,6 +74,7 @@ jobs:
       - name: Build connector packages required by source tests
         run: |
           vp run --filter @satella-app/connector-core build
+          vp run --filter @satella-app/connector-evm build
           vp run --filter @satella-app/connector-ibkr build
           vp run --filter @satella-app/connector-kraken build
           vp run --filter @satella-app/connector-okx build

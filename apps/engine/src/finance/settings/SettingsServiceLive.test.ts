@@ -10,6 +10,7 @@ describe("settings", () => {
       const settings = yield* Finance.getSettings();
       expect(settings.reportingCurrency).toEqual({ assetId: "fiat:USD", iso: "USD" });
       expect(settings.language).toBe("en");
+      expect(settings.evmRpc).toEqual({ mode: "public" });
       expect(settings.currencies.map(({ iso }) => iso)).toEqual([
         "AUD",
         "CAD",
@@ -22,6 +23,22 @@ describe("settings", () => {
         "NZD",
         "USD",
       ]);
+    }).pipe(Effect.provide(engineTestLayer())),
+  );
+
+  it.effect("persists custom EVM RPC endpoints", () =>
+    Effect.gen(function* () {
+      const evmRpc = {
+        mode: "custom" as const,
+        urls: {
+          ethereum: "https://ethereum.example.test",
+          base: "https://base.example.test",
+          arbitrum: "https://arbitrum.example.test",
+          optimism: "https://optimism.example.test",
+        },
+      };
+      expect((yield* Finance.updateSettings({ evmRpc })).evmRpc).toEqual(evmRpc);
+      expect((yield* Finance.getSettings()).evmRpc).toEqual(evmRpc);
     }).pipe(Effect.provide(engineTestLayer())),
   );
 

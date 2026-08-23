@@ -4,6 +4,16 @@ import { test } from "node:test";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
+test("source test jobs build every connector imported by the engine", async () => {
+  for (const path of ["../.github/workflows/ci.yml", "../.github/workflows/release.yml"]) {
+    const workflow = await read(path);
+    const testJob = workflow.slice(workflow.indexOf("  test:"), workflow.indexOf("  build:"));
+    for (const connector of ["core", "evm", "ibkr", "kraken", "okx"]) {
+      assert.match(testJob, new RegExp(`@satella-app/connector-${connector} build`));
+    }
+  }
+});
+
 test("every push to main publishes an immutable nightly prerelease after the CI gate", async () => {
   const ci = await read("../.github/workflows/ci.yml");
   const nightly = await read("../.github/workflows/nightly.yml");

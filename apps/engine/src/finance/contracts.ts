@@ -472,16 +472,32 @@ export const SettingsCurrency = Schema.Struct({
 });
 export type SettingsCurrency = typeof SettingsCurrency.Type;
 
+export const EvmRpcUrls = Schema.Struct({
+  ethereum: Schema.String,
+  base: Schema.String,
+  arbitrum: Schema.String,
+  optimism: Schema.String,
+});
+export type EvmRpcUrls = typeof EvmRpcUrls.Type;
+
+export const EvmRpcSettings = Schema.Union([
+  Schema.Struct({ mode: Schema.Literal("public") }),
+  Schema.Struct({ mode: Schema.Literal("custom"), urls: EvmRpcUrls }),
+]);
+export type EvmRpcSettings = typeof EvmRpcSettings.Type;
+
 export const Settings = Schema.Struct({
   reportingCurrency: ReportingCurrency,
   currencies: Schema.Array(SettingsCurrency),
   language: AppLanguage,
+  evmRpc: EvmRpcSettings,
 });
 export type Settings = typeof Settings.Type;
 
 export const UpdateSettingsInput = Schema.Struct({
   reportingCurrencyAssetId: Schema.optional(Schema.String),
   language: Schema.optional(AppLanguage),
+  evmRpc: Schema.optional(EvmRpcSettings),
 });
 export type UpdateSettingsInput = typeof UpdateSettingsInput.Type;
 

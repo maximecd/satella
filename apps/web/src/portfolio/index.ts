@@ -32,6 +32,7 @@ export {
   usePositionEdit,
   useRefreshCustodian,
   useSaveAppLanguage,
+  useSaveEvmRpcSettings,
   useSaveReportingCurrency,
   useSettings,
   useUpdateAccount,

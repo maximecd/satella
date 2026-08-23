@@ -5,6 +5,7 @@ import {
   Collapsible,
   Flex,
   Heading,
+  Input,
   Link,
   Stack,
   Table,
@@ -29,9 +30,17 @@ import {
 } from "../components";
 import { CopyErrorButton } from "../components/ui/copy-error";
 import { EmptyState } from "../components/ui/empty-state";
+import { Field } from "../components/ui/field";
+import { notify } from "../components/ui/toaster";
 import { Tooltip } from "../components/ui/tooltip";
 import { submitThenChangeValidation, useAppForm } from "../form";
-import { useAccount, useAssets, useDeleteAccount, useUpdateAccount } from "../portfolio";
+import {
+  useAccount,
+  useAssets,
+  useDeleteAccount,
+  useUpdateAccount,
+  useUpdateCustodian,
+} from "../portfolio";
 import { RefreshCustodianButton } from "../refresh-custodian";
 import { AddAssetsButton } from "./add-assets";
 import {
@@ -46,6 +55,7 @@ import {
 } from "../financial-number";
 
 const MANUAL_ASSET_CATEGORIES = new Set(["other"]);
+const EVM_ACCOUNT_ID = /^eip155:(\d+)$/;
 
 const conversionDescription = (position: Position, valuationCurrencyIso: string, t: TFunction) => {
   if (
@@ -158,6 +168,65 @@ function PositionTable({
   );
 }
 
+function TrackToken({ account }: { readonly account: Account }) {
+  const { t } = useTranslation();
+  const update = useUpdateCustodian(account.custodianId);
+  const [contractAddress, setContractAddress] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const chainId = EVM_ACCOUNT_ID.exec(account.connectorAccountId ?? "")?.[1];
+  if (chainId === undefined) return null;
+  return (
+    <ResourceCard>
+      <Stack gap="4">
+        <Field
+          label={t("accounts.trackToken.contractLabel")}
+          helperText={t("accounts.trackToken.helper")}
+          invalid={error !== null}
+          errorText={error}
+          required
+        >
+          <Input
+            aria-label={t("accounts.trackToken.contractLabel")}
+            value={contractAddress}
+            onChange={(event) => setContractAddress(event.target.value)}
+            placeholder="0x…"
+            autoComplete="off"
+          />
+        </Field>
+        <Button
+          alignSelf="flex-start"
+          size="sm"
+          loading={update.isPending}
+          onClick={() => {
+            const address = contractAddress.trim();
+            if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+              setError(t("accounts.trackToken.invalidAddress"));
+              return;
+            }
+            update.mutate(
+              {
+                name: account.custodianName,
+                credentials: { [`token:${chainId}:${address.toLowerCase()}`]: "tracked" },
+              },
+              {
+                onSuccess: () => {
+                  setError(null);
+                  setContractAddress("");
+                  notify.success(t("accounts.trackToken.saved"));
+                },
+                onError: (cause) =>
+                  setError(cause instanceof Error ? cause.message : t("errors.requestFailed")),
+              },
+            );
+          }}
+        >
+          {t("accounts.trackToken.submit")}
+        </Button>
+      </Stack>
+    </ResourceCard>
+  );
+}
+
 export function AccountDetailScreen({ id }: { readonly id: string }) {
   const { t } = useTranslation();
   const query = useAccount(id);
@@ -243,6 +312,7 @@ export function AccountDetailScreen({ id }: { readonly id: string }) {
         </Heading>
         {account.connectorAccountId === null && <AddAssetsButton />}
       </Flex>
+      {EVM_ACCOUNT_ID.test(account.connectorAccountId ?? "") && <TrackToken account={account} />}
       <PositionTable positions={active} account={account} />
       {zero.length > 0 && (
         <Box bg="bg.subtle" rounded="md" p="3">
