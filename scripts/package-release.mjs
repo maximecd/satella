@@ -1,7 +1,7 @@
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -62,46 +62,17 @@ const findNativeBinding = async (directory) => {
   return undefined;
 };
 
-const resolves = async (path) => {
-  try {
-    await stat(path);
-    return true;
-  } catch {
-    return false;
-  }
-};
+// Runtime dependencies of @journeyapps/sqlcipher. The engine bundle inlines
+// every pure-JavaScript dependency; only the SQLCipher addon tree and its
+// binding loader ship as loose node_modules files.
+export const nativeModulePackages = ["@journeyapps/sqlcipher", "bindings", "file-uri-to-path"];
 
-const copyPortableNodeModules = async (source, target) => {
-  await mkdir(target, { recursive: true });
-  const flattenedSource = join(source, ".pnpm", "node_modules");
-  const copyPackage = async (sourcePath, targetPath) =>
-    cp(sourcePath, targetPath, {
-      recursive: true,
-      dereference: true,
-      filter: async (path) => {
-        const relativePath = relative(sourcePath, path);
-        if (relativePath.length > 0 && relativePath.startsWith("node_modules")) return false;
-        return await resolves(path);
-      },
-    });
-  const entries = await readdir(flattenedSource, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.name === ".bin" || entry.name.startsWith(".")) continue;
-    if (entry.name === "@satella-app") continue;
-    const sourcePath = join(flattenedSource, entry.name);
-    const targetPath = join(target, entry.name);
-    if (entry.name.startsWith("@") && entry.isDirectory()) {
-      await mkdir(targetPath, { recursive: true });
-      const scopedEntries = await readdir(sourcePath, { withFileTypes: true });
-      for (const scopedEntry of scopedEntries) {
-        const scopedSourcePath = join(sourcePath, scopedEntry.name);
-        if (!(await resolves(scopedSourcePath))) continue;
-        await copyPackage(scopedSourcePath, join(targetPath, scopedEntry.name));
-      }
-    } else {
-      if (!(await resolves(sourcePath))) continue;
-      await copyPackage(sourcePath, targetPath);
-    }
+export const stageNativeModules = async ({ root = repositoryRoot, target }) => {
+  for (const packageName of nativeModulePackages) {
+    const source = join(root, "node_modules", ".pnpm", "node_modules", packageName);
+    const targetPath = join(target, packageName);
+    await mkdir(dirname(targetPath), { recursive: true });
+    await cp(source, targetPath, { recursive: true, dereference: true });
   }
 };
 
@@ -117,7 +88,7 @@ export const validateSourceResources = async (root = repositoryRoot) => {
   await requireFile(join(root, "apps", "engine", "dist", "main.mjs"), "engine build");
 };
 
-const productionPackage = (version, enginePackage) => ({
+const productionPackage = (version) => ({
   name: "satella",
   version,
   private: true,
@@ -125,7 +96,6 @@ const productionPackage = (version, enginePackage) => ({
   description: "A private, local-first home for your financial life.",
   author: "Satella",
   main: "dist/main.cjs",
-  dependencies: enginePackage.dependencies ?? {},
 });
 
 export const builderConfiguration = ({
@@ -141,11 +111,16 @@ export const builderConfiguration = ({
     output: outputDirectory,
   },
   files: ["dist/**/*", "package.json"],
+  // electron-builder prunes a root-level node_modules directory during
+  // extraResources copies, so the SQLCipher addon tree ships as its own entry.
   extraResources: [
     { from: join(appDirectory, "resources", "web"), to: "web" },
     { from: join(appDirectory, "resources", "engine"), to: "engine" },
+    {
+      from: join(appDirectory, "resources", "engine", "node_modules"),
+      to: "engine/node_modules",
+    },
     { from: join(root, "apps", "desktop", "assets"), to: "assets" },
-    { from: join(appDirectory, "node_modules"), to: "node_modules" },
   ],
   asar: true,
   asarUnpack: ["**/*.node"],
@@ -171,7 +146,7 @@ export const validateStagedResources = async (appDirectory) => {
     "staged engine build",
   );
   const nativeBinding = await findNativeBinding(
-    join(appDirectory, "node_modules", "@journeyapps", "sqlcipher"),
+    join(appDirectory, "resources", "engine", "node_modules", "@journeyapps", "sqlcipher"),
   );
   if (nativeBinding === undefined) {
     throw new Error("Staged SQLCipher native binding was not found");
@@ -186,7 +161,7 @@ export const stageProductionTree = async ({ root = repositoryRoot, stagingDirect
   await mkdir(stagingDirectory, { recursive: true });
 
   const appDirectory = join(stagingDirectory, "app");
-  const engineDeployment = join(stagingDirectory, "engine-deployment");
+  const engineNodeModules = join(appDirectory, "resources", "engine", "node_modules");
   await mkdir(appDirectory, { recursive: true });
   await cp(join(root, "apps", "desktop", "dist"), join(appDirectory, "dist"), {
     recursive: true,
@@ -201,61 +176,13 @@ export const stageProductionTree = async ({ root = repositoryRoot, stagingDirect
       recursive: true,
     },
   );
-
-  let deployStarted = false;
-  try {
-    deployStarted = true;
-    await execFileAsync(
-      "pnpm",
-      ["--filter", "@satella-app/engine", "deploy", "--legacy", "--prod", engineDeployment],
-      { cwd: root, maxBuffer: 20 * 1024 * 1024 },
-    );
-    await copyPortableNodeModules(
-      join(engineDeployment, "node_modules"),
-      join(appDirectory, "node_modules"),
-    );
-    for (const packageName of [
-      "connector-core",
-      "connector-evm",
-      "connector-ibkr",
-      "connector-kraken",
-      "connector-okx",
-    ]) {
-      const source = join(root, "packages", packageName);
-      const target = join(appDirectory, "node_modules", "@satella-app", packageName);
-      await mkdir(target, { recursive: true });
-      await cp(join(source, "dist"), join(target, "dist"), { recursive: true });
-      await cp(join(source, "package.json"), join(target, "package.json"));
-    }
-    for (const dependencyName of ["saxes", "xmlchars"]) {
-      await cp(
-        join(root, "node_modules", ".pnpm", "node_modules", dependencyName),
-        join(appDirectory, "node_modules", dependencyName),
-        { recursive: true, dereference: true },
-      );
-    }
-    const enginePackage = JSON.parse(
-      await readFile(join(engineDeployment, "package.json"), "utf8"),
-    );
-    await writeFile(
-      join(appDirectory, "resources", "engine", "package.json"),
-      JSON.stringify(enginePackage, null, 2) + "\n",
-    );
-    await writeFile(
-      join(appDirectory, "package.json"),
-      JSON.stringify(productionPackage(normalizedVersion, enginePackage), null, 2) + "\n",
-    );
-    await validateStagedResources(appDirectory);
-    return { appDirectory, engineDeployment };
-  } finally {
-    if (deployStarted) {
-      await execFileAsync("pnpm", ["install", "--frozen-lockfile"], {
-        cwd: root,
-        env: { ...process.env, CI: "true" },
-        maxBuffer: 20 * 1024 * 1024,
-      });
-    }
-  }
+  await stageNativeModules({ root, target: engineNodeModules });
+  await writeFile(
+    join(appDirectory, "package.json"),
+    JSON.stringify(productionPackage(normalizedVersion), null, 2) + "\n",
+  );
+  await validateStagedResources(appDirectory);
+  return { appDirectory };
 };
 
 export const packageRelease = async ({ root = repositoryRoot, outputDirectory, version }) => {
@@ -310,21 +237,9 @@ const validateExtractedApplication = async (applicationDirectory, version) => {
     join(resourcesDirectory, "engine", "dist", "main.mjs"),
     "packaged engine build",
   );
-  for (const packageName of [
-    "connector-core",
-    "connector-evm",
-    "connector-ibkr",
-    "connector-kraken",
-    "connector-okx",
-  ]) {
-    await requireFile(
-      join(resourcesDirectory, "node_modules", "@satella-app", packageName, "dist", "index.mjs"),
-      `packaged ${packageName} connector`,
-    );
-  }
   if (
     (await findNativeBinding(
-      join(resourcesDirectory, "node_modules", "@journeyapps", "sqlcipher"),
+      join(resourcesDirectory, "engine", "node_modules", "@journeyapps", "sqlcipher"),
     )) === undefined
   ) {
     throw new Error(

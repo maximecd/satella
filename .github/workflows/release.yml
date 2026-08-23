@@ -121,6 +121,7 @@ jobs:
       - run: vp run -r build
       - name: Package the macOS Apple Silicon artifact
         run: |
+          ulimit -n "$(ulimit -Hn)"
           pnpm release:package --version "${{ needs.resolve.outputs.version }}" \
             --output-dir "$RUNNER_TEMP/satella-release"
       - name: Smoke-test the packaged application

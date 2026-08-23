@@ -48,6 +48,7 @@ jobs:
       - run: vp run -r build
       - name: Package the macOS Apple Silicon nightly
         run: |
+          ulimit -n "$(ulimit -Hn)"
           pnpm release:package --version "$NIGHTLY_VERSION" \
             --output-dir "$RUNNER_TEMP/satella-nightly"
       - name: Tag and publish the immutable nightly prerelease
