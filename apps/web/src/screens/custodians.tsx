@@ -15,6 +15,7 @@ import {
   PageHeader,
   PageState,
 } from "../components";
+import { CopyErrorButton } from "../components/ui/copy-error";
 import { EmptyState } from "../components/ui/empty-state";
 import { Field } from "../components/ui/field";
 import { PasswordInput } from "../components/ui/password-input";
@@ -57,7 +58,10 @@ export function CustodiansListScreen() {
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>{t("custodians.refreshFailed")}</Alert.Title>
-            <Alert.Description>{refreshError}</Alert.Description>
+            <Flex align="center" gap="1" wrap="wrap">
+              <Alert.Description>{refreshError}</Alert.Description>
+              <CopyErrorButton value={refreshError} />
+            </Flex>
           </Alert.Content>
         </Alert.Root>
       )}
@@ -139,7 +143,10 @@ export function CustodianDetailScreen({ id }: { readonly id: string }) {
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>{t("custodians.refreshFailed")}</Alert.Title>
-            <Alert.Description>{refreshError}</Alert.Description>
+            <Flex align="center" gap="1" wrap="wrap">
+              <Alert.Description>{refreshError}</Alert.Description>
+              <CopyErrorButton value={refreshError} />
+            </Flex>
           </Alert.Content>
         </Alert.Root>
       )}

@@ -26,6 +26,7 @@ import {
   DialogRoot,
   DialogTitle,
 } from "./components/ui/dialog";
+import { CopyErrorButton } from "./components/ui/copy-error";
 import { Sidebar } from "./sidebar";
 
 export function RootLayout() {
@@ -115,7 +116,10 @@ export function PageState({
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>{t("errors.pageError")}</Alert.Title>
-        <Alert.Description>{message ?? t("errors.pageErrorFallback")}</Alert.Description>
+        <Flex align="center" gap="1" wrap="wrap">
+          <Alert.Description>{message ?? t("errors.pageErrorFallback")}</Alert.Description>
+          {message ? <CopyErrorButton value={message} /> : null}
+        </Flex>
       </Alert.Content>
     </Alert.Root>
   );
@@ -152,7 +156,10 @@ export function FormError({ message }: { readonly message: string | null }) {
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>{t("form.couldNotSave")}</Alert.Title>
-        <Alert.Description>{message}</Alert.Description>
+        <Flex align="center" gap="1" wrap="wrap">
+          <Alert.Description>{message}</Alert.Description>
+          <CopyErrorButton value={message} />
+        </Flex>
       </Alert.Content>
     </Alert.Root>
   );

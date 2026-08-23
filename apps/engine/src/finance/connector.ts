@@ -499,7 +499,12 @@ export const reconcileConnector = (
     Effect.mapError((cause) =>
       cause instanceof FinanceApiError
         ? cause
-        : new FinanceApiError({ code: "database", message: "Connector reconciliation failed" }),
+        : new FinanceApiError({
+            code: "database",
+            message: `Connector reconciliation failed: ${
+              cause instanceof Error ? cause.message : String(cause)
+            }`,
+          }),
     ),
     Effect.catchDefect(() => fail("database", "Connector reconciliation failed")),
   );

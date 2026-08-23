@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { engineApi } from "../api";
 import { FormError, PageHeader } from "../components";
+import { errorDetail } from "../components/ui/copy-error";
 import { notify } from "../components/ui/toaster";
 import { chooseVaultExportDestination } from "../runtime";
 import { vaultStatusQuery } from "../queries";
@@ -77,6 +78,8 @@ export function SettingsSecurityScreen() {
       notify.error(
         "Export failed.",
         cause instanceof Error ? cause.message : "The Vault could not be exported.",
+        false,
+        errorDetail(cause),
       ),
   });
   const status = statusQuery.data;

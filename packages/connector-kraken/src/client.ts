@@ -5,6 +5,8 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import { createHash, createHmac } from "node:crypto";
 
+import { describeErrorBody } from "@satella-app/connector-core";
+
 import { KrakenCredentials } from "./schemas.js";
 
 export interface KrakenHttpRequest {
@@ -89,9 +91,12 @@ export const makeEffectHttpTransport = (
           Effect.mapError((cause) =>
             cause instanceof KrakenTransportError
               ? cause
-              : new KrakenTransportError("Kraken request could not be completed", {
-                  transient: true,
-                }),
+              : new KrakenTransportError(
+                  `Kraken request could not be completed: ${
+                    cause instanceof Error ? cause.message : String(cause)
+                  }`,
+                  { transient: true },
+                ),
           ),
         );
       const body = yield* response.json.pipe(Effect.catch(() => Effect.succeed(undefined)));
@@ -150,7 +155,10 @@ const parseResponse = <A>(
     };
     if (retryAfterMs !== undefined) Object.assign(errorOptions, { retryAfterMs });
     return Effect.fail(
-      new KrakenTransportError(`Kraken request failed with HTTP ${response.status}`, errorOptions),
+      new KrakenTransportError(
+        `Kraken request failed with HTTP ${response.status}${describeErrorBody(response.body)}`,
+        errorOptions,
+      ),
     );
   }
   return Schema.decodeUnknownEffect(schema)(response.body);
@@ -190,9 +198,12 @@ export const makeKrakenClient = <R>(options: KrakenClientOptions<R>): KrakenClie
         Effect.mapError((cause) =>
           cause instanceof KrakenTransportError
             ? cause
-            : new KrakenTransportError("Kraken returned an invalid response", {
-                transient: false,
-              }),
+            : new KrakenTransportError(
+                `Kraken returned an invalid response: ${
+                  cause instanceof Error ? cause.message : String(cause)
+                }`,
+                { transient: false },
+              ),
         ),
       ),
     );
