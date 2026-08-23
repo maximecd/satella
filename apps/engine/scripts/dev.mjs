@@ -3,13 +3,21 @@ import { fileURLToPath } from "node:url";
 
 const engineRoot = fileURLToPath(new URL("..", import.meta.url));
 const tsx = process.platform === "win32" ? "tsx.cmd" : "tsx";
+const playwrightPath =
+  process.env["SATELLA_PLAYWRIGHT_BROWSERS_PATH"] ??
+  fileURLToPath(new URL("../../../.playwright", import.meta.url));
 
 const child = spawn(
   tsx,
   ["watch", "--include", "../../packages/connector-*/dist/**/*", "src/main.ts"],
   {
     cwd: engineRoot,
-    env: { ...process.env, SATELLA_DATABASE_CONTEXT: "development" },
+    env: {
+      ...process.env,
+      SATELLA_DATABASE_CONTEXT: "development",
+      PLAYWRIGHT_BROWSERS_PATH: playwrightPath,
+      SATELLA_PLAYWRIGHT_BROWSERS_PATH: playwrightPath,
+    },
     stdio: "inherit",
   },
 );

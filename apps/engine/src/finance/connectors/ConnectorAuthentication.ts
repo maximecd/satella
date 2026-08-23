@@ -58,16 +58,31 @@ const vaultError = (cause: unknown): FinanceApiError =>
 const authenticationError = (cause: unknown): FinanceApiError => {
   if (cause instanceof FinanceError) return cause;
   if (cause instanceof ConnectorAuthenticationError) {
+    const detail = cause.message.trim();
+    const withDetail = (message: string) =>
+      detail.length === 0 || detail === message ? message : `${message}: ${detail}`;
     if (cause.category === "invalid_credentials")
-      return failure("validation", "Authentication was rejected");
-    if (cause.category === "timeout") return failure("validation", "Authentication timed out");
+      return failure("validation", withDetail("Authentication was rejected"));
+    if (cause.category === "timeout")
+      return failure("validation", withDetail("Authentication timed out"));
     if (cause.category === "rate_limit")
-      return failure("validation", "The connector rate limit was reached; try again later");
+      return failure(
+        "validation",
+        withDetail("The connector rate limit was reached; try again later"),
+      );
     if (cause.category === "network")
-      return failure("validation", "The connector network request failed");
-    return failure("validation", "The connector returned an invalid authentication response");
+      return failure("validation", withDetail("The connector network request failed"));
+    return failure(
+      "validation",
+      withDetail("The connector returned an invalid authentication response"),
+    );
   }
-  return failure("validation", "Connector authentication failed");
+  return failure(
+    "validation",
+    cause instanceof Error && cause.message.length > 0
+      ? `Connector authentication failed: ${cause.message}`
+      : "Connector authentication failed",
+  );
 };
 
 const publicAttempt = (

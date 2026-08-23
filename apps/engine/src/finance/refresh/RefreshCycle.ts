@@ -45,7 +45,8 @@ export const listSyncedCustodianIds = (
       }>`SELECT id, connector_id, sync_state, last_refresh_attempt_at FROM custodians
         WHERE connector_id IS NOT NULL ORDER BY created_at, id`,
     );
-    const now = options.now === undefined ? yield* Clock.currentTimeMillis : options.now().getTime();
+    const now =
+      options.now === undefined ? yield* Clock.currentTimeMillis : options.now().getTime();
     const defaultCadence = Duration.toMillis(AUTO_REFRESH_INTERVAL);
     return rows
       .filter(({ connector_id, sync_state, last_refresh_attempt_at }) => {

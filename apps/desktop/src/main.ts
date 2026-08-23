@@ -237,14 +237,20 @@ const startManagedEngine = async () => {
   const dataDirectory = app.isPackaged
     ? productionDataDirectory(app.getPath("userData"))
     : join(process.cwd(), ".satella");
+  const managedEnvironmentOptions = {
+    port: enginePort,
+    dataDirectory,
+    production: app.isPackaged,
+    engineToken,
+  };
+  const playwrightBrowsersPath = app.isPackaged
+    ? join(process.resourcesPath, "engine", "playwright-browsers")
+    : process.env["SATELLA_PLAYWRIGHT_BROWSERS_PATH"];
+  if (playwrightBrowsersPath !== undefined)
+    Object.assign(managedEnvironmentOptions, { playwrightBrowsersPath });
   engineProcess = spawnManagedEngine(
     command,
-    managedEngineEnvironment(process.env, {
-      port: enginePort,
-      dataDirectory,
-      production: app.isPackaged,
-      engineToken,
-    }),
+    managedEngineEnvironment(process.env, managedEnvironmentOptions),
   );
   engineProcess.on("message", handleManagedEngineMessage);
   engineProcess.stdout?.on("data", (chunk: Buffer) => process.stdout.write(`[engine] ${chunk}`));

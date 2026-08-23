@@ -27,7 +27,8 @@ describe("EVM connector", () => {
     const authenticated = await Effect.runPromise(
       connector.authenticate({ address: wallet, [`token:1:${token.toLowerCase()}`]: "tracked" }),
     );
-    const accounts = await Effect.runPromise(authenticated.fetchAccounts());
+    const result = await Effect.runPromise(authenticated.fetchAccounts());
+    const accounts = "accounts" in result ? result.accounts : result;
 
     expect(requestedChainIds).toEqual([1, 8453, 42161, 10]);
     expect(accounts).toHaveLength(4);

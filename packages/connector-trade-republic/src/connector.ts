@@ -81,6 +81,9 @@ const fetchFailure = (
   fallback = "Trade Republic account retrieval failed",
 ): ConnectorFetchAccountsError => {
   if (cause instanceof TradeRepublicTransportError) {
+    const detail = cause.message.trim();
+    const detailedFallback =
+      detail.length === 0 || detail === fallback ? fallback : `${fallback}: ${detail}`;
     if (
       cause.status === 401 ||
       cause.status === 403 ||
@@ -102,7 +105,7 @@ const fetchFailure = (
       });
     return new ConnectorFetchAccountsError({
       category: cause.transient ? "network" : "invalid_response",
-      message: fallback,
+      message: detailedFallback,
     });
   }
   return new ConnectorFetchAccountsError({ category: "invalid_response", message: fallback });

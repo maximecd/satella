@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { chromium, type BrowserContext, type Page } from "playwright";
-import { ConnectorAuthenticationError } from "@satella-app/connector-core";
+import { ConnectorAuthenticationError, describeErrorBody } from "@satella-app/connector-core";
 import {
   TradeRepublicBrowserRuntime,
   TRADE_REPUBLIC_API_ORIGIN,
@@ -28,6 +28,12 @@ const authenticationFailure = (
   message: string,
   category: ConnectorAuthenticationError["category"] = "network",
 ) => new ConnectorAuthenticationError({ category, message });
+
+const errorDetail = (cause: unknown): string => {
+  if (!(cause instanceof Error)) return "";
+  const message = cause.message.trim();
+  return message.length > 0 ? `: ${message}` : "";
+};
 
 const responseBody = async (
   response: Awaited<ReturnType<Page["request"]["post"]>>,
@@ -139,16 +145,22 @@ const makeAttempt = async (
               timeout: BROWSER_TIMEOUT_MS,
             },
           );
+          const body = await responseBody(response);
           if (response.status() === 429)
-            throw authenticationFailure("Trade Republic rate limit reached", "rate_limit");
+            throw authenticationFailure(
+              `Trade Republic rate limit reached${describeErrorBody(body)}`,
+              "rate_limit",
+            );
           if (response.status() === 401 || response.status() === 403)
             throw authenticationFailure(
-              "Trade Republic confirmation code was rejected",
+              `Trade Republic confirmation code was rejected${describeErrorBody(body)}`,
               "invalid_credentials",
             );
           if (!response.ok())
-            throw authenticationFailure("Trade Republic authentication failed", "invalid_response");
-          const body = await responseBody(response);
+            throw authenticationFailure(
+              `Trade Republic authentication failed${describeErrorBody(body)}`,
+              "invalid_response",
+            );
           const cookies = await context.cookies(TRADE_REPUBLIC_WEB_ORIGIN);
           const cookieValue = (name: string) =>
             cookies.find((cookie) => cookie.name === name)?.value;
@@ -161,7 +173,9 @@ const makeAttempt = async (
           if (cause instanceof ConnectorAuthenticationError) return cause;
           if (cause instanceof Error && cause.name === "TimeoutError")
             return authenticationFailure("Trade Republic authentication timed out", "timeout");
-          return authenticationFailure("Trade Republic authentication could not be completed");
+          return authenticationFailure(
+            `Trade Republic authentication could not be completed${errorDetail(cause)}`,
+          );
         },
       }).pipe(Effect.ensuring(close())),
     close,
@@ -214,16 +228,22 @@ const start = (input: TradeRepublicBrowserStartInput) =>
               timeout: BROWSER_TIMEOUT_MS,
             },
           );
+          const body = await responseBody(response);
           if (response.status() === 429)
-            throw authenticationFailure("Trade Republic rate limit reached", "rate_limit");
+            throw authenticationFailure(
+              `Trade Republic rate limit reached${describeErrorBody(body)}`,
+              "rate_limit",
+            );
           if (response.status() === 401 || response.status() === 403)
             throw authenticationFailure(
-              "Trade Republic phone number or PIN was rejected",
+              `Trade Republic phone number or PIN was rejected${describeErrorBody(body)}`,
               "invalid_credentials",
             );
           if (!response.ok())
-            throw authenticationFailure("Trade Republic authentication failed", "invalid_response");
-          const body = await responseBody(response);
+            throw authenticationFailure(
+              `Trade Republic authentication failed${describeErrorBody(body)}`,
+              "invalid_response",
+            );
           const processId = stringField(body, "processId", "process_id", "id");
           if (processId === undefined)
             throw authenticationFailure(
@@ -243,7 +263,9 @@ const start = (input: TradeRepublicBrowserStartInput) =>
       if (cause instanceof ConnectorAuthenticationError) return cause;
       if (cause instanceof Error && cause.name === "TimeoutError")
         return authenticationFailure("Trade Republic authentication timed out", "timeout");
-      return authenticationFailure("Trade Republic browser authentication could not be started");
+      return authenticationFailure(
+        `Trade Republic browser authentication could not be started${errorDetail(cause)}`,
+      );
     },
   }).pipe(
     Effect.timeoutOrElse({

@@ -5,6 +5,8 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import WebSocket, { type RawData } from "ws";
 
+import { describeErrorBody } from "@satella-app/connector-core";
+
 import type { TradeRepublicSession } from "./schemas.js";
 import {
   isTradeRepublicJsonNumber,
@@ -624,8 +626,8 @@ export const makeEffectWebSocketTransport = (
                 finishFailure(
                   socketError(
                     authenticationExpired
-                      ? "Trade Republic authentication expired"
-                      : "Trade Republic returned a protocol error",
+                      ? `Trade Republic authentication expired${describeErrorBody(value)}`
+                      : `Trade Republic returned a protocol error${describeErrorBody(value)}`,
                     authenticationExpired ? "invalid_response" : "transient",
                     authenticationExpired ? 401 : Number.isFinite(status) ? status : undefined,
                   ),
@@ -742,27 +744,27 @@ export const makeEffectHttpTransport = (
                 }),
           ),
         );
-      if (response.status < 200 || response.status >= 300) {
-        return yield* Effect.fail(
-          new TradeRepublicTransportError("Trade Republic returned an HTTP error", {
-            transient: transientStatus(response.status),
-            status: response.status,
-          }),
-        );
-      }
       const body = yield* response.json.pipe(
-        Effect.catch(() =>
-          Effect.fail(
-            new TradeRepublicTransportError("Trade Republic returned invalid JSON", {
-              transient: false,
-            }),
-          ),
-        ),
         Effect.map((value) => {
           // SAFETY: Effect's HTTP JSON decoder only returns parsed JSON values; the parser below validates the protocol shape.
           return value as TradeRepublicJsonValue;
         }),
+        Effect.catch(() => Effect.succeed(undefined)),
       );
+      if (response.status < 200 || response.status >= 300) {
+        return yield* Effect.fail(
+          new TradeRepublicTransportError(
+            `Trade Republic returned HTTP ${response.status}${describeErrorBody(body)}`,
+            { transient: transientStatus(response.status), status: response.status },
+          ),
+        );
+      }
+      if (body === undefined)
+        return yield* Effect.fail(
+          new TradeRepublicTransportError("Trade Republic returned invalid JSON", {
+            transient: false,
+          }),
+        );
       return body;
     }),
 });

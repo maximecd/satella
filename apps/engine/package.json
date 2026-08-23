@@ -16,7 +16,7 @@
     "dev": "node scripts/dev.mjs",
     "db:reset": "tsx src/database/cli.ts reset",
     "db:seed": "tsx src/database/cli.ts seed",
-    "start": "node dist/main.mjs",
+    "start": "node scripts/start.mjs",
     "test": "vp test run",
     "test:coverage": "vp test run --coverage",
     "test:watch": "vp test watch",
@@ -36,8 +36,8 @@
     "decimal.js": "10.6.0",
     "effect": "catalog:",
     "hash-wasm": "^4.12.0",
-    "viem": "^2.55.19",
     "playwright": "1.55.0",
+    "viem": "^2.55.19",
     "yahoo-finance2": "4.0.2"
   },
   "devDependencies": {

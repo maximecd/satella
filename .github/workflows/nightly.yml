@@ -45,7 +45,7 @@ jobs:
           VERSION="$(node scripts/release-version.mjs next-nightly)"
           echo "Packaging nightly ${VERSION} for commit ${COMMIT_SHA}."
           echo "NIGHTLY_VERSION=${VERSION}" >> "$GITHUB_ENV"
-      - run: vp run -r build
+      - run: pnpm build
       - name: Package the macOS Apple Silicon nightly
         run: |
           ulimit -n "$(ulimit -Hn)"

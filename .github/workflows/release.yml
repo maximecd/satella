@@ -78,6 +78,7 @@ jobs:
           vp run --filter @satella-app/connector-ibkr build
           vp run --filter @satella-app/connector-kraken build
           vp run --filter @satella-app/connector-okx build
+          vp run --filter @satella-app/connector-trade-republic build
       - run: vp run -r test
       - run: node --test scripts/*.test.mjs
 
@@ -95,7 +96,7 @@ jobs:
           node-version-file: .nvmrc
           cache: true
           run-install: true
-      - run: vp run -r build
+      - run: pnpm build
 
   package:
     name: package-and-smoke
@@ -118,7 +119,7 @@ jobs:
           cache: true
           run-install: true
       - uses: pnpm/action-setup@v4
-      - run: vp run -r build
+      - run: pnpm build
       - name: Package the macOS Apple Silicon artifact
         run: |
           ulimit -n "$(ulimit -Hn)"

@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 
+import { installPlaywright } from "./install-playwright.mjs";
+
 const defaults = {
   engine: 3001,
   web: 5173,
@@ -61,6 +63,7 @@ const runToCompletion = (command, args, env) =>
   });
 
 const run = async () => {
+  const playwrightPath = await installPlaywright();
   const enginePort = await choosePort("SATELLA_ENGINE_PORT", defaults.engine);
   const webPort = await choosePort("SATELLA_WEB_PORT", defaults.web);
   const engineUrl = `http://127.0.0.1:${enginePort}`;
@@ -75,6 +78,8 @@ const run = async () => {
     SATELLA_WEB_URL: webUrl,
     VITE_ENGINE_URL: engineUrl,
     VITE_ENGINE_TOKEN: engineToken,
+    PLAYWRIGHT_BROWSERS_PATH: playwrightPath,
+    SATELLA_PLAYWRIGHT_BROWSERS_PATH: playwrightPath,
   };
   const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 

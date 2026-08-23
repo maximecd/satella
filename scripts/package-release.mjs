@@ -5,6 +5,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { installPlaywright, playwrightBrowsersPath } from "./install-playwright.mjs";
+
 const execFileAsync = promisify(execFile);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -62,6 +64,34 @@ const findNativeBinding = async (directory) => {
   return undefined;
 };
 
+const findPlaywrightChromiumExecutable = async (directory) => {
+  if (!(await exists(directory))) return undefined;
+  const entries = await readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const path = join(directory, entry.name);
+    if (
+      entry.isFile() &&
+      (entry.name === "Chromium" || entry.name === "chrome" || entry.name === "chrome.exe")
+    ) {
+      return path;
+    }
+    if (entry.isDirectory()) {
+      const nested = await findPlaywrightChromiumExecutable(path);
+      if (nested !== undefined) return nested;
+    }
+  }
+  return undefined;
+};
+
+const requirePlaywrightChromium = async (directory, description) => {
+  const executable = await findPlaywrightChromiumExecutable(directory);
+  if (executable === undefined) {
+    throw new Error(`Missing ${description}: Chromium was not installed in ${directory}`);
+  }
+  await requireFile(executable, description);
+  return executable;
+};
+
 // Runtime dependencies of @journeyapps/sqlcipher. The engine bundle inlines
 // every pure-JavaScript dependency; only the SQLCipher addon tree and its
 // binding loader ship as loose node_modules files.
@@ -86,6 +116,7 @@ export const validateSourceResources = async (root = repositoryRoot) => {
   await requireFile(join(root, "apps", "desktop", "assets", "Satella.png"), "macOS Dock icon");
   await requireFile(join(root, "apps", "web", "dist", "index.html"), "web build");
   await requireFile(join(root, "apps", "engine", "dist", "main.mjs"), "engine build");
+  await requirePlaywrightChromium(playwrightBrowsersPath(root), "Playwright Chromium executable");
 };
 
 const productionPackage = (version) => ({
@@ -145,6 +176,10 @@ export const validateStagedResources = async (appDirectory) => {
     join(appDirectory, "resources", "engine", "dist", "main.mjs"),
     "staged engine build",
   );
+  await requirePlaywrightChromium(
+    join(appDirectory, "resources", "engine", "playwright-browsers"),
+    "staged Playwright Chromium executable",
+  );
   const nativeBinding = await findNativeBinding(
     join(appDirectory, "resources", "engine", "node_modules", "@journeyapps", "sqlcipher"),
   );
@@ -176,6 +211,11 @@ export const stageProductionTree = async ({ root = repositoryRoot, stagingDirect
       recursive: true,
     },
   );
+  await cp(
+    playwrightBrowsersPath(root),
+    join(appDirectory, "resources", "engine", "playwright-browsers"),
+    { recursive: true },
+  );
   await stageNativeModules({ root, target: engineNodeModules });
   await writeFile(
     join(appDirectory, "package.json"),
@@ -192,6 +232,7 @@ export const packageRelease = async ({ root = repositoryRoot, outputDirectory, v
   if (await exists(artifact)) {
     throw new Error(`Release artifact already exists: ${artifact}`);
   }
+  await installPlaywright({ root });
   await mkdir(output, { recursive: true });
   const { appDirectory } = await stageProductionTree({
     root,
@@ -236,6 +277,10 @@ const validateExtractedApplication = async (applicationDirectory, version) => {
   await requireFile(
     join(resourcesDirectory, "engine", "dist", "main.mjs"),
     "packaged engine build",
+  );
+  await requirePlaywrightChromium(
+    join(resourcesDirectory, "engine", "playwright-browsers"),
+    "packaged Playwright Chromium executable",
   );
   if (
     (await findNativeBinding(

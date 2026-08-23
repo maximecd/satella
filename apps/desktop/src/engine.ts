@@ -148,6 +148,7 @@ export const managedEngineEnvironment = (
     readonly dataDirectory: string;
     readonly production?: boolean;
     readonly engineToken?: string;
+    readonly playwrightBrowsersPath?: string;
   },
 ): NodeJS.ProcessEnv => {
   const managedEnvironment = {
@@ -164,6 +165,12 @@ export const managedEngineEnvironment = (
     Object.assign(managedEnvironment, {
       SATELLA_CANONICAL_DATA_DIR: options.dataDirectory,
       SATELLA_DATABASE_CONTEXT: "production",
+    });
+  }
+  if (options.playwrightBrowsersPath !== undefined) {
+    Object.assign(managedEnvironment, {
+      PLAYWRIGHT_BROWSERS_PATH: options.playwrightBrowsersPath,
+      SATELLA_PLAYWRIGHT_BROWSERS_PATH: options.playwrightBrowsersPath,
     });
   }
   return managedEnvironment;
