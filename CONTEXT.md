@@ -82,17 +82,25 @@ _Avoid_: Indexed token
 One attempt to update a synced Custodian's Accounts and Positions through its Connector, or to fetch a Price observation for an Asset.
 _Avoid_: Connector sync, Account sync
 
+**Unofficial connector**:
+A Connector that uses an undocumented access channel without the Custodian's support. It may break without notice and may expose the user to contractual or account-access consequences.
+_Avoid_: Scraper, unofficial API
+
 **Refresh**:
 A request to run the relevant Sync operations for the latest Accounts, Positions, and prices. Refreshing from an Account page refreshes the entire Custodian that owns the Account.
 _Avoid_: Resync
 
 **Auto-refresh**:
-The automatic repetition of Refresh for every synced custodian, followed by market-data updates, at a fixed interval while the vault is unlocked. It continues while the Screen lock is active.
+The automatic repetition of Refresh for each synced custodian according to its Connector's cadence, followed by market-data updates, while the vault is unlocked. It continues while the Screen lock is active.
 _Avoid_: Background sync, scheduled refresh
 
 **Sync log**:
 A chronological record of completed Sync attempts. Each entry identifies the Asset or Custodian, when the attempt completed, and whether it succeeded or failed; a failed entry may include a short sanitized reason. It contains no prices, quantities, credentials, source identity, or raw responses.
 _Avoid_: Refresh history, activity log
+
+**Re-authentication required**:
+The state of a synced Custodian whose saved Connector session can no longer Refresh until the person signs in to that Custodian again.
+_Avoid_: Disconnected, invalid credentials
 
 **Market-data source**:
 An external service that supplies Price observations. Its identity and quote times are operational details hidden during normal use.

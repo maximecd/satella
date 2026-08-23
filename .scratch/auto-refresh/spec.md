@@ -8,14 +8,14 @@ Satella's portfolio data is only as current as the last time the user thought to
 
 ## Solution
 
-The engine repeats a full Refresh cycle automatically while the Vault is unlocked: immediately on unlock, then every fifteen minutes. Vault and scheduler share one unlock signal. Each cycle refreshes every synced Custodian sequentially, checks market-data prices for all Assets, and captures a Snapshot, so Portfolio value history stays current without any user action. The app gains a macOS tray presence so it keeps running with its window closed; the tray offers Open, Lock now, and Quit.
+The engine repeats a refresh cycle automatically while the vault is unlocked: immediately on unlock, then checking every fifteen minutes. Each cycle refreshes every synced custodian that is due according to its Connector's cadence, updates market-data prices for all assets, and captures a snapshot, so portfolio value history stays current without any user action. The app gains a macOS tray presence so it keeps running and refreshing with its window closed; the tray shows the time of the last cycle and offers Lock now and Quit.
 
 Success is silent. Settings contains a Sync log with one entry for every Asset price check and Custodian refresh. Background failures never interrupt or nag.
 
 ## User Stories
 
 1. As a returning user, I want my portfolio refreshed automatically when I unlock the vault, so that I never look at stale data.
-2. As a user who leaves Satella running, I want holdings and prices refreshed every fifteen minutes, so that my dashboard is always current without my intervention.
+2. As a user who leaves Satella running, I want holdings refreshed at each Connector's safe cadence and prices checked every fifteen minutes, so that my dashboard stays current without hammering custodians.
 3. As a user working in another app, I want auto-refresh to continue while the Screen lock hides the interface, so that privacy mode does not cost me freshness.
 4. As a laptop user, I want auto-refresh to respect system sleep, so that Satella never keeps my machine awake.
 5. As a laptop user waking my machine, I want refreshes to resume on the normal schedule without a burst of catch-up cycles, so that connectors are not hammered after sleep.
@@ -40,7 +40,7 @@ Success is silent. Settings contains a Sync log with one entry for every Asset p
 ## Implementation Decisions
 
 - The scheduler lives **inside the engine**, calling refresh services internally — no self-issued HTTP requests and no traversal of the renderer finance-access middleware (recorded in ADR 0006). Auto-refresh therefore runs identically in the packaged desktop and in development/web runtimes.
-- Cadence is **fixed**: one cycle immediately on vault unlock, then every fifteen minutes via the engine's standard scheduling primitive. No special catch-up logic after machine wake; the schedule's natural behavior governs.
+- The engine checks due work every fifteen minutes. Each Connector declares its automatic cadence, defaulting to fifteen minutes. Manual Refresh bypasses that cadence. No special catch-up logic runs after machine wake.
 - A **cycle** = sequential refresh of every synced custodian → price refresh across all assets → snapshot capture. Custodian failures are isolated; the cycle continues with remaining custodians.
 - Automatic cycles reserve all Custodian queue keys before the first queued reconciliation starts, so a manual Refresh cannot slip into an unclaimed later Custodian. If an unexpected defect interrupts a cycle before its shared completion pass, the completion group is released and the scheduler remains usable for the next cycle.
 - Auto-refresh continues during the **Screen lock** (vault unlocked) and stops when the machine sleeps, the vault closes, or the app quits.
@@ -57,7 +57,7 @@ Good tests assert external behavior only — what a caller observes — never in
 
 **Engine service seam** (existing): `it.effect` tests against the finance service layer with a test clock and the connector HTTP transport fakes. Prior art: the custodian service tests, the portfolio service tests, and the per-connector transport-seamed suites. Covers:
 
-- immediate cycle on unlock and subsequent ticks at the fixed interval;
+- immediate cycle on unlock, subsequent scheduler ticks, and Connector-specific due checks;
 - serialization and per-custodian coalescing when manual and automatic refreshes race;
 - snapshot captured on every successful refresh (the former daily-gating test is inverted here);
 - one Vault-backed Sync-log entry per attempted Asset price check and Custodian refresh, including sanitized genuine failures and valid older Price observations as successes;
@@ -69,7 +69,7 @@ Good tests assert external behavior only — what a caller observes — never in
 
 ## Out of Scope
 
-- Configurable refresh interval (fixed fifteen minutes until real demand).
+- User-configurable refresh intervals. Cadence is declared by each Connector until real demand justifies a user setting.
 - System notifications for refresh success or failure.
 - Failure state surfaced in the tray (badge, warning icon) — logs only for now.
 - A tray "Refresh now" item.
