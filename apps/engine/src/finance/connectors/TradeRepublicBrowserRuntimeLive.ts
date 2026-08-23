@@ -42,7 +42,12 @@ const responseBody = async (
     const body: TradeRepublicJsonValue = await response.json();
     return body;
   } catch {
-    return undefined;
+    try {
+      const body = (await response.text()).trim();
+      return body.length === 0 ? undefined : body;
+    } catch {
+      return undefined;
+    }
   }
 };
 
@@ -148,17 +153,17 @@ const makeAttempt = async (
           const body = await responseBody(response);
           if (response.status() === 429)
             throw authenticationFailure(
-              `Trade Republic rate limit reached${describeErrorBody(body)}`,
+              `Trade Republic rate limit reached (HTTP ${response.status()})${describeErrorBody(body)}`,
               "rate_limit",
             );
           if (response.status() === 401 || response.status() === 403)
             throw authenticationFailure(
-              `Trade Republic confirmation code was rejected${describeErrorBody(body)}`,
+              `Trade Republic confirmation code was rejected (HTTP ${response.status()})${describeErrorBody(body)}`,
               "invalid_credentials",
             );
           if (!response.ok())
             throw authenticationFailure(
-              `Trade Republic authentication failed${describeErrorBody(body)}`,
+              `Trade Republic authentication failed (HTTP ${response.status()})${describeErrorBody(body)}`,
               "invalid_response",
             );
           const cookies = await context.cookies(TRADE_REPUBLIC_WEB_ORIGIN);
@@ -231,23 +236,23 @@ const start = (input: TradeRepublicBrowserStartInput) =>
           const body = await responseBody(response);
           if (response.status() === 429)
             throw authenticationFailure(
-              `Trade Republic rate limit reached${describeErrorBody(body)}`,
+              `Trade Republic rate limit reached (HTTP ${response.status()})${describeErrorBody(body)}`,
               "rate_limit",
             );
           if (response.status() === 401 || response.status() === 403)
             throw authenticationFailure(
-              `Trade Republic phone number or PIN was rejected${describeErrorBody(body)}`,
+              `Trade Republic phone number or PIN was rejected (HTTP ${response.status()})${describeErrorBody(body)}`,
               "invalid_credentials",
             );
           if (!response.ok())
             throw authenticationFailure(
-              `Trade Republic authentication failed${describeErrorBody(body)}`,
+              `Trade Republic authentication failed (HTTP ${response.status()})${describeErrorBody(body)}`,
               "invalid_response",
             );
           const processId = stringField(body, "processId", "process_id", "id");
           if (processId === undefined)
             throw authenticationFailure(
-              "Trade Republic did not return an authentication challenge",
+              `Trade Republic did not return an authentication challenge${describeErrorBody(body)}`,
               "invalid_response",
             );
           const attempt = await makeAttempt(context, page, profile, processId, input.expiresAt);
