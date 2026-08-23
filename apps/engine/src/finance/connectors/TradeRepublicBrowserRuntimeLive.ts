@@ -71,13 +71,50 @@ const sessionFrom = (
   sessionToken: string | undefined,
   refreshToken: string | undefined,
 ): TradeRepublicSessionType => {
-  if (sessionToken === undefined || refreshToken === undefined)
-    throw new Error("Trade Republic did not return a durable session");
+  if (sessionToken === undefined)
+    throw new Error(
+      "Trade Republic accepted the confirmation code but did not return the tr_session cookie",
+    );
+  if (refreshToken === undefined)
+    throw new Error(
+      "Trade Republic accepted the confirmation code but did not return the tr_refresh cookie",
+    );
   const candidate = {
     sessionToken,
     refreshToken,
   };
   return Schema.decodeUnknownSync(TradeRepublicSession)(candidate);
+};
+
+interface AuthenticationCookie {
+  readonly name: string;
+  readonly value: string;
+}
+
+interface AuthenticationHeader {
+  readonly name: string;
+  readonly value: string;
+}
+
+export const sessionFromAuthenticationResponse = (
+  body: TradeRepublicJsonValue | undefined,
+  browserCookies: ReadonlyArray<AuthenticationCookie>,
+  responseHeaders: ReadonlyArray<AuthenticationHeader>,
+): TradeRepublicSessionType => {
+  const responseCookies = new Map<string, string>();
+  for (const header of responseHeaders) {
+    if (header.name.toLowerCase() !== "set-cookie") continue;
+    const pair = header.value.split(";", 1)[0];
+    const separator = pair?.indexOf("=") ?? -1;
+    if (pair === undefined || separator <= 0) continue;
+    responseCookies.set(pair.slice(0, separator).trim(), pair.slice(separator + 1).trim());
+  }
+  const cookieValue = (name: string) =>
+    responseCookies.get(name) ?? browserCookies.find((cookie) => cookie.name === name)?.value;
+  return sessionFrom(
+    cookieValue("tr_session") ?? stringField(body, "sessionToken", "session_token"),
+    cookieValue("tr_refresh") ?? stringField(body, "refreshToken", "refresh_token"),
+  );
 };
 
 const executablePath = () =>
@@ -186,12 +223,7 @@ const makeAttempt = async (
               "invalid_response",
             );
           const cookies = await context.cookies(TRADE_REPUBLIC_WEB_ORIGIN);
-          const cookieValue = (name: string) =>
-            cookies.find((cookie) => cookie.name === name)?.value;
-          return sessionFrom(
-            cookieValue("tr_session") ?? stringField(body, "sessionToken", "session_token"),
-            cookieValue("tr_refresh") ?? stringField(body, "refreshToken", "refresh_token"),
-          );
+          return sessionFromAuthenticationResponse(body, cookies, response.headersArray());
         },
         catch: (cause) => {
           if (cause instanceof ConnectorAuthenticationError) return cause;

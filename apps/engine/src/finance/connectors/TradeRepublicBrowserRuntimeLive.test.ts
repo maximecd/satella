@@ -1,8 +1,45 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { waitForWafToken } from "./TradeRepublicBrowserRuntimeLive.js";
+import {
+  sessionFromAuthenticationResponse,
+  waitForWafToken,
+} from "./TradeRepublicBrowserRuntimeLive.js";
 
 describe("Trade Republic WAF authentication", () => {
+  it("reads durable session cookies directly from the confirmation response", () => {
+    expect(
+      sessionFromAuthenticationResponse(
+        undefined,
+        [],
+        [
+          { name: "Set-Cookie", value: "tr_session=session-token; Path=/; Secure" },
+          { name: "Set-Cookie", value: "tr_refresh=refresh-token; Path=/; Secure" },
+        ],
+      ),
+    ).toEqual({ sessionToken: "session-token", refreshToken: "refresh-token" });
+  });
+
+  it("identifies the missing cookie without exposing session values", () => {
+    expect(() =>
+      sessionFromAuthenticationResponse(
+        undefined,
+        [],
+        [{ name: "Set-Cookie", value: "tr_session=session-token; Path=/; Secure" }],
+      ),
+    ).toThrow(
+      "Trade Republic accepted the confirmation code but did not return the tr_refresh cookie",
+    );
+    expect(() =>
+      sessionFromAuthenticationResponse(
+        undefined,
+        [],
+        [{ name: "Set-Cookie", value: "tr_refresh=refresh-token; Path=/; Secure" }],
+      ),
+    ).toThrow(
+      "Trade Republic accepted the confirmation code but did not return the tr_session cookie",
+    );
+  });
+
   it("waits for the WAF cookie instead of racing DOMContentLoaded", async () => {
     let cookieReads = 0;
     let waits = 0;
