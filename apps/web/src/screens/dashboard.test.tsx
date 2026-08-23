@@ -82,22 +82,13 @@ describe("dashboard screen", () => {
     expect(screen.getByText(/\+\$90[.,]00|\+90[.,]00 \$/)).toBeInTheDocument();
   });
 
-  it("defaults allocation to Custodians and toggles between Custodians, Categories, and Assets", async () => {
+  it("defaults allocation to Categories and toggles between Categories and Assets", async () => {
     const user = userEvent.setup();
     seedPortfolioEngine({ dashboard: populatedDashboardFor() });
     renderRoute("/");
     expect(
-      await screen.findByRole("img", { name: /IBKR, (\$800[.,]00|800[.,]00 \$), 80%/ }),
+      await screen.findByRole("img", { name: /Stocks & ETFs, (\$800[.,]00|800[.,]00 \$), 80%/ }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("img", { name: /BNP Paribas, (\$200[.,]00|200[.,]00 \$), 20%/ }),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("radio", { name: "Categories" }));
-    expect(
-      screen.getByRole("img", { name: /Stocks & ETFs, (\$800[.,]00|800[.,]00 \$), 80%/ }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("img", { name: /IBKR/ })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "Assets" }));
     expect(

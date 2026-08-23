@@ -16,7 +16,6 @@
       "title": "Allocation",
       "ariaLabel": "Allocation",
       "assets": "Assets",
-      "custodians": "Custodians",
       "categories": "Categories",
       "empty": "No priced allocation to show.",
       "unpricedExcluded_one": "{{count}} unpriced asset excluded from allocation.",
