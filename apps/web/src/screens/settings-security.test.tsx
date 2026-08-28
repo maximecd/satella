@@ -4,18 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { engineApi } from "../api";
 import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
-import { chooseVaultExportDestination } from "../runtime";
+import { saveVaultExport } from "../runtime";
 
 vi.mock("../api", async () => import("../engine-api.test-utils"));
 vi.mock("../runtime", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../runtime")>()),
-  chooseVaultExportDestination: vi.fn(),
+  saveVaultExport: vi.fn(),
 }));
-
-const mockExportDestination = (path: string | null) =>
-  vi
-    .mocked(chooseVaultExportDestination)
-    .mockResolvedValue(path === null ? { kind: "cancelled" } : { kind: "path", path });
 
 const typePin = async (user: UserEvent, label: string, pin: string) => {
   for (const [index, digit] of [...pin].entries()) {
@@ -67,15 +62,11 @@ describe("Settings → Security", () => {
     expect(await screen.findByRole("heading", { name: "Satella is locked" })).toBeInTheDocument();
   });
 
-  it("exports the Vault after the user confirms the password and picks a destination", async () => {
+  it("downloads the Vault after the user confirms the password", async () => {
     const user = userEvent.setup();
-    mockExportDestination("/Users/maintainer/Backups/vault.satella-vault");
-    vi.mocked(engineApi.exportVault).mockResolvedValue({
-      state: "open",
-      screenLock: false,
-      pinAttemptsRemaining: 3,
-      pinEntryDisabled: false,
-      screenLockTimeoutMinutes: 15,
+    vi.mocked(engineApi.exportVaultDownload).mockResolvedValue({
+      fileName: "satella-vault-export.satella-vault",
+      contentsBase64: "U1ZMVHRlc3Q=",
     });
     renderRoute("/settings/security");
     await user.type(
@@ -84,31 +75,17 @@ describe("Settings → Security", () => {
     );
     await user.click(screen.getByRole("button", { name: "Export Vault" }));
     await waitFor(() =>
-      expect(engineApi.exportVault).toHaveBeenCalledWith(
-        "correct-horse-battery",
-        "/Users/maintainer/Backups/vault.satella-vault",
-      ),
+      expect(engineApi.exportVaultDownload).toHaveBeenCalledWith("correct-horse-battery"),
     );
-  });
-
-  it("does not call the engine when the save dialog is cancelled", async () => {
-    const user = userEvent.setup();
-    vi.mocked(engineApi.exportVault).mockClear();
-    mockExportDestination(null);
-    renderRoute("/settings/security");
-    await user.type(
-      await screen.findByLabelText("Vault password for export"),
-      "correct-horse-battery",
+    expect(saveVaultExport).toHaveBeenCalledWith(
+      "satella-vault-export.satella-vault",
+      "U1ZMVHRlc3Q=",
     );
-    await user.click(screen.getByRole("button", { name: "Export Vault" }));
-    await waitFor(() => expect(chooseVaultExportDestination).toHaveBeenCalled());
-    expect(engineApi.exportVault).not.toHaveBeenCalled();
   });
 
   it("reports a failed export without clearing the password field", async () => {
     const user = userEvent.setup();
-    mockExportDestination("/Users/maintainer/Backups/vault.satella-vault");
-    vi.mocked(engineApi.exportVault).mockRejectedValue(
+    vi.mocked(engineApi.exportVaultDownload).mockRejectedValue(
       new Error("The Vault password is incorrect."),
     );
     renderRoute("/settings/security");

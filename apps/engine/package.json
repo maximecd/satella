@@ -25,8 +25,6 @@
   "dependencies": {
     "@coingecko/coingecko-typescript": "7.1.0",
     "@effect/platform-node": "catalog:",
-    "@effect/sql-sqlite-node": "catalog:",
-    "@journeyapps/sqlcipher": "6.0.0",
     "@satella-app/connector-core": "workspace:*",
     "@satella-app/connector-evm": "workspace:*",
     "@satella-app/connector-ibkr": "workspace:*",

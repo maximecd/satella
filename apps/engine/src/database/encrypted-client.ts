@@ -7,14 +7,17 @@ import { identity } from "effect/Function";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
-import * as Schema from "effect/Schema";
 import { Reactivity } from "effect/unstable/reactivity";
 import * as Client from "effect/unstable/sql/SqlClient";
 import type { Connection } from "effect/unstable/sql/SqlConnection";
 import { classifySqliteError, SqlError } from "effect/unstable/sql/SqlError";
 import * as Statement from "effect/unstable/sql/Statement";
-import sqlite3 from "@journeyapps/sqlcipher";
+import { chmodSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import type { StatementSync } from "node:sqlite";
 
+import { decryptSqliteBytes, encryptSqliteBytes } from "./database-cipher.js";
 import { DatabaseOpenError, DatabasePragmaError } from "./errors.js";
 import { secureDatabaseFile, type DatabaseConfig } from "./config.js";
 
@@ -37,127 +40,104 @@ interface SqliteConnection extends Connection {
   readonly backup: (destination: string) => Effect.Effect<BackupMetadata, SqlError>;
 }
 
-type SqlcipherDatabase = InstanceType<typeof sqlite3.Database> & {
-  backup: (
-    filename: string,
-    callback?: (error: Error | null) => void,
-  ) => {
-    step: (pages: number, callback: (error: Error | null) => void) => void;
-    finish: (callback: (error: Error | null) => void) => void;
-    pageCount: number;
-    remaining: number;
-  };
-};
-
-type SqliteScalar = string | number | bigint | Uint8Array | null;
-type SqliteRow = Readonly<Record<string, SqliteScalar>>;
-const runAll = (
-  db: SqlcipherDatabase,
-  sql: string,
-  params: ReadonlyArray<unknown>,
-): Promise<ReadonlyArray<SqliteRow>> =>
-  new Promise((resolve, reject) => {
-    db.all(sql, params, (error, rows) => {
-      if (error) reject(error);
-      else {
-        // SAFETY: sqlite3 returns row objects whose values are SQLite scalar values.
-        resolve((rows ?? []) as ReadonlyArray<SqliteRow>);
-      }
-    });
-  });
-
-const runExec = (db: SqlcipherDatabase, sql: string): Promise<void> =>
-  new Promise((resolve, reject) => {
-    db.exec(sql, (error) => {
-      if (error) reject(error);
-      else resolve();
-    });
-  });
-
-const runRaw = (
-  db: SqlcipherDatabase,
-  sql: string,
-  params: ReadonlyArray<unknown>,
-): Promise<{ changes: number; lastInsertRowid: number }> =>
-  new Promise((resolve, reject) => {
-    db.run(sql, params, function onRun(error) {
-      if (error) reject(error);
-      else resolve({ changes: this.changes, lastInsertRowid: this.lastID });
-    });
-  });
-
-const openDatabase = (filename: string): Promise<SqlcipherDatabase> =>
-  new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(filename, (error) => {
-      if (error) reject(error);
-      else {
-        // SAFETY: The database is opened through the SQLCipher driver and its required backup API is part of the adapter contract.
-        resolve(db as SqlcipherDatabase);
-      }
-    });
-  });
-
-const closeDatabase = (db: SqlcipherDatabase): Promise<void> =>
-  new Promise((resolve, reject) => {
-    db.close((error) => {
-      if (error) reject(error);
-      else resolve();
-    });
-  });
-
-const pragmaValue = async (db: SqlcipherDatabase, pragma: string, key = pragma) => {
-  const rows = await runAll(db, `PRAGMA ${pragma}`, []);
-  const row = rows[0];
-  if (row === undefined) return undefined;
-  if (key in row) return row[key];
-  const values = Object.values(row);
-  return values[0];
-};
-
 const classify = (cause: unknown, message: string, operation: string) =>
   new SqlError({ reason: classifySqliteError(cause, { message, operation }) });
 
-const rawKeyPragma = (dek: Uint8Array) => `PRAGMA key = "x'${Buffer.from(dek).toString("hex")}'"`;
-
-const configureEncryptedConnection = async (db: SqlcipherDatabase, dek: Uint8Array) => {
-  db.configure("busyTimeout", 5_000);
-  await runExec(db, rawKeyPragma(dek));
-  const cipherVersion = await pragmaValue(db, "cipher_version");
-  if (!Schema.is(Schema.String)(cipherVersion) || cipherVersion.length === 0) {
-    throw new DatabasePragmaError({
-      pragma: "cipher_version",
-      expected: "a SQLCipher version string",
-      actual: cipherVersion,
-      cause: undefined,
-      message: "SQLCipher is not active on the Vault database connection",
-    });
+const fileSize = (path: string) => {
+  try {
+    const info = statSync(path);
+    return info.isFile() ? info.size : 0;
+  } catch (cause) {
+    if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return 0;
+    throw cause;
   }
-  await runExec(db, "PRAGMA cipher_compatibility = 4");
-  await runExec(db, "PRAGMA temp_store = MEMORY");
-  const tempStore = await pragmaValue(db, "temp_store");
-  if (tempStore !== 2) {
+};
+
+const persistCiphertext = (db: DatabaseSync, dek: Uint8Array, destination: string) => {
+  const packed = encryptSqliteBytes(dek, db.serialize());
+  mkdirSync(dirname(destination), { recursive: true, mode: 0o700 });
+  const temporary = `${destination}.tmp`;
+  writeFileSync(temporary, packed, { mode: 0o600 });
+  chmodSync(temporary, 0o600);
+  renameSync(temporary, destination);
+};
+
+type SqliteBindValue = string | number | bigint | Uint8Array | null;
+type SqliteRow = { readonly [column: string]: SqliteBindValue };
+
+const sqliteBindParams = (params: ReadonlyArray<unknown>): Array<SqliteBindValue> => {
+  // SAFETY: Effect SqlClient bind parameters are SQLite values; node:sqlite accepts them as a rest array.
+  return params as Array<SqliteBindValue>;
+};
+
+const sqliteResultRows = (rows: ReadonlyArray<SqliteRow>): ReadonlyArray<object> => rows;
+
+const sqliteRowValues = (row: SqliteRow): ReadonlyArray<unknown> => Object.values(row);
+
+const sqliteMutationResult = (result: {
+  readonly changes: number | bigint;
+  readonly lastInsertRowid: number | bigint;
+}): ReadonlyArray<object> => {
+  // SAFETY: Effect's raw execute path expects the mutation metadata as a one-row array.
+  return [{ changes: result.changes, lastInsertRowid: result.lastInsertRowid }];
+};
+
+const configureMemoryDatabase = (db: DatabaseSync) => {
+  db.exec("PRAGMA busy_timeout = 5000");
+  db.exec("PRAGMA temp_store = MEMORY");
+  db.exec("PRAGMA foreign_keys = ON");
+  db.exec("PRAGMA synchronous = FULL");
+  // SAFETY: PRAGMA temp_store returns one row whose temp_store column is 2 when MEMORY is in effect.
+  const tempStore = db.prepare("PRAGMA temp_store").get() as { temp_store?: number } | undefined;
+  // SAFETY: PRAGMA foreign_keys returns one row whose foreign_keys column is 1 when enforcement is on.
+  const foreignKeys = db.prepare("PRAGMA foreign_keys").get() as
+    | { foreign_keys?: number }
+    | undefined;
+  const tempValue =
+    tempStore === undefined ? undefined : (tempStore.temp_store ?? Object.values(tempStore)[0]);
+  const foreignValue =
+    foreignKeys === undefined
+      ? undefined
+      : (foreignKeys.foreign_keys ?? Object.values(foreignKeys)[0]);
+  if (tempValue !== 2) {
     throw new DatabasePragmaError({
       pragma: "temp_store",
       expected: "2 (MEMORY)",
-      actual: tempStore,
+      actual: tempValue,
       cause: undefined,
       message: "SQLite temporary storage was not confined to memory",
     });
   }
-  await runExec(db, "PRAGMA foreign_keys = ON");
-  await runExec(db, "PRAGMA synchronous = FULL");
-  await runExec(db, "PRAGMA journal_mode = WAL");
-  const foreignKeys = await pragmaValue(db, "foreign_keys");
-  if (foreignKeys !== 1) {
+  if (foreignValue !== 1) {
     throw new DatabasePragmaError({
       pragma: "foreign_keys",
       expected: "1",
-      actual: foreignKeys,
+      actual: foreignValue,
       cause: undefined,
-      message: `SQLite foreign-key enforcement was not enabled (received ${String(foreignKeys)})`,
+      message: `SQLite foreign-key enforcement was not enabled (received ${String(foreignValue)})`,
     });
   }
-  await runAll(db, "SELECT count(*) AS n FROM sqlite_master", []);
+};
+
+const openMemoryDatabase = (filename: string, dek: Uint8Array) => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    const size = fileSize(filename);
+    if (size > 0) {
+      db.deserialize(decryptSqliteBytes(dek, readFileSync(filename)));
+    }
+    configureMemoryDatabase(db);
+    persistCiphertext(db, dek, filename);
+    return db;
+  } catch (cause) {
+    db.close();
+    if (cause instanceof DatabasePragmaError) throw cause;
+    throw new DatabaseOpenError({
+      path: filename,
+      cause,
+      message: `Could not open the encrypted Vault database: ${filename}`,
+    });
+  }
 };
 
 export const makeEncryptedSqliteClient = (options: {
@@ -169,22 +149,14 @@ export const makeEncryptedSqliteClient = (options: {
   Scope.Scope | Reactivity.Reactivity
 > =>
   Effect.gen(function* () {
+    const dek = new Uint8Array(options.dek);
     const compiler = Statement.makeCompilerSqlite();
     const makeConnection = Effect.gen(function* () {
       const scope = yield* Effect.scope;
-      const db = yield* Effect.tryPromise({
-        try: async () => {
-          const opened = await openDatabase(options.filename);
-          try {
-            await configureEncryptedConnection(opened, options.dek);
-            return opened;
-          } catch (cause) {
-            await closeDatabase(opened).catch(() => undefined);
-            throw cause;
-          }
-        },
+      const db = yield* Effect.try({
+        try: () => openMemoryDatabase(options.filename, dek),
         catch: (cause) =>
-          cause instanceof DatabasePragmaError
+          cause instanceof DatabasePragmaError || cause instanceof DatabaseOpenError
             ? cause
             : new DatabaseOpenError({
                 path: options.filename,
@@ -192,58 +164,95 @@ export const makeEncryptedSqliteClient = (options: {
                 message: `Could not open the encrypted Vault database: ${options.filename}`,
               }),
       });
+      const persist = () => {
+        if (!db.isOpen) return;
+        persistCiphertext(db, dek, options.filename);
+      };
       yield* Scope.addFinalizer(
         scope,
-        Effect.promise(() => closeDatabase(db).catch(() => undefined)),
+        Effect.sync(() => {
+          try {
+            persist();
+          } finally {
+            dek.fill(0);
+            if (db.isOpen) db.close();
+          }
+        }),
       );
 
       const prepareCache = yield* Cache.make({
         capacity: 200,
         timeToLive: Duration.minutes(10),
-        lookup: (sql: string) => Effect.succeed(sql),
+        lookup: (sql: string) =>
+          Effect.try({
+            try: () => db.prepare(sql),
+            catch: (cause) => classify(cause, "Failed to prepare statement", "prepare"),
+          }),
       });
 
-      const run = (sql: string, params: ReadonlyArray<unknown>, raw = false) =>
-        Effect.tryPromise({
-          try: async () => {
-            if (raw) {
-              return [await runRaw(db, sql, params)];
-            }
-            return await runAll(db, sql, params);
-          },
-          catch: (cause) => classify(cause, "Failed to execute statement", "execute"),
+      const runStatement = (
+        statement: StatementSync,
+        params: ReadonlyArray<unknown>,
+        raw: boolean,
+      ) =>
+        Effect.withFiber<ReadonlyArray<object>, SqlError>((fiber) => {
+          const useSafeIntegers = Context.get(fiber.context, Client.SafeIntegers);
+          return Effect.try({
+            try: () => {
+              statement.setReadBigInts(useSafeIntegers);
+              if (statement.columns().length > 0) {
+                // SAFETY: node:sqlite statement.all returns column-name objects for SELECT statements.
+                return sqliteResultRows(
+                  statement.all(...sqliteBindParams(params)) as ReadonlyArray<SqliteRow>,
+                );
+              }
+              const result = statement.run(...sqliteBindParams(params));
+              persist();
+              return raw ? sqliteMutationResult(result) : [];
+            },
+            catch: (cause) => classify(cause, "Failed to execute statement", "execute"),
+          });
         });
 
-      const execute = (sql: string, params: ReadonlyArray<unknown>, raw = false) =>
-        Cache.get(prepareCache, sql).pipe(Effect.flatMap(() => run(sql, params, raw)));
+      const run = (sql: string, params: ReadonlyArray<unknown>, raw = false) =>
+        Effect.flatMap(Cache.get(prepareCache, sql), (statement) =>
+          runStatement(statement, params, raw),
+        );
 
       return identity<SqliteConnection>({
         execute(sql, params, transformRows) {
-          return transformRows
-            ? Effect.map(execute(sql, params), transformRows)
-            : execute(sql, params);
+          return transformRows ? Effect.map(run(sql, params), transformRows) : run(sql, params);
         },
         executeRaw(sql, params) {
-          return execute(sql, params, true);
+          return run(sql, params, true);
         },
         executeValues(sql, params) {
-          return Effect.map(execute(sql, params), (rows) => rows.map((row) => Object.values(row)));
+          return Effect.map(run(sql, params), (rows) =>
+            rows.map((row) => {
+              // SAFETY: SELECT rows from node:sqlite are column-name objects.
+              return sqliteRowValues(row as SqliteRow);
+            }),
+          );
         },
         executeValuesUnprepared(sql, params) {
-          return Effect.map(execute(sql, params), (rows) => rows.map((row) => Object.values(row)));
+          return Effect.map(run(sql, params), (rows) =>
+            rows.map((row) => {
+              // SAFETY: SELECT rows from node:sqlite are column-name objects.
+              return sqliteRowValues(row as SqliteRow);
+            }),
+          );
         },
         executeUnprepared(sql, params, transformRows) {
-          const effect = execute(sql, params ?? [], false);
+          const effect = runStatement(db.prepare(sql), params ?? [], false);
           return transformRows ? Effect.map(effect, transformRows) : effect;
         },
         executeStream() {
           return Stream.die("executeStream not implemented");
         },
         backup(destination) {
-          const escaped = destination.replaceAll("'", "''");
-          return Effect.tryPromise({
-            try: async () => {
-              await runExec(db, `VACUUM INTO '${escaped}'`);
+          return Effect.try({
+            try: () => {
+              persistCiphertext(db, dek, destination);
               return { totalPages: 0, remainingPages: 0 };
             },
             catch: (cause) => classify(cause, "Failed to backup database", "backup"),

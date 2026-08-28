@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
@@ -17,6 +18,7 @@ export const DATABASE_CONTEXT_ENV = "SATELLA_DATABASE_CONTEXT";
 export const DEVELOPMENT_DATABASE_CONTEXT = "development";
 export const PRODUCTION_DATABASE_CONTEXT = "production";
 export const WORKTREE_DATA_DIRECTORY_NAME = ".satella";
+export const HOME_DATA_DIRECTORY_NAME = ".satella";
 export const ENVELOPE_FILE_NAME = "vault.envelope.json";
 export const DATABASE_FILE_NAME = "satella.sqlite";
 
@@ -122,26 +124,16 @@ const resolveGitWorktreeRoot = Effect.tryPromise({
     }),
 });
 
+const homeDataDirectory = () =>
+  locationFromDirectory(join(homedir(), HOME_DATA_DIRECTORY_NAME), undefined);
+
 export const resolveDatabaseLocation = (
   override: string | undefined = process.env[DATA_DIRECTORY_ENV],
   canonicalOverride: string | undefined = process.env[CANONICAL_DATA_DIRECTORY_ENV],
 ): Effect.Effect<DatabaseLocation, DatabaseConfigError> => {
-  if (process.env[DATABASE_CONTEXT_ENV] === PRODUCTION_DATABASE_CONTEXT) {
-    if (canonicalOverride === undefined) {
-      return Effect.fail(
-        new DatabaseConfigError({
-          reason: "production-not-configured",
-          path: "",
-          cause: undefined,
-          message: "Production database ownership must be supplied by the packaged desktop.",
-        }),
-      );
-    }
-    return validateOverride(canonicalOverride);
-  }
-
-  if (override !== undefined) {
-    return validateOverride(override);
+  const explicit = override ?? canonicalOverride;
+  if (explicit !== undefined) {
+    return validateOverride(explicit);
   }
 
   if (process.env[DATABASE_CONTEXT_ENV] === DEVELOPMENT_DATABASE_CONTEXT) {
@@ -152,15 +144,7 @@ export const resolveDatabaseLocation = (
     );
   }
 
-  return Effect.fail(
-    new DatabaseConfigError({
-      reason: "production-not-configured",
-      path: "",
-      cause: undefined,
-      message:
-        "Production database location is not configured. Set SATELLA_DATA_DIR to an absolute directory, or start the engine through a development command.",
-    }),
-  );
+  return Effect.succeed(homeDataDirectory());
 };
 
 const makeConfig = (override: string | undefined) =>
@@ -249,13 +233,7 @@ export const resolveDatabaseConfig = Effect.sync(() => ({
   override: process.env[DATA_DIRECTORY_ENV],
   canonicalOverride: process.env[CANONICAL_DATA_DIRECTORY_ENV],
 })).pipe(
-  Effect.flatMap(({ override, canonicalOverride }) =>
-    makeConfig(
-      process.env[DATABASE_CONTEXT_ENV] === PRODUCTION_DATABASE_CONTEXT
-        ? canonicalOverride
-        : override,
-    ),
-  ),
+  Effect.flatMap(({ override, canonicalOverride }) => makeConfig(override ?? canonicalOverride)),
 );
 
 export const DatabaseConfigLive = Layer.effect(DatabaseConfig, resolveDatabaseConfig);

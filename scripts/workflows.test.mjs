@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { test } from "node:test";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
@@ -14,32 +14,15 @@ test("source test jobs build every connector imported by the engine", async () =
   }
 });
 
-test("every push to main publishes an immutable nightly prerelease after the CI gate", async () => {
+test("automatic Electron nightlies are not published", async () => {
   const ci = await read("../.github/workflows/ci.yml");
-  const nightly = await read("../.github/workflows/nightly.yml");
   assert.doesNotMatch(ci, /^ {2}nightly:/m);
-  assert.match(nightly, /name: Nightly/);
-  assert.match(nightly, /workflow_run:/);
-  assert.match(nightly, /workflows:\s*\n\s*- CI/);
-  assert.match(nightly, /types:\s*\n\s*- completed/);
-  assert.match(nightly, /branches:\s*\n\s*- main/);
-  assert.match(nightly, /if: >-?\s*\n\s*\$\{\{ github\.event\.workflow_run\.event == 'push'/);
-  assert.match(nightly, /github\.event\.workflow_run\.head_branch == 'main'/);
-  assert.match(nightly, /github\.event\.workflow_run\.conclusion == 'success'/);
-  assert.match(nightly, /runs-on: macos-14/);
-  assert.match(nightly, /group: satella-nightly\n\s*cancel-in-progress: false/);
-  assert.match(nightly, /contents: write/);
-  assert.match(nightly, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
-  assert.match(nightly, /COMMIT_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
-  assert.match(nightly, /next-nightly/);
-  assert.match(nightly, /git tag -a "\$\{TAG\}" "\$\{COMMIT_SHA\}"/);
-  assert.match(nightly, /--prerelease/);
-  assert.match(nightly, /--generate-notes/);
-  // Nightly tags must never be mistaken for release versions by Ship Satella.
-  assert.doesNotMatch(nightly, /retention-days/);
+  await assert.rejects(() => stat(new URL("../.github/workflows/nightly.yml", import.meta.url)), {
+    code: "ENOENT",
+  });
 });
 
-test("Ship Satella accepts no inputs, runs on main, and publishes a prerelease", async () => {
+test("Ship Satella accepts no inputs, runs on main, and publishes a prerelease tarball", async () => {
   const ship = await read("../.github/workflows/release.yml");
   const dispatch = ship.slice(ship.indexOf("workflow_dispatch"), ship.indexOf("concurrency:"));
   assert.match(dispatch, /workflow_dispatch: \{\}/);
@@ -51,6 +34,9 @@ test("Ship Satella accepts no inputs, runs on main, and publishes a prerelease",
   assert.match(ship, /--prerelease/);
   assert.match(ship, /--generate-notes/);
   assert.match(ship, /assert-publishable/);
+  assert.match(ship, /satella-app-\$\{\{ needs\.resolve\.outputs\.version \}\}\.tgz/);
+  assert.match(ship, /satella-app-\$RELEASE_VERSION\.tgz/);
+  assert.doesNotMatch(ship, /macOS-arm64\.zip/);
   assert.doesNotMatch(ship, /\bminor\b.*bump|major.*bump/i);
 });
 

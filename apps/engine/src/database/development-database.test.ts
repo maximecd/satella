@@ -1,4 +1,5 @@
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import * as Effect from "effect/Effect";
@@ -10,10 +11,8 @@ import {
   createGitCheckouts,
   dataDirectory,
   databaseFile,
-  engineMain,
   inspectDirectory,
   runDb,
-  runNodeScript,
   startEngine,
   vaultStatusForDirectory,
 } from "./development-database.test-utils.js";
@@ -469,8 +468,9 @@ tls.connect = deny;
     }
   });
 
-  it("logs the worktree database during development startup and refuses unconfigured production startup", async () => {
+  it("logs the worktree database during development startup and uses home .satella in production", async () => {
     const checkouts = await createGitCheckouts();
+    const fakeHome = await mkdtemp(join(tmpdir(), "satella-prod-home-"));
     try {
       const engine = await startEngine({ cwd: checkouts.main });
       try {
@@ -479,13 +479,21 @@ tls.connect = deny;
         await engine.stop();
       }
 
-      const production = await runNodeScript(engineMain, [], {
+      const production = await startEngine({
         cwd: checkouts.main,
-        env: commandEnv(),
+        env: {
+          SATELLA_DATABASE_CONTEXT: "production",
+          HOME: fakeHome,
+        },
       });
-      expect(production.code).not.toBe(0);
-      expect(production.output).toMatch(/production database/i);
+      try {
+        expect(production.output()).toContain(join(fakeHome, ".satella"));
+        expect(production.output()).not.toContain(databaseFile(checkouts.main));
+      } finally {
+        await production.stop();
+      }
     } finally {
+      await rm(fakeHome, { recursive: true, force: true });
       await checkouts.dispose();
     }
   });

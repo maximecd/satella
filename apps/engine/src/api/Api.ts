@@ -10,9 +10,12 @@ import {
   ChangeScreenLockPinInput,
   ChangeVaultPasswordInput,
   ExportVaultInput,
+  ExportVaultDownloadInput,
+  ExportVaultDownloadResult,
   InitializeVaultInput,
   ResetVaultInput,
   RestoreVaultInput,
+  RestoreVaultUploadInput,
   ScreenLockTimeoutInput,
   ScreenLockActivityInput,
   UnlockScreenInput,
@@ -400,8 +403,22 @@ export const VaultApi = HttpApiGroup.make("vault")
     }),
   )
   .add(
+    HttpApiEndpoint.post("exportVaultDownload", "/api/vault/export-download", {
+      payload: ExportVaultDownloadInput,
+      success: ExportVaultDownloadResult,
+      error: VaultApiError,
+    }),
+  )
+  .add(
     HttpApiEndpoint.post("restoreVault", "/api/vault/restore", {
       payload: RestoreVaultInput,
+      success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("restoreVaultUpload", "/api/vault/restore-upload", {
+      payload: RestoreVaultUploadInput,
       success: VaultStatus,
       error: VaultApiError,
     }),

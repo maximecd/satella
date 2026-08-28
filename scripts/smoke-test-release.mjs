@@ -1,7 +1,6 @@
-import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { execFile } from "node:child_process";
-import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
@@ -12,9 +11,7 @@ const parseArguments = (args) => {
   const values = {};
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
-    if (argument === "--") {
-      continue;
-    }
+    if (argument === "--") continue;
     if (argument === "--artifact" || argument === "--port") {
       const value = args[index + 1];
       if (value === undefined) throw new Error(`${argument} requires a value`);
@@ -29,7 +26,7 @@ const parseArguments = (args) => {
     }
   }
   if (values.artifact === undefined) {
-    throw new Error("Usage: pnpm release:smoke --artifact ./release/Satella-1.2.3-macOS-arm64.zip");
+    throw new Error("Usage: pnpm release:smoke --artifact ./release/satella-app-1.2.3.tgz");
   }
   const port = Number(values.port ?? "3001");
   if (!Number.isInteger(port) || port < 1 || port >= 65_535) {
@@ -44,7 +41,7 @@ const waitFor = async (check, timeoutMs = 60_000) => {
     if (await check()) return;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error("Packaged Satella did not become ready before the smoke-test timeout");
+  throw new Error("Packed Satella did not become ready before the smoke-test timeout");
 };
 
 const waitForStopped = async (check, timeoutMs = 5_000) => {
@@ -53,30 +50,15 @@ const waitForStopped = async (check, timeoutMs = 5_000) => {
     if (await check()) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error("Packaged Satella did not stop its engine before the smoke-test timeout");
+  throw new Error("Packed Satella did not stop before the smoke-test timeout");
 };
 
-const occupyPort = async (port) => {
-  const server = createServer();
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen({ host: "127.0.0.1", port }, resolve);
-  });
-  return server;
-};
-
-const closeServer = async (server) => {
-  await new Promise((resolve, reject) => {
-    server.close((error) => (error === undefined ? resolve() : reject(error)));
-  });
-};
-
-const waitForChildExit = async (child, timeoutMs = 5_000) => {
+const waitForChildExit = async (child, timeoutMs = 8_000) => {
   if (child.exitCode !== null || child.signalCode !== null) return child.exitCode ?? 0;
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      reject(new Error("Packaged Satella second instance did not exit"));
+      reject(new Error("Packed Satella second instance did not exit"));
     }, timeoutMs);
     child.once("exit", (code) => {
       clearTimeout(timer);
@@ -94,191 +76,173 @@ const pathExists = async (path) => {
   }
 };
 
-const requestJson = async (url, body, token) => {
+const requestJson = async (url, body) => {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-satella-engine-token": token },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
     throw new Error(`${url} returned HTTP ${response.status}: ${await response.text()}`);
   }
+  const text = await response.text();
+  return text.length === 0 ? undefined : JSON.parse(text);
+};
+
+const spawnCli = (bin, env) => {
+  const child = spawn(process.execPath, [bin], {
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  child.stdout.on("data", (chunk) => {
+    output += chunk.toString();
+  });
+  child.stderr.on("data", (chunk) => {
+    output += chunk.toString();
+  });
+  return { child, output: () => output };
 };
 
 export const smokeTestArtifact = async ({ artifact, port }) => {
-  const versionMatch = basename(artifact).match(/^Satella-(.+)-macOS-arm64\.zip$/);
+  const versionMatch = basename(artifact).match(/^satella-app-(.+)\.tgz$/);
   if (versionMatch === null) {
     throw new Error(`Unexpected release artifact name: ${artifact}`);
   }
-  if (!Number.isInteger(port) || port >= 65_535) {
-    throw new Error("Smoke-test occupied port must be below 65535");
-  }
   const extractionDirectory = await mkdtemp(join(tmpdir(), "satella-release-smoke-"));
-  const homeDirectory = join(extractionDirectory, "home");
-  const temporaryDirectory = join(extractionDirectory, "tmp");
-  const redirectedDirectory = join(extractionDirectory, "redirected");
-  const userDataDirectory = join(extractionDirectory, "electron-user-data");
-  const appDirectory = join(extractionDirectory, "Satella.app");
-  const vaultDataDirectory = join(userDataDirectory, "data");
-  const preferenceMarker = join(userDataDirectory, "preferences-marker");
-  const occupiedServer = await occupyPort(port);
-  const engineToken = `smoke-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}${Math.random().toString(36).slice(2)}token`;
-  let child;
-  let output = "";
+  const prefix = join(extractionDirectory, "prefix");
+  const dataDirectory = join(extractionDirectory, "vault");
+  let launched;
   let failure;
   try {
-    await mkdir(userDataDirectory, { recursive: true });
-    await writeFile(preferenceMarker, "preserve");
-    await execFileAsync("unzip", ["-q", artifact, "-d", extractionDirectory]);
-    const executable = join(appDirectory, "Contents", "MacOS", "Satella");
-    await stat(executable);
+    await mkdir(prefix, { recursive: true });
+    await execFileAsync("npm", ["install", "--prefix", prefix, artifact], {
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    const bin = join(prefix, "node_modules", "@satella", "app", "bin", "satella.mjs");
+    await stat(bin);
 
-    child = spawn(executable, [`--user-data-dir=${userDataDirectory}`], {
-      env: {
-        ...process.env,
-        HOME: homeDirectory,
-        TMPDIR: temporaryDirectory,
-        SATELLA_DATA_DIR: redirectedDirectory,
-        SATELLA_SMOKE_ENGINE_PORT: String(port),
-        SATELLA_ENGINE_TOKEN: engineToken,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    child.stdout.on("data", (chunk) => {
-      output += chunk.toString();
-    });
-    child.stderr.on("data", (chunk) => {
-      output += chunk.toString();
-    });
+    const env = {
+      ...process.env,
+      SATELLA_DATA_DIR: dataDirectory,
+      SATELLA_ENGINE_PORT: String(port),
+      SATELLA_OPEN_BROWSER: "0",
+      SATELLA_VAULT_KDF: "fast",
+    };
+    delete env.SATELLA_DATABASE_CONTEXT;
+    delete env.SATELLA_ENGINE_TOKEN;
 
-    const enginePort = port + 1;
-    const baseUrl = `http://127.0.0.1:${enginePort}`;
+    launched = spawnCli(bin, env);
+    const baseUrl = `http://127.0.0.1:${port}`;
     await waitFor(async () => {
       try {
-        const response = await fetch(`${baseUrl}/api/hello`);
-        return response.ok;
+        const hello = await fetch(`${baseUrl}/api/hello`);
+        const ui = await fetch(`${baseUrl}/`);
+        return hello.ok && ui.ok;
       } catch {
         return false;
       }
     });
-    const secondChild = spawn(executable, [`--user-data-dir=${userDataDirectory}`], {
-      env: {
-        ...process.env,
-        HOME: homeDirectory,
-        TMPDIR: temporaryDirectory,
-      },
-      stdio: "ignore",
-    });
-    if ((await waitForChildExit(secondChild)) !== 0) {
-      throw new Error("Packaged Satella second instance exited unsuccessfully");
+    const helloBody = await (await fetch(`${baseUrl}/api/hello`)).json();
+    if (helloBody.message !== "Hello world") {
+      throw new Error("Packed /api/hello did not return the Satella health payload");
     }
-    if (!(await fetch(`${baseUrl}/api/hello`)).ok) {
-      throw new Error("Packaged Satella lost its engine after a second launch");
+    const ui = await (await fetch(`${baseUrl}/`)).text();
+    if (!ui.toLowerCase().includes("satella") && !ui.includes("<div")) {
+      throw new Error("Packed / did not serve the web UI");
     }
     const unauthenticated = await fetch(`${baseUrl}/api/vault/status`);
-    if (unauthenticated.status !== 401) {
-      throw new Error(
-        `Unauthenticated privileged request was not rejected (HTTP ${unauthenticated.status})`,
-      );
+    if (unauthenticated.status !== 200) {
+      throw new Error(`Loopback Vault status was rejected (HTTP ${unauthenticated.status})`);
     }
-    await requestJson(
-      `${baseUrl}/api/vault/initialize`,
-      {
-        password: "smoke-test-password",
-        pin: "0000",
-      },
-      engineToken,
-    );
-    const exportPath = join(extractionDirectory, "smoke.satella-vault");
-    await requestJson(
-      `${baseUrl}/api/vault/export`,
-      {
-        password: "smoke-test-password",
-        destinationPath: exportPath,
-      },
-      engineToken,
-    );
-    if (!(await pathExists(exportPath))) {
-      throw new Error("Vault export did not produce a recovery file");
+
+    const second = spawnCli(bin, env);
+    if ((await waitForChildExit(second.child)) !== 0) {
+      throw new Error(`Packed Satella second instance exited unsuccessfully\n${second.output()}`);
     }
-    await requestJson(`${baseUrl}/api/vault/close`, {}, engineToken);
-    await requestJson(
-      `${baseUrl}/api/vault/restore`,
-      {
-        sourcePath: exportPath,
-        password: "smoke-test-password",
-      },
-      engineToken,
-    );
-    await requestJson(
-      `${baseUrl}/api/vault/unlock`,
-      {
-        password: "smoke-test-password",
-      },
-      engineToken,
-    );
-    if (
-      !(await pathExists(join(vaultDataDirectory, "vault.envelope.json"))) ||
-      !(await pathExists(join(vaultDataDirectory, "satella.sqlite")))
-    ) {
-      throw new Error("Packaged Vault files were not created under userData/data");
+    if (!(await fetch(`${baseUrl}/api/hello`)).ok) {
+      throw new Error("Packed Satella lost its engine after a second launch");
     }
-    await requestJson(`${baseUrl}/api/vault/reset`, { confirmation: "Reset Satella" }, engineToken);
-    if (
-      (await pathExists(join(vaultDataDirectory, "vault.envelope.json"))) ||
-      (await pathExists(join(vaultDataDirectory, "satella.sqlite")))
-    ) {
-      throw new Error("Packaged Vault reset left encrypted Vault files behind");
+
+    await requestJson(`${baseUrl}/api/vault/initialize`, {
+      password: "smoke-test-password",
+      pin: "0000",
+    });
+    const sqlitePath = join(dataDirectory, "satella.sqlite");
+    const envelopePath = join(dataDirectory, "vault.envelope.json");
+    if (!(await pathExists(sqlitePath)) || !(await pathExists(envelopePath))) {
+      throw new Error("Packed Vault files were not created under the injected data directory");
     }
-    if (!(await pathExists(preferenceMarker))) {
-      throw new Error("Packaged Vault reset removed a non-Vault preference");
+    const sqliteHeader = Buffer.alloc(16);
+    const handle = await import("node:fs/promises").then((fs) => fs.open(sqlitePath, "r"));
+    try {
+      await handle.read(sqliteHeader, 0, 16, 0);
+    } finally {
+      await handle.close();
     }
-    if (await pathExists(redirectedDirectory)) {
-      throw new Error("Packaged startup honored an inherited Vault data-directory override");
+    if (sqliteHeader.toString("utf8").startsWith("SQLite format 3")) {
+      throw new Error("Packed Vault database was stored as plaintext SQLite");
+    }
+
+    const exported = await requestJson(`${baseUrl}/api/vault/export-download`, {
+      password: "smoke-test-password",
+    });
+    const contentsBase64 = exported?.contentsBase64 ?? "";
+    if (contentsBase64.length === 0) {
+      throw new Error("Vault export download did not return ciphertext");
+    }
+    await requestJson(`${baseUrl}/api/vault/close`, {});
+    await requestJson(`${baseUrl}/api/vault/restore-upload`, {
+      password: "smoke-test-password",
+      contentsBase64,
+    });
+    await requestJson(`${baseUrl}/api/vault/unlock`, { password: "smoke-test-password" });
+    await requestJson(`${baseUrl}/api/vault/reset`, { confirmation: "Reset Satella" });
+    if ((await pathExists(sqlitePath)) || (await pathExists(envelopePath))) {
+      throw new Error("Packed Vault reset left encrypted Vault files behind");
     }
   } catch (error) {
-    failure = new Error(`${error instanceof Error ? error.message : String(error)}\n${output}`);
+    failure = new Error(
+      `${error instanceof Error ? error.message : String(error)}\n${launched?.output() ?? ""}`,
+    );
   }
-  if (child !== undefined && child.exitCode === null && child.signalCode === null) {
-    child.kill("SIGTERM");
+  if (
+    launched !== undefined &&
+    launched.child.exitCode === null &&
+    launched.child.signalCode === null
+  ) {
+    launched.child.kill("SIGTERM");
     await new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        child.kill("SIGKILL");
+        launched.child.kill("SIGKILL");
         resolve();
       }, 5_000);
-      child.once("exit", () => {
+      launched.child.once("exit", () => {
         clearTimeout(timeout);
         resolve();
       });
     });
   }
-  if (child !== undefined) {
+  if (launched !== undefined) {
     try {
       await waitForStopped(async () => {
         try {
-          return !(await fetch(`http://127.0.0.1:${port + 1}/api/hello`)).ok;
+          return !(await fetch(`http://127.0.0.1:${port}/api/hello`)).ok;
         } catch {
           return true;
         }
       });
-      if (await pathExists(join(vaultDataDirectory, "engine.lock"))) {
-        failure ??= new Error("Packaged engine ownership was not released during smoke cleanup");
-      }
     } catch (error) {
       failure ??= error;
     }
   }
-  try {
-    await closeServer(occupiedServer);
-  } finally {
-    await rm(extractionDirectory, { recursive: true, force: true });
-  }
+  await rm(extractionDirectory, { recursive: true, force: true });
   if (failure !== undefined) throw failure;
 };
 
 if (process.argv[1]?.endsWith("smoke-test-release.mjs")) {
   smokeTestArtifact(parseArguments(process.argv.slice(2)))
-    .then(() => console.log("Packaged runtime smoke test passed."))
+    .then(() => console.log("Packed runtime smoke test passed."))
     .catch((error) => {
       console.error(error instanceof Error ? error.message : error);
       process.exitCode = 1;

@@ -63,7 +63,7 @@
       },
       "lockNow": "Lock now",
       "privacyNote": "Screen lock is interface privacy, not Vault encryption. Encryption protects copied files while the Vault is closed.",
-      "licenseNote": "SQLCipher Community Edition is included under the BSD-3-Clause license. Notices ship with this application."
+      "licenseNote": "The Vault is encrypted at rest with AES-256-GCM. The Vault password wraps the database key with Argon2id."
     },
     "restore": {
       "title": "Restore Vault",
@@ -71,6 +71,7 @@
       "passwordLabel": "Exported Vault's password",
       "confirmLabel": "Replace my current Vault and its data",
       "submit": "Restore Vault",
+      "chooseExport": "Choose a Vault export",
       "cancel": "Cancel",
       "successToast": "Vault restored. Unlock with the restored Vault's password.",
       "incorrectPassword": "The Vault password is incorrect.",

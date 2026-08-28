@@ -1,5 +1,9 @@
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
+import { randomBytes } from "node:crypto";
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { EngineApi } from "./Api.js";
 import { VaultApiError } from "../vault/contracts.js";
@@ -149,10 +153,61 @@ export const VaultApiLive = HttpApiBuilder.group(EngineApi, "vault", (handlers) 
         }),
       ),
     )
+    .handle("exportVaultDownload", ({ payload }) =>
+      run(
+        Effect.gen(function* () {
+          const vault = yield* VaultService;
+          const fileName = "satella-vault-export.satella-vault";
+          const destinationPath = join(
+            tmpdir(),
+            `satella-export-${randomBytes(8).toString("hex")}`,
+          );
+          yield* vault.exportVault(payload.password, destinationPath);
+          const bytes = yield* Effect.tryPromise({
+            try: () => readFile(destinationPath),
+            catch: () =>
+              new VaultStateError({
+                reason: "filesystem",
+                message: "The Vault export could not be read for download.",
+              }),
+          });
+          yield* Effect.tryPromise({
+            try: () => rm(destinationPath, { force: true }),
+            catch: () => undefined,
+          }).pipe(Effect.ignore);
+          return { fileName, contentsBase64: bytes.toString("base64") };
+        }),
+      ),
+    )
     .handle("restoreVault", ({ payload }) =>
       run(
         Effect.gen(function* () {
           return yield* (yield* VaultService).restoreVault(payload.sourcePath, payload.password);
+        }),
+      ),
+    )
+    .handle("restoreVaultUpload", ({ payload }) =>
+      run(
+        Effect.gen(function* () {
+          const vault = yield* VaultService;
+          const sourcePath = join(tmpdir(), `satella-restore-${randomBytes(8).toString("hex")}`);
+          yield* Effect.tryPromise({
+            try: () =>
+              writeFile(sourcePath, Buffer.from(payload.contentsBase64, "base64"), { mode: 0o600 }),
+            catch: () =>
+              new VaultStateError({
+                reason: "filesystem",
+                message: "The uploaded Vault export could not be staged.",
+              }),
+          });
+          return yield* vault.restoreVault(sourcePath, payload.password).pipe(
+            Effect.ensuring(
+              Effect.tryPromise({
+                try: () => rm(sourcePath, { force: true }),
+                catch: () => undefined,
+              }).pipe(Effect.ignore),
+            ),
+          );
         }),
       ),
     ),

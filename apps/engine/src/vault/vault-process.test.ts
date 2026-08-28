@@ -45,14 +45,11 @@ const filesContainMarker = async (directory: string) => {
   return false;
 };
 
-let activeToken = "";
-
 const json = async (port: number, path: string, init: RequestInit = {}) => {
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
-      "x-satella-engine-token": activeToken,
       ...init.headers,
     },
   });
@@ -82,7 +79,6 @@ describe("engine Vault process", () => {
       env: { SATELLA_DATA_DIR: directory },
     });
     engines.push(engine);
-    activeToken = engine.token;
     await waitForEngineHello(engine.port);
     return { directory, engine };
   };
@@ -171,7 +167,6 @@ describe("engine Vault process", () => {
       env: { SATELLA_DATA_DIR: directory },
     });
     engines.push(restarted);
-    activeToken = restarted.token;
     await waitForEngineHello(restarted.port);
     expect((await json(restarted.port, "/api/vault/status")).body).toEqual({ state: "locked" });
     expect((await json(restarted.port, "/api/dashboard")).status).toBe(403);

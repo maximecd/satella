@@ -63,10 +63,12 @@ export const commandEnv = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env["SATELLA_DATA_DIR"];
   delete env["SATELLA_DATABASE_CONTEXT"];
+  delete env["SATELLA_ENGINE_TOKEN"];
+  delete env["SATELLA_WEB_DIR"];
   return {
     ...env,
     SATELLA_VAULT_KDF: "fast",
-    SATELLA_ENGINE_TOKEN: "test-engine-token-0123456789abcdef-test",
+    SATELLA_OPEN_BROWSER: "0",
     ...overrides,
   };
 };
@@ -207,10 +209,10 @@ export const startEngine = async (options: {
   readonly env?: NodeJS.ProcessEnv;
 }) => {
   const port = await chooseFreePort();
-  const token = options.env?.SATELLA_ENGINE_TOKEN ?? commandEnv().SATELLA_ENGINE_TOKEN!;
   const env = commandEnv({
     SATELLA_DATABASE_CONTEXT: "development",
     SATELLA_ENGINE_PORT: String(port),
+    SATELLA_OPEN_BROWSER: "0",
     ...options.env,
   });
   const child = spawn(process.execPath, ["--conditions=development", tsxCli, engineMain], {
@@ -255,7 +257,6 @@ export const startEngine = async (options: {
   return {
     output: () => output,
     port,
-    token,
     async stop() {
       if (child.exitCode !== null || child.signalCode !== null) return;
       child.kill("SIGTERM");

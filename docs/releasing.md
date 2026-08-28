@@ -1,45 +1,39 @@
 # Releasing Satella
 
-Satella is distributed as ad-hoc signed macOS Apple Silicon ZIPs. Every push to `main` produces a downloadable nightly build, and the manual **Ship Satella** workflow publishes immutable versioned prereleases.
+Satella ships as an npm tarball (`@satella/app`, bin `satella`). npm registry publish is not wired yet. **Ship Satella** attaches that tarball to an immutable GitHub prerelease. Automatic Electron nightlies are gone.
 
 ## Versioning
 
 All `0.x` releases are alphas; the prerelease flag communicates alpha status, so versions carry no `-alpha` suffix. The first release is `v0.1.0`. **Ship Satella** accepts no inputs: it selects `v0.1.0` when no release tag exists and afterwards increments the patch of the highest existing non-nightly release (`v0.1.1`, `v0.1.2`, …). There is no minor- or major-bump workflow in this scope.
 
-The first nightly established the permanent migration ledger because nightly installations keep their Vault across updates. Released migrations are immutable. Every schema change must be appended as a new timestamped migration that preserves existing Vault data, including changes shipped before `v0.1.0`.
-
-## Nightlies
-
-Every successful push to `main` reruns all CI gates (`check`, `test`, `build`) and then packages one macOS Apple Silicon ZIP and publishes it as an immutable **nightly prerelease**: a `v<next-patch>-nightly.<UTC yyyymmdd>.<run number>` tag on the exact commit (for example `v0.1.1-nightly.20260822.42`) with generated release notes. The separate **Nightly** workflow listens for the successful `CI` workflow completion on `main`, so pull requests do not carry a skipped nightly check. Nightlies are permanent prereleases, so the latest integrated build is always downloadable from the Releases page; they never affect the stable version sequence, which only counts non-nightly tags.
+Released migrations are immutable. Every schema change must be appended as a new timestamped migration that preserves existing Vault data.
 
 ## Shipping a release
 
 Dispatch the **Ship Satella** workflow from `main`. It takes no inputs. The workflow:
 
 1. Selects the next patch version.
-2. Reruns `check`, `test`, `build`, packaging, structural validation, and the packaged-runtime smoke test against the exact selected commit.
+2. Reruns `check`, `test`, `build`, `npm pack`, tarball validation, and the packed-CLI smoke test against the exact selected commit.
 3. Creates the immutable tag only after every gate passes, rechecking immediately before tagging so concurrent runs fail safely instead of double-publishing.
-4. Publishes an immutable GitHub prerelease with generated notes.
+4. Publishes an immutable GitHub prerelease with the tarball and generated notes.
+
+Run the packed CLI from the release asset:
+
+```sh
+npx --yes /path/to/satella-app-0.1.0.tgz
+```
+
+or, after a registry account exists, `npx @satella/app`.
 
 ## Building and validating locally
 
 ```sh
-pnpm release:package --version 1.2.3 --output-dir ./release
-pnpm release:smoke --artifact ./release/Satella-1.2.3-macOS-arm64.zip
+pnpm release:package --version 0.1.0 --output-dir ./release
+pnpm release:smoke --artifact ./release/satella-app-0.1.0.tgz
 ```
 
-The packaging command restores the workspace installation after creating its isolated production dependency tree, so running the smoke command does not require a manual `pnpm install`.
-
-## Gatekeeper
-
-The artifact is ad-hoc signed, not signed with an Apple Developer identity, and not notarized. For this maintainer-only pre-production artifact, macOS may quarantine the application after extraction. If Gatekeeper blocks launch, remove the temporary quarantine attribute from the extracted application:
-
-```sh
-xattr -dr com.apple.quarantine /path/to/Satella.app
-```
-
-This workaround is not a public-distribution or notarization substitute.
+The product listen address is `127.0.0.1:3001`. The smoke command injects an isolated data directory and does not open a browser.
 
 ## Updates and recovery
 
-Application updates remain manual: quit Satella, replace `Satella.app`, and open the existing Vault — replacing the application never replaces the Vault under `~/Library/Application Support/Satella/data`. Before an update, use Settings → Security → Export Vault to save one encrypted `.satella-vault` recovery file; Restore Vault is available on the Welcome and Unlock screens if a release or migration ever fails.
+The production Vault lives in `~/.satella`. Replacing the CLI never replaces that directory. Before an update, use Settings → Security → Export Vault to download one encrypted `.satella-vault` recovery file. Restore Vault is available on the Welcome and Unlock screens.

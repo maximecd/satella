@@ -1,14 +1,31 @@
-import { Button, Checkbox, Heading, Stack, Text } from "@chakra-ui/react";
+import { Button, Checkbox, Heading, Input, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { engineApi } from "../api";
 import { FormError } from "../components";
+import { Field } from "../components/ui/field";
 import { notify } from "../components/ui/toaster";
-import { clearVaultDerivedCaches, chooseVaultImportSource } from "../runtime";
+import { clearVaultDerivedCaches } from "../runtime";
 import { vaultStatusQuery } from "../queries";
 import { SecretField } from "./secret-field";
+
+const readFileAsBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (result === null || result instanceof ArrayBuffer) {
+        reject(new Error("The selected Vault export could not be read."));
+        return;
+      }
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(new Error("The selected Vault export could not be read."));
+    reader.readAsDataURL(file);
+  });
 
 export function RestoreVaultControl({
   requiresConfirmation,
@@ -17,7 +34,7 @@ export function RestoreVaultControl({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [sourcePath, setSourcePath] = useState<string | null>(null);
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,13 +48,15 @@ export function RestoreVaultControl({
   };
 
   const restore = useMutation({
-    mutationFn: (input: { sourcePath: string; password: string }) =>
-      engineApi.restoreVault(input.sourcePath, input.password),
+    mutationFn: async (input: { file: File; password: string }) => {
+      const contentsBase64 = await readFileAsBase64(input.file);
+      return engineApi.restoreVaultUpload(contentsBase64, input.password);
+    },
     onSuccess: async () => {
       await clearVaultDerivedCaches();
       setPassword("");
       setConfirmed(false);
-      setSourcePath(null);
+      setSourceFile(null);
       setError(null);
       notify.success(t("security.restore.successToast"));
       await queryClient.invalidateQueries({ queryKey: vaultStatusQuery.queryKey });
@@ -45,19 +64,19 @@ export function RestoreVaultControl({
     onError: (cause) => setError(errorMessage(cause)),
   });
 
-  if (sourcePath === null) {
+  const onPickFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file === undefined) return;
+    setError(null);
+    setSourceFile(file);
+  };
+
+  if (sourceFile === null) {
     return (
-      <Button
-        variant="outline"
-        onClick={() => {
-          setError(null);
-          void chooseVaultImportSource().then((choice) => {
-            if (choice.kind === "path") setSourcePath(choice.path);
-          });
-        }}
-      >
-        {t("security.restore.submit")}
-      </Button>
+      <Field label={t("security.restore.chooseExport")}>
+        <Input type="file" accept=".satella-vault,application/octet-stream" onChange={onPickFile} />
+      </Field>
     );
   }
 
@@ -65,7 +84,7 @@ export function RestoreVaultControl({
     <form
       onSubmit={(event: FormEvent) => {
         event.preventDefault();
-        restore.mutate({ sourcePath, password });
+        restore.mutate({ file: sourceFile, password });
       }}
     >
       <Stack gap="4">
@@ -75,6 +94,7 @@ export function RestoreVaultControl({
         <Text color="fg.muted" as="p">
           {t("security.restore.description")}
         </Text>
+        <Text as="p">{sourceFile.name}</Text>
         <FormError message={error} />
         <SecretField
           label={t("security.restore.passwordLabel")}
@@ -104,7 +124,7 @@ export function RestoreVaultControl({
         <Button
           variant="ghost"
           onClick={() => {
-            setSourcePath(null);
+            setSourceFile(null);
             setPassword("");
             setError(null);
           }}

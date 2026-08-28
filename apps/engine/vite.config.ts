@@ -4,10 +4,7 @@ import { defineConfig, mergeConfig } from "vite-plus";
 
 import baseConfig from "../../vite.config.ts";
 
-// The release ships the engine as a self-contained bundle next to its native
-// modules, so every dependency is inlined except the SQLCipher addon, whose
-// .node binary and __dirname-relative loader cannot survive bundling.
-const nativeExternals = ["@journeyapps/sqlcipher"];
+const nativeExternals: string[] = [];
 const builtinSpecifiers = new Set([
   ...builtinModules,
   ...builtinModules.map((name) => `node:${name}`),
@@ -56,6 +53,7 @@ export default mergeConfig(
           "src/effect/vitest.ts",
           // Process launch glue cannot be imported safely in unit tests.
           "src/main.ts",
+          "src/cli/product-runtime.ts",
           "src/database/cli.ts",
         ],
         thresholds: {

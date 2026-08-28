@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { appLanguage } from "../app-language";
 import { vaultStatusQuery } from "../queries";
 import { useSettings } from "../portfolio";
 import { isFirstAssetPending, firstAssetListeners } from "../screens/vault-gate";
@@ -25,10 +24,5 @@ export function AppLanguageSync() {
   useEffect(() => {
     if (language !== undefined && !onboarding) changeAppLanguage(language);
   }, [language, onboarding]);
-  // Report the OS-detected language before the Vault preference exists so the
-  // desktop tray starts in the same language as the app.
-  useEffect(() => {
-    window.satellaRuntime?.reportAppLanguage?.(appLanguage());
-  }, []);
   return null;
 }

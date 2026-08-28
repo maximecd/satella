@@ -85,3 +85,17 @@ export const RestoreVaultInput = Schema.Struct({
   sourcePath: Schema.String,
   password: Schema.String,
 });
+
+export const ExportVaultDownloadInput = Schema.Struct({
+  password: Schema.String,
+});
+
+export const ExportVaultDownloadResult = Schema.Struct({
+  fileName: Schema.String,
+  contentsBase64: Schema.String,
+});
+
+export const RestoreVaultUploadInput = Schema.Struct({
+  password: Schema.String,
+  contentsBase64: Schema.String,
+});

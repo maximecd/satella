@@ -4,14 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { engineApi } from "../api";
 import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
-import { chooseVaultImportSource } from "../runtime";
 import { changeAppLanguage, i18n } from "../i18n";
 
 vi.mock("../api", async () => import("../engine-api.test-utils"));
-vi.mock("../runtime", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../runtime")>()),
-  chooseVaultImportSource: vi.fn(),
-}));
 
 const L = (en: string, fr: string) => (i18n.language === "fr" ? fr : en);
 
@@ -137,24 +132,23 @@ describe("onboarding and Vault start", () => {
   it("offers Restore Vault from Welcome and from Unlock", async () => {
     vi.mocked(engineApi.vaultStatus).mockResolvedValue({ state: "absent" });
     renderRoute("/");
-    expect(await screen.findByRole("button", { name: "Restore Vault" })).toBeInTheDocument();
+    expect(await screen.findByLabelText("Choose a Vault export")).toBeInTheDocument();
 
     vi.mocked(engineApi.vaultStatus).mockResolvedValue({ state: "locked" });
     renderRoute("/");
-    expect(await screen.findByRole("button", { name: "Restore Vault" })).toBeInTheDocument();
+    expect(await screen.findByLabelText("Choose a Vault export")).toBeInTheDocument();
   });
 
   it("restores from Unlock only after replacement confirmation and returns to unlock", async () => {
     const user = userEvent.setup();
     vi.mocked(engineApi.vaultStatus).mockResolvedValue({ state: "locked" });
-    vi.mocked(engineApi.restoreVault).mockResolvedValue({ state: "locked" });
-    vi.mocked(chooseVaultImportSource).mockResolvedValue({
-      kind: "path",
-      path: "/Backups/vault.satella-vault",
-    });
+    vi.mocked(engineApi.restoreVaultUpload).mockResolvedValue({ state: "locked" });
     renderRoute("/");
 
-    await user.click(await screen.findByRole("button", { name: "Restore Vault" }));
+    await user.upload(
+      await screen.findByLabelText("Choose a Vault export"),
+      new File(["SVLT"], "vault.satella-vault"),
+    );
     const password = await screen.findByLabelText("Exported Vault's password");
     await user.type(password, "export-password");
     const submit = screen.getByRole("button", { name: "Restore Vault" });
@@ -163,8 +157,8 @@ describe("onboarding and Vault start", () => {
     await user.click(screen.getByLabelText("Replace my current Vault and its data"));
     await user.click(submit);
     await waitFor(() =>
-      expect(engineApi.restoreVault).toHaveBeenCalledWith(
-        "/Backups/vault.satella-vault",
+      expect(engineApi.restoreVaultUpload).toHaveBeenCalledWith(
+        expect.any(String),
         "export-password",
       ),
     );
@@ -174,16 +168,15 @@ describe("onboarding and Vault start", () => {
   it("reports a failed restore validation without changing the screen state", async () => {
     const user = userEvent.setup();
     vi.mocked(engineApi.vaultStatus).mockResolvedValue({ state: "absent" });
-    vi.mocked(engineApi.restoreVault).mockRejectedValue(
+    vi.mocked(engineApi.restoreVaultUpload).mockRejectedValue(
       new Error("This file is not a valid Satella Vault export."),
     );
-    vi.mocked(chooseVaultImportSource).mockResolvedValue({
-      kind: "path",
-      path: "/Backups/broken.satella-vault",
-    });
     renderRoute("/");
 
-    await user.click(await screen.findByRole("button", { name: "Restore Vault" }));
+    await user.upload(
+      await screen.findByLabelText("Choose a Vault export"),
+      new File(["nope"], "broken.satella-vault"),
+    );
     await user.type(await screen.findByLabelText("Exported Vault's password"), "whatever");
     await user.click(screen.getByRole("button", { name: "Restore Vault" }));
     expect(await screen.findByText(/not a valid Satella Vault export/)).toBeInTheDocument();

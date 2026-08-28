@@ -2,15 +2,24 @@ import { createServer } from "node:http";
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { FetchHttpClient } from "effect/unstable/http";
 import { HttpRouter } from "effect/unstable/http";
 
 import { ApiErrorLogging } from "./api/ApiLogging.js";
-import { EngineTokenAuth, EngineTokenFromSecret, ENGINE_TOKEN_ENV } from "./api/EngineToken.js";
 import { EngineApiLive } from "./api/FinanceApiLive.js";
 import { VaultFinanceAccess } from "./api/VaultAccess.js";
+import {
+  appOrigin,
+  isLiveSatella,
+  openBrowser,
+  parsePort,
+  resolveWebDirectory,
+  ServeUi,
+  shouldOpenBrowser,
+} from "./cli/product-runtime.js";
 import { DatabaseConfig, DatabaseConfigLive } from "./database/index.js";
 import {
   claimDatabaseOwnership,
@@ -21,14 +30,9 @@ import { IdGeneratorLive } from "./IdGenerator.js";
 import { EngineServicesLive } from "./runtime/EngineComposition.js";
 import { ManagedRuntime } from "./runtime/ManagedRuntime.js";
 
-const parsePort = (value: string | undefined, fallback: number): number => {
-  if (value === undefined) return fallback;
-  const port = Number(value);
-  return Number.isInteger(port) && port >= 1 && port <= 65_535 ? port : fallback;
-};
-
 const enginePort = parsePort(process.env["SATELLA_ENGINE_PORT"], 3001);
 const webOrigin = process.env["SATELLA_WEB_ORIGIN"];
+const webDirectory = resolveWebDirectory();
 const parentDataDirectory =
   process.env["SATELLA_CANONICAL_DATA_DIR"] ?? process.env["SATELLA_DATA_DIR"];
 
@@ -72,17 +76,22 @@ const ManagedParentLifecycleLive = Layer.effectDiscard(
   }),
 );
 
+const OpenBrowserLive = Layer.effectDiscard(
+  Effect.sync(() => {
+    if (shouldOpenBrowser()) openBrowser(`${appOrigin(enginePort)}/`);
+  }),
+);
+
 const routesLayer = EngineApiLive.pipe(
   Layer.provideMerge(VaultFinanceAccess),
   Layer.provideMerge(ApiErrorLogging),
-  Layer.provideMerge(EngineTokenAuth),
+  Layer.provideMerge(ServeUi(webDirectory)),
   Layer.provideMerge(
     HttpRouter.cors({
       allowedOrigins: [
         ...(webOrigin === undefined ? [] : [webOrigin]),
         "http://127.0.0.1:5173",
         "http://localhost:5173",
-        "null",
       ],
     }),
   ),
@@ -97,13 +106,36 @@ const HttpServerLive = HttpRouter.serve(routesLayer).pipe(
   ),
 );
 
-const ServerLive = HttpServerLive.pipe(
+const ServerLive = OpenBrowserLive.pipe(
+  Layer.provide(HttpServerLive),
   Layer.provide(ManagedParentLifecycleLive),
   Layer.provide(EngineServicesLive),
   Layer.provide(OwnershipLive),
   Layer.provide(DatabaseConfigLive),
   Layer.provide(IdGeneratorLive),
-  Layer.provide(EngineTokenFromSecret(process.env[ENGINE_TOKEN_ENV])),
 );
 
-Layer.launch(ServerLive.pipe(Layer.provide(FetchHttpClient.layer))).pipe(NodeRuntime.runMain);
+const listenError = (cause: Cause.Cause<unknown>) => {
+  const text = Cause.pretty(cause);
+  if (text.includes("EADDRINUSE")) {
+    return new Error(`127.0.0.1:${enginePort} is already in use by a process that is not Satella.`);
+  }
+  return undefined;
+};
+
+const launch = async () => {
+  if (await isLiveSatella(enginePort)) {
+    if (shouldOpenBrowser()) openBrowser(`${appOrigin(enginePort)}/`);
+    process.exit(0);
+  }
+
+  Layer.launch(ServerLive.pipe(Layer.provide(FetchHttpClient.layer))).pipe(
+    Effect.catchCause((cause) => {
+      const rewritten = listenError(cause);
+      return rewritten === undefined ? Effect.failCause(cause) : Effect.fail(rewritten);
+    }),
+    NodeRuntime.runMain,
+  );
+};
+
+void launch();
