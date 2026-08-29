@@ -107,6 +107,7 @@ export const validatePackagedArtifact = async (artifact, version) => {
     "package/bin/satella.mjs",
     "package/dist/main.mjs",
     "package/dist/public/index.html",
+    "package/dist/public/favicon.svg",
   ];
   for (const path of required) {
     if (!names.includes(path)) throw new Error(`Release tarball is missing ${path}`);
