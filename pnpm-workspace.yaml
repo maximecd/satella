@@ -4,10 +4,9 @@ packages:
 
 allowBuilds:
   "@parcel/watcher": false
-  electron: true
-  electron-winstaller: true
+  electron: false
+  electron-winstaller: false
   esbuild: true
-  "@journeyapps/sqlcipher": true
   msgpackr-extract: false
 
 catalog:

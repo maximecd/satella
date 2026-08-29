@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 
 const defaults = {
@@ -65,17 +64,17 @@ const run = async () => {
   const webPort = await choosePort("SATELLA_WEB_PORT", defaults.web);
   const engineUrl = `http://127.0.0.1:${enginePort}`;
   const webUrl = `http://127.0.0.1:${webPort}`;
-  const engineToken = process.env["SATELLA_ENGINE_TOKEN"] ?? randomBytes(32).toString("base64url");
   const env = {
     ...process.env,
     SATELLA_ENGINE_PORT: String(enginePort),
     SATELLA_DATABASE_CONTEXT: "development",
-    SATELLA_ENGINE_TOKEN: engineToken,
+    SATELLA_OPEN_BROWSER: "0",
     SATELLA_WEB_ORIGIN: webUrl,
     SATELLA_WEB_URL: webUrl,
     VITE_ENGINE_URL: engineUrl,
-    VITE_ENGINE_TOKEN: engineToken,
   };
+  delete env.SATELLA_ENGINE_TOKEN;
+  delete env.VITE_ENGINE_TOKEN;
   const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
   // Package exports point at dist. Establish a complete, topologically ordered
@@ -93,7 +92,6 @@ const run = async () => {
       "pnpm --filter './packages/connector-*' --parallel dev",
       "pnpm --filter @satella-app/engine dev",
       `pnpm --filter @satella-app/web dev -- --port ${webPort} --strictPort`,
-      `wait-on ${engineUrl}/api/hello ${webUrl} && pnpm --filter @satella-app/desktop dev`,
     ],
     { env, stdio: "inherit" },
   );

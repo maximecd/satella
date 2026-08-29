@@ -42,14 +42,6 @@ export function VaultGate({ children }: { readonly children: ReactNode }) {
     };
   }, []);
 
-  useEffect(
-    () =>
-      window.satellaRuntime?.onVaultLocked?.(() => {
-        void queryClient.invalidateQueries({ queryKey: vaultStatusQuery.queryKey });
-      }),
-    [queryClient],
-  );
-
   useEffect(() => {
     if (status?.state !== "open" || status.screenLock) return;
     let latestActivityAt = Date.now();
@@ -68,12 +60,7 @@ export function VaultGate({ children }: { readonly children: ReactNode }) {
     };
     const reporter = createActivityReporter({
       send: (activityAt) => {
-        const report = window.satellaRuntime?.reportVaultActivity;
-        if (report !== undefined) {
-          report(activityAt);
-        } else {
-          void Promise.resolve(engineApi.reportVaultActivity(activityAt)).catch(() => undefined);
-        }
+        void Promise.resolve(engineApi.reportVaultActivity(activityAt)).catch(() => undefined);
       },
     });
     const bump = () => {

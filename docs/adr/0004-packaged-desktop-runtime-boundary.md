@@ -1,6 +1,6 @@
 # Packaged desktop runtime boundary
 
-Status: accepted
+Status: superseded by ADR 0009
 
 The packaged Satella desktop owns one private Electron-launched engine and one production Vault. The engine is embedded in the application resources and runs through the packaged Electron executable in Node mode; it is not a separately distributed production service.
 

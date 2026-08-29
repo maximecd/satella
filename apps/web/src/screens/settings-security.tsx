@@ -7,7 +7,7 @@ import { engineApi } from "../api";
 import { FormError, PageHeader } from "../components";
 import { errorDetail } from "../components/ui/copy-error";
 import { notify } from "../components/ui/toaster";
-import { chooseVaultExportDestination } from "../runtime";
+import { saveVaultExport } from "../runtime";
 import { vaultStatusQuery } from "../queries";
 import { SelectField } from "../select-field";
 import { PinField } from "./pin-field";
@@ -64,15 +64,13 @@ export function SettingsSecurityScreen() {
   const [exportPassword, setExportPassword] = useState("");
   const exportVault = useMutation({
     mutationFn: async (password: string) => {
-      const choice = await chooseVaultExportDestination();
-      if (choice.kind === "cancelled") return null;
-      await engineApi.exportVault(password, choice.path);
-      return choice.path;
+      const exported = await engineApi.exportVaultDownload(password);
+      saveVaultExport(exported.fileName, exported.contentsBase64);
+      return exported.fileName;
     },
-    onSuccess: (savedPath) => {
-      if (savedPath === undefined) return;
+    onSuccess: () => {
       setExportPassword("");
-      notify.success("Vault exported.", `Saved to ${savedPath}`);
+      notify.success("Vault exported.");
     },
     onError: (cause) =>
       notify.error(

@@ -1,6 +1,6 @@
 # Encrypted local Vault storage
 
-Status: accepted
+Status: superseded by ADR 0010
 
 Satella encrypts the complete local SQLite database and its pre-migration backups with a random 256-bit database key. That key is wrapped by Argon2id (version 1.3) and AES-256-GCM in a versioned envelope beside the database. The engine owns Vault lifecycle; finance modules keep using Effect `SqlClient`.
 

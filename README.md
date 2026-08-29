@@ -1,6 +1,8 @@
 # Satella
 
-Personal finance workspace. Node **26.7.0**, pnpm **11.21.0**, Vite+ **0.2.9**, Effect **4.0.0-rc.108**.
+Personal finance workspace. Node **≥ 26.1.0** (repo `.nvmrc` pins the current toolchain), pnpm **11.21.0**, Vite+ **0.2.9**, Effect **4.0.0-rc.108**.
+
+The product is a Node CLI. `pnpm start` serves the UI and API on `127.0.0.1:3001` and opens the browser. `pnpm dev` keeps Vite HMR and a worktree `.satella` Vault.
 
 ## Commands
 
@@ -14,6 +16,7 @@ Personal finance workspace. Node **26.7.0**, pnpm **11.21.0**, Vite+ **0.2.9**, 
 | `pnpm test:watch`    | Watch tests                                                |
 | `pnpm test:coverage` | Coverage for every source-owning workspace                 |
 | `pnpm build`         | Build/pack workspaces in dependency order                  |
-| `pnpm dev`           | Start engine, web, and desktop with free ports             |
+| `pnpm start`         | Build and run the product CLI                              |
+| `pnpm dev`           | Start engine and web with Vite HMR                         |
 
 Use `nvm use` (or equivalent) so the local Node version matches `.nvmrc`.

@@ -4,7 +4,6 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { ENGINE_TOKEN_HEADER } from "../api/EngineToken.js";
 import { startEngine } from "../database/development-database.test-utils.js";
 
 const waitForEngineHello = async (port: number) => {
@@ -21,7 +20,7 @@ const waitForEngineHello = async (port: number) => {
   throw new Error("Engine HTTP was not ready");
 };
 
-describe("engine token authentication", () => {
+describe("loopback API access", () => {
   const directories: string[] = [];
   const engines: Array<Awaited<ReturnType<typeof startEngine>>> = [];
 
@@ -32,96 +31,39 @@ describe("engine token authentication", () => {
     );
   });
 
-  const start = async (token: string) => {
-    const directory = await mkdtemp(join(tmpdir(), "satella-engine-token-"));
+  const start = async () => {
+    const directory = await mkdtemp(join(tmpdir(), "satella-loopback-api-"));
     directories.push(directory);
     const engine = await startEngine({
       cwd: process.cwd(),
-      env: { SATELLA_DATA_DIR: directory, SATELLA_ENGINE_TOKEN: token },
+      env: { SATELLA_DATA_DIR: directory },
     });
     engines.push(engine);
     await waitForEngineHello(engine.port);
     return engine;
   };
 
-  it("keeps the health endpoint public but rejects privileged requests without the current token", async () => {
-    const engine = await start("launch-secret-token-0123456789abcdef");
+  it("serves health and Vault status without an engine token", async () => {
+    const engine = await start();
     const hello = await fetch(`http://127.0.0.1:${engine.port}/api/hello`);
     expect(hello.status).toBe(200);
+    expect(await hello.json()).toEqual({ message: "Hello world" });
 
-    for (const path of ["/api/vault/status", "/api/dashboard"]) {
-      const missing = await fetch(`http://127.0.0.1:${engine.port}${path}`);
-      const missingBody = await missing.text();
-      expect(missing.status).toBe(401);
-      expect(missingBody).not.toContain("state");
-
-      const wrong = await fetch(`http://127.0.0.1:${engine.port}${path}`, {
-        headers: { [ENGINE_TOKEN_HEADER]: "wrong-token-0123456789abcdef-wrong" },
-      });
-      expect(wrong.status).toBe(401);
-      expect(await wrong.text()).toBe(missingBody);
-    }
-
-    const authorized = await fetch(`http://127.0.0.1:${engine.port}/api/vault/status`, {
-      headers: { [ENGINE_TOKEN_HEADER]: "launch-secret-token-0123456789abcdef" },
-    });
-    expect(authorized.status).toBe(200);
-    expect(await authorized.json()).toEqual({ state: "absent" });
-    expect(engine.output()).not.toContain("launch-secret-token");
+    const status = await fetch(`http://127.0.0.1:${engine.port}/api/vault/status`);
+    expect(status.status).toBe(200);
+    expect(await status.json()).toEqual({ state: "absent" });
   }, 60_000);
 
-  it("invalidates a stale token after an application restart", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "satella-engine-token-restart-"));
+  it("starts without SATELLA_ENGINE_TOKEN", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "satella-loopback-no-token-"));
     directories.push(directory);
-    const first = await startEngine({
+    const engine = await startEngine({
       cwd: process.cwd(),
-      env: {
-        SATELLA_DATA_DIR: directory,
-        SATELLA_ENGINE_TOKEN: "first-session-token-0123456789abcdef",
-      },
+      env: { SATELLA_DATA_DIR: directory, SATELLA_ENGINE_TOKEN: undefined },
     });
-    engines.push(first);
-    await waitForEngineHello(first.port);
-    const unlockedWithFirst = await fetch(`http://127.0.0.1:${first.port}/api/vault/status`, {
-      headers: { [ENGINE_TOKEN_HEADER]: "first-session-token-0123456789abcdef" },
-    });
-    expect(unlockedWithFirst.status).toBe(200);
-    await first.stop();
-
-    const second = await startEngine({
-      cwd: process.cwd(),
-      env: {
-        SATELLA_DATA_DIR: directory,
-        SATELLA_ENGINE_TOKEN: "second-session-token-0123456789abcdef",
-      },
-    });
-    engines.push(second);
-    await waitForEngineHello(second.port);
-
-    const stale = await fetch(`http://127.0.0.1:${second.port}/api/vault/status`, {
-      headers: { [ENGINE_TOKEN_HEADER]: "first-session-token-0123456789abcdef" },
-    });
-    expect(stale.status).toBe(401);
-
-    const fresh = await fetch(`http://127.0.0.1:${second.port}/api/vault/status`, {
-      headers: { [ENGINE_TOKEN_HEADER]: "second-session-token-0123456789abcdef" },
-    });
-    expect(fresh.status).toBe(200);
-  }, 60_000);
-
-  it("refuses to start without a usable session token", async () => {
-    const result = await import("../database/development-database.test-utils.js").then((utils) =>
-      utils.runNodeScript(utils.engineMain, [], {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          SATELLA_DATABASE_CONTEXT: "development",
-          SATELLA_ENGINE_PORT: String(3001 + Math.floor(Math.random() * 1000)),
-          SATELLA_ENGINE_TOKEN: "too-short",
-        },
-      }),
-    );
-    expect(result.code).not.toBe(0);
-    expect(result.output).toContain("SATELLA_ENGINE_TOKEN");
+    engines.push(engine);
+    await waitForEngineHello(engine.port);
+    const status = await fetch(`http://127.0.0.1:${engine.port}/api/vault/status`);
+    expect(status.status).toBe(200);
   }, 60_000);
 });

@@ -104,8 +104,8 @@ jobs:
       - check
       - test
       - build
-    runs-on: macos-14
-    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -119,21 +119,20 @@ jobs:
           run-install: true
       - uses: pnpm/action-setup@v4
       - run: vp run -r build
-      - name: Package the macOS Apple Silicon artifact
+      - name: Pack the npm tarball
         run: |
-          ulimit -n "$(ulimit -Hn)"
           pnpm release:package --version "${{ needs.resolve.outputs.version }}" \
             --output-dir "$RUNNER_TEMP/satella-release"
-      - name: Smoke-test the packaged application
+      - name: Smoke-test the packed CLI
         run: |
           pnpm release:smoke --artifact \
-            "$RUNNER_TEMP/satella-release/Satella-${{ needs.resolve.outputs.version }}-macOS-arm64.zip"
+            "$RUNNER_TEMP/satella-release/satella-app-${{ needs.resolve.outputs.version }}.tgz"
       - uses: actions/upload-artifact@v7
         with:
           name: satella-release-bundle
           path: >-
-            ${{ runner.temp }}/satella-release/Satella-${{
-            needs.resolve.outputs.version }}-macOS-arm64.zip
+            ${{ runner.temp }}/satella-release/satella-app-${{
+            needs.resolve.outputs.version }}.tgz
           if-no-files-found: error
           retention-days: 1
 
@@ -186,7 +185,7 @@ jobs:
           TAG: v${{ needs.resolve.outputs.version }}
         run: |
           gh release create "$TAG" \
-            "release/Satella-$RELEASE_VERSION-macOS-arm64.zip" \
+            "release/satella-app-$RELEASE_VERSION.tgz" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Satella $RELEASE_VERSION" \

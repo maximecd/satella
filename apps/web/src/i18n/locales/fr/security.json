@@ -63,7 +63,7 @@
       },
       "lockNow": "Verrouiller maintenant",
       "privacyNote": "Le verrouillage protège la confidentialité de l'interface, il ne chiffre pas le coffre. Le chiffrement protège les fichiers copiés tant que le coffre est fermé.",
-      "licenseNote": "SQLCipher Community Edition est inclus sous la licence BSD-3-Clause. Les mentions de licence sont fournies avec cette application."
+      "licenseNote": "Le coffre est chiffré au repos avec AES-256-GCM. Le mot de passe du coffre enveloppe la clé de la base avec Argon2id."
     },
     "restore": {
       "title": "Restaurer un coffre",
@@ -71,6 +71,7 @@
       "passwordLabel": "Mot de passe du coffre exporté",
       "confirmLabel": "Remplacer mon coffre actuel et ses données",
       "submit": "Restaurer le coffre",
+      "chooseExport": "Choisir un export de coffre",
       "cancel": "Annuler",
       "successToast": "Coffre restauré. Déverrouillez avec le mot de passe du coffre restauré.",
       "incorrectPassword": "Le mot de passe du coffre est incorrect.",

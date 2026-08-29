@@ -44,6 +44,10 @@ export const engineApi = {
     request((client) => client.vault.reset({ payload: { confirmation } })),
   exportVault: (password: string, destinationPath: string) =>
     request((client) => client.vault.exportVault({ payload: { password, destinationPath } })),
+  exportVaultDownload: (password: string) =>
+    request((client) => client.vault.exportVaultDownload({ payload: { password } })),
   restoreVault: (sourcePath: string, password: string) =>
     request((client) => client.vault.restoreVault({ payload: { sourcePath, password } })),
+  restoreVaultUpload: (contentsBase64: string, password: string) =>
+    request((client) => client.vault.restoreVaultUpload({ payload: { password, contentsBase64 } })),
 };

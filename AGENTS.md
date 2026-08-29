@@ -6,6 +6,8 @@ Project-specific guidance for AI coding agents.
 
 Nightly installations contain persistent Vault data, so the migration lineage is permanent now. Preserve existing Vault data across every nightly and versioned update. Internal APIs and implementation details may still break freely.
 
+The product runtime is a Node CLI (`@satella/app`, bin `satella`) that serves the web UI and engine API on `127.0.0.1:3001`. Production Vault data lives in `~/.satella`. `pnpm dev` keeps a worktree `.satella`. There is no Electron app and no engine token.
+
 ## Database migrations
 
 - Never edit, rename, reorder, or delete a migration that has a `.sha256` sidecar.

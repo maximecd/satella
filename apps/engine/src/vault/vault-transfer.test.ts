@@ -25,14 +25,11 @@ const PIN = "1357";
 const MARKER = "SATELLA_EXPORT_MARKER_51ab2c";
 const POST_EXPORT_MARKER = "SATELLA_POST_EXPORT_MARKER_c3d917";
 
-let activeToken = "";
-
 const json = async (port: number, path: string, init: RequestInit = {}) => {
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
-      "x-satella-engine-token": activeToken,
       ...init.headers,
     },
   });
@@ -70,7 +67,6 @@ describe("Vault export and restore", () => {
       env: { SATELLA_DATA_DIR: directory },
     });
     engines.push(engine);
-    activeToken = engine.token;
     await waitForEngineHello(engine.port);
     return { directory, engine };
   };
@@ -236,6 +232,48 @@ describe("Vault export and restore", () => {
       });
       expect(rejected.body).toMatchObject({ code: "unsupported-container" });
       await expectVaultStillOpens(port);
+    }, 120_000);
+
+    it("exports and restores through the browser download and upload endpoints", async () => {
+      const { engine } = await start();
+      const port = engine.port;
+      expect(
+        (
+          await json(port, "/api/vault/initialize", {
+            method: "POST",
+            body: JSON.stringify({ password: PASSWORD, pin: PIN }),
+          })
+        ).status,
+      ).toBeLessThan(300);
+      await addMarkerAsset(port, MARKER);
+
+      const downloaded = await json(port, "/api/vault/export-download", {
+        method: "POST",
+        body: JSON.stringify({ password: PASSWORD }),
+      });
+      expect(downloaded.status).toBeLessThan(300);
+      expect(downloaded.body.fileName).toMatch(/\.satella-vault$/);
+      expect(downloaded.body.contentsBase64).toEqual(expect.stringMatching(/^[A-Za-z0-9+/]+=*$/));
+      expect(
+        Buffer.from(downloaded.body.contentsBase64, "base64").subarray(0, 4).toString("utf8"),
+      ).toBe("SVLT");
+
+      await json(port, "/api/vault/close", { method: "POST" });
+      const restored = await json(port, "/api/vault/restore-upload", {
+        method: "POST",
+        body: JSON.stringify({
+          password: PASSWORD,
+          contentsBase64: downloaded.body.contentsBase64,
+        }),
+      });
+      expect(restored.status).toBeLessThan(300);
+      await json(port, "/api/vault/unlock", {
+        method: "POST",
+        body: JSON.stringify({ password: PASSWORD }),
+      });
+      const dashboard = await json(port, "/api/dashboard");
+      expect(dashboard.status).toBe(200);
+      expect(JSON.stringify(dashboard.body)).toContain(MARKER);
     }, 120_000);
 
     it("leaves no partial export when the destination cannot be written", async () => {
