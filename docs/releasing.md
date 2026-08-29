@@ -1,12 +1,16 @@
 # Releasing Satella
 
-Satella ships as an npm tarball (`@satella/app`, bin `satella`). npm registry publish is not wired yet. **Ship Satella** attaches that tarball to an immutable GitHub prerelease. Automatic Electron nightlies are gone.
+Satella ships as an npm tarball (`@satella/app`, bin `satella`). npm registry publish is not wired yet. A successful push to `main` publishes a nightly GitHub prerelease with that tarball. **Ship Satella** publishes a versioned prerelease of the same artifact.
 
 ## Versioning
 
 All `0.x` releases are alphas; the prerelease flag communicates alpha status, so versions carry no `-alpha` suffix. The first release is `v0.1.0`. **Ship Satella** accepts no inputs: it selects `v0.1.0` when no release tag exists and afterwards increments the patch of the highest existing non-nightly release (`v0.1.1`, `v0.1.2`, …). There is no minor- or major-bump workflow in this scope.
 
 Released migrations are immutable. Every schema change must be appended as a new timestamped migration that preserves existing Vault data.
+
+## Nightlies
+
+Every successful CI run on a `main` push packages `satella-app-<next-patch>-nightly.<UTC date>.<run>.tgz` and attaches it to a GitHub prerelease. Failed CI gates skip the nightly. Run it with `npx --yes` on the downloaded tarball.
 
 ## Shipping a release
 
