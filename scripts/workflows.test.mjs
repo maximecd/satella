@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
@@ -14,12 +14,21 @@ test("source test jobs build every connector imported by the engine", async () =
   }
 });
 
-test("automatic Electron nightlies are not published", async () => {
+test("automatic CLI nightlies are published after CI succeeds on main", async () => {
+  const nightly = await read("../.github/workflows/nightly.yml");
+  assert.match(nightly, /name: Nightly/);
+  assert.match(nightly, /workflow_run:/);
+  assert.match(nightly, /github\.event\.workflow_run\.event == 'push'/);
+  assert.match(nightly, /github\.event\.workflow_run\.head_branch == 'main'/);
+  assert.match(nightly, /github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(nightly, /next-nightly/);
+  assert.match(nightly, /satella-app-\$\{NIGHTLY_VERSION\}\.tgz/);
+  assert.match(nightly, /release:smoke/);
+  assert.match(nightly, /--prerelease/);
+  assert.doesNotMatch(nightly, /macOS-arm64\.zip/);
+  assert.doesNotMatch(nightly, /macos-14/);
   const ci = await read("../.github/workflows/ci.yml");
   assert.doesNotMatch(ci, /^ {2}nightly:/m);
-  await assert.rejects(() => stat(new URL("../.github/workflows/nightly.yml", import.meta.url)), {
-    code: "ENOENT",
-  });
 });
 
 test("Ship Satella accepts no inputs, runs on main, and publishes a prerelease tarball", async () => {
