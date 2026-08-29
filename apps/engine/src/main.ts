@@ -4,7 +4,9 @@ import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Logger from "effect/Logger";
 import * as Layer from "effect/Layer";
+import * as References from "effect/References";
 import { FetchHttpClient } from "effect/unstable/http";
 import { HttpRouter } from "effect/unstable/http";
 
@@ -13,9 +15,11 @@ import { EngineApiLive } from "./api/FinanceApiLive.js";
 import { VaultFinanceAccess } from "./api/VaultAccess.js";
 import {
   appOrigin,
+  isDevelopmentContext,
   isLiveSatella,
   openBrowser,
   parsePort,
+  printStartupBanner,
   resolveWebDirectory,
   ServeUi,
   shouldOpenBrowser,
@@ -76,8 +80,10 @@ const ManagedParentLifecycleLive = Layer.effectDiscard(
   }),
 );
 
-const OpenBrowserLive = Layer.effectDiscard(
+const StartupUiLive = Layer.effectDiscard(
   Effect.sync(() => {
+    if (isDevelopmentContext()) return;
+    printStartupBanner(`${appOrigin(enginePort)}/`);
     if (shouldOpenBrowser()) openBrowser(`${appOrigin(enginePort)}/`);
   }),
 );
@@ -106,7 +112,7 @@ const HttpServerLive = HttpRouter.serve(routesLayer).pipe(
   ),
 );
 
-const ServerLive = OpenBrowserLive.pipe(
+const ServerLive = StartupUiLive.pipe(
   Layer.provide(HttpServerLive),
   Layer.provide(ManagedParentLifecycleLive),
   Layer.provide(EngineServicesLive),
@@ -129,13 +135,19 @@ const launch = async () => {
     process.exit(0);
   }
 
-  Layer.launch(ServerLive.pipe(Layer.provide(FetchHttpClient.layer))).pipe(
+  const server = Layer.launch(ServerLive.pipe(Layer.provide(FetchHttpClient.layer))).pipe(
     Effect.catchCause((cause) => {
       const rewritten = listenError(cause);
       return rewritten === undefined ? Effect.failCause(cause) : Effect.fail(rewritten);
     }),
-    NodeRuntime.runMain,
   );
+  const quiet = isDevelopmentContext()
+    ? server
+    : server.pipe(
+        Effect.provide(Logger.layer([Logger.consolePretty({ colors: "auto" })])),
+        Effect.provideService(References.MinimumLogLevel, "Warn"),
+      );
+  quiet.pipe(NodeRuntime.runMain);
 };
 
 void launch();
