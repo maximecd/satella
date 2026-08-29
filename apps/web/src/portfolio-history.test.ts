@@ -9,6 +9,7 @@ const point = (localIso: string, total: string): PortfolioHistoryPoint => ({
   capturedAt: new Date(localIso).toISOString(),
   total,
   totalIncomplete: false,
+  categories: { stocks_etfs: total, crypto: "0", cash: "0", other: "0" },
 });
 
 describe("observationsInRange", () => {

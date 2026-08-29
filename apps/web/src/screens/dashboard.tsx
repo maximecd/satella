@@ -111,6 +111,7 @@ export function DashboardScreen() {
                   points={history}
                   currencyIso={iso}
                   hourly={isHourlyRange(range)}
+                  categoryAllocation={dashboard.categoryAllocation}
                 />
               ) : null}
               {dashboard.totalIncomplete ? (
