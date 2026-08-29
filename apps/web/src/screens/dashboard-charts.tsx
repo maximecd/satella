@@ -33,7 +33,11 @@ const numberFormatter = (locale: string, options: Intl.NumberFormatOptions = {})
 const compactAmount = () => numberFormatter(appLanguage(), { maximumFractionDigits: 2 });
 const chartDateFormatter = () =>
   new Intl.DateTimeFormat(appLanguage(), { month: "short", day: "numeric" });
+const chartHourFormatter = () =>
+  new Intl.DateTimeFormat(appLanguage(), { hour: "2-digit", minute: "2-digit" });
 const tooltipDateFormatter = () => new Intl.DateTimeFormat(appLanguage(), { dateStyle: "medium" });
+const tooltipDateTimeFormatter = () =>
+  new Intl.DateTimeFormat(appLanguage(), { dateStyle: "medium", timeStyle: "short" });
 
 const CATEGORY_TOKENS = [
   "blue.subtle",
@@ -56,6 +60,7 @@ const Y_AXIS_MAX_WIDTH = 96;
 type ChartHistoryPoint = Omit<PortfolioHistoryPoint, "total"> & {
   readonly total: number;
   readonly currencyIso?: string;
+  readonly hourly?: boolean;
 };
 
 type AllocationTooltipCell = {
@@ -207,7 +212,9 @@ function HistoryTooltipContent({ active, payload, coordinate }: TooltipContentPr
   return (
     <ChartTooltipBubble
       amount={formatAmount(point.total, currencyIso)}
-      detail={tooltipDateFormatter().format(Date.parse(point.capturedAt))}
+      detail={(point.hourly ? tooltipDateTimeFormatter() : tooltipDateFormatter()).format(
+        Date.parse(point.capturedAt),
+      )}
       coordinate={coordinate}
     />
   );
@@ -245,9 +252,11 @@ function AllocationTooltipContent({ active, payload, coordinate }: TooltipConten
 export function PortfolioValueChart({
   points,
   currencyIso,
+  hourly = false,
 }: {
   readonly points: ReadonlyArray<PortfolioHistoryPoint>;
   readonly currencyIso: string;
+  readonly hourly?: boolean;
 }) {
   const [fg, fgMuted, accent, accentMuted] = useToken("colors", [
     "fg",
@@ -261,9 +270,12 @@ export function PortfolioValueChart({
         ...point,
         total: Number(canonicalDecimal(point.total)),
         currencyIso,
-        date: chartDateFormatter().format(Date.parse(point.capturedAt)),
+        hourly,
+        date: hourly
+          ? chartHourFormatter().format(Date.parse(point.capturedAt))
+          : chartDateFormatter().format(Date.parse(point.capturedAt)),
       })),
-    [currencyIso, points],
+    [currencyIso, hourly, points],
   );
   const yAxisWidth = useMemo(() => yAxisWidthFor(points), [points]);
   const { t } = useTranslation();

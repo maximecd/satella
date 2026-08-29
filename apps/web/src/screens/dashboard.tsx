@@ -9,6 +9,7 @@ import { EmptyState } from "../components/ui/empty-state";
 import { SegmentedControl } from "../components/ui/segmented-control";
 import { useDashboard } from "../portfolio";
 import {
+  isHourlyRange,
   observationsInRange,
   periodChange,
   PORTFOLIO_VALUE_RANGES,
@@ -106,7 +107,11 @@ export function DashboardScreen() {
                 />
               </Box>
               {history.length >= 2 ? (
-                <PortfolioValueChart points={history} currencyIso={iso} />
+                <PortfolioValueChart
+                  points={history}
+                  currencyIso={iso}
+                  hourly={isHourlyRange(range)}
+                />
               ) : null}
               {dashboard.totalIncomplete ? (
                 <Alert.Root status="warning">
