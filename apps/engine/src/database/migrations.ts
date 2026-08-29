@@ -22,6 +22,7 @@ import { addSyncLog } from "./migrations/20260823081447_add_sync_log.js";
 import { addEvmRpcSettings } from "./migrations/20260823084456_add_evm_rpc_settings.js";
 import { allowOptionalSyncLogFailureReason } from "./migrations/20260823090830_allow_optional_sync_log_failure_reason.js";
 import { addManualDebts } from "./migrations/20260829094515_add_manual_debts.js";
+import { addMcpToken } from "./migrations/20260829190511_add_mcp_token.js";
 
 export const MIGRATIONS_TABLE = "effect_sql_migrations";
 export const PRE_MIGRATION_BACKUP_RETENTION = 5;
@@ -37,6 +38,7 @@ export const ProductionMigrations = {
   "20260823084456_add_evm_rpc_settings": addEvmRpcSettings,
   "20260823090830_allow_optional_sync_log_failure_reason": allowOptionalSyncLogFailureReason,
   "20260829094515_add_manual_debts": addManualDebts,
+  "20260829190511_add_mcp_token": addMcpToken,
 } satisfies MigrationRegistry;
 
 export interface MigrationRunOptions {

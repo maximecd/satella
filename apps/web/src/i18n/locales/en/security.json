@@ -62,6 +62,17 @@
         "savedToast": "Screen-lock timeout saved."
       },
       "lockNow": "Lock now",
+      "mcp": {
+        "heading": "MCP token",
+        "description": "A local MCP client can read this Vault at the URL below. Satella must be running and the Vault must be unlocked. Screen lock does not block MCP. This token does not lock loopback /api. The token is shown once.",
+        "urlLabel": "MCP connection",
+        "copy": "Copy MCP connection",
+        "passwordLabel": "Vault password for MCP token",
+        "create": "Create MCP token",
+        "regenerate": "Regenerate MCP token",
+        "shownOnce": "Copy the Bearer token now. Satella will not show it again.",
+        "configured": "An MCP token is set. Regenerating replaces it and disconnects existing clients."
+      },
       "privacyNote": "Screen lock is interface privacy, not Vault encryption. Encryption protects copied files while the Vault is closed.",
       "licenseNote": "The Vault is encrypted at rest with AES-256-GCM. The Vault password wraps the database key with Argon2id."
     },

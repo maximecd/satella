@@ -10,9 +10,12 @@ import {
   ChangeScreenLockPinInput,
   ChangeVaultPasswordInput,
   ExportVaultInput,
+  IssueMcpTokenInput,
   ExportVaultDownloadInput,
   ExportVaultDownloadResult,
   InitializeVaultInput,
+  McpTokenIssued,
+  McpTokenStatus,
   ResetVaultInput,
   RestoreVaultInput,
   RestoreVaultUploadInput,
@@ -465,6 +468,19 @@ export const VaultApi = HttpApiGroup.make("vault")
     HttpApiEndpoint.post("restoreVaultUpload", "/api/vault/restore-upload", {
       payload: RestoreVaultUploadInput,
       success: VaultStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("mcpTokenStatus", "/api/vault/mcp-token", {
+      success: McpTokenStatus,
+      error: VaultApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("issueMcpToken", "/api/vault/mcp-token", {
+      payload: IssueMcpTokenInput,
+      success: McpTokenIssued,
       error: VaultApiError,
     }),
   );

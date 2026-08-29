@@ -62,6 +62,17 @@
         "savedToast": "Délai de verrouillage enregistré."
       },
       "lockNow": "Verrouiller maintenant",
+      "mcp": {
+        "heading": "Jeton MCP",
+        "description": "Un client MCP local peut lire ce coffre à l'URL ci-dessous. Satella doit tourner et le coffre doit être déverrouillé. Le verrouillage d'écran ne bloque pas MCP. Ce jeton ne ferme pas /api en local. Le jeton n'est affiché qu'une fois.",
+        "urlLabel": "Connexion MCP",
+        "copy": "Copier la connexion MCP",
+        "passwordLabel": "Mot de passe du coffre pour le jeton MCP",
+        "create": "Créer un jeton MCP",
+        "regenerate": "Régénérer le jeton MCP",
+        "shownOnce": "Copiez le jeton Bearer maintenant. Satella ne le réaffichera pas.",
+        "configured": "Un jeton MCP est défini. Le régénérer le remplace et déconnecte les clients existants."
+      },
       "privacyNote": "Le verrouillage protège la confidentialité de l'interface, il ne chiffre pas le coffre. Le chiffrement protège les fichiers copiés tant que le coffre est fermé.",
       "licenseNote": "Le coffre est chiffré au repos avec AES-256-GCM. Le mot de passe du coffre enveloppe la clé de la base avec Argon2id."
     },

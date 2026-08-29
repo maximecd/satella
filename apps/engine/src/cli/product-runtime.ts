@@ -58,6 +58,8 @@ export const shouldOpenBrowser = () =>
 
 export const appOrigin = (port: number) => `http://127.0.0.1:${port}`;
 
+export const mcpUrl = (port: number) => `${appOrigin(port)}/mcp`;
+
 export const isLiveSatella = async (port: number): Promise<boolean> => {
   try {
     const response = await fetch(`${appOrigin(port)}/api/hello`, {
@@ -118,7 +120,7 @@ export const ServeUi = (webDir: string | undefined) =>
         } catch {
           pathname = request.url.split("?", 1)[0] ?? request.url;
         }
-        if (pathname.startsWith("/api")) return yield* httpApp;
+        if (pathname.startsWith("/api") || pathname === "/mcp") return yield* httpApp;
         const target = containedFile(webDir, pathname);
         if (target === undefined) return yield* httpApp;
         return yield* HttpServerResponse.file(target);

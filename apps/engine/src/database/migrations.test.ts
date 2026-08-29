@@ -12,6 +12,8 @@ import { addAppLanguage } from "./migrations/20260822165422_add_app_language.js"
 import { addSyncLog } from "./migrations/20260823081447_add_sync_log.js";
 import { addEvmRpcSettings } from "./migrations/20260823084456_add_evm_rpc_settings.js";
 import { allowOptionalSyncLogFailureReason } from "./migrations/20260823090830_allow_optional_sync_log_failure_reason.js";
+import { addManualDebts } from "./migrations/20260829094515_add_manual_debts.js";
+import { addMcpToken } from "./migrations/20260829190511_add_mcp_token.js";
 import { TempDirectoryError } from "./DatabaseTestLayer.js";
 import {
   acquireTestDirectory,
@@ -106,6 +108,7 @@ describe("SQLite migration startup", () => {
       "20260823084456_add_evm_rpc_settings",
       "20260823090830_allow_optional_sync_log_failure_reason",
       "20260829094515_add_manual_debts",
+      "20260829190511_add_mcp_token",
     ]);
   });
 
@@ -468,6 +471,65 @@ describe("manual debts migration", () => {
       expect(upgraded.snapshots).toEqual([
         { id: "snap-old", captured_at: "2026-08-01T00:00:00.000Z", total_debt: null },
       ]);
+    }).pipe(Effect.provide(Reactivity.layer)),
+  );
+});
+
+describe("MCP token migration", () => {
+  const lastReleasedSchemaBeforeMcpToken: MigrationRegistry = {
+    "20260821194600_initial_finance_model": initialFinanceModel,
+    "20260822165422_add_app_language": addAppLanguage,
+    "20260823081447_add_sync_log": addSyncLog,
+    "20260823084456_add_evm_rpc_settings": addEvmRpcSettings,
+    "20260823090830_allow_optional_sync_log_failure_reason": allowOptionalSyncLogFailureReason,
+    "20260829094515_add_manual_debts": addManualDebts,
+  };
+
+  it.effect("adds nullable MCP token columns on a fresh Vault", () =>
+    Effect.gen(function* () {
+      const directory = yield* acquireTestDirectory;
+      const columns = yield* scopedCustomMigrations(
+        directory,
+        ProductionMigrations,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          return yield* sql<{ readonly name: string }>`PRAGMA table_info(vault_security)`;
+        }),
+      );
+      expect(columns.map(({ name }) => name)).toEqual(
+        expect.arrayContaining(["mcp_token_salt", "mcp_token_hash"]),
+      );
+    }).pipe(Effect.provide(Reactivity.layer)),
+  );
+
+  it.effect("upgrades the last released schema without requiring an existing MCP token", () =>
+    Effect.gen(function* () {
+      const directory = yield* acquireTestDirectory;
+      yield* scopedCustomMigrations(
+        directory,
+        lastReleasedSchemaBeforeMcpToken,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`INSERT INTO vault_security
+            (id, pin_salt, pin_hash, screen_lock_timeout_minutes, created_at, updated_at)
+            VALUES (1, 'c2FsdA==', 'hash', 15, '2026-08-29T00:00:00.000Z', '2026-08-29T00:00:00.000Z')`;
+        }),
+      );
+      const upgraded = yield* scopedCustomMigrations(
+        directory,
+        {
+          ...lastReleasedSchemaBeforeMcpToken,
+          "20260829190511_add_mcp_token": addMcpToken,
+        },
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          return yield* sql<{
+            readonly mcp_token_salt: string | null;
+            readonly mcp_token_hash: string | null;
+          }>`SELECT mcp_token_salt, mcp_token_hash FROM vault_security WHERE id = 1`;
+        }),
+      );
+      expect(upgraded).toEqual([{ mcp_token_salt: null, mcp_token_hash: null }]);
     }).pipe(Effect.provide(Reactivity.layer)),
   );
 });
