@@ -7,6 +7,11 @@ import { it } from "@effect/vitest";
 import { SqlClient } from "effect/unstable/sql";
 import type { MigrationRegistry } from "./index.js";
 import { ProductionMigrations } from "./migrations.js";
+import { initialFinanceModel } from "./migrations/20260821194600_initial_finance_model.js";
+import { addAppLanguage } from "./migrations/20260822165422_add_app_language.js";
+import { addSyncLog } from "./migrations/20260823081447_add_sync_log.js";
+import { addEvmRpcSettings } from "./migrations/20260823084456_add_evm_rpc_settings.js";
+import { allowOptionalSyncLogFailureReason } from "./migrations/20260823090830_allow_optional_sync_log_failure_reason.js";
 import { TempDirectoryError } from "./DatabaseTestLayer.js";
 import {
   acquireTestDirectory,
@@ -76,9 +81,13 @@ const releasedInitialSchemaWithoutAppLanguage: MigrationRegistry = {
       identifier_value TEXT NOT NULL
     ) STRICT`;
     yield* sql`CREATE TABLE app_settings (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      reporting_currency_asset_id TEXT NOT NULL REFERENCES assets(id)
-    ) STRICT`;
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    reporting_currency_asset_id TEXT NOT NULL REFERENCES assets(id)
+  ) STRICT`;
+    yield* sql`CREATE TABLE snapshots (
+    id TEXT PRIMARY KEY,
+    captured_at TEXT NOT NULL UNIQUE
+  ) STRICT`;
     yield* sql`INSERT INTO assets (id, asset_category, name, symbol)
       VALUES ('fiat:USD', 'cash', 'US dollar', 'USD')`;
     yield* sql`INSERT INTO asset_identifiers (id, asset_id, identifier_type, identifier_value)
@@ -96,6 +105,7 @@ describe("SQLite migration startup", () => {
       "20260823081447_add_sync_log",
       "20260823084456_add_evm_rpc_settings",
       "20260823090830_allow_optional_sync_log_failure_reason",
+      "20260829094515_add_manual_debts",
     ]);
   });
 
@@ -337,5 +347,127 @@ describe("SQLite migration startup", () => {
       );
       expect(foreignKeyStatus).toEqual([{ foreign_keys: 1 }]);
     }),
+  );
+});
+
+describe("manual debts migration", () => {
+  const lastReleasedSchemaBeforeDebts: MigrationRegistry = {
+    "20260821194600_initial_finance_model": initialFinanceModel,
+    "20260822165422_add_app_language": addAppLanguage,
+    "20260823081447_add_sync_log": addSyncLog,
+    "20260823084456_add_evm_rpc_settings": addEvmRpcSettings,
+    "20260823090830_allow_optional_sync_log_failure_reason": allowOptionalSyncLogFailureReason,
+  };
+
+  const insertDebt = (
+    id: string,
+    name: string,
+    kind: string,
+    amount: string,
+    currencyAssetId: string,
+    dueDate: string | null,
+  ) =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`INSERT INTO debts
+        (id, name, kind, amount, currency_asset_id, due_date, created_at, updated_at)
+        VALUES (${id}, ${name}, ${kind}, ${amount}, ${currencyAssetId}, ${dueDate},
+          '2026-08-29T00:00:00.000Z', '2026-08-29T00:00:00.000Z')`;
+    });
+
+  it.effect("creates the debts table and the snapshot debt total on a fresh Vault", () =>
+    Effect.gen(function* () {
+      const directory = yield* acquireTestDirectory;
+      const inserted = yield* scopedCustomMigrations(
+        directory,
+        ProductionMigrations,
+        Effect.gen(function* () {
+          yield* insertDebt("debt-1", "Income tax", "tax", "4000", "fiat:EUR", "2026-09-15");
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`INSERT INTO snapshots (id, captured_at, total_debt)
+            VALUES ('snap-1', '2026-08-29T00:00:00.000Z', '4000')`;
+          return yield* sql`SELECT name, kind, amount, currency_asset_id, due_date
+            FROM debts WHERE id = 'debt-1'`;
+        }),
+      );
+      expect(inserted).toEqual([
+        {
+          name: "Income tax",
+          kind: "tax",
+          amount: "4000",
+          currency_asset_id: "fiat:EUR",
+          due_date: "2026-09-15",
+        },
+      ]);
+      const constraints = yield* scopedCustomMigrations(
+        directory,
+        ProductionMigrations,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`INSERT INTO assets (id, asset_category, name, symbol, created_at, updated_at)
+            VALUES ('asset:art', 'other', 'Art', NULL,
+              '2026-08-29T00:00:00.000Z', '2026-08-29T00:00:00.000Z')`;
+          const badKind = yield* insertDebt(
+            "debt-2",
+            "Mystery",
+            "penalty",
+            "10",
+            "fiat:USD",
+            null,
+          ).pipe(Effect.result);
+          const badDueDate = yield* insertDebt(
+            "debt-3",
+            "Loan",
+            "loan",
+            "10",
+            "fiat:USD",
+            "2026/09/15",
+          ).pipe(Effect.result);
+          const nonCashCurrency = yield* insertDebt(
+            "debt-4",
+            "Loan",
+            "loan",
+            "10",
+            "asset:art",
+            null,
+          ).pipe(Effect.result);
+          return { badKind, badDueDate, nonCashCurrency };
+        }),
+      );
+      expect(constraints.badKind._tag).toBe("Failure");
+      expect(constraints.badDueDate._tag).toBe("Failure");
+      expect(constraints.nonCashCurrency._tag).toBe("Failure");
+    }).pipe(Effect.provide(Reactivity.layer)),
+  );
+
+  it.effect("upgrades the last released schema and leaves old snapshots without a debt total", () =>
+    Effect.gen(function* () {
+      const directory = yield* acquireTestDirectory;
+      yield* scopedCustomMigrations(
+        directory,
+        lastReleasedSchemaBeforeDebts,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`INSERT INTO snapshots (id, captured_at)
+            VALUES ('snap-old', '2026-08-01T00:00:00.000Z')`;
+        }),
+      );
+      const upgraded = yield* scopedCustomMigrations(
+        directory,
+        ProductionMigrations,
+        Effect.gen(function* () {
+          yield* insertDebt("debt-1", "Consumer loan", "loan", "1500.50", "fiat:USD", null);
+          const sql = yield* SqlClient.SqlClient;
+          return {
+            debts: yield* sql`SELECT count(*) AS count FROM debts`,
+            snapshots: yield* sql`SELECT id, captured_at, total_debt FROM snapshots`,
+          };
+        }),
+      );
+      expect(upgraded.debts).toEqual([{ count: 1 }]);
+      expect(upgraded.snapshots).toEqual([
+        { id: "snap-old", captured_at: "2026-08-01T00:00:00.000Z", total_debt: null },
+      ]);
+    }).pipe(Effect.provide(Reactivity.layer)),
   );
 });

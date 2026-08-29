@@ -4,13 +4,19 @@
     "incompleteValuation": "Valorisation incomplète",
     "empty": {
       "title": "Aucun actif pour le moment",
-      "description": "Connectez un établissement ou suivez vos actifs manuellement. Satella affichera ici la valeur du portefeuille, la répartition et les comptes."
+      "description": "Connectez un établissement ou suivez vos actifs manuellement. Satella affichera ici le patrimoine brut, la répartition et les comptes."
     },
-    "portfolioValue": {
-      "title": "Valeur du portefeuille",
-      "changeLabel": "Variation de la valeur du portefeuille :",
-      "rangeAriaLabel": "Plage de la valeur du portefeuille",
+    "totalAssets": {
+      "title": "Patrimoine brut",
+      "changeLabel": "Variation du patrimoine brut :",
+      "rangeAriaLabel": "Plage du patrimoine brut",
       "notEnoughHistory": "Historique insuffisant"
+    },
+    "netWorth": {
+      "title": "Patrimoine net",
+      "changeLabel": "Variation du patrimoine net :",
+      "debtsSubline": "Dettes : {{amount}}",
+      "toggleAriaLabel": "Afficher le brut ou le net"
     },
     "allocation": {
       "title": "Répartition",
@@ -22,15 +28,9 @@
       "unpricedExcluded_other": "{{count}} actifs sans cours exclus de la répartition.",
       "negativeExcluded": "Les positions négatives sont exclues de la répartition."
     },
-    "holdings": {
-      "other": "Autres positions"
-    },
-    "accounts": {
-      "holdingsCount_one": "{{count}} position",
-      "holdingsCount_other": "{{count}} positions"
-    },
     "charts": {
-      "historyAriaLabel": "Historique de la valeur du portefeuille",
+      "historyAriaLabel": "Historique du patrimoine brut",
+      "netHistoryAriaLabel": "Historique du patrimoine net",
       "allocationAriaLabel": "Répartition",
       "cellDetail": "{{name}} • {{percent}}",
       "cellLabel": "{{title}}, {{amount}}, {{percent}}"

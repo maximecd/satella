@@ -9,6 +9,7 @@ import { AddAssetsService } from "../finance/add-assets/AddAssetsService.js";
 import { AssetService } from "../finance/assets/AssetService.js";
 import { ConnectorCatalog } from "../finance/connectors/ConnectorCatalog.js";
 import { CustodianService } from "../finance/custodians/CustodianService.js";
+import { DebtService } from "../finance/debts/DebtService.js";
 import { MarketDataService } from "../finance/market-data/MarketDataService.js";
 import { PortfolioService } from "../finance/portfolio/PortfolioService.js";
 import { PositionService } from "../finance/positions/PositionService.js";
@@ -124,6 +125,36 @@ export const FinanceApiLive = HttpApiBuilder.group(EngineApi, "finance", (handle
     .handle("deleteAccount", ({ params }) =>
       Effect.gen(function* () {
         return yield* (yield* AccountService).delete(params.id);
+      }),
+    )
+    .handle("listAccountGroups", () =>
+      Effect.gen(function* () {
+        return yield* (yield* PortfolioService).accountGroups();
+      }),
+    )
+    .handle("listDebts", () =>
+      Effect.gen(function* () {
+        return yield* (yield* DebtService).list();
+      }),
+    )
+    .handle("getDebt", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* DebtService).get(params.id);
+      }),
+    )
+    .handle("createDebt", ({ payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* DebtService).create(payload);
+      }),
+    )
+    .handle("updateDebt", ({ params, payload }) =>
+      Effect.gen(function* () {
+        return yield* (yield* DebtService).update(params.id, payload);
+      }),
+    )
+    .handle("deleteDebt", ({ params }) =>
+      Effect.gen(function* () {
+        return yield* (yield* DebtService).delete(params.id);
       }),
     )
     .handle("searchAssets", ({ query }) =>

@@ -12,11 +12,15 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as DebtsIndexRouteImport } from './routes/debts.index'
+import { Route as AccountsIndexRouteImport } from './routes/accounts.index'
 import { Route as SettingsSyncLogRouteImport } from './routes/settings.sync-log'
 import { Route as SettingsSecurityRouteImport } from './routes/settings.security'
+import { Route as DebtsNewRouteImport } from './routes/debts.new'
 import { Route as SettingsCustodiansIndexRouteImport } from './routes/settings.custodians.index'
 import { Route as AccountsAccountIdIndexRouteImport } from './routes/accounts.$accountId.index'
 import { Route as PositionsPositionIdEditRouteImport } from './routes/positions.$positionId.edit'
+import { Route as DebtsDebtIdEditRouteImport } from './routes/debts.$debtId.edit'
 import { Route as AssetsAssetIdEditRouteImport } from './routes/assets.$assetId.edit'
 import { Route as AccountsAccountIdEditRouteImport } from './routes/accounts.$accountId.edit'
 import { Route as SettingsCustodiansCustodianIdIndexRouteImport } from './routes/settings.custodians.$custodianId.index'
@@ -37,6 +41,16 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SettingsRoute,
 } as any)
+const DebtsIndexRoute = DebtsIndexRouteImport.update({
+  id: '/debts/',
+  path: '/debts/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountsIndexRoute = AccountsIndexRouteImport.update({
+  id: '/accounts/',
+  path: '/accounts/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsSyncLogRoute = SettingsSyncLogRouteImport.update({
   id: '/sync-log',
   path: '/sync-log',
@@ -46,6 +60,11 @@ const SettingsSecurityRoute = SettingsSecurityRouteImport.update({
   id: '/security',
   path: '/security',
   getParentRoute: () => SettingsRoute,
+} as any)
+const DebtsNewRoute = DebtsNewRouteImport.update({
+  id: '/debts/new',
+  path: '/debts/new',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsCustodiansIndexRoute = SettingsCustodiansIndexRouteImport.update({
   id: '/custodians/',
@@ -60,6 +79,11 @@ const AccountsAccountIdIndexRoute = AccountsAccountIdIndexRouteImport.update({
 const PositionsPositionIdEditRoute = PositionsPositionIdEditRouteImport.update({
   id: '/positions/$positionId/edit',
   path: '/positions/$positionId/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DebtsDebtIdEditRoute = DebtsDebtIdEditRouteImport.update({
+  id: '/debts/$debtId/edit',
+  path: '/debts/$debtId/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AssetsAssetIdEditRoute = AssetsAssetIdEditRouteImport.update({
@@ -88,11 +112,15 @@ const SettingsCustodiansCustodianIdEditRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/debts/new': typeof DebtsNewRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/sync-log': typeof SettingsSyncLogRoute
+  '/accounts': typeof AccountsIndexRoute
+  '/debts': typeof DebtsIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
+  '/debts/$debtId/edit': typeof DebtsDebtIdEditRoute
   '/positions/$positionId/edit': typeof PositionsPositionIdEditRoute
   '/accounts/$accountId': typeof AccountsAccountIdIndexRoute
   '/settings/custodians': typeof SettingsCustodiansIndexRoute
@@ -101,11 +129,15 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/debts/new': typeof DebtsNewRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/sync-log': typeof SettingsSyncLogRoute
+  '/accounts': typeof AccountsIndexRoute
+  '/debts': typeof DebtsIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
+  '/debts/$debtId/edit': typeof DebtsDebtIdEditRoute
   '/positions/$positionId/edit': typeof PositionsPositionIdEditRoute
   '/accounts/$accountId': typeof AccountsAccountIdIndexRoute
   '/settings/custodians': typeof SettingsCustodiansIndexRoute
@@ -116,11 +148,15 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/settings': typeof SettingsRouteWithChildren
+  '/debts/new': typeof DebtsNewRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/sync-log': typeof SettingsSyncLogRoute
+  '/accounts/': typeof AccountsIndexRoute
+  '/debts/': typeof DebtsIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/accounts/$accountId/edit': typeof AccountsAccountIdEditRoute
   '/assets/$assetId/edit': typeof AssetsAssetIdEditRoute
+  '/debts/$debtId/edit': typeof DebtsDebtIdEditRoute
   '/positions/$positionId/edit': typeof PositionsPositionIdEditRoute
   '/accounts/$accountId/': typeof AccountsAccountIdIndexRoute
   '/settings/custodians/': typeof SettingsCustodiansIndexRoute
@@ -132,11 +168,15 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
+    | '/debts/new'
     | '/settings/security'
     | '/settings/sync-log'
+    | '/accounts'
+    | '/debts'
     | '/settings/'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
+    | '/debts/$debtId/edit'
     | '/positions/$positionId/edit'
     | '/accounts/$accountId'
     | '/settings/custodians'
@@ -145,11 +185,15 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/debts/new'
     | '/settings/security'
     | '/settings/sync-log'
+    | '/accounts'
+    | '/debts'
     | '/settings'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
+    | '/debts/$debtId/edit'
     | '/positions/$positionId/edit'
     | '/accounts/$accountId'
     | '/settings/custodians'
@@ -159,11 +203,15 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/settings'
+    | '/debts/new'
     | '/settings/security'
     | '/settings/sync-log'
+    | '/accounts/'
+    | '/debts/'
     | '/settings/'
     | '/accounts/$accountId/edit'
     | '/assets/$assetId/edit'
+    | '/debts/$debtId/edit'
     | '/positions/$positionId/edit'
     | '/accounts/$accountId/'
     | '/settings/custodians/'
@@ -174,8 +222,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRouteWithChildren
+  DebtsNewRoute: typeof DebtsNewRoute
+  AccountsIndexRoute: typeof AccountsIndexRoute
+  DebtsIndexRoute: typeof DebtsIndexRoute
   AccountsAccountIdEditRoute: typeof AccountsAccountIdEditRoute
   AssetsAssetIdEditRoute: typeof AssetsAssetIdEditRoute
+  DebtsDebtIdEditRoute: typeof DebtsDebtIdEditRoute
   PositionsPositionIdEditRoute: typeof PositionsPositionIdEditRoute
   AccountsAccountIdIndexRoute: typeof AccountsAccountIdIndexRoute
 }
@@ -203,6 +255,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/debts/': {
+      id: '/debts/'
+      path: '/debts'
+      fullPath: '/debts'
+      preLoaderRoute: typeof DebtsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accounts/': {
+      id: '/accounts/'
+      path: '/accounts'
+      fullPath: '/accounts'
+      preLoaderRoute: typeof AccountsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/sync-log': {
       id: '/settings/sync-log'
       path: '/sync-log'
@@ -216,6 +282,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/security'
       preLoaderRoute: typeof SettingsSecurityRouteImport
       parentRoute: typeof SettingsRoute
+    }
+    '/debts/new': {
+      id: '/debts/new'
+      path: '/debts/new'
+      fullPath: '/debts/new'
+      preLoaderRoute: typeof DebtsNewRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/settings/custodians/': {
       id: '/settings/custodians/'
@@ -236,6 +309,13 @@ declare module '@tanstack/react-router' {
       path: '/positions/$positionId/edit'
       fullPath: '/positions/$positionId/edit'
       preLoaderRoute: typeof PositionsPositionIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/debts/$debtId/edit': {
+      id: '/debts/$debtId/edit'
+      path: '/debts/$debtId/edit'
+      fullPath: '/debts/$debtId/edit'
+      preLoaderRoute: typeof DebtsDebtIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/assets/$assetId/edit': {
@@ -296,8 +376,12 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRouteWithChildren,
+  DebtsNewRoute: DebtsNewRoute,
+  AccountsIndexRoute: AccountsIndexRoute,
+  DebtsIndexRoute: DebtsIndexRoute,
   AccountsAccountIdEditRoute: AccountsAccountIdEditRoute,
   AssetsAssetIdEditRoute: AssetsAssetIdEditRoute,
+  DebtsDebtIdEditRoute: DebtsDebtIdEditRoute,
   PositionsPositionIdEditRoute: PositionsPositionIdEditRoute,
   AccountsAccountIdIndexRoute: AccountsAccountIdIndexRoute,
 }

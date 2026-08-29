@@ -1,5 +1,8 @@
 {
   "accounts": {
+    "title": "Comptes",
+    "holdingsCount_one": "{{count}} position",
+    "holdingsCount_other": "{{count}} positions",
     "trackToken": {
       "action": "Suivre un token",
       "contractLabel": "Adresse du contrat du token",

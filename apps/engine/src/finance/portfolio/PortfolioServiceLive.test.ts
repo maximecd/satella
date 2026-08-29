@@ -122,15 +122,18 @@ describe("portfolio dashboard", () => {
         assetId: "fiat:EUR",
         quantity: "100",
       });
+      const usdGroups = yield* Finance.listAccountGroups();
       const usdDashboard = yield* Finance.getDashboard();
       const nativeLivret = yield* Finance.getAccount(livret.id);
       yield* Finance.updateSettings({ reportingCurrencyAssetId: "fiat:EUR" });
       const eurDashboard = yield* Finance.getDashboard();
       const nativeAfter = yield* Finance.getAccount(livret.id);
 
-      const dashboardAccounts = usdDashboard.custodians.flatMap((group) => group.accounts);
+      const dashboardAccounts = usdGroups.flatMap((group) => group.accounts);
       expect(usdDashboard.reportingCurrency.iso).toBe("USD");
-      expect(usdDashboard.portfolioValue).toBe("1110");
+      expect(usdDashboard.totalAssets).toBe("1110");
+      expect(usdDashboard.totalDebt).toBe("0");
+      expect(usdDashboard.netWorth).toBe("1110");
       expect(dashboardAccounts[0]?.accountName).toBe("Brokerage");
       expect(dashboardAccounts[0]?.total).toBe("1000");
       expect(dashboardAccounts[1]?.accountName).toBe("Livret A");
@@ -138,9 +141,7 @@ describe("portfolio dashboard", () => {
       expect(nativeLivret.total).toBe("100");
       expect(nativeLivret.baseCurrencyIso).toBe("EUR");
       expect(eurDashboard.reportingCurrency.iso).toBe("EUR");
-      expect(eurDashboard.portfolioValue).toBe(
-        "1009.0909090909090909090909090909090909090909090909",
-      );
+      expect(eurDashboard.totalAssets).toBe("1009.0909090909090909090909090909090909090909090909");
       expect(nativeAfter.total).toBe("100");
     }).pipe(Effect.provide(engineTestLayer())),
   );
@@ -181,7 +182,7 @@ describe("portfolio dashboard", () => {
       yield* Finance.setManualPrice(short.id, { price: "4", currencyAssetId: "fiat:USD" });
       const dashboard = yield* Finance.getDashboard();
 
-      expect(dashboard.portfolioValue).toBe("46");
+      expect(dashboard.totalAssets).toBe("46");
       expect(dashboard.hasMeaningfulAssets).toBe(true);
       expect(dashboard.unpricedAssetCount).toBe(1);
       expect(dashboard.negativeHoldingCount).toBe(1);
@@ -203,8 +204,9 @@ describe("portfolio dashboard", () => {
           percent: "100",
         }),
       ]);
+      const groups = yield* Finance.listAccountGroups();
       expect(
-        dashboard.custodians
+        groups
           .flatMap((group) => group.accounts)
           .map(({ accountName }) => accountName)
           .sort(),
@@ -246,5 +248,97 @@ describe("portfolio dashboard", () => {
         ]);
         expect(dashboard.history).toHaveLength(2);
       }).pipe(Effect.provide(engineTestLayer())),
+  );
+});
+
+describe("portfolio debts", () => {
+  it.effect("records the debt total in Reporting currency on every snapshot", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* quoteUsd(sql, "fiat:EUR", "1.1");
+      yield* Finance.createDebt({
+        name: "Income tax",
+        kind: "tax",
+        amount: "4000",
+        currencyAssetId: "fiat:EUR",
+      });
+      yield* Finance.captureSnapshot({
+        refresh: false,
+        now: () => new Date("2026-08-11T00:00:00.000Z"),
+      });
+      const history = yield* Finance.getPortfolioHistory();
+      expect(history).toEqual([
+        expect.objectContaining({
+          capturedAt: "2026-08-11T00:00:00.000Z",
+          total: "0",
+          totalDebt: "4400",
+        }),
+      ]);
+    }).pipe(Effect.provide(engineTestLayer())),
+  );
+
+  it.effect("keeps each history point at the debt total captured that day", () =>
+    Effect.gen(function* () {
+      const debt = yield* Finance.createDebt({
+        name: "Consumer loan",
+        kind: "loan",
+        amount: "1000",
+        currencyAssetId: "fiat:USD",
+      });
+      yield* Finance.captureSnapshot({
+        refresh: false,
+        now: () => new Date("2026-08-01T00:00:00.000Z"),
+      });
+      yield* Finance.updateDebt(debt.id, { amount: "400" });
+      yield* Finance.captureSnapshot({
+        refresh: false,
+        now: () => new Date("2026-08-02T00:00:00.000Z"),
+      });
+      const history = yield* Finance.getPortfolioHistory();
+      expect(history.map(({ totalDebt }) => totalDebt)).toEqual(["1000", "400"]);
+    }).pipe(Effect.provide(engineTestLayer())),
+  );
+
+  it.effect("reports today's debt live and net worth as assets minus debts", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* quoteUsd(sql, "fiat:EUR", "1.1");
+      const account = yield* Finance.createAccount({ name: "Cash" });
+      yield* Finance.createPosition({
+        accountId: account.id,
+        assetId: "fiat:USD",
+        quantity: "500",
+      });
+      const debt = yield* Finance.createDebt({
+        name: "Income tax",
+        kind: "tax",
+        amount: "2000",
+        currencyAssetId: "fiat:EUR",
+      });
+      const dashboard = yield* Finance.getDashboard();
+      expect(dashboard.totalAssets).toBe("500");
+      expect(dashboard.totalDebt).toBe("2200");
+      expect(dashboard.netWorth).toBe("-1700");
+      expect(dashboard.totalIncomplete).toBe(false);
+      yield* Finance.deleteDebt(debt.id);
+      const clean = yield* Finance.getDashboard();
+      expect(clean.totalDebt).toBe("0");
+      expect(clean.netWorth).toBe(clean.totalAssets);
+      expect(clean.totalIncomplete).toBe(false);
+    }).pipe(Effect.provide(engineTestLayer())),
+  );
+
+  it.effect("flags the dashboard incomplete when a debt currency has no exchange rate", () =>
+    Effect.gen(function* () {
+      yield* Finance.createDebt({
+        name: "Income tax",
+        kind: "tax",
+        amount: "100",
+        currencyAssetId: "fiat:EUR",
+      });
+      const dashboard = yield* Finance.getDashboard();
+      expect(dashboard.totalDebt).toBe("0");
+      expect(dashboard.totalIncomplete).toBe(true);
+    }).pipe(Effect.provide(engineTestLayer())),
   );
 });

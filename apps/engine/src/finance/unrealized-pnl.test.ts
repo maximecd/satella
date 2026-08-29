@@ -278,7 +278,7 @@ describe("unrealized P&L", () => {
 
       yield* Finance.updateSettings({ reportingCurrencyAssetId: "fiat:EUR" });
       const dashboard = yield* Finance.getDashboard();
-      expect(dashboard.portfolioValue).toBe("19.2");
+      expect(dashboard.totalAssets).toBe("19.2");
       expect(dashboard.unrealizedPnl).toBe("-0.8");
       expect(dashboard.unrealizedPnlPercent).toBe("-0.04");
       expect((yield* Finance.getPortfolioHistory())[0]?.total).toBe("19.2");

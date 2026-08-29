@@ -7,6 +7,8 @@ import {
   type AddOtherAssetInput,
   type ConnectCustodianInput,
   type MaintainAssetInput,
+  type CreateDebtInput,
+  type UpdateDebtInput,
   type UpdateAccountInput,
   type UpdateCustodianInput,
   type UpdatePositionInput,
@@ -62,6 +64,7 @@ export const createHttpPortfolioEngine = (baseUrl = engineUrl()): PortfolioEngin
 
   return {
     getDashboard: (signal) => run((client) => client.finance.getDashboard({}), signal),
+    listAccountGroups: (signal) => run((client) => client.finance.listAccountGroups({}), signal),
     getSettings: (signal) => run((client) => client.finance.getSettings({}), signal),
     listSyncLog: (cursor, signal) =>
       run(
@@ -123,5 +126,13 @@ export const createHttpPortfolioEngine = (baseUrl = engineUrl()): PortfolioEngin
       run((client) => client.finance.addCashAccount({ payload }), signal),
     addOtherAsset: (payload: AddOtherAssetInput, signal) =>
       run((client) => client.finance.addOtherAsset({ payload }), signal),
+    listDebts: (signal) => run((client) => client.finance.listDebts({}), signal),
+    getDebt: (id, signal) => run((client) => client.finance.getDebt({ params: { id } }), signal),
+    createDebt: (payload: CreateDebtInput, signal) =>
+      run((client) => client.finance.createDebt({ payload }), signal),
+    updateDebt: (id, payload: UpdateDebtInput, signal) =>
+      run((client) => client.finance.updateDebt({ params: { id }, payload }), signal),
+    deleteDebt: (id, signal) =>
+      run((client) => client.finance.deleteDebt({ params: { id } }), signal),
   };
 };

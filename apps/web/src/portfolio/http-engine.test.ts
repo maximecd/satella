@@ -6,14 +6,15 @@ import { createHttpPortfolioEngine } from "./http-engine";
 
 const dashboard = {
   reportingCurrency: { assetId: "fiat:USD", iso: "USD" },
-  portfolioValue: "0",
+  totalAssets: "0",
+  totalDebt: "0",
+  netWorth: "0",
   unrealizedPnl: "0",
   unrealizedPnlPercent: null,
   totalIncomplete: false,
   unpricedAssetCount: 0,
   negativeHoldingCount: 0,
   hasMeaningfulAssets: false,
-  custodians: [],
   custodianAllocation: [],
   assetAllocation: [],
   categoryAllocation: [],

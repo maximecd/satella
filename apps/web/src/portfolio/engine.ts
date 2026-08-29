@@ -11,11 +11,15 @@ import type {
   CustodianRefreshResult,
   ConnectorCapability,
   Dashboard,
+  CreateDebtInput,
+  Debt,
+  DashboardCustodianGroup,
   MaintainAssetInput,
   ManualHoldingLookup,
   PositionEdit,
   Settings,
   SyncLogPage,
+  UpdateDebtInput,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdatePositionInput,
@@ -30,6 +34,9 @@ export type SearchableAssetCategory = AssetSearchResult["assetCategory"];
 
 export type PortfolioEngine = {
   readonly getDashboard: (signal?: AbortSignal) => Promise<Dashboard>;
+  readonly listAccountGroups: (
+    signal?: AbortSignal,
+  ) => Promise<ReadonlyArray<DashboardCustodianGroup>>;
   readonly getSettings: (signal?: AbortSignal) => Promise<Settings>;
   readonly listSyncLog: (cursor?: string, signal?: AbortSignal) => Promise<SyncLogPage>;
   readonly updateSettings: (input: UpdateSettingsInput, signal?: AbortSignal) => Promise<Settings>;
@@ -94,6 +101,11 @@ export type PortfolioEngine = {
     input: AddOtherAssetInput,
     signal?: AbortSignal,
   ) => Promise<AddAssetsResult>;
+  readonly listDebts: (signal?: AbortSignal) => Promise<ReadonlyArray<Debt>>;
+  readonly getDebt: (id: string, signal?: AbortSignal) => Promise<Debt>;
+  readonly createDebt: (input: CreateDebtInput, signal?: AbortSignal) => Promise<Debt>;
+  readonly updateDebt: (id: string, input: UpdateDebtInput, signal?: AbortSignal) => Promise<Debt>;
+  readonly deleteDebt: (id: string, signal?: AbortSignal) => Promise<void>;
 };
 
 export type PortfolioEngineOperation = keyof PortfolioEngine;

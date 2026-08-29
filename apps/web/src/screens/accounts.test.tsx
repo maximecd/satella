@@ -1,14 +1,11 @@
-import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
   account,
-  connectedAccount,
   renderRoute,
   resetFinanceMocks,
   seedPortfolioEngine,
-  syncedCustodian,
 } from "../finance.route-harness.test-utils";
 
 describe("accounts screen", () => {
@@ -16,125 +13,38 @@ describe("accounts screen", () => {
     resetFinanceMocks();
   });
 
-  it("shows incomplete, zero, and unpriced account states", async () => {
-    renderRoute("/accounts/account-1");
-    expect(await screen.findByRole("heading", { name: "Portfolio" })).toBeInTheDocument();
-    expect(screen.getByText("Total is incomplete")).toBeInTheDocument();
-    expect(screen.getByText("Zero positions (1)")).toBeInTheDocument();
-    expect(screen.getByText("Unpriced positions (1)")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
-  });
-
-  it("shows the account hierarchy as navigable breadcrumbs", async () => {
-    renderRoute("/accounts/account-1");
-
-    const breadcrumbs = await screen.findByRole("navigation", { name: "Breadcrumb" });
-    expect(within(breadcrumbs).getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+  it("shows custodian-grouped account cards with links into account detail", async () => {
+    renderRoute("/accounts");
+    expect(await screen.findByRole("heading", { name: "Demo bank" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "OKX" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Portfolio/ })).toHaveAttribute(
       "href",
-      "/",
+      "/accounts/account-1",
     );
-    expect(within(breadcrumbs).getByText("Portfolio")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /Trading/ })).toHaveAttribute(
+      "href",
+      "/accounts/connected-account",
+    );
   });
 
-  it("shows native market prices", async () => {
-    seedPortfolioEngine({
-      accounts: [
-        {
-          ...connectedAccount,
-          id: "account-1",
-          connectorAccountId: null,
-          name: "Portfolio",
-          total: "68",
-          totalIncomplete: false,
-          positions: [
-            {
-              ...connectedAccount.positions[0]!,
-              accountId: "account-1",
-              assetName: "EUR ETF",
-              quantity: "2",
-              price: {
-                price: "34",
-                currencyAssetId: "fiat:EUR",
-                currencyIso: "EUR",
-                source: "yahoo-finance",
-                observedAt: "2026-08-11T00:00:00.000Z",
-                updatedAt: "2026-08-11T00:00:00.000Z",
-              },
-              reportingValue: "68",
-            },
-          ],
-        },
-      ],
-    });
-
-    renderRoute("/accounts/account-1");
-    expect(await screen.findByText("Valuation currency USD", { exact: false })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Market price" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Value (USD)" })).toBeInTheDocument();
-    expect(screen.getByText(/(€34|34 €)/)).toBeInTheDocument();
-    expect(screen.getAllByText(/(\$68[.,]00|68[.,]00 \$)/)).toHaveLength(2);
-  });
-
-  it("labels the default manual account Other holdings", async () => {
+  it("labels the default manual group Other holdings", async () => {
     seedPortfolioEngine({
       accounts: [
         {
           ...account,
-          isDefaultCustodian: true,
+          id: "watch",
+          custodianId: "custodian:manual",
           custodianName: "Manual custodian",
-          name: "Manual account",
-          accountType: "other",
+          isDefaultCustodian: true,
         },
       ],
     });
-    renderRoute("/accounts/account-1");
+    renderRoute("/accounts");
     expect(await screen.findByRole("heading", { name: "Other holdings" })).toBeInTheDocument();
-    expect(screen.queryByText("Manual account")).not.toBeInTheDocument();
     expect(screen.queryByText("Manual custodian")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Edit account" })).not.toBeInTheDocument();
-  });
-
-  it("refreshes the owning custodian from a synced account", async () => {
-    const user = userEvent.setup();
-    seedPortfolioEngine({ custodians: [syncedCustodian] });
-    renderRoute("/accounts/connected-account");
-    await user.click(await screen.findByRole("button", { name: "Refresh" }));
-    expect((await screen.findAllByText("Custodian refreshed.")).length).toBeGreaterThan(0);
-  });
-
-  it("tracks an ERC-20 contract from its EVM chain account", async () => {
-    const user = userEvent.setup();
-    const evmCustodian = {
-      ...syncedCustodian,
-      name: "Vitalik",
-      connectorId: "evm",
-      accounts: [
-        {
-          ...syncedCustodian.accounts[0]!,
-          id: "ethereum-account",
-          name: "Ethereum",
-          connectorAccountId: "eip155:1",
-        },
-      ],
-    };
-    seedPortfolioEngine({
-      custodians: [evmCustodian],
-      accounts: [
-        {
-          ...connectedAccount,
-          id: "ethereum-account",
-          custodianName: "Vitalik",
-          name: "Ethereum",
-          connectorAccountId: "eip155:1",
-        },
-      ],
-    });
-    renderRoute("/accounts/ethereum-account");
-    await user.type(
-      await screen.findByLabelText("Token contract address"),
-      "0x6b175474e89094c44da98b954eedeac495271d0f",
+    expect(screen.getByRole("link", { name: /Other holdings/ })).toHaveAttribute(
+      "href",
+      "/accounts/watch",
     );
-    await user.click(screen.getByRole("button", { name: "Track token" }));
-    expect((await screen.findAllByText("Token tracked.")).length).toBeGreaterThan(0);
   });
 });

@@ -13,6 +13,9 @@ export const make = Effect.gen(function* () {
     ),
     history: Effect.fn("PortfolioService.history")(() => withSql(Operations.getPortfolioHistory())),
     dashboard: Effect.fn("PortfolioService.dashboard")(() => withSql(Operations.getDashboard())),
+    accountGroups: Effect.fn("PortfolioService.accountGroups")(() =>
+      withSql(Operations.listAccountGroups()),
+    ),
   });
 });
 

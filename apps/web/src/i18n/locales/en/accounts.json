@@ -1,5 +1,8 @@
 {
   "accounts": {
+    "title": "Accounts",
+    "holdingsCount_one": "{{count}} holding",
+    "holdingsCount_other": "{{count}} holdings",
     "trackToken": {
       "action": "Track token",
       "contractLabel": "Token contract address",

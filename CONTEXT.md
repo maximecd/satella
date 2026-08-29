@@ -24,16 +24,20 @@ _Avoid_: Transaction, holding history
 An intrinsic classification of an asset as Stocks & ETFs, Crypto, Cash, or Other assets. Portfolio allocation uses these categories. Add assets offers Checking and Savings for cash accounts, then Stocks & ETFs, Crypto, and Other assets.
 _Avoid_: Asset class, account kind
 
-**Portfolio value**:
+**Total assets**:
 The current combined value of all holdings expressed in the reporting currency. It is not investment performance because deposits and withdrawals are not yet modeled as cash flows.
-_Avoid_: Performance, return
+_Avoid_: Portfolio value, gross worth
+
+**Net worth**:
+Total assets minus total outstanding Debt, expressed in the reporting currency.
+_Avoid_: Wealth, equity
 
 **Price observation**:
 A price, currency, and observation time returned by a Market-data source. It remains valid regardless of age; Satella does not classify it as fresh, stale, or delayed.
 _Avoid_: Fresh price, stale price, delayed price
 
 **Snapshot**:
-A point-in-time record of every Position quantity and Asset price from which portfolio value history is derived. Each completed Refresh creates one Snapshot, including multiple Refreshes on the same day.
+A point-in-time record of every Position quantity, Asset price, and total outstanding Debt from which total assets and net worth history are derived. Each completed Refresh creates one Snapshot, including multiple Refreshes on the same day.
 _Avoid_: History entry, balance record, backup
 
 **Fiat currency**:
@@ -61,6 +65,12 @@ _Avoid_: PRU, average cost basis
 **Unrealized P&L**:
 The current value of a positive non-Cash Position in its Acquisition-cost currency minus its Acquisition cost, then expressed in the Reporting currency at the current exchange rate. It includes both Asset-price and currency movements; Cash has zero Unrealized P&L, and realized gains or losses, dividends, fees, and taxes are excluded.
 _Avoid_: Performance, return, total return, all-time return
+
+## Debts
+
+**Debt**:
+Money the user owes that Satella tracks as a single outstanding amount in one Fiat currency, edited manually by the user, with an optional due date and a kind such as tax or loan. Satella never changes a Debt's amount on its own, and money owed to the user is not a Debt.
+_Avoid_: Liability, receivable, credit
 
 ## Custodians
 

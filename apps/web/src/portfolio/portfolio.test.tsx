@@ -18,7 +18,7 @@ const usd = populatedDashboardFor(new Date("2026-08-15T12:00:00.000Z"));
 const eur = {
   ...usd,
   reportingCurrency: { assetId: "fiat:EUR", iso: "EUR" },
-  portfolioValue: "1000",
+  totalAssets: "1000",
 };
 
 const wrapperFor = (engine: ReturnType<typeof createMemoryPortfolioEngine>) => {
@@ -55,7 +55,7 @@ describe("portfolio data module", () => {
     expect(result.current.dashboard.data?.reportingCurrency.iso).toBe("USD");
     await result.current.save.mutateAsync({ reportingCurrencyAssetId: "fiat:EUR" });
     await waitFor(() => expect(result.current.settings.data?.reportingCurrency.iso).toBe("EUR"));
-    await waitFor(() => expect(result.current.dashboard.data?.portfolioValue).toBe("1000"));
+    await waitFor(() => expect(result.current.dashboard.data?.totalAssets).toBe("1000"));
     expect(result.current.dashboard.data?.reportingCurrency.iso).toBe("EUR");
   });
 

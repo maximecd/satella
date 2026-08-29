@@ -5,6 +5,7 @@ import type {
   Account,
   Custodian,
   Dashboard,
+  Debt,
   PositionEdit,
   Settings,
 } from "@satella-app/engine/api";
@@ -80,18 +81,31 @@ export const account: Account = {
 
 export const emptyDashboard: Dashboard = {
   reportingCurrency: { assetId: "fiat:USD", iso: "USD" },
-  portfolioValue: "0",
+  totalAssets: "0",
+  totalDebt: "0",
+  netWorth: "0",
   unrealizedPnl: "0",
   unrealizedPnlPercent: null,
   totalIncomplete: false,
   unpricedAssetCount: 0,
   negativeHoldingCount: 0,
   hasMeaningfulAssets: false,
-  custodians: [],
   custodianAllocation: [],
   assetAllocation: [],
   categoryAllocation: [],
   history: [],
+};
+
+export const taxDebt: Debt = {
+  id: "debt-tax",
+  name: "Tax bill",
+  kind: "tax",
+  amount: "4000",
+  currencyAssetId: "fiat:EUR",
+  currencyIso: "EUR",
+  dueDate: null,
+  createdAt: "2026-08-11T00:00:00.000Z",
+  updatedAt: "2026-08-11T00:00:00.000Z",
 };
 
 export const settings: Settings = {
@@ -116,51 +130,15 @@ export const populatedDashboardFor = (now = new Date()): Dashboard => {
   };
   return {
     reportingCurrency: { assetId: "fiat:USD", iso: "USD" },
-    portfolioValue: "1100",
+    totalAssets: "1100",
+    totalDebt: "0",
+    netWorth: "1100",
     unrealizedPnl: "50",
     unrealizedPnlPercent: "0.1",
     totalIncomplete: true,
     unpricedAssetCount: 1,
     negativeHoldingCount: 1,
     hasMeaningfulAssets: true,
-    custodians: [
-      {
-        custodianId: "ibkr",
-        name: "IBKR",
-        isDefault: false,
-        connectorId: "ibkr",
-        accounts: [
-          {
-            accountId: "brokerage",
-            accountName: "Brokerage",
-            accountType: "brokerage",
-            positionCount: 2,
-            total: "800",
-            unrealizedPnl: "50",
-            unrealizedPnlPercent: "0.1",
-            totalIncomplete: false,
-          },
-        ],
-      },
-      {
-        custodianId: "bnp",
-        name: "BNP Paribas",
-        isDefault: false,
-        connectorId: null,
-        accounts: [
-          {
-            accountId: "livret",
-            accountName: "Livret A",
-            accountType: "savings",
-            positionCount: 1,
-            total: "300",
-            unrealizedPnl: "0",
-            unrealizedPnlPercent: null,
-            totalIncomplete: true,
-          },
-        ],
-      },
-    ],
     custodianAllocation: [
       {
         key: "ibkr",
@@ -218,6 +196,7 @@ export const populatedDashboardFor = (now = new Date()): Dashboard => {
         snapshotId: "s1",
         capturedAt: utcDay(20),
         total: "1000",
+        totalDebt: "0",
         totalIncomplete: false,
         categories: { stocks_etfs: "800", crypto: "100", cash: "100", other: "0" },
       },
@@ -225,6 +204,7 @@ export const populatedDashboardFor = (now = new Date()): Dashboard => {
         snapshotId: "s1b",
         capturedAt: utcDay(20, 18),
         total: "1010",
+        totalDebt: "0",
         totalIncomplete: false,
         categories: { stocks_etfs: "800", crypto: "110", cash: "100", other: "0" },
       },
@@ -232,6 +212,7 @@ export const populatedDashboardFor = (now = new Date()): Dashboard => {
         snapshotId: "s2",
         capturedAt: utcDay(5),
         total: "1100",
+        totalDebt: "0",
         totalIncomplete: false,
         categories: { stocks_etfs: "850", crypto: "150", cash: "100", other: "0" },
       },

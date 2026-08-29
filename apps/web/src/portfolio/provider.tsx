@@ -8,11 +8,14 @@ import type {
   AppLanguage,
   Asset,
   ConnectCustodianInput,
+  CreateDebtInput,
   Custodian,
   CustodianRefreshResult,
+  Debt,
   EvmRpcSettings,
   MaintainAssetInput,
   Settings,
+  UpdateDebtInput,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdatePositionInput,
@@ -41,6 +44,9 @@ const assetSearchQueryKey = (query: string, assetCategory: SearchableAssetCatego
   ["assets", "search", assetCategory, query] as const;
 const holdingQueryKey = (accountId: string, identifierType: string, identifierValue: string) =>
   ["assets", "holding", accountId, identifierType, identifierValue] as const;
+const accountGroupsQueryKey = ["account-groups"] as const;
+const debtsQueryKey = ["debts"] as const;
+const debtQueryKey = (id: string) => ["debts", id] as const;
 
 const PortfolioEngineContext = createContext<PortfolioEngine | null>(null);
 
@@ -76,6 +82,73 @@ export const useDashboard = () => {
     queryFn: ({ signal }) => engine.getDashboard(signal),
     staleTime: 15_000,
     retry: 1,
+  });
+};
+
+export const useAccountGroups = () => {
+  const engine = usePortfolioEngine();
+  return useQuery({
+    queryKey: accountGroupsQueryKey,
+    queryFn: ({ signal }) => engine.listAccountGroups(signal),
+    staleTime: 15_000,
+    retry: 1,
+  });
+};
+
+export const useDebts = () => {
+  const engine = usePortfolioEngine();
+  return useQuery({
+    queryKey: debtsQueryKey,
+    queryFn: ({ signal }) => engine.listDebts(signal),
+    staleTime: 15_000,
+    retry: 1,
+  });
+};
+
+export const useDebt = (id: string) => {
+  const engine = usePortfolioEngine();
+  return useQuery({
+    queryKey: debtQueryKey(id),
+    queryFn: ({ signal }) => engine.getDebt(id, signal),
+    enabled: id.length > 0,
+    staleTime: 15_000,
+    retry: 1,
+  });
+};
+
+export const useCreateDebt = () => {
+  const engine = usePortfolioEngine();
+  const queryClient = useQueryClient();
+  return useMutation<Debt, PortfolioFailure, CreateDebtInput>({
+    mutationFn: (input) => engine.createDebt(input),
+    onSuccess: async (debt) => {
+      queryClient.setQueryData(debtQueryKey(debt.id), debt);
+      await invalidate(queryClient, [debtsQueryKey, dashboardQueryKey]);
+    },
+  });
+};
+
+export const useUpdateDebt = (id: string) => {
+  const engine = usePortfolioEngine();
+  const queryClient = useQueryClient();
+  return useMutation<Debt, PortfolioFailure, UpdateDebtInput>({
+    mutationFn: (input) => engine.updateDebt(id, input),
+    onSuccess: async (debt) => {
+      queryClient.setQueryData(debtQueryKey(id), debt);
+      await invalidate(queryClient, [debtsQueryKey, dashboardQueryKey]);
+    },
+  });
+};
+
+export const useDeleteDebt = (id: string) => {
+  const engine = usePortfolioEngine();
+  const queryClient = useQueryClient();
+  return useMutation<void, PortfolioFailure, void>({
+    mutationFn: () => engine.deleteDebt(id),
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: debtQueryKey(id) });
+      await invalidate(queryClient, [debtsQueryKey, dashboardQueryKey]);
+    },
   });
 };
 
@@ -164,7 +237,12 @@ export const useMaintainAsset = (id: string) => {
     mutationFn: (input) => engine.updateAsset(id, input),
     onSuccess: async (asset) => {
       queryClient.setQueryData(assetQueryKey(id), asset);
-      await invalidate(queryClient, [assetsQueryKey, dashboardQueryKey, accountsQueryKey]);
+      await invalidate(queryClient, [
+        accountGroupsQueryKey,
+        assetsQueryKey,
+        dashboardQueryKey,
+        accountsQueryKey,
+      ]);
     },
   });
 };
@@ -176,7 +254,12 @@ export const useDeleteAsset = (id: string) => {
     mutationFn: () => engine.deleteAsset(id),
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: assetQueryKey(id) });
-      await invalidate(queryClient, [assetsQueryKey, dashboardQueryKey, accountsQueryKey]);
+      await invalidate(queryClient, [
+        accountGroupsQueryKey,
+        assetsQueryKey,
+        dashboardQueryKey,
+        accountsQueryKey,
+      ]);
     },
   });
 };
@@ -219,6 +302,7 @@ export const useUpdateAccount = (id: string) => {
     onSuccess: async (account) => {
       queryClient.setQueryData(accountQueryKey(id), account);
       await invalidate(queryClient, [
+        accountGroupsQueryKey,
         dashboardQueryKey,
         custodiansQueryKey,
         manualAccountsQueryKey,
@@ -235,7 +319,12 @@ export const useDeleteAccount = (id: string) => {
     mutationFn: () => engine.deleteAccount(id),
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: accountQueryKey(id) });
-      await invalidate(queryClient, [dashboardQueryKey, accountsQueryKey, custodiansQueryKey]);
+      await invalidate(queryClient, [
+        accountGroupsQueryKey,
+        dashboardQueryKey,
+        accountsQueryKey,
+        custodiansQueryKey,
+      ]);
     },
   });
 };
@@ -260,6 +349,7 @@ export const useUpdatePosition = (id: string, accountId: string) => {
       await invalidate(queryClient, [
         positionEditQueryKey(id),
         accountQueryKey(accountId),
+        accountGroupsQueryKey,
         dashboardQueryKey,
       ]);
     },
@@ -273,7 +363,11 @@ export const useDeletePosition = (id: string, accountId: string) => {
     mutationFn: () => engine.deletePosition(id),
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: positionEditQueryKey(id) });
-      await invalidate(queryClient, [accountQueryKey(accountId), dashboardQueryKey]);
+      await invalidate(queryClient, [
+        accountGroupsQueryKey,
+        accountQueryKey(accountId),
+        dashboardQueryKey,
+      ]);
     },
   });
 };
@@ -315,7 +409,12 @@ export const useUpdateCustodian = (id: string) => {
     mutationFn: (input) => engine.updateCustodian(id, input),
     onSuccess: async (custodian) => {
       queryClient.setQueryData(custodianQueryKey(id), custodian);
-      await invalidate(queryClient, [custodiansQueryKey, dashboardQueryKey, accountsQueryKey]);
+      await invalidate(queryClient, [
+        accountGroupsQueryKey,
+        custodiansQueryKey,
+        dashboardQueryKey,
+        accountsQueryKey,
+      ]);
     },
   });
 };
@@ -328,6 +427,7 @@ export const useDeleteCustodian = (id: string) => {
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: custodianQueryKey(id) });
       await invalidate(queryClient, [
+        accountGroupsQueryKey,
         custodiansQueryKey,
         dashboardQueryKey,
         accountsQueryKey,
@@ -346,6 +446,7 @@ export const useRefreshCustodian = () => {
     onSuccess: async (result) => {
       queryClient.setQueryData(custodianQueryKey(result.custodian.id), result.custodian);
       await invalidate(queryClient, [
+        accountGroupsQueryKey,
         dashboardQueryKey,
         custodiansQueryKey,
         accountsQueryKey,
@@ -389,6 +490,7 @@ export const useConnectCustodian = () => {
     mutationFn: (input) => engine.connectCustodian(input),
     onSuccess: async () => {
       await invalidate(queryClient, [
+        accountGroupsQueryKey,
         dashboardQueryKey,
         custodiansQueryKey,
         accountsQueryKey,
@@ -405,6 +507,7 @@ export const useAddManualHolding = () => {
     mutationFn: (input) => engine.addManualHolding(input),
     onSuccess: async () => {
       await invalidate(queryClient, [
+        accountGroupsQueryKey,
         dashboardQueryKey,
         accountsQueryKey,
         assetsQueryKey,
@@ -422,6 +525,7 @@ export const useAddCashAccount = () => {
     mutationFn: (input) => engine.addCashAccount(input),
     onSuccess: async () => {
       await invalidate(queryClient, [
+        accountGroupsQueryKey,
         dashboardQueryKey,
         accountsQueryKey,
         assetsQueryKey,
@@ -439,7 +543,12 @@ export const useAddOtherAsset = () => {
   return useMutation<AddAssetsResult, PortfolioFailure, AddOtherAssetInput>({
     mutationFn: (input) => engine.addOtherAsset(input),
     onSuccess: async () => {
-      await invalidate(queryClient, [dashboardQueryKey, accountsQueryKey, assetsQueryKey]);
+      await invalidate(queryClient, [
+        accountGroupsQueryKey,
+        dashboardQueryKey,
+        accountsQueryKey,
+        assetsQueryKey,
+      ]);
     },
   });
 };

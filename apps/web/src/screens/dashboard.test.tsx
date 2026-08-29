@@ -24,19 +24,19 @@ describe("dashboard screen", () => {
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Add assets" }).length).toBeGreaterThan(0);
     expect(screen.getByText("No assets yet")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Portfolio value" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Total assets" })).not.toBeInTheDocument();
   });
 
-  it("shows Portfolio value, allocation, sorted Accounts, and 1M history from first to last daily point", async () => {
+  it("shows Total assets, allocation, and 1M history from first to last daily point", async () => {
     const dashboard = populatedDashboardFor(new Date("2026-08-15T12:00:00.000Z"));
     seedPortfolioEngine({ dashboard });
     renderRoute("/");
 
-    expect(await screen.findByRole("heading", { name: "Portfolio value" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Total assets" })).toBeInTheDocument();
     expect(screen.getByText(/(\$1[.,]100[.,]00|1[.,]100[.,]00 \$)/)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "1M" })).toBeChecked();
     expect(screen.getByText(/(\+\$90[.,]00|\+90[.,]00 \$) \(\+8[.,]91%\)/)).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Portfolio value history" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Total assets history" })).toBeInTheDocument();
     expect(screen.getByText("Incomplete valuation")).toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByRole("radio", { name: "Assets" }));
@@ -47,23 +47,74 @@ describe("dashboard screen", () => {
     expect(apple).toHaveFocus();
     expect(screen.getByText("1 unpriced asset excluded from allocation.")).toBeInTheDocument();
     expect(screen.getByText("Negative holdings are excluded from allocation.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "IBKR" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "BNP Paribas" })).toBeInTheDocument();
-    expect(screen.queryByText("Other holdings")).not.toBeInTheDocument();
-
-    expect(screen.getByRole("link", { name: /Brokerage/ })).toHaveAttribute(
-      "href",
-      "/accounts/brokerage",
-    );
-    expect(screen.getByRole("link", { name: /Livret A/ })).toHaveAttribute(
-      "href",
-      "/accounts/livret",
-    );
-    expect(screen.getByText(/(\$800[.,]00|800[.,]00 \$)/)).toBeInTheDocument();
-    expect(screen.getByText(/(\$300[.,]00|300[.,]00 \$)/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "IBKR" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "BNP Paribas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Demo bank" })).not.toBeInTheDocument();
   });
 
-  it("selects every Portfolio value range and reports sparse history honestly", async () => {
+  it("hides the gross/net toggle while there are no debts", async () => {
+    seedPortfolioEngine({ dashboard: populatedDashboardFor() });
+    renderRoute("/");
+    expect(await screen.findByRole("heading", { name: "Total assets" })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Net worth" })).not.toBeInTheDocument();
+  });
+
+  it("toggles the headline, subline, chart, and change figure between gross and net", async () => {
+    const user = userEvent.setup();
+    const dashboard = populatedDashboardFor(new Date("2026-08-15T12:00:00.000Z"));
+    seedPortfolioEngine({
+      dashboard: {
+        ...dashboard,
+        totalDebt: "100",
+        netWorth: "1000",
+        history: dashboard.history.map((point) =>
+          point.snapshotId === "s2" ? { ...point, totalDebt: "100" } : point,
+        ),
+      },
+    });
+    renderRoute("/");
+    expect(await screen.findByRole("heading", { name: "Total assets" })).toBeInTheDocument();
+    expect(screen.queryByText(/Debts: \$100[.,]00/)).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Total assets history" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Net worth" }));
+    expect(screen.getByRole("heading", { name: "Net worth" })).toBeInTheDocument();
+    expect(screen.getByText(/Debts: \$100[.,]00/)).toBeInTheDocument();
+    expect(screen.getByText(/\$1[.,]000[.,]00/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Net worth history" })).toBeInTheDocument();
+    expect(screen.getByText(/(-\$10[.,]00|-10[.,]00 \$) \(-0[.,]99%\)/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Total assets" }));
+    expect(screen.getByRole("heading", { name: "Total assets" })).toBeInTheDocument();
+    expect(screen.queryByText(/Debts: \$100[.,]00/)).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Total assets history" })).toBeInTheDocument();
+  });
+
+  it("keeps the allocation unchanged while switching between gross and net", async () => {
+    const user = userEvent.setup();
+    const dashboard = populatedDashboardFor();
+    seedPortfolioEngine({
+      dashboard: {
+        ...dashboard,
+        totalDebt: "100",
+        netWorth: "1000",
+        history: dashboard.history.map((point) =>
+          point.snapshotId === "s2" ? { ...point, totalDebt: "100" } : point,
+        ),
+      },
+    });
+    renderRoute("/");
+    const gross = await screen.findByRole("img", {
+      name: /Stocks & ETFs, (\$800[.,]00|800[.,]00 \$), 80%/,
+    });
+    expect(gross).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Net worth" }));
+    expect(
+      screen.getByRole("img", { name: /Stocks & ETFs, (\$800[.,]00|800[.,]00 \$), 80%/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("selects every Total assets range and reports sparse history honestly", async () => {
     const user = userEvent.setup();
     seedPortfolioEngine({ dashboard: populatedDashboardFor() });
     renderRoute("/");
@@ -119,43 +170,5 @@ describe("dashboard screen", () => {
     expect(tooltip).toHaveTextContent(/(\$800[.,]25|800[.,]25 \$)/);
     expect(apple).toHaveTextContent(/(\$800|800 \$)/);
     expect(apple).not.toHaveTextContent(/800[.,]\d/);
-  });
-
-  it("labels the default manual group Other holdings", async () => {
-    const dashboard = populatedDashboardFor();
-    seedPortfolioEngine({
-      dashboard: {
-        ...dashboard,
-        custodians: [
-          ...dashboard.custodians,
-          {
-            custodianId: "custodian:manual",
-            name: "Manual custodian",
-            isDefault: true,
-            connectorId: null,
-            accounts: [
-              {
-                accountId: "watch",
-                accountName: "Manual account",
-                accountType: "other",
-                positionCount: 1,
-                total: "1200",
-                unrealizedPnl: "0",
-                unrealizedPnlPercent: null,
-                totalIncomplete: false,
-              },
-            ],
-          },
-        ],
-      },
-    });
-    renderRoute("/");
-    expect(await screen.findByRole("heading", { name: "Other holdings" })).toBeInTheDocument();
-    expect(screen.queryByText("Manual custodian")).not.toBeInTheDocument();
-    expect(screen.queryByText("Manual account")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Other holdings/ })).toHaveAttribute(
-      "href",
-      "/accounts/watch",
-    );
   });
 });

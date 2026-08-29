@@ -265,6 +265,40 @@ export const UpdatePositionInput = Schema.Struct({
 });
 export type UpdatePositionInput = typeof UpdatePositionInput.Type;
 
+export const DebtKind = Schema.Literals(["tax", "loan", "other"]);
+export type DebtKind = typeof DebtKind.Type;
+
+export const Debt = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  kind: DebtKind,
+  amount: DecimalString,
+  currencyAssetId: Schema.String,
+  currencyIso: Schema.String,
+  dueDate: Schema.NullOr(Schema.String),
+  createdAt: Schema.String,
+  updatedAt: Schema.String,
+});
+export type Debt = typeof Debt.Type;
+
+export const CreateDebtInput = Schema.Struct({
+  name: Schema.Trim.check(Schema.isNonEmpty()),
+  kind: DebtKind,
+  amount: DecimalInput,
+  currencyAssetId: Schema.String,
+  dueDate: Schema.optional(Schema.NullOr(Schema.String)),
+});
+export type CreateDebtInput = typeof CreateDebtInput.Type;
+
+export const UpdateDebtInput = Schema.Struct({
+  name: Schema.optional(Schema.Trim.check(Schema.isNonEmpty())),
+  kind: Schema.optional(DebtKind),
+  amount: Schema.optional(DecimalInput),
+  currencyAssetId: Schema.optional(Schema.String),
+  dueDate: Schema.optional(Schema.NullOr(Schema.String)),
+});
+export type UpdateDebtInput = typeof UpdateDebtInput.Type;
+
 // HTML forms intentionally use encoded strings and decode explicitly before mutation.
 export const DecimalFromNonEmptyString = Schema.String.check(
   Schema.isNonEmpty(),
@@ -323,6 +357,7 @@ export const PortfolioHistoryPoint = Schema.Struct({
   snapshotId: Schema.String,
   capturedAt: Schema.String,
   total: DecimalString,
+  totalDebt: DecimalString,
   totalIncomplete: Schema.Boolean,
   categories: Schema.Record(AssetCategory, DecimalString),
 });
@@ -449,14 +484,15 @@ export type AllocationCell = typeof AllocationCell.Type;
 
 export const Dashboard = Schema.Struct({
   reportingCurrency: ReportingCurrency,
-  portfolioValue: DecimalString,
+  totalAssets: DecimalString,
+  totalDebt: DecimalString,
+  netWorth: DecimalString,
   unrealizedPnl: DecimalString,
   unrealizedPnlPercent: Schema.NullOr(DecimalString),
   totalIncomplete: Schema.Boolean,
   unpricedAssetCount: Schema.Number,
   negativeHoldingCount: Schema.Number,
   hasMeaningfulAssets: Schema.Boolean,
-  custodians: Schema.Array(DashboardCustodianGroup),
   custodianAllocation: Schema.Array(AllocationCell),
   assetAllocation: Schema.Array(AllocationCell),
   categoryAllocation: Schema.Array(AllocationCell),
