@@ -1,4 +1,4 @@
-import { chmod, cp, mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -71,10 +71,9 @@ export const stageProductionTree = async ({ root = repositoryRoot, stagingDirect
   const appDirectory = join(stagingDirectory, "app");
   await mkdir(join(appDirectory, "bin"), { recursive: true });
   await mkdir(join(appDirectory, "dist", "public"), { recursive: true });
-  await cp(
-    join(root, "apps", "engine", "dist", "main.mjs"),
-    join(appDirectory, "dist", "main.mjs"),
-  );
+  await cp(join(root, "apps", "engine", "dist"), join(appDirectory, "dist"), {
+    recursive: true,
+  });
   await cp(join(root, "apps", "web", "dist"), join(appDirectory, "dist", "public"), {
     recursive: true,
   });
@@ -90,6 +89,14 @@ export const stageProductionTree = async ({ root = repositoryRoot, stagingDirect
   return { appDirectory };
 };
 
+const listStagedPackagePaths = async (appDirectory) => {
+  const entries = await readdir(appDirectory, { recursive: true, withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name).slice(appDirectory.length + 1))
+    .sort();
+};
+
 const listTarball = async (artifact) => {
   const { stdout } = await execFileAsync("tar", ["-tzf", artifact], { encoding: "utf8" });
   return stdout.split("\n").filter((line) => line.length > 0);
@@ -100,7 +107,7 @@ const readTarballFile = async (artifact, path) => {
   return stdout;
 };
 
-export const validatePackagedArtifact = async (artifact, version) => {
+export const validatePackagedArtifact = async (artifact, version, stagedPaths) => {
   const names = await listTarball(artifact);
   const required = [
     "package/package.json",
@@ -111,6 +118,14 @@ export const validatePackagedArtifact = async (artifact, version) => {
   ];
   for (const path of required) {
     if (!names.includes(path)) throw new Error(`Release tarball is missing ${path}`);
+  }
+  if (stagedPaths !== undefined) {
+    for (const path of stagedPaths) {
+      const packagedPath = "package/" + path;
+      if (!names.includes(packagedPath)) {
+        throw new Error("Release tarball is missing staged file " + packagedPath);
+      }
+    }
   }
   if (names.some((path) => path.endsWith(".node"))) {
     throw new Error("Release tarball contains a native addon");
@@ -151,7 +166,11 @@ export const packageRelease = async ({ root = repositoryRoot, outputDirectory, v
     maxBuffer: 50 * 1024 * 1024,
   });
   await requireFile(artifact, "npm pack tarball");
-  await validatePackagedArtifact(artifact, normalizedVersion);
+  await validatePackagedArtifact(
+    artifact,
+    normalizedVersion,
+    await listStagedPackagePaths(appDirectory),
+  );
   return artifact;
 };
 

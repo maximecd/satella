@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
-import { productionPackage, releaseArtifactName } from "./package-release.mjs";
+import { productionPackage, releaseArtifactName, stageProductionTree } from "./package-release.mjs";
 
 const readText = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
@@ -35,4 +37,28 @@ test("the engine package does not depend on SQLCipher", async () => {
   assert.equal(enginePackage.scripts?.install, undefined);
   assert.equal(enginePackage.scripts?.preinstall, undefined);
   assert.equal(enginePackage.scripts?.postinstall, undefined);
+});
+
+test("staging keeps every engine bundle chunk, not only main.mjs", async () => {
+  const root = await mkdtemp(join(tmpdir(), "satella-package-release-test-"));
+  try {
+    await mkdir(join(root, "apps", "engine", "dist"), { recursive: true });
+    await mkdir(join(root, "apps", "web", "dist"), { recursive: true });
+    await writeFile(
+      join(root, "apps", "engine", "dist", "main.mjs"),
+      'import "./chunk-abc.mjs";\n',
+    );
+    await writeFile(join(root, "apps", "engine", "dist", "chunk-abc.mjs"), "export {};\n");
+    await writeFile(join(root, "apps", "web", "dist", "index.html"), "<html></html>\n");
+    const { appDirectory } = await stageProductionTree({
+      root,
+      stagingDirectory: join(root, "staging"),
+      version: "0.1.0",
+    });
+    await stat(join(appDirectory, "dist", "main.mjs"));
+    await stat(join(appDirectory, "dist", "chunk-abc.mjs"));
+    await stat(join(appDirectory, "dist", "public", "index.html"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
