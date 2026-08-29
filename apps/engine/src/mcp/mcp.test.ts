@@ -88,6 +88,16 @@ describe("Satella MCP HTTP", () => {
         currencyAssetId: "fiat:USD",
       }),
     });
+    await json(port, "/api/goals", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Buy a car",
+        amount: "15000",
+        currencyAssetId: "fiat:USD",
+        targetDate: null,
+        accountIds: ["account:manual"],
+      }),
+    });
 
     expect((await json(port, "/api/dashboard")).status).toBe(200);
     expect(
@@ -134,6 +144,14 @@ describe("Satella MCP HTTP", () => {
     expect(portfolio.status).toBe(200);
     expect(portfolio.body.result.structuredContent.reportingCurrency.iso).toBe("USD");
     expect(portfolio.body.result.structuredContent.accounts.length).toBeGreaterThan(0);
+    expect(portfolio.body.result.structuredContent.goals).toEqual([
+      expect.objectContaining({
+        name: "Buy a car",
+        amount: "15000",
+        currentAmount: "1000",
+        contributingAccounts: [expect.objectContaining({ id: "account:manual" })],
+      }),
+    ]);
     expect(JSON.stringify(portfolio.body.result.structuredContent)).not.toContain("yahoo");
     expect(portfolio.body.result.structuredContent.history).toBeUndefined();
 

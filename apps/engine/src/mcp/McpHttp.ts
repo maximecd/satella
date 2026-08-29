@@ -6,6 +6,7 @@ import { HttpServerResponse } from "effect/unstable/http";
 import { AccountService } from "../finance/accounts/AccountService.js";
 import { FinanceApiError } from "../finance/contracts.js";
 import { DebtService } from "../finance/debts/DebtService.js";
+import { GoalService } from "../finance/goals/GoalService.js";
 import { PortfolioService } from "../finance/portfolio/PortfolioService.js";
 import { VaultStateError } from "../vault/errors.js";
 import { VaultService } from "../vault/Vault.js";
@@ -68,6 +69,7 @@ export const McpHttp = HttpRouter.middleware(
       const portfolio = yield* PortfolioService;
       const accounts = yield* AccountService;
       const debts = yield* DebtService;
+      const goals = yield* GoalService;
       const loadPortfolio = Effect.gen(function* () {
         const dashboard = yield* portfolio.dashboard();
         const groups = yield* portfolio.accountGroups();
@@ -82,7 +84,8 @@ export const McpHttp = HttpRouter.middleware(
           ),
         );
         const debtList = yield* debts.list();
-        return toMcpPortfolio(dashboard, loaded.flat(), debtList);
+        const goalList = yield* goals.list();
+        return toMcpPortfolio(dashboard, loaded.flat(), debtList, goalList);
       });
       const outcome = yield* handleJsonRpcMessage(payload, loadPortfolio);
       if (outcome.kind === "empty") return HttpServerResponse.empty({ status: 202 });
