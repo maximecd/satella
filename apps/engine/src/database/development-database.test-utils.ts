@@ -242,7 +242,11 @@ export const startEngine = async (options: {
     });
     child.once("exit", onExit);
     const onData = () => {
-      if (output.includes("Engine listening") || output.includes("SQLite database initialized")) {
+      if (
+        output.includes("Engine listening") ||
+        output.includes("SQLite database initialized") ||
+        output.includes("Dashboard:")
+      ) {
         child.stdout.off("data", onData);
         child.stderr.off("data", onData);
         child.off("exit", onExit);

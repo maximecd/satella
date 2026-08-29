@@ -104,6 +104,15 @@ describe("product CLI runtime", () => {
     expect(hello.status).toBe(200);
   }, 60_000);
 
+  it("prints the dashboard banner and keeps the production console quiet", async () => {
+    const { engine } = await startCli();
+    const output = engine.output();
+    expect(output).toContain("Dashboard: http://127.0.0.1:");
+    expect(output).toContain(String(engine.port));
+    expect(output).not.toContain("Engine listening");
+    expect(output).not.toContain("SQLite database initialized");
+  }, 60_000);
+
   it("fails when the listen port is taken by something else", async () => {
     const port = await chooseFreePort();
     const occupant = await occupyPort(port);

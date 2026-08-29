@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -5,7 +6,9 @@ import { join } from "node:path";
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vite-plus/test";
 
+import { DATABASE_FILE_NAME } from "./config.js";
 import * as Finance from "../finance/finance.test-utils.js";
+import { OWNERSHIP_FILE_NAME } from "./ownership.js";
 import {
   commandEnv,
   createGitCheckouts,
@@ -471,14 +474,8 @@ tls.connect = deny;
   it("logs the worktree database during development startup and uses home .satella in production", async () => {
     const checkouts = await createGitCheckouts();
     const fakeHome = await mkdtemp(join(tmpdir(), "satella-prod-home-"));
+    const productionDataDirectory = join(fakeHome, ".satella");
     try {
-      const engine = await startEngine({ cwd: checkouts.main });
-      try {
-        expect(engine.output()).toContain(databaseFile(checkouts.main));
-      } finally {
-        await engine.stop();
-      }
-
       const production = await startEngine({
         cwd: checkouts.main,
         env: {
@@ -487,10 +484,19 @@ tls.connect = deny;
         },
       });
       try {
-        expect(production.output()).toContain(join(fakeHome, ".satella"));
-        expect(production.output()).not.toContain(databaseFile(checkouts.main));
+        expect(existsSync(join(productionDataDirectory, OWNERSHIP_FILE_NAME))).toBe(true);
+        expect(existsSync(databaseFile(checkouts.main))).toBe(false);
       } finally {
         await production.stop();
+      }
+
+      expect(existsSync(join(productionDataDirectory, DATABASE_FILE_NAME))).toBe(false);
+
+      const engine = await startEngine({ cwd: checkouts.main });
+      try {
+        expect(engine.output()).toContain(databaseFile(checkouts.main));
+      } finally {
+        await engine.stop();
       }
     } finally {
       await rm(fakeHome, { recursive: true, force: true });

@@ -13,6 +13,39 @@ export const HELLO_MESSAGE = "Hello world";
 
 const HelloBody = Schema.Struct({ message: Schema.Literal(HELLO_MESSAGE) });
 
+const BANNER_ROWS = [
+  " ____        _          _  _       ",
+  "/ ___|  __ _ | |_   ___ | || |  __ _ ",
+  "\\___ \\ / _` || __| / _ \\| || | / _` |",
+  " ___) || (_| || |_ |  __/| || || (_| |",
+  "|____/ \\__,_| \\__| \\___||_||_| \\__,_|",
+] as const;
+
+const BANNER_ROW_COLORS = [
+  "\u001B[38;5;140m",
+  "\u001B[38;5;176m",
+  "\u001B[38;5;212m",
+  "\u001B[38;5;218m",
+  "\u001B[38;5;219m",
+] as const;
+
+const ANSI_RESET = "\u001B[0m";
+
+export const isDevelopmentContext = (): boolean =>
+  process.env["SATELLA_DATABASE_CONTEXT"] === "development";
+
+export const startupBanner = (dashboardUrl: string): string => {
+  const useColors = process.stdout.isTTY === true && process.env["NO_COLOR"] === undefined;
+  const art = BANNER_ROWS.map((row, index) =>
+    useColors ? `${BANNER_ROW_COLORS[index]}${row}${ANSI_RESET}` : row,
+  ).join("\n");
+  return `${art}\n\n  Dashboard: ${dashboardUrl}`;
+};
+
+export const printStartupBanner = (dashboardUrl: string, stream = process.stdout): void => {
+  stream.write(`${startupBanner(dashboardUrl)}\n`);
+};
+
 export const parsePort = (value: string | undefined, fallback: number): number => {
   if (value === undefined) return fallback;
   const port = Number(value);
