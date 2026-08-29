@@ -43,9 +43,11 @@ import {
   Custodian,
   Dashboard,
   CreateDebtInput,
+  CreateGoalInput,
   Debt,
   DashboardCustodianGroup,
   FinanceApiError,
+  Goal,
   LookupManualHoldingParams,
   MaintainAssetInput,
   ManualHoldingLookup,
@@ -61,6 +63,7 @@ import {
   SyncLogParams,
   UpdateAccountInput,
   UpdateDebtInput,
+  UpdateGoalInput,
   UpdateCustodianInput,
   UpdatePositionInput,
   UpdateSettingsInput,
@@ -243,6 +246,41 @@ export const FinanceApi = HttpApiGroup.make("finance")
   )
   .add(
     HttpApiEndpoint.delete("deleteDebt", "/api/debts/:id", {
+      params: EntityIdParams,
+      success: Schema.Void,
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("listGoals", "/api/goals", {
+      success: Schema.Array(Goal),
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("createGoal", "/api/goals", {
+      payload: CreateGoalInput,
+      success: created(Goal),
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("getGoal", "/api/goals/:id", {
+      params: EntityIdParams,
+      success: Goal,
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.patch("updateGoal", "/api/goals/:id", {
+      params: EntityIdParams,
+      payload: UpdateGoalInput,
+      success: Goal,
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.delete("deleteGoal", "/api/goals/:id", {
       params: EntityIdParams,
       success: Schema.Void,
       error: FinanceApiError,

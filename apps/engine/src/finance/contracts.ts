@@ -299,6 +299,44 @@ export const UpdateDebtInput = Schema.Struct({
 });
 export type UpdateDebtInput = typeof UpdateDebtInput.Type;
 
+export const GoalAccount = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+});
+export type GoalAccount = typeof GoalAccount.Type;
+
+export const Goal = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  amount: DecimalString,
+  currencyAssetId: Schema.String,
+  currencyIso: Schema.String,
+  targetDate: Schema.NullOr(Schema.String),
+  currentAmount: DecimalString,
+  contributingAccounts: Schema.Array(GoalAccount),
+  createdAt: Schema.String,
+  updatedAt: Schema.String,
+});
+export type Goal = typeof Goal.Type;
+
+export const CreateGoalInput = Schema.Struct({
+  name: Schema.Trim.check(Schema.isNonEmpty()),
+  amount: DecimalInput,
+  currencyAssetId: Schema.String,
+  targetDate: Schema.optional(Schema.NullOr(Schema.String)),
+  accountIds: Schema.Array(Schema.String),
+});
+export type CreateGoalInput = typeof CreateGoalInput.Type;
+
+export const UpdateGoalInput = Schema.Struct({
+  name: Schema.optional(Schema.Trim.check(Schema.isNonEmpty())),
+  amount: Schema.optional(DecimalInput),
+  currencyAssetId: Schema.optional(Schema.String),
+  targetDate: Schema.optional(Schema.NullOr(Schema.String)),
+  accountIds: Schema.optional(Schema.Array(Schema.String)),
+});
+export type UpdateGoalInput = typeof UpdateGoalInput.Type;
+
 // HTML forms intentionally use encoded strings and decode explicitly before mutation.
 export const DecimalFromNonEmptyString = Schema.String.check(
   Schema.isNonEmpty(),
