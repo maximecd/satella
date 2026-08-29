@@ -69,6 +69,19 @@ describe("Satella MCP HTTP", () => {
     return engine;
   };
 
+  it("leaves the dashboard and API outside JSON-RPC parse handling", async () => {
+    const { port } = await start();
+    const dashboard = await fetch(`http://127.0.0.1:${port}/`);
+    const dashboardBody = await dashboard.text();
+    expect(dashboard.status).not.toBe(400);
+    expect(dashboardBody).not.toContain("Parse error");
+    expect(dashboardBody).not.toContain("jsonrpc");
+
+    const hello = await json(port, "/api/hello");
+    expect(hello.status).toBe(200);
+    expect(hello.body).toEqual({ message: "Hello world" });
+  }, 60_000);
+
   it("reads the Vault through get_portfolio with a Settings-issued token, including during Screen lock", async () => {
     const engine = await start();
     const { port } = engine;
