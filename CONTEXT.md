@@ -72,6 +72,16 @@ _Avoid_: Performance, return, total return, all-time return
 Money the user owes that Satella tracks as a single outstanding amount in one Fiat currency, edited manually by the user, with an optional due date and a kind such as tax or loan. Satella never changes a Debt's amount on its own, and money owed to the user is not a Debt.
 _Avoid_: Liability, receivable, credit
 
+## Goals
+
+**Goal**:
+A named target amount in one Fiat currency, against which selected Accounts' current values are measured. An Account contributes to at most one Goal; the money stays in those Accounts, and a Goal does not change Total assets, Net worth, or allocation.
+_Avoid_: Savings goal, envelope, budget, earmark
+
+**Target date**:
+An optional calendar day by which the user wants to reach a Goal. It is informational; Satella does not complete or archive a Goal when the day passes.
+_Avoid_: Achievement date, due date, deadline
+
 ## Custodians
 
 **Custodian**:

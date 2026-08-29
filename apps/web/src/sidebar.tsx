@@ -1,7 +1,15 @@
 import { Button, Flex, Heading, Icon, Link, Stack, Text } from "@chakra-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, Lock, Receipt, Settings, Wallet, type LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  Lock,
+  Receipt,
+  Settings,
+  Target,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { engineApi } from "./api";
@@ -13,6 +21,7 @@ export function Sidebar() {
   const isDashboard = pathname === "/";
   const isAccounts = pathname === "/accounts" || pathname.startsWith("/accounts/");
   const isDebts = pathname === "/debts" || pathname.startsWith("/debts/");
+  const isGoals = pathname === "/goals" || pathname.startsWith("/goals/");
   const isSettings = pathname === "/settings" || pathname.startsWith("/settings/");
 
   return (
@@ -43,6 +52,7 @@ export function Sidebar() {
         />
         <NavItem href="/accounts" label={t("shell.accounts")} icon={Wallet} selected={isAccounts} />
         <NavItem href="/debts" label={t("shell.debts")} icon={Receipt} selected={isDebts} />
+        <NavItem href="/goals" label={t("shell.goals")} icon={Target} selected={isGoals} />
         <NavItem
           href="/settings"
           label={t("shell.settings")}

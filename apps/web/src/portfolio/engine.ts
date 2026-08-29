@@ -12,7 +12,9 @@ import type {
   ConnectorCapability,
   Dashboard,
   CreateDebtInput,
+  CreateGoalInput,
   Debt,
+  Goal,
   DashboardCustodianGroup,
   MaintainAssetInput,
   ManualHoldingLookup,
@@ -20,6 +22,7 @@ import type {
   Settings,
   SyncLogPage,
   UpdateDebtInput,
+  UpdateGoalInput,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdatePositionInput,
@@ -106,6 +109,11 @@ export type PortfolioEngine = {
   readonly createDebt: (input: CreateDebtInput, signal?: AbortSignal) => Promise<Debt>;
   readonly updateDebt: (id: string, input: UpdateDebtInput, signal?: AbortSignal) => Promise<Debt>;
   readonly deleteDebt: (id: string, signal?: AbortSignal) => Promise<void>;
+  readonly listGoals: (signal?: AbortSignal) => Promise<ReadonlyArray<Goal>>;
+  readonly getGoal: (id: string, signal?: AbortSignal) => Promise<Goal>;
+  readonly createGoal: (input: CreateGoalInput, signal?: AbortSignal) => Promise<Goal>;
+  readonly updateGoal: (id: string, input: UpdateGoalInput, signal?: AbortSignal) => Promise<Goal>;
+  readonly deleteGoal: (id: string, signal?: AbortSignal) => Promise<void>;
 };
 
 export type PortfolioEngineOperation = keyof PortfolioEngine;

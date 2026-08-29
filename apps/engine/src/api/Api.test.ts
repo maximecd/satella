@@ -21,6 +21,9 @@ describe("finance API routes", () => {
     ["getDebt", "/api/debts/:id"],
     ["updateDebt", "/api/debts/:id"],
     ["deleteDebt", "/api/debts/:id"],
+    ["getGoal", "/api/goals/:id"],
+    ["updateGoal", "/api/goals/:id"],
+    ["deleteGoal", "/api/goals/:id"],
   ] as const)("declares %s with a dynamic id segment", (name, path) => {
     expect(FinanceApi.endpoints[name].path).toBe(path);
   });
@@ -42,6 +45,8 @@ describe("finance API routes", () => {
     ["listAccountGroups", "/api/account-groups"],
     ["listDebts", "/api/debts"],
     ["createDebt", "/api/debts"],
+    ["listGoals", "/api/goals"],
+    ["createGoal", "/api/goals"],
   ] as const)("declares %s at %s", (name, path) => {
     expect(FinanceApi.endpoints[name].path).toBe(path);
   });

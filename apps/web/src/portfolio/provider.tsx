@@ -9,13 +9,16 @@ import type {
   Asset,
   ConnectCustodianInput,
   CreateDebtInput,
+  CreateGoalInput,
   Custodian,
   CustodianRefreshResult,
   Debt,
   EvmRpcSettings,
+  Goal,
   MaintainAssetInput,
   Settings,
   UpdateDebtInput,
+  UpdateGoalInput,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdatePositionInput,
@@ -47,6 +50,8 @@ const holdingQueryKey = (accountId: string, identifierType: string, identifierVa
 const accountGroupsQueryKey = ["account-groups"] as const;
 const debtsQueryKey = ["debts"] as const;
 const debtQueryKey = (id: string) => ["debts", id] as const;
+const goalsQueryKey = ["goals"] as const;
+const goalQueryKey = (id: string) => ["goals", id] as const;
 
 const PortfolioEngineContext = createContext<PortfolioEngine | null>(null);
 
@@ -148,6 +153,63 @@ export const useDeleteDebt = (id: string) => {
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: debtQueryKey(id) });
       await invalidate(queryClient, [debtsQueryKey, dashboardQueryKey]);
+    },
+  });
+};
+
+export const useGoals = () => {
+  const engine = usePortfolioEngine();
+  return useQuery({
+    queryKey: goalsQueryKey,
+    queryFn: ({ signal }) => engine.listGoals(signal),
+    staleTime: 15_000,
+    retry: 1,
+  });
+};
+
+export const useGoal = (id: string) => {
+  const engine = usePortfolioEngine();
+  return useQuery({
+    queryKey: goalQueryKey(id),
+    queryFn: ({ signal }) => engine.getGoal(id, signal),
+    enabled: id.length > 0,
+    staleTime: 15_000,
+    retry: 1,
+  });
+};
+
+export const useCreateGoal = () => {
+  const engine = usePortfolioEngine();
+  const queryClient = useQueryClient();
+  return useMutation<Goal, PortfolioFailure, CreateGoalInput>({
+    mutationFn: (input) => engine.createGoal(input),
+    onSuccess: async (goal) => {
+      queryClient.setQueryData(goalQueryKey(goal.id), goal);
+      await invalidate(queryClient, [goalsQueryKey]);
+    },
+  });
+};
+
+export const useUpdateGoal = (id: string) => {
+  const engine = usePortfolioEngine();
+  const queryClient = useQueryClient();
+  return useMutation<Goal, PortfolioFailure, UpdateGoalInput>({
+    mutationFn: (input) => engine.updateGoal(id, input),
+    onSuccess: async (goal) => {
+      queryClient.setQueryData(goalQueryKey(id), goal);
+      await invalidate(queryClient, [goalsQueryKey]);
+    },
+  });
+};
+
+export const useDeleteGoal = (id: string) => {
+  const engine = usePortfolioEngine();
+  const queryClient = useQueryClient();
+  return useMutation<void, PortfolioFailure, void>({
+    mutationFn: () => engine.deleteGoal(id),
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: goalQueryKey(id) });
+      await invalidate(queryClient, [goalsQueryKey]);
     },
   });
 };
@@ -324,6 +386,7 @@ export const useDeleteAccount = (id: string) => {
         dashboardQueryKey,
         accountsQueryKey,
         custodiansQueryKey,
+        goalsQueryKey,
       ]);
     },
   });

@@ -9,6 +9,7 @@ import enCommon from "./locales/en/common.json";
 import enCustodians from "./locales/en/custodians.json";
 import enDashboard from "./locales/en/dashboard.json";
 import enDebts from "./locales/en/debts.json";
+import enGoals from "./locales/en/goals.json";
 import enOnboarding from "./locales/en/onboarding.json";
 import enPositions from "./locales/en/positions.json";
 import enSecurity from "./locales/en/security.json";
@@ -21,6 +22,7 @@ import frCommon from "./locales/fr/common.json";
 import frCustodians from "./locales/fr/custodians.json";
 import frDashboard from "./locales/fr/dashboard.json";
 import frDebts from "./locales/fr/debts.json";
+import frGoals from "./locales/fr/goals.json";
 import frOnboarding from "./locales/fr/onboarding.json";
 import frPositions from "./locales/fr/positions.json";
 import frSecurity from "./locales/fr/security.json";
@@ -34,6 +36,7 @@ const en = {
   ...enDashboard,
   ...enAccounts,
   ...enDebts,
+  ...enGoals,
   ...enPositions,
   ...enAssets,
   ...enAddAssets,
@@ -48,6 +51,7 @@ const fr = {
   ...frDashboard,
   ...frAccounts,
   ...frDebts,
+  ...frGoals,
   ...frPositions,
   ...frAssets,
   ...frAddAssets,

@@ -1,0 +1,31 @@
+{
+  "goals": {
+    "title": "Goals",
+    "add": "Add goal",
+    "empty": {
+      "title": "No goals yet",
+      "description": "Set a target such as a new car, and choose which accounts count toward it."
+    },
+    "targetInDays_one": "In {{count}} day",
+    "targetInDays_other": "In {{count}} days",
+    "targetAgoDays_one": "{{count}} day ago",
+    "targetAgoDays_other": "{{count}} days ago",
+    "targetToday": "Today",
+    "progress": "{{current}} of {{target}}",
+    "form": {
+      "name": "Name",
+      "amount": "Target amount",
+      "currency": "Currency",
+      "targetDate": "Target date",
+      "accounts": "Accounts",
+      "accountsOptional": "optional",
+      "accountTaken": "{{name}} ({{goal}})"
+    },
+    "saved": "Goal saved.",
+    "editTitle": "Edit {{name}}",
+    "breadcrumbs": {
+      "goals": "Goals",
+      "edit": "Edit"
+    }
+  }
+}

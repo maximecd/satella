@@ -108,6 +108,7 @@ describe("SQLite migration startup", () => {
       "20260823084456_add_evm_rpc_settings",
       "20260823090830_allow_optional_sync_log_failure_reason",
       "20260829094515_add_manual_debts",
+      "20260829190336_add_goals",
       "20260829190511_add_mcp_token",
     ]);
   });
@@ -471,6 +472,115 @@ describe("manual debts migration", () => {
       expect(upgraded.snapshots).toEqual([
         { id: "snap-old", captured_at: "2026-08-01T00:00:00.000Z", total_debt: null },
       ]);
+    }).pipe(Effect.provide(Reactivity.layer)),
+  );
+});
+
+describe("goals migration", () => {
+  const lastReleasedSchemaBeforeGoals: MigrationRegistry = {
+    "20260821194600_initial_finance_model": initialFinanceModel,
+    "20260822165422_add_app_language": addAppLanguage,
+    "20260823081447_add_sync_log": addSyncLog,
+    "20260823084456_add_evm_rpc_settings": addEvmRpcSettings,
+    "20260823090830_allow_optional_sync_log_failure_reason": allowOptionalSyncLogFailureReason,
+    "20260829094515_add_manual_debts": addManualDebts,
+  };
+
+  const insertGoal = (
+    id: string,
+    name: string,
+    amount: string,
+    currencyAssetId: string,
+    targetDate: string | null,
+  ) =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`INSERT INTO goals
+        (id, name, amount, currency_asset_id, target_date, created_at, updated_at)
+        VALUES (${id}, ${name}, ${amount}, ${currencyAssetId}, ${targetDate},
+          '2026-08-29T00:00:00.000Z', '2026-08-29T00:00:00.000Z')`;
+    });
+
+  it.effect("creates the goals tables on a fresh Vault", () =>
+    Effect.gen(function* () {
+      const directory = yield* acquireTestDirectory;
+      const inserted = yield* scopedCustomMigrations(
+        directory,
+        ProductionMigrations,
+        Effect.gen(function* () {
+          yield* insertGoal("goal-1", "Buy a car", "15000", "fiat:EUR", "2026-09-15");
+          const sql = yield* SqlClient.SqlClient;
+          return yield* sql`SELECT name, amount, currency_asset_id, target_date
+            FROM goals WHERE id = 'goal-1'`;
+        }),
+      );
+      expect(inserted).toEqual([
+        {
+          name: "Buy a car",
+          amount: "15000",
+          currency_asset_id: "fiat:EUR",
+          target_date: "2026-09-15",
+        },
+      ]);
+      const constraints = yield* scopedCustomMigrations(
+        directory,
+        ProductionMigrations,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`INSERT INTO assets (id, asset_category, name, symbol, created_at, updated_at)
+            VALUES ('asset:art', 'other', 'Art', NULL,
+              '2026-08-29T00:00:00.000Z', '2026-08-29T00:00:00.000Z')`;
+          const badName = yield* insertGoal("goal-2", "   ", "10", "fiat:USD", null).pipe(
+            Effect.result,
+          );
+          const badTargetDate = yield* insertGoal(
+            "goal-3",
+            "Car",
+            "10",
+            "fiat:USD",
+            "2026/09/15",
+          ).pipe(Effect.result);
+          const nonCashCurrency = yield* insertGoal("goal-4", "Car", "10", "asset:art", null).pipe(
+            Effect.result,
+          );
+          yield* insertGoal("goal-5", "Car", "10", "fiat:USD", null);
+          yield* insertGoal("goal-6", "Emergency", "10", "fiat:USD", null);
+          yield* sql`INSERT INTO goal_accounts (goal_id, account_id)
+            VALUES ('goal-5', 'account:manual')`;
+          const sharedAccount = yield* sql`INSERT INTO goal_accounts (goal_id, account_id)
+            VALUES ('goal-6', 'account:manual')`.pipe(Effect.result);
+          return { badName, badTargetDate, nonCashCurrency, sharedAccount };
+        }),
+      );
+      expect(constraints.badName._tag).toBe("Failure");
+      expect(constraints.badTargetDate._tag).toBe("Failure");
+      expect(constraints.nonCashCurrency._tag).toBe("Failure");
+      expect(constraints.sharedAccount._tag).toBe("Failure");
+    }).pipe(Effect.provide(Reactivity.layer)),
+  );
+
+  it.effect("upgrades the last released schema and accepts a new Goal", () =>
+    Effect.gen(function* () {
+      const directory = yield* acquireTestDirectory;
+      yield* scopedCustomMigrations(
+        directory,
+        lastReleasedSchemaBeforeGoals,
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`INSERT INTO snapshots (id, captured_at, total_debt)
+            VALUES ('snap-old', '2026-08-01T00:00:00.000Z', '0')`;
+        }),
+      );
+      const upgraded = yield* scopedCustomMigrations(
+        directory,
+        ProductionMigrations,
+        Effect.gen(function* () {
+          yield* insertGoal("goal-1", "Buy a car", "15000", "fiat:USD", null);
+          const sql = yield* SqlClient.SqlClient;
+          return yield* sql`SELECT count(*) AS count FROM goals`;
+        }),
+      );
+      expect(upgraded).toEqual([{ count: 1 }]);
     }).pipe(Effect.provide(Reactivity.layer)),
   );
 });

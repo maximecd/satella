@@ -20,6 +20,7 @@ export { createAccount as createAccountOnCustodian } from "./accounts/AccountSql
 export * from "./positions/PositionSql.js";
 export * from "./portfolio/PortfolioSql.js";
 export * from "./debts/DebtSql.js";
+export * from "./goals/GoalSql.js";
 export * from "./settings/SettingsSql.js";
 export * from "./add-assets/AddAssetsSql.js";
 

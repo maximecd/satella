@@ -9,11 +9,14 @@ import type {
   AssetSearchResult,
   ConnectCustodianInput,
   CreateDebtInput,
+  CreateGoalInput,
   Custodian,
   CustodianRefreshResult,
   Dashboard,
   DashboardCustodianGroup,
   Debt,
+  Goal,
+  GoalAccount,
   MaintainAssetInput,
   ManualHoldingLookup,
   Position,
@@ -21,6 +24,7 @@ import type {
   Settings,
   SyncLogEntry,
   UpdateDebtInput,
+  UpdateGoalInput,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdateSettingsInput,
@@ -47,6 +51,7 @@ export type MemoryPortfolioSeed = {
   readonly custodians?: ReadonlyArray<Custodian>;
   readonly accounts?: ReadonlyArray<Account>;
   readonly debts?: ReadonlyArray<Debt>;
+  readonly goals?: ReadonlyArray<Goal>;
   readonly assets?: ReadonlyArray<Asset>;
   readonly positionEdits?: ReadonlyArray<PositionEdit>;
   readonly capabilities?: ConnectorCapabilities;
@@ -231,6 +236,7 @@ export const createMemoryPortfolioEngine = (
     custodians: Custodian[];
     accounts: Account[];
     debts: Debt[];
+    goals: Goal[];
     assets: Asset[];
     positionEdits: PositionEdit[];
     capabilities: ConnectorCapabilities;
@@ -251,6 +257,7 @@ export const createMemoryPortfolioEngine = (
       custodians: clone([...(next.custodians ?? [])]),
       accounts,
       debts: clone([...(next.debts ?? [])]),
+      goals: clone([...(next.goals ?? [])]),
       assets: clone([...(next.assets ?? [])]),
       positionEdits,
       capabilities: clone(next.capabilities ?? defaultCapabilities),
@@ -269,6 +276,7 @@ export const createMemoryPortfolioEngine = (
     custodians: clone(value.custodians),
     accounts: clone(value.accounts),
     debts: clone(value.debts),
+    goals: clone(value.goals),
     assets: clone(value.assets),
     positionEdits: clone(value.positionEdits),
     capabilities: clone(value.capabilities),
@@ -312,6 +320,64 @@ export const createMemoryPortfolioEngine = (
     const debt = state.debts.find((candidate) => candidate.id === id);
     if (debt === undefined) throw notFound("Debt");
     return debt;
+  };
+
+  const requireGoal = (id: string) => {
+    const goal = state.goals.find((candidate) => candidate.id === id);
+    if (goal === undefined) throw notFound("Goal");
+    return goal;
+  };
+
+  const contributingAccountsFrom = (accountIds: ReadonlyArray<string>): GoalAccount[] => {
+    const unique = [...new Set(accountIds)];
+    return unique
+      .map((accountId) => {
+        const account = state.accounts.find((candidate) => candidate.id === accountId);
+        if (account === undefined) throw notFound("Account");
+        return { id: account.id, name: account.name };
+      })
+      .sort(
+        (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+      );
+  };
+
+  const currentAmountFrom = (accounts: ReadonlyArray<GoalAccount>) =>
+    accounts.reduce((sum, account) => {
+      const found = state.accounts.find((candidate) => candidate.id === account.id);
+      return found === undefined ? sum : addDecimal(sum, found.total);
+    }, "0");
+
+  const refreshGoal = (goal: Goal): Goal => {
+    const contributingAccounts = goal.contributingAccounts
+      .map((account) => {
+        const found = state.accounts.find((candidate) => candidate.id === account.id);
+        return found === undefined ? undefined : { id: found.id, name: found.name };
+      })
+      .filter((account): account is GoalAccount => account !== undefined)
+      .sort(
+        (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+      );
+    return {
+      ...goal,
+      contributingAccounts,
+      currentAmount: currentAmountFrom(contributingAccounts),
+    };
+  };
+
+  const assertAccountsAvailable = (
+    accountIds: ReadonlyArray<string>,
+    exceptGoalId: string | null,
+  ) => {
+    for (const accountId of accountIds) {
+      const taken = state.goals.find(
+        (goal) =>
+          goal.id !== exceptGoalId &&
+          goal.contributingAccounts.some((account) => account.id === accountId),
+      );
+      if (taken !== undefined) {
+        throw new PortfolioFailure("validation", "An Account can contribute to at most one Goal");
+      }
+    }
   };
 
   const requirePositionEdit = (id: string) => {
@@ -660,6 +726,7 @@ export const createMemoryPortfolioEngine = (
         ...custodian,
         accounts: custodian.accounts.filter((summary) => summary.id !== id),
       }));
+      state.goals = state.goals.map((goal) => refreshGoal(goal));
     },
     getPositionEdit: async (id, signal) => {
       throwIfAborted(signal);
@@ -931,6 +998,114 @@ export const createMemoryPortfolioEngine = (
       state.debts = state.debts.filter((debt) => debt.id !== id);
       syncDashboardDebts();
     },
+    listGoals: async (signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("listGoals");
+      state.goals = state.goals.map((goal) => refreshGoal(goal));
+      return state.goals;
+    },
+    getGoal: async (id, signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("getGoal");
+      const next = refreshGoal(requireGoal(id));
+      state.goals = state.goals.map((goal) => (goal.id === id ? next : goal));
+      return next;
+    },
+    createGoal: async (input: CreateGoalInput, signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("createGoal");
+      const name = input.name.trim();
+      if (name.length === 0) throw new PortfolioFailure("validation", "Goal name is required");
+      const amount = canonicalDecimal(input.amount);
+      if (compareDecimal(amount, "0") <= 0)
+        throw new PortfolioFailure("validation", "Goal amount must be greater than zero");
+      const targetDate = input.targetDate ?? null;
+      if (targetDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate))
+        throw new PortfolioFailure(
+          "validation",
+          "Target date must be a calendar date (YYYY-MM-DD)",
+        );
+      const contributingAccounts = contributingAccountsFrom(input.accountIds);
+      assertAccountsAvailable(
+        contributingAccounts.map((account) => account.id),
+        null,
+      );
+      const goal: Goal = {
+        id: `goal-${state.goals.length + 1}`,
+        name,
+        amount,
+        currencyAssetId: input.currencyAssetId,
+        currencyIso: currencyIso(input.currencyAssetId),
+        targetDate,
+        contributingAccounts,
+        currentAmount: currentAmountFrom(contributingAccounts),
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      };
+      state.goals = [...state.goals, goal];
+      return clone(goal);
+    },
+    updateGoal: async (id, input: UpdateGoalInput, signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("updateGoal");
+      const current = requireGoal(id);
+      const name =
+        input.name === undefined
+          ? current.name
+          : input.name.trim().length > 0
+            ? input.name.trim()
+            : (() => {
+                throw new PortfolioFailure("validation", "Goal name is required");
+              })();
+      const amount =
+        input.amount === undefined
+          ? current.amount
+          : (() => {
+              const canonical = canonicalDecimal(input.amount);
+              if (compareDecimal(canonical, "0") <= 0) {
+                throw new PortfolioFailure("validation", "Goal amount must be greater than zero");
+              }
+              return canonical;
+            })();
+      const targetDate = input.targetDate === undefined ? current.targetDate : input.targetDate;
+      if (targetDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate))
+        throw new PortfolioFailure(
+          "validation",
+          "Target date must be a calendar date (YYYY-MM-DD)",
+        );
+      const contributingAccounts =
+        input.accountIds === undefined
+          ? current.contributingAccounts
+          : contributingAccountsFrom(input.accountIds);
+      if (input.accountIds !== undefined) {
+        assertAccountsAvailable(
+          contributingAccounts.map((account) => account.id),
+          id,
+        );
+      }
+      const next: Goal = {
+        ...current,
+        name,
+        amount,
+        currencyAssetId: input.currencyAssetId ?? current.currencyAssetId,
+        currencyIso:
+          input.currencyAssetId === undefined
+            ? current.currencyIso
+            : currencyIso(input.currencyAssetId),
+        targetDate,
+        contributingAccounts,
+        currentAmount: currentAmountFrom(contributingAccounts),
+        updatedAt: nowIso(),
+      };
+      state.goals = state.goals.map((goal) => (goal.id === id ? next : goal));
+      return clone(next);
+    },
+    deleteGoal: async (id, signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("deleteGoal");
+      requireGoal(id);
+      state.goals = state.goals.filter((goal) => goal.id !== id);
+    },
     seed: (next) => {
       if (next.dashboard !== undefined) state.dashboard = clone(next.dashboard);
       if (next.settings !== undefined) state.settings = clone(next.settings);
@@ -945,6 +1120,7 @@ export const createMemoryPortfolioEngine = (
         state.debts = clone([...next.debts]);
         syncDashboardDebts();
       }
+      if (next.goals !== undefined) state.goals = clone([...next.goals]);
       if (next.assets !== undefined) state.assets = clone([...next.assets]);
       if (next.positionEdits !== undefined) {
         state.positionEdits = clone([...next.positionEdits]);

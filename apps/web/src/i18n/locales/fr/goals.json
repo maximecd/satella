@@ -1,0 +1,31 @@
+{
+  "goals": {
+    "title": "Objectifs",
+    "add": "Ajouter un objectif",
+    "empty": {
+      "title": "Aucun objectif pour le moment",
+      "description": "Fixez un montant à atteindre, comme une voiture, et choisissez les comptes qui y contribuent."
+    },
+    "targetInDays_one": "Dans {{count}} jour",
+    "targetInDays_other": "Dans {{count}} jours",
+    "targetAgoDays_one": "Il y a {{count}} jour",
+    "targetAgoDays_other": "Il y a {{count}} jours",
+    "targetToday": "Aujourd'hui",
+    "progress": "{{current}} sur {{target}}",
+    "form": {
+      "name": "Nom",
+      "amount": "Montant cible",
+      "currency": "Devise",
+      "targetDate": "Date cible",
+      "accounts": "Comptes",
+      "accountsOptional": "facultatif",
+      "accountTaken": "{{name}} ({{goal}})"
+    },
+    "saved": "Objectif enregistré.",
+    "editTitle": "Modifier {{name}}",
+    "breadcrumbs": {
+      "goals": "Objectifs",
+      "edit": "Modifier"
+    }
+  }
+}

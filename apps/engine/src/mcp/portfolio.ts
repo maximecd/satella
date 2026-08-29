@@ -3,6 +3,7 @@ import type {
   AllocationCell,
   Dashboard,
   Debt,
+  Goal,
   Position,
   ReportingCurrency,
 } from "../finance/contracts.js";
@@ -61,6 +62,7 @@ export interface McpPortfolio {
   readonly assetAllocation: ReadonlyArray<AllocationCell>;
   readonly accounts: ReadonlyArray<McpAccount>;
   readonly debts: ReadonlyArray<Debt>;
+  readonly goals: ReadonlyArray<Goal>;
 }
 
 const mcpPrice = (price: Position["price"]): McpPrice | null =>
@@ -93,6 +95,7 @@ export const toMcpPortfolio = (
   dashboard: Dashboard,
   accounts: ReadonlyArray<{ readonly account: Account; readonly synced: boolean }>,
   debts: ReadonlyArray<Debt>,
+  goals: ReadonlyArray<Goal>,
 ): McpPortfolio => ({
   reportingCurrency: dashboard.reportingCurrency,
   totalAssets: dashboard.totalAssets,
@@ -122,4 +125,5 @@ export const toMcpPortfolio = (
     positions: account.positions.map(mcpPosition),
   })),
   debts,
+  goals,
 });

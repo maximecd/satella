@@ -8,7 +8,9 @@ import {
   type ConnectCustodianInput,
   type MaintainAssetInput,
   type CreateDebtInput,
+  type CreateGoalInput,
   type UpdateDebtInput,
+  type UpdateGoalInput,
   type UpdateAccountInput,
   type UpdateCustodianInput,
   type UpdatePositionInput,
@@ -134,5 +136,13 @@ export const createHttpPortfolioEngine = (baseUrl = engineUrl()): PortfolioEngin
       run((client) => client.finance.updateDebt({ params: { id }, payload }), signal),
     deleteDebt: (id, signal) =>
       run((client) => client.finance.deleteDebt({ params: { id } }), signal),
+    listGoals: (signal) => run((client) => client.finance.listGoals({}), signal),
+    getGoal: (id, signal) => run((client) => client.finance.getGoal({ params: { id } }), signal),
+    createGoal: (payload: CreateGoalInput, signal) =>
+      run((client) => client.finance.createGoal({ payload }), signal),
+    updateGoal: (id, payload: UpdateGoalInput, signal) =>
+      run((client) => client.finance.updateGoal({ params: { id }, payload }), signal),
+    deleteGoal: (id, signal) =>
+      run((client) => client.finance.deleteGoal({ params: { id } }), signal),
   };
 };

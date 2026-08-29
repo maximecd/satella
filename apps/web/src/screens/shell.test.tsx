@@ -18,7 +18,7 @@ describe("application shell", () => {
     window.localStorage.clear();
   });
 
-  it("shows Satella, Dashboard, Accounts, Debts, and Settings in the sidebar", async () => {
+  it("shows Satella, Dashboard, Accounts, Debts, Goals, and Settings in the sidebar", async () => {
     renderRoute("/");
     expect(await screen.findByText("Satella")).toBeInTheDocument();
     expect(within(sideNav()).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
@@ -29,6 +29,10 @@ describe("application shell", () => {
     expect(within(sideNav()).getByRole("link", { name: "Debts" })).toHaveAttribute(
       "href",
       "/debts",
+    );
+    expect(within(sideNav()).getByRole("link", { name: "Goals" })).toHaveAttribute(
+      "href",
+      "/goals",
     );
     expect(within(sideNav()).getByRole("link", { name: "Settings" })).toHaveAttribute(
       "href",
@@ -65,6 +69,31 @@ describe("application shell", () => {
     renderRoute("/debts/debt-tax/edit");
     expect(await screen.findByRole("heading", { name: "Edit Tax bill" })).toBeInTheDocument();
     expect(within(sideNav()).getByRole("link", { name: "Debts" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("keeps Goals selected on nested Goal routes", async () => {
+    seedPortfolioEngine({
+      goals: [
+        {
+          id: "goal-car",
+          name: "Buy a car",
+          amount: "15000",
+          currencyAssetId: "fiat:EUR",
+          currencyIso: "EUR",
+          targetDate: null,
+          currentAmount: "0",
+          contributingAccounts: [],
+          createdAt: "2026-08-11T00:00:00.000Z",
+          updatedAt: "2026-08-11T00:00:00.000Z",
+        },
+      ],
+    });
+    renderRoute("/goals/goal-car/edit");
+    expect(await screen.findByRole("heading", { name: "Edit Buy a car" })).toBeInTheDocument();
+    expect(within(sideNav()).getByRole("link", { name: "Goals" })).toHaveAttribute(
       "aria-current",
       "page",
     );

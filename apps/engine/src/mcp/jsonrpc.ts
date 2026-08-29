@@ -10,7 +10,7 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(["2024-11-05", "2025-03-26", "2025-0
 export const GET_PORTFOLIO_TOOL_NAME = "get_portfolio";
 
 export const GET_PORTFOLIO_DESCRIPTION = [
-  "Return the current Satella Vault in the Reporting currency: Total assets, Total debt, Net worth, Unrealized P&L, allocation by Asset category / Custodian / Asset, every Account with Positions, and every Debt.",
+  "Return the current Satella Vault in the Reporting currency: Total assets, Total debt, Net worth, Unrealized P&L, allocation by Asset category / Custodian / Asset, every Account with Positions, every Debt, and every Goal.",
   "This is current state, not history. Crypto is the crypto Asset category. Convert against another Asset using the prices in the payload.",
   "Satella MCP is read-only. It does not Refresh custodians or move money.",
 ].join(" ");

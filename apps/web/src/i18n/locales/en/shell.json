@@ -4,6 +4,7 @@
     "dashboard": "Dashboard",
     "accounts": "Accounts",
     "debts": "Debts",
+    "goals": "Goals",
     "settings": "Settings",
     "lock": "Lock"
   }

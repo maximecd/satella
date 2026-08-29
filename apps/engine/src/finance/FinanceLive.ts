@@ -7,6 +7,7 @@ import { layer as ConnectorCatalogLive } from "./connectors/ConnectorCatalog.js"
 import { layer as ConnectorSyncLive } from "./connectors/ConnectorSync.js";
 import { layer as CustodianLive } from "./custodians/CustodianServiceLive.js";
 import { layer as DebtLive } from "./debts/DebtServiceLive.js";
+import { layer as GoalLive } from "./goals/GoalServiceLive.js";
 import { layer as SettingsLive } from "./settings/SettingsServiceLive.js";
 import { layer as SyncLogLive } from "./sync-log/SyncLogService.js";
 import { layer as MarketDataLive } from "./market-data/MarketDataService.js";
@@ -20,6 +21,7 @@ export const FinanceLive = Layer.mergeAll(
   AccountLive,
   PositionLive,
   DebtLive,
+  GoalLive,
   PortfolioLive,
   SettingsLive,
   SyncLogLive,
