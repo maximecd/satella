@@ -13,6 +13,7 @@ import {
 import * as Schema from "effect/Schema";
 import { useTranslation } from "react-i18next";
 import {
+  Legend,
   Area,
   AreaChart,
   ResponsiveContainer,
@@ -23,9 +24,15 @@ import {
   YAxis,
   type TooltipContentProps,
 } from "recharts";
-import { canonicalDecimal, formatAmount, formatWholeAmount } from "../financial-number";
+import {
+  canonicalDecimal,
+  compareDecimal,
+  formatAmount,
+  formatWholeAmount,
+} from "../financial-number";
 import { appLanguage } from "../app-language";
 import type { TFunction } from "i18next";
+import { ASSET_CATEGORY_LABELS, type AssetCategory } from "@satella-app/engine/api";
 
 const numberFormatter = (locale: string, options: Intl.NumberFormatOptions = {}) =>
   new Intl.NumberFormat(locale, options);
@@ -48,6 +55,42 @@ const CATEGORY_TOKENS = [
   "yellow.subtle",
   "red.subtle",
 ] as const;
+
+const HISTORY_CATEGORY_ORDER = ["stocks_etfs", "crypto", "other", "cash"] as const;
+
+// Same hue order as CATEGORY_TOKENS so the history chart matches the allocation treemap.
+const HISTORY_HUES = ["blue", "teal", "green", "orange", "purple", "yellow", "red"] as const;
+
+const historyCategoryStyles = (
+  preferredOrder: ReadonlyArray<AssetCategory>,
+  tokens: ReadonlyArray<string | undefined>,
+) => {
+  const hues = new Map<AssetCategory, (typeof HISTORY_HUES)[number]>();
+  preferredOrder.forEach((category, index) => {
+    if (hues.has(category)) return;
+    const hue = HISTORY_HUES[index % HISTORY_HUES.length]!;
+    hues.set(category, hue);
+  });
+  for (const category of HISTORY_CATEGORY_ORDER) {
+    if (hues.has(category)) continue;
+    const hue =
+      HISTORY_HUES.find((candidate) => ![...hues.values()].includes(candidate)) ?? HISTORY_HUES[0]!;
+    hues.set(category, hue);
+  }
+  const stylesFor = (category: AssetCategory) => {
+    const hue = hues.get(category) ?? HISTORY_HUES[0]!;
+    return {
+      stroke: tokens[HISTORY_HUES.indexOf(hue) * 2] ?? "currentColor",
+      fill: tokens[HISTORY_HUES.indexOf(hue) * 2 + 1] ?? "transparent",
+    };
+  };
+  return {
+    stocks_etfs: stylesFor("stocks_etfs"),
+    crypto: stylesFor("crypto"),
+    other: stylesFor("other"),
+    cash: stylesFor("cash"),
+  };
+};
 
 const MIN_LABEL_WIDTH = 96;
 const MIN_LABEL_HEIGHT = 56;
@@ -253,22 +296,29 @@ export function PortfolioValueChart({
   points,
   currencyIso,
   hourly = false,
+  categoryAllocation,
 }: {
   readonly points: ReadonlyArray<PortfolioHistoryPoint>;
   readonly currencyIso: string;
   readonly hourly?: boolean;
+  readonly categoryAllocation?: ReadonlyArray<AllocationCell>;
 }) {
-  const [fg, fgMuted, accent, accentMuted] = useToken("colors", [
+  const [fg, fgMuted, ...categoryTokens] = useToken("colors", [
     "fg",
     "fg.muted",
-    "blue.solid",
-    "blue.muted",
+    ...HISTORY_HUES.flatMap((hue) => [`${hue}.solid`, `${hue}.subtle`]),
   ]);
   const data = useMemo(
     () =>
       points.map((point) => ({
         ...point,
         total: Number(canonicalDecimal(point.total)),
+        ...Object.fromEntries(
+          HISTORY_CATEGORY_ORDER.map((category) => [
+            category,
+            Number(canonicalDecimal(point.categories[category] ?? "0")),
+          ]),
+        ),
         currencyIso,
         hourly,
         date: hourly
@@ -279,6 +329,41 @@ export function PortfolioValueChart({
   );
   const yAxisWidth = useMemo(() => yAxisWidthFor(points), [points]);
   const { t } = useTranslation();
+  const preferredOrder = useMemo(() => {
+    // SAFETY: AllocationCell.key holds an AssetCategory literal emitted by the engine.
+    const ranked = categoryAllocation
+      ?.map((cell) => cell.key as AssetCategory)
+      .filter((category) => HISTORY_CATEGORY_ORDER.includes(category));
+    if (ranked !== undefined && ranked.length > 0) return ranked;
+    const totalFor = (category: AssetCategory) =>
+      points.reduce(
+        (sum, point) => sum + Number(canonicalDecimal(point.categories[category] ?? "0")),
+        0,
+      );
+    return [...HISTORY_CATEGORY_ORDER].sort(
+      (left, right) => totalFor(right) - totalFor(left) || left.localeCompare(right),
+    );
+  }, [categoryAllocation, points]);
+  const categoryStyles = useMemo(
+    () => historyCategoryStyles(preferredOrder, categoryTokens),
+    [categoryTokens, preferredOrder],
+  );
+  const legendCategories = useMemo(() => {
+    const active = HISTORY_CATEGORY_ORDER.filter((category) =>
+      points.some((point) => compareDecimal(point.categories[category] ?? "0", "0") !== 0),
+    );
+    return active.length > 0 ? active : [...HISTORY_CATEGORY_ORDER];
+  }, [points]);
+  const legendPayload = useMemo(
+    () =>
+      legendCategories.map((category) => ({
+        value: ASSET_CATEGORY_LABELS[category],
+        type: "circle" as const,
+        color: categoryStyles[category].stroke,
+        id: category,
+      })),
+    [categoryStyles, legendCategories],
+  );
   return (
     <ChartFrame height={280} aria-label={t("dashboard.charts.historyAriaLabel")} role="img">
       <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
@@ -297,12 +382,31 @@ export function PortfolioValueChart({
             wrapperStyle={tooltipWrapperStyle}
             cursor={{ stroke: fg ?? "currentColor" }}
           />
-          <Area
-            type="monotone"
-            dataKey="total"
-            stroke={accent ?? "currentColor"}
-            fill={accentMuted ?? "transparent"}
-            name="Portfolio value"
+          {legendCategories.map((category) => (
+            <Area
+              key={category}
+              type="monotone"
+              dataKey={category}
+              stackId="total"
+              isAnimationActive={false}
+              stroke={categoryStyles[category].stroke}
+              fill={categoryStyles[category].fill}
+              name={ASSET_CATEGORY_LABELS[category]}
+            />
+          ))}
+          <Legend
+            content={() => (
+              <Stack direction="row" gap="4" justify="center" wrap="wrap" px="2">
+                {legendPayload.map((entry) => (
+                  <Stack key={entry.id} direction="row" align="center" gap="1.5">
+                    <Box w="2" h="2" rounded="full" bg={entry.color} />
+                    <Text color="fg.muted" fontSize="xs">
+                      {entry.value}
+                    </Text>
+                  </Stack>
+                ))}
+              </Stack>
+            )}
           />
         </AreaChart>
       </ResponsiveContainer>

@@ -324,6 +324,7 @@ export const PortfolioHistoryPoint = Schema.Struct({
   capturedAt: Schema.String,
   total: DecimalString,
   totalIncomplete: Schema.Boolean,
+  categories: Schema.Record(AssetCategory, DecimalString),
 });
 export type PortfolioHistoryPoint = typeof PortfolioHistoryPoint.Type;
 

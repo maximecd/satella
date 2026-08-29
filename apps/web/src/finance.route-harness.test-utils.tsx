@@ -219,18 +219,21 @@ export const populatedDashboardFor = (now = new Date()): Dashboard => {
         capturedAt: utcDay(20),
         total: "1000",
         totalIncomplete: false,
+        categories: { stocks_etfs: "800", crypto: "100", cash: "100", other: "0" },
       },
       {
         snapshotId: "s1b",
         capturedAt: utcDay(20, 18),
         total: "1010",
         totalIncomplete: false,
+        categories: { stocks_etfs: "800", crypto: "110", cash: "100", other: "0" },
       },
       {
         snapshotId: "s2",
         capturedAt: utcDay(5),
         total: "1100",
         totalIncomplete: false,
+        categories: { stocks_etfs: "850", crypto: "150", cash: "100", other: "0" },
       },
     ],
   };

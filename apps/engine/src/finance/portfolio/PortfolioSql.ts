@@ -122,6 +122,12 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
       const first = snapshotRows[0]!;
       let total = "0";
       let totalIncomplete = false;
+      const categories = {
+        stocks_etfs: "0",
+        crypto: "0",
+        cash: "0",
+        other: "0",
+      } satisfies Record<AssetCategory, string>;
       const snapshotFx = new Map(
         [...fx].flatMap(([key, price]) => {
           const prefix = `${first.snapshot_id}:`;
@@ -143,13 +149,18 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
                   snapshotFx,
                 );
         if (converted === undefined) totalIncomplete = true;
-        else total = addDecimal(total, converted);
+        else {
+          total = addDecimal(total, converted);
+          const category = row.asset_category ?? "other";
+          categories[category] = addDecimal(categories[category], converted);
+        }
       }
       return {
         snapshotId: first.snapshot_id,
         capturedAt: first.captured_at,
         total,
         totalIncomplete,
+        categories,
       };
     });
   });
