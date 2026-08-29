@@ -11,9 +11,18 @@ import { VaultContainerError } from "../vault/container.js";
 import { VaultUnlockError } from "../vault/envelope.js";
 import { VaultStateError } from "../vault/errors.js";
 import { VaultService } from "../vault/Vault.js";
+import { mcpUrl, parsePort } from "../cli/product-runtime.js";
+import { McpTokenService } from "../mcp/McpTokenService.js";
+import { FinanceApiError } from "../finance/contracts.js";
 
 const toApiError = (cause: unknown): VaultApiError => {
   if (cause instanceof VaultApiError) return cause;
+  if (cause instanceof FinanceApiError) {
+    return new VaultApiError({
+      code: cause.code === "vault_closed" ? "closed" : "validation",
+      message: cause.message,
+    });
+  }
   if (cause instanceof VaultContainerError) {
     return new VaultApiError({
       code: cause.reason === "unsupported-version" ? "unsupported-container" : "invalid-container",
@@ -54,7 +63,11 @@ const toApiError = (cause: unknown): VaultApiError => {
   });
 };
 
-const run = <A>(effect: Effect.Effect<A, unknown, VaultService>) =>
+const mcpEndpoint = () => mcpUrl(parsePort(process.env["SATELLA_ENGINE_PORT"], 3001));
+
+const authorizationHeader = (token: string) => `Authorization: Bearer ${token}`;
+
+const run = <A>(effect: Effect.Effect<A, unknown, VaultService | McpTokenService>) =>
   effect.pipe(Effect.mapError(toApiError));
 
 export const VaultApiLive = HttpApiBuilder.group(EngineApi, "vault", (handlers) =>
@@ -208,6 +221,23 @@ export const VaultApiLive = HttpApiBuilder.group(EngineApi, "vault", (handlers) 
               }).pipe(Effect.ignore),
             ),
           );
+        }),
+      ),
+    )
+    .handle("mcpTokenStatus", () =>
+      run(
+        Effect.gen(function* () {
+          const configured = yield* (yield* McpTokenService).configured();
+          return { configured, url: mcpEndpoint() };
+        }),
+      ),
+    )
+    .handle("issueMcpToken", ({ payload }) =>
+      run(
+        Effect.gen(function* () {
+          const token = yield* (yield* McpTokenService).issue(payload.password);
+          const url = mcpEndpoint();
+          return { token, url, authorizationHeader: authorizationHeader(token) };
         }),
       ),
     ),

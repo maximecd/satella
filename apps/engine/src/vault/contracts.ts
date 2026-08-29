@@ -50,6 +50,23 @@ export const UnlockVaultInput = Schema.Struct({
   password: Schema.String,
 });
 
+export const IssueMcpTokenInput = Schema.Struct({
+  password: Schema.String,
+});
+
+export const McpTokenStatus = Schema.Struct({
+  configured: Schema.Boolean,
+  url: Schema.String,
+});
+export type McpTokenStatus = typeof McpTokenStatus.Type;
+
+export const McpTokenIssued = Schema.Struct({
+  token: Schema.String,
+  url: Schema.String,
+  authorizationHeader: Schema.String,
+});
+export type McpTokenIssued = typeof McpTokenIssued.Type;
+
 export const UnlockScreenInput = Schema.Struct({
   pin: Schema.String,
 });

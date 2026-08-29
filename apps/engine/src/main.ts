@@ -13,6 +13,7 @@ import { HttpRouter } from "effect/unstable/http";
 import { ApiErrorLogging } from "./api/ApiLogging.js";
 import { EngineApiLive } from "./api/FinanceApiLive.js";
 import { VaultFinanceAccess } from "./api/VaultAccess.js";
+import { McpHttp } from "./mcp/McpHttp.js";
 import {
   appOrigin,
   isDevelopmentContext,
@@ -90,6 +91,7 @@ const StartupUiLive = Layer.effectDiscard(
 
 const routesLayer = EngineApiLive.pipe(
   Layer.provideMerge(VaultFinanceAccess),
+  Layer.provideMerge(McpHttp),
   Layer.provideMerge(ApiErrorLogging),
   Layer.provideMerge(ServeUi(webDirectory)),
   Layer.provideMerge(

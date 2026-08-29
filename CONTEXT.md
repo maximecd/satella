@@ -135,9 +135,13 @@ The irreversible deletion of a vault, including its portfolio and connector cred
 _Avoid_: Password reset, account reset
 
 **Vault export**:
-A portable encrypted copy of a complete vault, including its Screen-lock settings, saved as one `.satella-vault` file and protected by the vault's current Vault password.
+A portable encrypted copy of a complete vault, including its Screen-lock settings and MCP token, saved as one `.satella-vault` file and protected by the vault's current Vault password.
 _Avoid_: Data export, portfolio export, backup
 
 **Vault restore**:
 The validated replacement of the local vault from a Vault export. It is available before unlock and leaves the current vault untouched unless the exported vault can be unlocked and passes integrity checks.
 _Avoid_: Import, rollback
+
+**MCP token**:
+A secret created in Settings so a local MCP client can read the Vault. It is shown once; regenerating replaces it. It works while the Vault is unlocked, including during Screen lock, and does not work when the Vault is locked.
+_Avoid_: API key, engine token, access token

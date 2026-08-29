@@ -5,7 +5,7 @@ import { HttpRouter } from "effect/unstable/http";
 import { HttpServerRequest } from "effect/unstable/http";
 
 const diagnosticCredentialKeys =
-  "token|query(?:[_ ]?id)?|reference(?:[_ ]?code)?|password|pin|dek|secret(?:key)?|api[_ -]?key";
+  "token|query(?:[_ ]?id)?|reference(?:[_ ]?code)?|password|pin|dek|secret(?:key)?|api[_ -]?key|authorization|bearer|mcp[_ -]?token";
 const diagnosticCredentialPattern = new RegExp(
   `(["']?)(${diagnosticCredentialKeys})\\1\\s*[:=]\\s*` +
     `(?:"[^"]*"|'[^']*'|(?:(?!\\s+(?:${diagnosticCredentialKeys})\\s*[:=])[^,;}\\n&])+)`,

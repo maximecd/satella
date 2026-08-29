@@ -13,6 +13,7 @@ import { SelectField } from "../select-field";
 import { PinField } from "./pin-field";
 import { ResetSatellaControl } from "./reset-satella";
 import { SecretField } from "./secret-field";
+import { SettingsMcpCard } from "./settings-mcp";
 
 export function SettingsSecurityScreen() {
   const { t } = useTranslation();
@@ -218,6 +219,7 @@ export function SettingsSecurityScreen() {
             </form>
           </Card.Body>
         </Card.Root>
+        <SettingsMcpCard />
         <Card.Root>
           <Card.Body>
             <SelectField

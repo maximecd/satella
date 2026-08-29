@@ -2,6 +2,7 @@ import * as Layer from "effect/Layer";
 
 import { FinanceLive } from "../finance/FinanceLive.js";
 import { layer as AutoRefreshLive } from "../finance/refresh/AutoRefresh.js";
+import { layer as McpTokenLive } from "../mcp/McpTokenServiceLive.js";
 import { layer as ManagedRuntimeLive } from "./ManagedRuntime.js";
 import { layer as VaultEventsLive } from "../vault/VaultEvents.js";
 import { VaultLive } from "../vault/VaultLive.js";
@@ -16,6 +17,7 @@ export const makeEngineServicesLive = (
 ) =>
   AutoRefreshLive().pipe(
     Layer.provideMerge(FinanceLive),
+    Layer.provideMerge(McpTokenLive),
     Layer.provideMerge(VaultLive.pipe(Layer.provide(databaseConfig))),
     Layer.provideMerge(VaultEventsLive),
     Layer.provideMerge(ManagedRuntimeLive()),

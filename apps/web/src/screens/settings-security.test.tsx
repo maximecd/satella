@@ -21,13 +21,19 @@ const typePin = async (user: UserEvent, label: string, pin: string) => {
 describe("Settings → Security", () => {
   beforeEach(() => {
     resetFinanceMocks();
+    vi.mocked(engineApi.mcpTokenStatus).mockResolvedValue({
+      configured: false,
+      url: "http://127.0.0.1:3001/mcp",
+    });
   });
 
-  it("shows Vault password, PIN, timeout, Lock now, and Reset Satella", async () => {
+  it("shows Vault password, PIN, MCP token, timeout, Lock now, and Reset Satella", async () => {
     renderRoute("/settings/security");
     expect(await screen.findByRole("heading", { name: "Security" })).toBeInTheDocument();
     expect(screen.getByLabelText("Current Vault password")).toBeInTheDocument();
     expect(screen.getByLabelText("New Screen-lock PIN digit 1")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "MCP token" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create MCP token" })).toBeInTheDocument();
     expect(screen.getByLabelText("Screen-lock timeout")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Lock now" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reset Satella" })).toBeInTheDocument();
@@ -81,6 +87,26 @@ describe("Settings → Security", () => {
       "satella-vault-export.satella-vault",
       "U1ZMVHRlc3Q=",
     );
+  });
+
+  it("creates an MCP token after the Vault password is confirmed", async () => {
+    const user = userEvent.setup();
+    vi.mocked(engineApi.issueMcpToken).mockResolvedValue({
+      token: "stl_exampletoken",
+      url: "http://127.0.0.1:3001/mcp",
+      authorizationHeader: "Authorization: Bearer stl_exampletoken",
+    });
+    renderRoute("/settings/security");
+    await user.type(
+      await screen.findByLabelText("Vault password for MCP token"),
+      "correct-horse-battery",
+    );
+    await user.click(screen.getByRole("button", { name: "Create MCP token" }));
+    await waitFor(() =>
+      expect(engineApi.issueMcpToken).toHaveBeenCalledWith("correct-horse-battery"),
+    );
+    expect(await screen.findByText(/Authorization: Bearer stl_exampletoken/)).toBeInTheDocument();
+    expect(screen.getByText(/Copy the Bearer token now/)).toBeInTheDocument();
   });
 
   it("reports a failed export without clearing the password field", async () => {

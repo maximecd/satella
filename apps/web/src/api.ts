@@ -50,4 +50,7 @@ export const engineApi = {
     request((client) => client.vault.restoreVault({ payload: { sourcePath, password } })),
   restoreVaultUpload: (contentsBase64: string, password: string) =>
     request((client) => client.vault.restoreVaultUpload({ payload: { password, contentsBase64 } })),
+  mcpTokenStatus: () => request((client) => client.vault.mcpTokenStatus({})),
+  issueMcpToken: (password: string) =>
+    request((client) => client.vault.issueMcpToken({ payload: { password } })),
 };
