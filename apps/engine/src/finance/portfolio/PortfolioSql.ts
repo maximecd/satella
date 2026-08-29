@@ -4,17 +4,26 @@ import * as Effect from "effect/Effect";
 import { SqlClient } from "effect/unstable/sql";
 import type {
   AllocationCell,
+  Account,
   AssetCategory,
   Dashboard,
   DashboardAccountRow,
   DashboardCustodianGroup,
   PortfolioHistoryPoint,
+  ReportingCurrency,
   SnapshotResult,
 } from "../contracts.js";
 import { ASSET_CATEGORY_LABELS } from "../contracts.js";
 import { getAccount } from "../accounts/AccountSql.js";
 import { refreshPrices, type MarketDataRegistry } from "../market-data.js";
-import { addDecimal, compareDecimal, divideDecimal, multiplyDecimal } from "../financial-number.js";
+import {
+  addDecimal,
+  canonicalDecimal,
+  compareDecimal,
+  divideDecimal,
+  multiplyDecimal,
+  subtractDecimal,
+} from "../financial-number.js";
 import {
   convertAmount,
   db,
@@ -30,6 +39,39 @@ export interface CaptureSnapshotOptions {
   readonly registry?: MarketDataRegistry;
   readonly now?: () => Date;
 }
+
+/** Sum of all outstanding debts converted into the Reporting currency; `incomplete` flags debts without an FX rate. */
+const sumDebtsIn = (
+  selected: ReportingCurrency,
+  fxPivotId: string,
+  fx: ReadonlyMap<string, string>,
+): FinanceEffect<{ readonly total: string; readonly incomplete: boolean }> =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const debtRows = yield* db(
+      sql<{
+        readonly amount: string;
+        readonly currency_asset_id: string;
+      }>`SELECT amount, currency_asset_id FROM debts`,
+    );
+    let total = "0";
+    let incomplete = false;
+    for (const row of debtRows) {
+      const converted = convertAmount(
+        row.amount,
+        row.currency_asset_id,
+        selected.assetId,
+        fxPivotId,
+        fx,
+      );
+      if (converted === undefined) {
+        incomplete = true;
+        continue;
+      }
+      total = addDecimal(total, converted);
+    }
+    return { total, incomplete };
+  });
 
 export const captureSnapshot = (
   options: CaptureSnapshotOptions = {},
@@ -48,10 +90,14 @@ export const captureSnapshot = (
     const sql = yield* SqlClient.SqlClient;
     const id = randomUUID();
     const capturedAt = (options.now ?? (() => new Date()))().toISOString();
+    const selected = yield* reportingCurrency;
+    const fxPivotId = yield* usdAssetId;
+    const fx = yield* loadFxMap(fxPivotId);
+    const { total: totalDebt } = yield* sumDebtsIn(selected, fxPivotId, fx);
     const result = yield* db(
       sql.withTransaction(
         Effect.gen(function* () {
-          yield* sql`INSERT INTO snapshots (id, captured_at) VALUES (${id}, ${capturedAt})`;
+          yield* sql`INSERT INTO snapshots (id, captured_at, total_debt) VALUES (${id}, ${capturedAt}, ${totalDebt})`;
           yield* sql`INSERT INTO position_snapshots (snapshot_id, position_id, quantity)
             SELECT ${id}, id, quantity FROM positions`;
           yield* sql`INSERT INTO asset_price_snapshots
@@ -84,6 +130,7 @@ export const captureSnapshot = (
 interface HistoricalPositionRow {
   readonly snapshot_id: string;
   readonly captured_at: string;
+  readonly total_debt: string | null;
   readonly asset_id: string | null;
   readonly asset_category: AssetCategory | null;
   readonly quantity: string | null;
@@ -97,7 +144,7 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
     const selected = yield* reportingCurrency;
     const fxPivotId = yield* usdAssetId;
     const rows = yield* db(sql<HistoricalPositionRow>`SELECT s.id AS snapshot_id, s.captured_at,
-      p.asset_id, a.asset_category, ps.quantity, aps.price, aps.currency_asset_id
+      s.total_debt, p.asset_id, a.asset_category, ps.quantity, aps.price, aps.currency_asset_id
       FROM snapshots s
       LEFT JOIN position_snapshots ps ON ps.snapshot_id = s.id
       LEFT JOIN positions p ON p.id = ps.position_id
@@ -159,6 +206,7 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
         snapshotId: first.snapshot_id,
         capturedAt: first.captured_at,
         total,
+        totalDebt: first.total_debt === null ? "0" : canonicalDecimal(first.total_debt),
         totalIncomplete,
         categories,
       };
@@ -189,18 +237,73 @@ const allocationCells = (
     );
 };
 
-export const getDashboard = (): FinanceEffect<Dashboard> =>
+const loadValuedAccounts = (valuationCurrencyAssetId: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
-    const selected = yield* reportingCurrency;
-    const history = yield* getPortfolioHistory();
     const rows = yield* db(
       sql<{
         readonly id: string;
       }>`SELECT id FROM accounts ORDER BY created_at, id`,
     );
-    const valued = yield* Effect.forEach(rows, (row) => getAccount(row.id, selected.assetId));
-    const custodianConnectors = new Map(
+    return yield* Effect.forEach(rows, (row) => getAccount(row.id, valuationCurrencyAssetId));
+  });
+
+const buildCustodianGroups = (
+  valued: ReadonlyArray<Account>,
+  connectors: ReadonlyMap<string, string | null>,
+): DashboardCustodianGroup[] => {
+  const accountRows: DashboardAccountRow[] = valued.map((account) => ({
+    accountId: account.id,
+    accountName: account.name,
+    accountType: account.accountType,
+    positionCount: account.positions.filter(
+      (position) => compareDecimal(position.quantity, "0") !== 0,
+    ).length,
+    total: account.total,
+    unrealizedPnl: account.unrealizedPnl,
+    unrealizedPnlPercent: account.unrealizedPnlPercent,
+    totalIncomplete: account.totalIncomplete,
+  }));
+  const byCustodian = Map.groupBy(valued, (account) => account.custodianId);
+  const groups: DashboardCustodianGroup[] = [...byCustodian].flatMap(([custodianId, accounts]) => {
+    const first = accounts[0]!;
+    const meaningful =
+      !first.isDefaultCustodian ||
+      accounts.some((account) =>
+        account.positions.some((position) => compareDecimal(position.quantity, "0") !== 0),
+      );
+    if (!meaningful) return [];
+    const groupAccounts = accountRows
+      .filter((row) => accounts.some((account) => account.id === row.accountId))
+      .sort(
+        (left, right) =>
+          compareDecimal(right.total, left.total) ||
+          left.accountName.localeCompare(right.accountName),
+      );
+    return [
+      {
+        custodianId,
+        name: first.custodianName,
+        isDefault: first.isDefaultCustodian,
+        connectorId: connectors.get(custodianId) ?? null,
+        accounts: groupAccounts,
+      },
+    ];
+  });
+  groups.sort((left, right) => {
+    if (left.isDefault !== right.isDefault) return left.isDefault ? 1 : -1;
+    return left.name.localeCompare(right.name);
+  });
+  return groups;
+};
+
+/** Custodian-grouped account cards for the Accounts page, valued in the Reporting currency. */
+export const listAccountGroups = (): FinanceEffect<ReadonlyArray<DashboardCustodianGroup>> =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const selected = yield* reportingCurrency;
+    const valued = yield* loadValuedAccounts(selected.assetId);
+    const connectors = new Map(
       (yield* db(
         sql<{
           readonly id: string;
@@ -208,50 +311,14 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
         }>`SELECT id, connector_id FROM custodians`,
       )).map((row) => [row.id, row.connector_id] as const),
     );
-    const accountRows: DashboardAccountRow[] = valued.map((account) => ({
-      accountId: account.id,
-      accountName: account.name,
-      accountType: account.accountType,
-      positionCount: account.positions.filter(
-        (position) => compareDecimal(position.quantity, "0") !== 0,
-      ).length,
-      total: account.total,
-      unrealizedPnl: account.unrealizedPnl,
-      unrealizedPnlPercent: account.unrealizedPnlPercent,
-      totalIncomplete: account.totalIncomplete,
-    }));
-    const byCustodian = Map.groupBy(valued, (account) => account.custodianId);
-    const custodians: DashboardCustodianGroup[] = [...byCustodian].flatMap(
-      ([custodianId, accounts]) => {
-        const first = accounts[0]!;
-        const meaningful =
-          !first.isDefaultCustodian ||
-          accounts.some((account) =>
-            account.positions.some((position) => compareDecimal(position.quantity, "0") !== 0),
-          );
-        if (!meaningful) return [];
-        const groupAccounts = accountRows
-          .filter((row) => accounts.some((account) => account.id === row.accountId))
-          .sort(
-            (left, right) =>
-              compareDecimal(right.total, left.total) ||
-              left.accountName.localeCompare(right.accountName),
-          );
-        return [
-          {
-            custodianId,
-            name: first.custodianName,
-            isDefault: first.isDefaultCustodian,
-            connectorId: custodianConnectors.get(custodianId) ?? null,
-            accounts: groupAccounts,
-          },
-        ];
-      },
-    );
-    custodians.sort((left, right) => {
-      if (left.isDefault !== right.isDefault) return left.isDefault ? 1 : -1;
-      return left.name.localeCompare(right.name);
-    });
+    return buildCustodianGroups(valued, connectors);
+  });
+
+export const getDashboard = (): FinanceEffect<Dashboard> =>
+  Effect.gen(function* () {
+    const selected = yield* reportingCurrency;
+    const history = yield* getPortfolioHistory();
+    const valued = yield* loadValuedAccounts(selected.assetId);
     const byAsset = new Map<
       string,
       {
@@ -341,6 +408,11 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
     );
     const fxPivotId = yield* usdAssetId;
     const fx = yield* loadFxMap(fxPivotId);
+    const { total: totalDebt, incomplete: debtIncomplete } = yield* sumDebtsIn(
+      selected,
+      fxPivotId,
+      fx,
+    );
     let unrealizedPnl = "0";
     let acquisitionCostInReportingCurrency = "0";
     for (const account of valued) {
@@ -366,19 +438,21 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
         );
       }
     }
+    const totalAssets = valued.reduce((sum, account) => addDecimal(sum, account.total), "0");
     return {
       reportingCurrency: selected,
-      portfolioValue: valued.reduce((sum, account) => addDecimal(sum, account.total), "0"),
+      totalAssets,
+      totalDebt,
+      netWorth: subtractDecimal(totalAssets, totalDebt),
       unrealizedPnl,
       unrealizedPnlPercent:
         compareDecimal(acquisitionCostInReportingCurrency, "0") === 0
           ? null
           : divideDecimal(unrealizedPnl, acquisitionCostInReportingCurrency),
-      totalIncomplete: valued.some((account) => account.totalIncomplete),
+      totalIncomplete: valued.some((account) => account.totalIncomplete) || debtIncomplete,
       unpricedAssetCount,
       negativeHoldingCount,
       hasMeaningfulAssets: meaningful.length > 0,
-      custodians,
       custodianAllocation,
       assetAllocation,
       categoryAllocation,

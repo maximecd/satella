@@ -12,7 +12,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
-import type { Account, Position } from "@satella-app/engine/api";
+import type { Account, DashboardAccountRow, Position } from "@satella-app/engine/api";
 import { UpdateAccountInput } from "@satella-app/engine/api";
 import type { TFunction } from "i18next";
 import * as Schema from "effect/Schema";
@@ -23,6 +23,7 @@ import {
   DeleteButton,
   FormError,
   FormFrame,
+  NavRow,
   PageBreadcrumbs,
   PageHeader,
   PageState,
@@ -35,9 +36,11 @@ import { notify } from "../components/ui/toaster";
 import { Tooltip } from "../components/ui/tooltip";
 import { submitThenChangeValidation, useAppForm } from "../form";
 import {
+  useAccountGroups,
   useAccount,
   useAssets,
   useDeleteAccount,
+  useSettings,
   useUpdateAccount,
   useUpdateCustodian,
 } from "../portfolio";
@@ -433,4 +436,54 @@ export function EditAccountScreen({ id }: { readonly id: string }) {
   if (query.data.connectorAccountId !== null)
     return <PageState kind="error" message={t("accounts.managedAccountError")} />;
   return <LoadedEditAccount account={query.data} />;
+}
+
+const accountRowDescription = (row: DashboardAccountRow, t: TFunction) => {
+  const holdings = t("accounts.holdingsCount", { count: row.positionCount });
+  const parts = [holdings, row.totalIncomplete ? t("dashboard.incompleteValuation") : null].filter(
+    (part): part is string => part !== null,
+  );
+  return parts.join(" · ");
+};
+
+export function AccountsScreen() {
+  const { t } = useTranslation();
+  const query = useAccountGroups();
+  const settings = useSettings();
+  const requestFailed = t("errors.requestFailed");
+  const describeError = (cause: unknown) =>
+    cause instanceof Error ? cause.message : requestFailed;
+  if (query.isPending) return <PageState kind="pending" />;
+  if (query.isError) return <PageState kind="error" message={describeError(query.error)} />;
+  const groups = query.data;
+  const iso = settings.data?.reportingCurrency.iso ?? "";
+  return (
+    <>
+      <PageHeader title={t("accounts.title")} />
+      <Stack gap="6">
+        {groups.map((group) => (
+          <Stack key={group.custodianId} gap="2">
+            <Heading as="h2" size="md">
+              {group.isDefault ? t("accounts.otherHoldings") : group.name}
+            </Heading>
+            <Box as="ul" m="0" p="0">
+              {group.accounts.map((row) => (
+                <NavRow
+                  key={row.accountId}
+                  href={`/accounts/${row.accountId}`}
+                  label={group.isDefault ? t("accounts.otherHoldings") : row.accountName}
+                  description={accountRowDescription(row, t)}
+                  endContent={
+                    <Stack align="flex-end" gap="0" fontVariantNumeric="tabular-nums">
+                      <Text>{formatAmount(row.total, iso)}</Text>
+                    </Stack>
+                  }
+                />
+              ))}
+            </Box>
+          </Stack>
+        ))}
+      </Stack>
+    </>
+  );
 }

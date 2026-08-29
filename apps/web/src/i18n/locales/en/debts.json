@@ -1,0 +1,33 @@
+{
+  "debts": {
+    "title": "Debts",
+    "add": "Add debt",
+    "empty": {
+      "title": "No debts yet",
+      "description": "Record money you owe, like a tax bill or a loan."
+    },
+    "kinds": {
+      "tax": "Tax",
+      "loan": "Loan",
+      "other": "Other"
+    },
+    "dueInDays_one": "In {{count}} day",
+    "dueInDays_other": "In {{count}} days",
+    "dueAgoDays_one": "Due {{count}} day ago",
+    "dueAgoDays_other": "Due {{count}} days ago",
+    "dueToday": "Due today",
+    "form": {
+      "name": "Name",
+      "kind": "Kind",
+      "amount": "Outstanding amount",
+      "currency": "Currency",
+      "dueDate": "Due date"
+    },
+    "saved": "Debt saved.",
+    "editTitle": "Edit {{name}}",
+    "breadcrumbs": {
+      "debts": "Debts",
+      "edit": "Edit"
+    }
+  }
+}

@@ -8,16 +8,19 @@ import type {
   Asset,
   AssetSearchResult,
   ConnectCustodianInput,
+  CreateDebtInput,
   Custodian,
   CustodianRefreshResult,
   Dashboard,
   DashboardCustodianGroup,
+  Debt,
   MaintainAssetInput,
   ManualHoldingLookup,
   Position,
   PositionEdit,
   Settings,
   SyncLogEntry,
+  UpdateDebtInput,
   UpdateAccountInput,
   UpdateCustodianInput,
   UpdateSettingsInput,
@@ -43,6 +46,7 @@ export type MemoryPortfolioSeed = {
   readonly projectDashboard?: DashboardProjection;
   readonly custodians?: ReadonlyArray<Custodian>;
   readonly accounts?: ReadonlyArray<Account>;
+  readonly debts?: ReadonlyArray<Debt>;
   readonly assets?: ReadonlyArray<Asset>;
   readonly positionEdits?: ReadonlyArray<PositionEdit>;
   readonly capabilities?: ConnectorCapabilities;
@@ -63,14 +67,15 @@ export type MemoryPortfolioEngine = PortfolioEngine & {
 
 const defaultDashboard: Dashboard = {
   reportingCurrency: { assetId: "fiat:USD", iso: "USD" },
-  portfolioValue: "0",
+  totalAssets: "0",
+  totalDebt: "0",
+  netWorth: "0",
   unrealizedPnl: "0",
   unrealizedPnlPercent: null,
   totalIncomplete: false,
   unpricedAssetCount: 0,
   negativeHoldingCount: 0,
   hasMeaningfulAssets: false,
-  custodians: [],
   custodianAllocation: [],
   assetAllocation: [],
   categoryAllocation: [],
@@ -225,6 +230,7 @@ export const createMemoryPortfolioEngine = (
     projectDashboard: DashboardProjection | undefined;
     custodians: Custodian[];
     accounts: Account[];
+    debts: Debt[];
     assets: Asset[];
     positionEdits: PositionEdit[];
     capabilities: ConnectorCapabilities;
@@ -244,6 +250,7 @@ export const createMemoryPortfolioEngine = (
       projectDashboard: next.projectDashboard,
       custodians: clone([...(next.custodians ?? [])]),
       accounts,
+      debts: clone([...(next.debts ?? [])]),
       assets: clone([...(next.assets ?? [])]),
       positionEdits,
       capabilities: clone(next.capabilities ?? defaultCapabilities),
@@ -261,6 +268,7 @@ export const createMemoryPortfolioEngine = (
     projectDashboard: value.projectDashboard,
     custodians: clone(value.custodians),
     accounts: clone(value.accounts),
+    debts: clone(value.debts),
     assets: clone(value.assets),
     positionEdits: clone(value.positionEdits),
     capabilities: clone(value.capabilities),
@@ -300,6 +308,12 @@ export const createMemoryPortfolioEngine = (
     return custodian;
   };
 
+  const requireDebt = (id: string) => {
+    const debt = state.debts.find((candidate) => candidate.id === id);
+    if (debt === undefined) throw notFound("Debt");
+    return debt;
+  };
+
   const requirePositionEdit = (id: string) => {
     const edit = state.positionEdits.find((candidate) => candidate.position.id === id);
     if (edit === undefined) throw notFound("Position");
@@ -326,30 +340,39 @@ export const createMemoryPortfolioEngine = (
     totalIncomplete: account.totalIncomplete,
   });
 
-  const syncDashboardCustodians = () => {
+  const accountGroups = (): DashboardCustodianGroup[] => {
     const byCustodian = Map.groupBy(state.accounts, (account) => account.custodianId);
-    const custodians: DashboardCustodianGroup[] = [...byCustodian].flatMap(
-      ([custodianId, accounts]) => {
-        const first = accounts[0]!;
-        const meaningful =
-          !first.isDefaultCustodian ||
-          accounts.some((account) =>
-            account.positions.some((position) => compareDecimal(position.quantity, "0") !== 0),
-          );
-        if (!meaningful) return [];
-        const custodian = state.custodians.find((candidate) => candidate.id === custodianId);
-        return [
-          {
-            custodianId,
-            name: first.custodianName,
-            isDefault: first.isDefaultCustodian,
-            connectorId: custodian?.connectorId ?? null,
-            accounts: accounts.map(dashboardRow),
-          },
-        ];
-      },
-    );
-    state.dashboard = { ...state.dashboard, custodians };
+    return [...byCustodian].flatMap(([custodianId, accounts]) => {
+      const first = accounts[0]!;
+      const meaningful =
+        !first.isDefaultCustodian ||
+        accounts.some((account) =>
+          account.positions.some((position) => compareDecimal(position.quantity, "0") !== 0),
+        );
+      if (!meaningful) return [];
+      const custodian = state.custodians.find((candidate) => candidate.id === custodianId);
+      return [
+        {
+          custodianId,
+          name: first.custodianName,
+          isDefault: first.isDefaultCustodian,
+          connectorId: custodian?.connectorId ?? null,
+          accounts: accounts.map(dashboardRow),
+        },
+      ];
+    });
+  };
+
+  // The in-memory engine has no FX model, so debt totals assume the debt
+  // currency matches the Reporting currency. Tests needing converted totals
+  // seed the dashboard explicitly.
+  const syncDashboardDebts = () => {
+    const totalDebt = state.debts.reduce((sum, debt) => addDecimal(sum, debt.amount), "0");
+    state.dashboard = {
+      ...state.dashboard,
+      totalDebt,
+      netWorth: subtractDecimal(state.dashboard.totalAssets, totalDebt),
+    };
   };
 
   const replaceAccount = (next: Account) => {
@@ -385,7 +408,6 @@ export const createMemoryPortfolioEngine = (
         ),
       };
     });
-    syncDashboardCustodians();
     return account;
   };
 
@@ -470,7 +492,6 @@ export const createMemoryPortfolioEngine = (
           }
         : candidate,
     );
-    syncDashboardCustodians();
     return created;
   };
 
@@ -492,6 +513,11 @@ export const createMemoryPortfolioEngine = (
       throwIfAborted(signal);
       rejectIfFailed("getDashboard");
       return state.dashboard;
+    },
+    listAccountGroups: async (signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("listAccountGroups");
+      return accountGroups();
     },
     getSettings: async (signal) => {
       throwIfAborted(signal);
@@ -634,7 +660,6 @@ export const createMemoryPortfolioEngine = (
         ...custodian,
         accounts: custodian.accounts.filter((summary) => summary.id !== id),
       }));
-      syncDashboardCustodians();
     },
     getPositionEdit: async (id, signal) => {
       throwIfAborted(signal);
@@ -716,7 +741,6 @@ export const createMemoryPortfolioEngine = (
           ? { ...edit, account: { ...edit.account, custodianName: next.name } }
           : edit,
       );
-      syncDashboardCustodians();
       return next;
     },
     deleteCustodian: async (id, signal) => {
@@ -740,7 +764,6 @@ export const createMemoryPortfolioEngine = (
       state.positionEdits = state.positionEdits.filter(
         (edit) => !removedAccountIds.has(edit.account.id),
       );
-      syncDashboardCustodians();
     },
     refreshCustodian: async (id, signal) => {
       throwIfAborted(signal);
@@ -823,6 +846,91 @@ export const createMemoryPortfolioEngine = (
       rejectIfFailed("addOtherAsset");
       return addAssetsOutcome(input.name);
     },
+    listDebts: async (signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("listDebts");
+      return state.debts;
+    },
+    getDebt: async (id, signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("getDebt");
+      return requireDebt(id);
+    },
+    createDebt: async (input: CreateDebtInput, signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("createDebt");
+      const name = input.name.trim();
+      if (name.length === 0) throw new PortfolioFailure("validation", "Debt name is required");
+      const amount = canonicalDecimal(input.amount);
+      if (compareDecimal(amount, "0") <= 0)
+        throw new PortfolioFailure("validation", "Debt amount must be greater than zero");
+      const dueDate = input.dueDate ?? null;
+      if (dueDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))
+        throw new PortfolioFailure("validation", "Due date must be a calendar date (YYYY-MM-DD)");
+      const debt: Debt = {
+        id: `debt-${state.debts.length + 1}`,
+        name,
+        kind: input.kind,
+        amount,
+        currencyAssetId: input.currencyAssetId,
+        currencyIso: currencyIso(input.currencyAssetId),
+        dueDate,
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      };
+      state.debts = [...state.debts, debt];
+      syncDashboardDebts();
+      return clone(debt);
+    },
+    updateDebt: async (id, input: UpdateDebtInput, signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("updateDebt");
+      const current = requireDebt(id);
+      const name =
+        input.name === undefined
+          ? current.name
+          : input.name.trim().length > 0
+            ? input.name.trim()
+            : (() => {
+                throw new PortfolioFailure("validation", "Debt name is required");
+              })();
+      const amount =
+        input.amount === undefined
+          ? current.amount
+          : (() => {
+              const canonical = canonicalDecimal(input.amount);
+              if (compareDecimal(canonical, "0") <= 0) {
+                throw new PortfolioFailure("validation", "Debt amount must be greater than zero");
+              }
+              return canonical;
+            })();
+      const dueDate = input.dueDate === undefined ? current.dueDate : input.dueDate;
+      if (dueDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))
+        throw new PortfolioFailure("validation", "Due date must be a calendar date (YYYY-MM-DD)");
+      const next: Debt = {
+        ...current,
+        name,
+        kind: input.kind ?? current.kind,
+        amount,
+        currencyAssetId: input.currencyAssetId ?? current.currencyAssetId,
+        currencyIso:
+          input.currencyAssetId === undefined
+            ? current.currencyIso
+            : currencyIso(input.currencyAssetId),
+        dueDate,
+        updatedAt: nowIso(),
+      };
+      state.debts = state.debts.map((debt) => (debt.id === id ? next : debt));
+      syncDashboardDebts();
+      return clone(next);
+    },
+    deleteDebt: async (id, signal) => {
+      throwIfAborted(signal);
+      rejectIfFailed("deleteDebt");
+      requireDebt(id);
+      state.debts = state.debts.filter((debt) => debt.id !== id);
+      syncDashboardDebts();
+    },
     seed: (next) => {
       if (next.dashboard !== undefined) state.dashboard = clone(next.dashboard);
       if (next.settings !== undefined) state.settings = clone(next.settings);
@@ -832,6 +940,10 @@ export const createMemoryPortfolioEngine = (
       if (next.accounts !== undefined) {
         state.accounts = clone([...next.accounts]);
         state.providerAverages = providerAveragesFrom(state.accounts, state.positionEdits);
+      }
+      if (next.debts !== undefined) {
+        state.debts = clone([...next.debts]);
+        syncDashboardDebts();
       }
       if (next.assets !== undefined) state.assets = clone([...next.assets]);
       if (next.positionEdits !== undefined) {

@@ -18,6 +18,9 @@ describe("finance API routes", () => {
     ["getPositionEdit", "/api/positions/:id"],
     ["updatePosition", "/api/positions/:id"],
     ["deletePosition", "/api/positions/:id"],
+    ["getDebt", "/api/debts/:id"],
+    ["updateDebt", "/api/debts/:id"],
+    ["deleteDebt", "/api/debts/:id"],
   ] as const)("declares %s with a dynamic id segment", (name, path) => {
     expect(FinanceApi.endpoints[name].path).toBe(path);
   });
@@ -36,6 +39,9 @@ describe("finance API routes", () => {
     ["listSyncLog", "/api/sync-log"],
     ["createCustodian", "/api/custodians"],
     ["connectCustodian", "/api/custodians/connect"],
+    ["listAccountGroups", "/api/account-groups"],
+    ["listDebts", "/api/debts"],
+    ["createDebt", "/api/debts"],
   ] as const)("declares %s at %s", (name, path) => {
     expect(FinanceApi.endpoints[name].path).toBe(path);
   });

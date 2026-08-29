@@ -1,0 +1,33 @@
+{
+  "debts": {
+    "title": "Dettes",
+    "add": "Ajouter une dette",
+    "empty": {
+      "title": "Aucune dette pour le moment",
+      "description": "Notez l'argent que vous devez, comme un impôt ou un crédit."
+    },
+    "kinds": {
+      "tax": "Impôt",
+      "loan": "Crédit",
+      "other": "Autre"
+    },
+    "dueInDays_one": "Dans {{count}} jour",
+    "dueInDays_other": "Dans {{count}} jours",
+    "dueAgoDays_one": "Échéance il y a {{count}} jour",
+    "dueAgoDays_other": "Échéance il y a {{count}} jours",
+    "dueToday": "Échéance aujourd'hui",
+    "form": {
+      "name": "Nom",
+      "kind": "Type",
+      "amount": "Montant restant dû",
+      "currency": "Devise",
+      "dueDate": "Échéance"
+    },
+    "saved": "Dette enregistrée.",
+    "editTitle": "Modifier {{name}}",
+    "breadcrumbs": {
+      "debts": "Dettes",
+      "edit": "Modifier"
+    }
+  }
+}

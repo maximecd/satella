@@ -119,6 +119,21 @@ function SelectFormField({
   );
 }
 
+function DateFormField({ label }: { readonly label: string }) {
+  const field = useFieldContext<string>();
+  return (
+    <Field label={label}>
+      <Input
+        type="date"
+        name={field.name}
+        value={field.state.value}
+        onChange={(event) => field.handleChange(event.target.value)}
+        onBlur={() => field.handleBlur()}
+      />
+    </Field>
+  );
+}
+
 function SubmitButton({ label }: { readonly label: string }) {
   const form = useFormContext();
   return (
@@ -133,7 +148,7 @@ function SubmitButton({ label }: { readonly label: string }) {
 }
 
 export const { useAppForm } = createFormHook({
-  fieldComponents: { TextField, SelectField: SelectFormField },
+  fieldComponents: { TextField, SelectField: SelectFormField, DateField: DateFormField },
   formComponents: { SubmitButton },
   fieldContext,
   formContext,

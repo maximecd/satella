@@ -2,6 +2,8 @@
   "shell": {
     "sideNavigation": "Side navigation",
     "dashboard": "Dashboard",
+    "accounts": "Accounts",
+    "debts": "Debts",
     "settings": "Settings",
     "lock": "Lock"
   }

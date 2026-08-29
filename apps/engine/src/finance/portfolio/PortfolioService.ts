@@ -2,6 +2,7 @@ import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 
 import type {
+  DashboardCustodianGroup,
   Dashboard,
   FinanceApiError,
   PortfolioHistoryPoint,
@@ -17,5 +18,9 @@ export class PortfolioService extends Context.Service<
     ) => Effect.Effect<SnapshotResult, FinanceApiError>;
     readonly history: () => Effect.Effect<ReadonlyArray<PortfolioHistoryPoint>, FinanceApiError>;
     readonly dashboard: () => Effect.Effect<Dashboard, FinanceApiError>;
+    readonly accountGroups: () => Effect.Effect<
+      ReadonlyArray<DashboardCustodianGroup>,
+      FinanceApiError
+    >;
   }
 >()("@satella-app/engine/finance/PortfolioService") {}

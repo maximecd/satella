@@ -4,13 +4,19 @@
     "incompleteValuation": "Incomplete valuation",
     "empty": {
       "title": "No assets yet",
-      "description": "Connect a custodian or track assets manually. Satella will show Portfolio value, allocation, and accounts here."
+      "description": "Connect a custodian or track assets manually. Satella will show Total assets, allocation, and accounts here."
     },
-    "portfolioValue": {
-      "title": "Portfolio value",
-      "changeLabel": "Portfolio value change:",
-      "rangeAriaLabel": "Portfolio value range",
+    "totalAssets": {
+      "title": "Total assets",
+      "changeLabel": "Total assets change:",
+      "rangeAriaLabel": "Total assets range",
       "notEnoughHistory": "Not enough history"
+    },
+    "netWorth": {
+      "title": "Net worth",
+      "changeLabel": "Net worth change:",
+      "debtsSubline": "Debts: {{amount}}",
+      "toggleAriaLabel": "Show gross or net worth"
     },
     "allocation": {
       "title": "Allocation",
@@ -22,15 +28,9 @@
       "unpricedExcluded_other": "{{count}} unpriced assets excluded from allocation.",
       "negativeExcluded": "Negative holdings are excluded from allocation."
     },
-    "holdings": {
-      "other": "Other holdings"
-    },
-    "accounts": {
-      "holdingsCount_one": "{{count}} holding",
-      "holdingsCount_other": "{{count}} holdings"
-    },
     "charts": {
-      "historyAriaLabel": "Portfolio value history",
+      "historyAriaLabel": "Total assets history",
+      "netHistoryAriaLabel": "Net worth history",
       "allocationAriaLabel": "Allocation",
       "cellDetail": "{{name}} • {{percent}}",
       "cellLabel": "{{title}}, {{amount}}, {{percent}}"

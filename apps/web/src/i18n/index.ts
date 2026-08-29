@@ -8,6 +8,7 @@ import enAssets from "./locales/en/assets.json";
 import enCommon from "./locales/en/common.json";
 import enCustodians from "./locales/en/custodians.json";
 import enDashboard from "./locales/en/dashboard.json";
+import enDebts from "./locales/en/debts.json";
 import enOnboarding from "./locales/en/onboarding.json";
 import enPositions from "./locales/en/positions.json";
 import enSecurity from "./locales/en/security.json";
@@ -19,6 +20,7 @@ import frAssets from "./locales/fr/assets.json";
 import frCommon from "./locales/fr/common.json";
 import frCustodians from "./locales/fr/custodians.json";
 import frDashboard from "./locales/fr/dashboard.json";
+import frDebts from "./locales/fr/debts.json";
 import frOnboarding from "./locales/fr/onboarding.json";
 import frPositions from "./locales/fr/positions.json";
 import frSecurity from "./locales/fr/security.json";
@@ -31,6 +33,7 @@ const en = {
   settings: enSettings.settings,
   ...enDashboard,
   ...enAccounts,
+  ...enDebts,
   ...enPositions,
   ...enAssets,
   ...enAddAssets,
@@ -44,6 +47,7 @@ const fr = {
   settings: frSettings.settings,
   ...frDashboard,
   ...frAccounts,
+  ...frDebts,
   ...frPositions,
   ...frAssets,
   ...frAddAssets,

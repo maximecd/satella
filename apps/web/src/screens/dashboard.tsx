@@ -1,10 +1,8 @@
 import { Alert, Box, Card, Grid, Heading, Stack, Text } from "@chakra-ui/react";
-import type { DashboardAccountRow } from "@satella-app/engine/api";
-import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { NavRow, PageHeader, PageState } from "../components";
+import { PageHeader, PageState } from "../components";
 import { EmptyState } from "../components/ui/empty-state";
 import { SegmentedControl } from "../components/ui/segmented-control";
 import { useDashboard } from "../portfolio";
@@ -17,15 +15,7 @@ import {
 } from "../portfolio-history";
 import { AddAssetsButton } from "./add-assets";
 import { AllocationTreemap, PortfolioValueChart } from "./dashboard-charts";
-import { compareDecimal, formatAmount, formatDecimal } from "../financial-number";
-
-const rowDescription = (row: DashboardAccountRow, t: TFunction) => {
-  const holdings = t("dashboard.accounts.holdingsCount", { count: row.positionCount });
-  const parts = [holdings, row.totalIncomplete ? t("dashboard.incompleteValuation") : null].filter(
-    (part): part is string => part !== null,
-  );
-  return parts.join(" · ");
-};
+import { compareDecimal, formatAmount, formatDecimal, subtractDecimal } from "../financial-number";
 
 const changeLabel = (
   change: ReturnType<typeof periodChange>,
@@ -44,6 +34,7 @@ export function DashboardScreen() {
   const query = useDashboard();
   const [range, setRange] = useState<PortfolioValueRange>("1M");
   const [allocationView, setAllocationView] = useState<"categories" | "assets">("categories");
+  const [netMode, setNetMode] = useState(false);
   const requestFailed = t("errors.requestFailed");
   const errorMessage = (cause: unknown) => (cause instanceof Error ? cause.message : requestFailed);
   if (query.isPending) return <PageState kind="pending" />;
@@ -64,7 +55,11 @@ export function DashboardScreen() {
     );
   }
   const history = observationsInRange(dashboard.history, range);
-  const change = periodChange(history);
+  const hasDebts = compareDecimal(dashboard.totalDebt, "0") > 0;
+  const worthHistory = netMode
+    ? history.map((point) => ({ ...point, total: subtractDecimal(point.total, point.totalDebt) }))
+    : history;
+  const change = periodChange(worthHistory);
   const allocation =
     allocationView === "assets" ? dashboard.assetAllocation : dashboard.categoryAllocation;
   const unpriced =
@@ -80,23 +75,48 @@ export function DashboardScreen() {
             <Stack gap="4">
               <Stack gap="1">
                 <Heading as="h2" size="md">
-                  {t("dashboard.portfolioValue.title")}
+                  {netMode ? t("dashboard.netWorth.title") : t("dashboard.totalAssets.title")}
                 </Heading>
                 <Text fontSize="2xl" fontWeight="semibold" fontVariantNumeric="tabular-nums">
-                  {formatAmount(dashboard.portfolioValue, iso)}
+                  {formatAmount(netMode ? dashboard.netWorth : dashboard.totalAssets, iso)}
                 </Text>
+                {netMode ? (
+                  <Text color="fg.muted">
+                    {t("dashboard.netWorth.debtsSubline", {
+                      amount: formatAmount(dashboard.totalDebt, iso),
+                    })}
+                  </Text>
+                ) : null}
                 <Text color="fg.muted">
                   <Text as="span" fontWeight="medium">
-                    {t("dashboard.portfolioValue.changeLabel")}
+                    {netMode
+                      ? t("dashboard.netWorth.changeLabel")
+                      : t("dashboard.totalAssets.changeLabel")}
                   </Text>{" "}
                   <Text as="span">
-                    {changeLabel(change, iso, t("dashboard.portfolioValue.notEnoughHistory"))}
+                    {changeLabel(change, iso, t("dashboard.totalAssets.notEnoughHistory"))}
                   </Text>
                 </Text>
               </Stack>
+              {hasDebts ? (
+                <Box alignSelf="flex-start">
+                  <SegmentedControl
+                    aria-label={t("dashboard.netWorth.toggleAriaLabel")}
+                    size="sm"
+                    value={netMode ? "net" : "gross"}
+                    onValueChange={(details) => {
+                      setNetMode(details.value === "net");
+                    }}
+                    items={[
+                      { value: "gross", label: t("dashboard.totalAssets.title") },
+                      { value: "net", label: t("dashboard.netWorth.title") },
+                    ]}
+                  />
+                </Box>
+              ) : null}
               <Box alignSelf="flex-start">
                 <SegmentedControl
-                  aria-label={t("dashboard.portfolioValue.rangeAriaLabel")}
+                  aria-label={t("dashboard.totalAssets.rangeAriaLabel")}
                   size="sm"
                   value={range}
                   onValueChange={(details) => {
@@ -108,10 +128,16 @@ export function DashboardScreen() {
               </Box>
               {history.length >= 2 ? (
                 <PortfolioValueChart
-                  points={history}
+                  points={worthHistory}
                   currencyIso={iso}
                   hourly={isHourlyRange(range)}
-                  categoryAllocation={dashboard.categoryAllocation}
+                  ariaLabel={
+                    netMode
+                      ? t("dashboard.charts.netHistoryAriaLabel")
+                      : t("dashboard.charts.historyAriaLabel")
+                  }
+                  categoryAllocation={netMode ? undefined : dashboard.categoryAllocation}
+                  totalSeriesLabel={netMode ? t("dashboard.netWorth.title") : undefined}
                 />
               ) : null}
               {dashboard.totalIncomplete ? (
@@ -152,34 +178,6 @@ export function DashboardScreen() {
               {dashboard.negativeHoldingCount > 0 ? (
                 <Text color="fg.muted">{t("dashboard.allocation.negativeExcluded")}</Text>
               ) : null}
-            </Stack>
-          </Card.Body>
-        </Card.Root>
-        <Card.Root gridColumn={{ base: "auto", lg: "1 / -1" }}>
-          <Card.Body>
-            <Stack gap="6">
-              {dashboard.custodians.map((group) => (
-                <Stack key={group.custodianId} gap="2">
-                  <Heading as="h2" size="md">
-                    {group.isDefault ? t("dashboard.holdings.other") : group.name}
-                  </Heading>
-                  <Box as="ul" m="0" p="0">
-                    {group.accounts.map((row) => (
-                      <NavRow
-                        key={row.accountId}
-                        href={`/accounts/${row.accountId}`}
-                        label={group.isDefault ? t("dashboard.holdings.other") : row.accountName}
-                        description={rowDescription(row, t)}
-                        endContent={
-                          <Stack align="flex-end" gap="0" fontVariantNumeric="tabular-nums">
-                            <Text>{formatAmount(row.total, iso)}</Text>
-                          </Stack>
-                        }
-                      />
-                    ))}
-                  </Box>
-                </Stack>
-              ))}
             </Stack>
           </Card.Body>
         </Card.Root>

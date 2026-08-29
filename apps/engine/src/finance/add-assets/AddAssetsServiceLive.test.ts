@@ -57,14 +57,13 @@ describe("add assets operations", () => {
         balance: "1200",
       });
       const account = yield* Finance.getAccount(created.accountId);
-      const dashboard = yield* Finance.getDashboard();
       expect(created.positionOutcome).toBe("created");
       expect(account.accountType).toBe("checking");
       expect(account.custodianName).toBe("BNP Paribas");
       expect(account.isDefaultCustodian).toBe(false);
       expect(account.baseCurrencyIso).toBe("USD");
       expect(account.positions[0]?.quantity).toBe("1200");
-      expect(dashboard.custodians).toEqual([
+      expect(yield* Finance.listAccountGroups()).toEqual([
         expect.objectContaining({
           name: "BNP Paribas",
           isDefault: false,
@@ -98,11 +97,12 @@ describe("add assets operations", () => {
         currencyAssetId: "fiat:EUR",
         balance: "100",
       });
-      const dashboard = yield* Finance.getDashboard();
       expect(lep.accountName).toBe("LEP");
-      expect(dashboard.custodians).toHaveLength(1);
+      expect(yield* Finance.listAccountGroups()).toHaveLength(1);
       expect(
-        dashboard.custodians[0]?.accounts.map(({ accountName }) => accountName).sort(),
+        (yield* Finance.listAccountGroups())[0]?.accounts
+          .map(({ accountName }) => accountName)
+          .sort(),
       ).toEqual(["LEP", "Livret A"]);
     }).pipe(Effect.provide(engineTestLayer())),
   );
@@ -232,8 +232,8 @@ describe("add assets operations", () => {
       expect(account.isDefaultCustodian).toBe(true);
       expect(account.name).toBe("Manual account");
       expect(account.accountType).toBe("other");
-      expect(dashboard.portfolioValue).toBe("1200");
-      expect(dashboard.custodians).toEqual([
+      expect(dashboard.totalAssets).toBe("1200");
+      expect(yield* Finance.listAccountGroups()).toEqual([
         expect.objectContaining({
           isDefault: true,
           name: "Manual custodian",

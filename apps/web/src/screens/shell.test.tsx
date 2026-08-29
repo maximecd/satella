@@ -3,7 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { engineApi } from "../api";
-import { renderRoute, resetFinanceMocks } from "../finance.route-harness.test-utils";
+import {
+  renderRoute,
+  resetFinanceMocks,
+  seedPortfolioEngine,
+  taxDebt,
+} from "../finance.route-harness.test-utils";
 
 const sideNav = () => screen.getByRole("navigation", { name: "Side navigation" });
 
@@ -13,10 +18,18 @@ describe("application shell", () => {
     window.localStorage.clear();
   });
 
-  it("shows Satella, Dashboard, and Settings in the sidebar", async () => {
+  it("shows Satella, Dashboard, Accounts, Debts, and Settings in the sidebar", async () => {
     renderRoute("/");
     expect(await screen.findByText("Satella")).toBeInTheDocument();
     expect(within(sideNav()).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
+    expect(within(sideNav()).getByRole("link", { name: "Accounts" })).toHaveAttribute(
+      "href",
+      "/accounts",
+    );
+    expect(within(sideNav()).getByRole("link", { name: "Debts" })).toHaveAttribute(
+      "href",
+      "/debts",
+    );
     expect(within(sideNav()).getByRole("link", { name: "Settings" })).toHaveAttribute(
       "href",
       "/settings",
@@ -42,6 +55,16 @@ describe("application shell", () => {
     renderRoute("/settings/custodians");
     expect(await screen.findByRole("heading", { name: "Custodians" })).toBeInTheDocument();
     expect(within(sideNav()).getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("keeps Debts selected on nested Debt routes", async () => {
+    seedPortfolioEngine({ debts: [taxDebt] });
+    renderRoute("/debts/debt-tax/edit");
+    expect(await screen.findByRole("heading", { name: "Edit Tax bill" })).toBeInTheDocument();
+    expect(within(sideNav()).getByRole("link", { name: "Debts" })).toHaveAttribute(
       "aria-current",
       "page",
     );

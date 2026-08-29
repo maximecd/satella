@@ -39,6 +39,9 @@ import {
   CreatePositionInput,
   Custodian,
   Dashboard,
+  CreateDebtInput,
+  Debt,
+  DashboardCustodianGroup,
   FinanceApiError,
   LookupManualHoldingParams,
   MaintainAssetInput,
@@ -54,6 +57,7 @@ import {
   SyncLogPage,
   SyncLogParams,
   UpdateAccountInput,
+  UpdateDebtInput,
   UpdateCustodianInput,
   UpdatePositionInput,
   UpdateSettingsInput,
@@ -195,6 +199,47 @@ export const FinanceApi = HttpApiGroup.make("finance")
   )
   .add(
     HttpApiEndpoint.delete("deleteAccount", "/api/accounts/:id", {
+      params: EntityIdParams,
+      success: Schema.Void,
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("listAccountGroups", "/api/account-groups", {
+      success: Schema.Array(DashboardCustodianGroup),
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("listDebts", "/api/debts", {
+      success: Schema.Array(Debt),
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("createDebt", "/api/debts", {
+      payload: CreateDebtInput,
+      success: created(Debt),
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("getDebt", "/api/debts/:id", {
+      params: EntityIdParams,
+      success: Debt,
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.patch("updateDebt", "/api/debts/:id", {
+      params: EntityIdParams,
+      payload: UpdateDebtInput,
+      success: Debt,
+      error: FinanceApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.delete("deleteDebt", "/api/debts/:id", {
       params: EntityIdParams,
       success: Schema.Void,
       error: FinanceApiError,

@@ -8,6 +8,7 @@ const point = (localIso: string, total: string): PortfolioHistoryPoint => ({
   snapshotId: `snapshot:${localIso}`,
   capturedAt: new Date(localIso).toISOString(),
   total,
+  totalDebt: "0",
   totalIncomplete: false,
   categories: { stocks_etfs: total, crypto: "0", cash: "0", other: "0" },
 });

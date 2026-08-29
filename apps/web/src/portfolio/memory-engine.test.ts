@@ -10,7 +10,7 @@ describe("memory portfolio engine", () => {
     const eur = {
       ...usd,
       reportingCurrency: { assetId: "fiat:EUR", iso: "EUR" },
-      portfolioValue: "1000",
+      totalAssets: "1000",
     };
     const engine = createMemoryPortfolioEngine({
       dashboard: usd,
@@ -24,7 +24,7 @@ describe("memory portfolio engine", () => {
     expect(await engine.getSettings()).toEqual(next);
     expect(await engine.getDashboard()).toMatchObject({
       reportingCurrency: { assetId: "fiat:EUR", iso: "EUR" },
-      portfolioValue: "1000",
+      totalAssets: "1000",
     });
   });
 

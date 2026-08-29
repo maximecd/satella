@@ -297,11 +297,16 @@ export function PortfolioValueChart({
   currencyIso,
   hourly = false,
   categoryAllocation,
+  ariaLabel,
+  totalSeriesLabel,
 }: {
   readonly points: ReadonlyArray<PortfolioHistoryPoint>;
   readonly currencyIso: string;
   readonly hourly?: boolean;
-  readonly categoryAllocation?: ReadonlyArray<AllocationCell>;
+  readonly categoryAllocation?: ReadonlyArray<AllocationCell> | undefined;
+  readonly ariaLabel?: string;
+  /** Renders the single derived total series (net worth) instead of the per-category stacks. */
+  readonly totalSeriesLabel?: string | undefined;
 }) {
   const [fg, fgMuted, ...categoryTokens] = useToken("colors", [
     "fg",
@@ -364,8 +369,9 @@ export function PortfolioValueChart({
       })),
     [categoryStyles, legendCategories],
   );
+  const defaultLabel = t("dashboard.charts.historyAriaLabel");
   return (
-    <ChartFrame height={280} aria-label={t("dashboard.charts.historyAriaLabel")} role="img">
+    <ChartFrame height={280} aria-label={ariaLabel ?? defaultLabel} role="img">
       <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
         <AreaChart data={data} accessibilityLayer margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <XAxis dataKey="date" stroke={fgMuted ?? "currentColor"} />
@@ -382,32 +388,45 @@ export function PortfolioValueChart({
             wrapperStyle={tooltipWrapperStyle}
             cursor={{ stroke: fg ?? "currentColor" }}
           />
-          {legendCategories.map((category) => (
+          {totalSeriesLabel === undefined ? (
+            legendCategories.map((category) => (
+              <Area
+                key={category}
+                type="monotone"
+                dataKey={category}
+                stackId="total"
+                isAnimationActive={false}
+                stroke={categoryStyles[category].stroke}
+                fill={categoryStyles[category].fill}
+                name={ASSET_CATEGORY_LABELS[category]}
+              />
+            ))
+          ) : (
             <Area
-              key={category}
               type="monotone"
-              dataKey={category}
-              stackId="total"
+              dataKey="total"
               isAnimationActive={false}
-              stroke={categoryStyles[category].stroke}
-              fill={categoryStyles[category].fill}
-              name={ASSET_CATEGORY_LABELS[category]}
+              stroke={categoryTokens[0] ?? "currentColor"}
+              fill={categoryTokens[1] ?? "transparent"}
+              name={totalSeriesLabel}
             />
-          ))}
-          <Legend
-            content={() => (
-              <Stack direction="row" gap="4" justify="center" wrap="wrap" px="2">
-                {legendPayload.map((entry) => (
-                  <Stack key={entry.id} direction="row" align="center" gap="1.5">
-                    <Box w="2" h="2" rounded="full" bg={entry.color} />
-                    <Text color="fg.muted" fontSize="xs">
-                      {entry.value}
-                    </Text>
-                  </Stack>
-                ))}
-              </Stack>
-            )}
-          />
+          )}
+          {totalSeriesLabel === undefined ? (
+            <Legend
+              content={() => (
+                <Stack direction="row" gap="4" justify="center" wrap="wrap" px="2">
+                  {legendPayload.map((entry) => (
+                    <Stack key={entry.id} direction="row" align="center" gap="1.5">
+                      <Box w="2" h="2" rounded="full" bg={entry.color} />
+                      <Text color="fg.muted" fontSize="xs">
+                        {entry.value}
+                      </Text>
+                    </Stack>
+                  ))}
+                </Stack>
+              )}
+            />
+          ) : null}
         </AreaChart>
       </ResponsiveContainer>
     </ChartFrame>
