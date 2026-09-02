@@ -84,6 +84,7 @@ const defaultDashboard: Dashboard = {
   custodianAllocation: [],
   assetAllocation: [],
   categoryAllocation: [],
+  holdings: [],
   history: [],
 };
 

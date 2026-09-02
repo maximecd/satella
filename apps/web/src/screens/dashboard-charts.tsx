@@ -16,6 +16,8 @@ import {
   Legend,
   Area,
   AreaChart,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip as ChartTooltip,
   Treemap,
@@ -550,5 +552,40 @@ export function AllocationTreemap({
         </Treemap>
       </ResponsiveContainer>
     </ChartFrame>
+  );
+}
+
+export function HoldingSparkline({
+  points,
+  color,
+  ariaLabel,
+}: {
+  readonly points: ReadonlyArray<{ readonly value: string }>;
+  readonly color: string;
+  readonly ariaLabel: string;
+}) {
+  const [stroke] = useToken("colors", [color]);
+  const data = points.flatMap((point) => {
+    const value = Number(canonicalDecimal(point.value));
+    return Number.isFinite(value) ? [{ value }] : [];
+  });
+  if (data.length < 2) return null;
+  return (
+    <Box w="24" flexShrink="0">
+      <ChartFrame height={40} aria-label={ariaLabel} role="img">
+        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+          <LineChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 4 }}>
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke={stroke ?? "currentColor"}
+              strokeWidth={1.5}
+              dot={false}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartFrame>
+    </Box>
   );
 }

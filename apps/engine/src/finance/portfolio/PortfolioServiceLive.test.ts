@@ -215,6 +215,97 @@ describe("portfolio dashboard", () => {
   );
 
   it.effect(
+    "lists current holdings by size with snapshot history, omitting zero unpriced and negative",
+    () =>
+      Effect.gen(function* () {
+        const growth = yield* Finance.createAccount({ name: "Growth" });
+        const trading = yield* Finance.createAccount({ name: "Trading" });
+        const apple = yield* Finance.createAsset({
+          assetCategory: "stocks_etfs",
+          name: "Apple",
+          symbol: "AAPL",
+          identifiers: [{ type: "isin", value: "US0378331005" }],
+        });
+        const bitcoin = yield* Finance.createAsset({
+          assetCategory: "crypto",
+          name: "Bitcoin",
+          symbol: "BTC",
+          identifiers: [],
+        });
+        const watch = yield* Finance.createAsset({
+          assetCategory: "other",
+          name: "Watch",
+          identifiers: [],
+        });
+        const short = yield* Finance.createAsset({
+          assetCategory: "other",
+          name: "Short",
+          identifiers: [],
+        });
+        yield* Finance.createPosition({ accountId: growth.id, assetId: apple.id, quantity: "2" });
+        yield* Finance.createPosition({ accountId: trading.id, assetId: apple.id, quantity: "3" });
+        yield* Finance.createPosition({ accountId: growth.id, assetId: bitcoin.id, quantity: "1" });
+        yield* Finance.createPosition({ accountId: growth.id, assetId: watch.id, quantity: "0" });
+        yield* Finance.createPosition({ accountId: trading.id, assetId: short.id, quantity: "-1" });
+        yield* Finance.createPosition({
+          accountId: growth.id,
+          assetId: "fiat:USD",
+          quantity: "20",
+        });
+        const sql = yield* SqlClient.SqlClient;
+        yield* quoteUsd(sql, apple.id, "10");
+        yield* Finance.setManualPrice(short.id, { price: "4", currencyAssetId: "fiat:USD" });
+        yield* Finance.captureSnapshot({
+          refresh: false,
+          now: () => new Date("2026-08-01T00:00:00.000Z"),
+        });
+        yield* quoteUsd(sql, apple.id, "12");
+        yield* Finance.captureSnapshot({
+          refresh: false,
+          now: () => new Date("2026-08-15T00:00:00.000Z"),
+        });
+        const dashboard = yield* Finance.getDashboard();
+
+        expect(dashboard.holdings).toEqual([
+          expect.objectContaining({
+            assetId: apple.id,
+            name: "Apple",
+            symbol: "AAPL",
+            assetCategory: "stocks_etfs",
+            value: "60",
+            history: [
+              expect.objectContaining({
+                capturedAt: "2026-08-01T00:00:00.000Z",
+                value: "50",
+              }),
+              expect.objectContaining({
+                capturedAt: "2026-08-15T00:00:00.000Z",
+                value: "60",
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            assetId: "fiat:USD",
+            name: "US dollar",
+            symbol: "USD",
+            assetCategory: "cash",
+            value: "20",
+            history: [
+              expect.objectContaining({
+                capturedAt: "2026-08-01T00:00:00.000Z",
+                value: "20",
+              }),
+              expect.objectContaining({
+                capturedAt: "2026-08-15T00:00:00.000Z",
+                value: "20",
+              }),
+            ],
+          }),
+        ]);
+      }).pipe(Effect.provide(engineTestLayer())),
+  );
+
+  it.effect(
     "recomputes history in the active Reporting currency without filling missing days",
     () =>
       Effect.gen(function* () {

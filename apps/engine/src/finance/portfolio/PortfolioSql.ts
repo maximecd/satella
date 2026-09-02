@@ -9,6 +9,7 @@ import type {
   Dashboard,
   DashboardAccountRow,
   DashboardCustodianGroup,
+  DashboardHolding,
   PortfolioHistoryPoint,
   ReportingCurrency,
   SnapshotResult,
@@ -138,7 +139,31 @@ interface HistoricalPositionRow {
   readonly currency_asset_id: string | null;
 }
 
-export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHistoryPoint>> =>
+interface SnapshotValuation extends PortfolioHistoryPoint {
+  readonly assets: ReadonlyMap<string, string>;
+}
+
+const convertHistoricalPosition = (
+  row: HistoricalPositionRow,
+  selectedAssetId: string,
+  fxPivotId: string,
+  snapshotFx: ReadonlyMap<string, string>,
+): string | undefined => {
+  if (row.asset_id === null || row.quantity === null) return undefined;
+  if (row.asset_category === "cash") {
+    return convertAmount(row.quantity, row.asset_id, selectedAssetId, fxPivotId, snapshotFx);
+  }
+  if (row.price === null || row.currency_asset_id === null) return undefined;
+  return convertAmount(
+    multiplyDecimal(row.quantity, row.price),
+    row.currency_asset_id,
+    selectedAssetId,
+    fxPivotId,
+    snapshotFx,
+  );
+};
+
+const loadSnapshotValuations = (): FinanceEffect<ReadonlyArray<SnapshotValuation>> =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const selected = yield* reportingCurrency;
@@ -175,6 +200,7 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
         cash: "0",
         other: "0",
       } satisfies Record<AssetCategory, string>;
+      const assets = new Map<string, string>();
       const snapshotFx = new Map(
         [...fx].flatMap(([key, price]) => {
           const prefix = `${first.snapshot_id}:`;
@@ -183,23 +209,13 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
       );
       for (const row of snapshotRows) {
         if (row.asset_id === null || row.quantity === null) continue;
-        const converted =
-          row.asset_category === "cash"
-            ? convertAmount(row.quantity, row.asset_id, selected.assetId, fxPivotId, snapshotFx)
-            : row.price === null || row.currency_asset_id === null
-              ? undefined
-              : convertAmount(
-                  multiplyDecimal(row.quantity, row.price),
-                  row.currency_asset_id,
-                  selected.assetId,
-                  fxPivotId,
-                  snapshotFx,
-                );
+        const converted = convertHistoricalPosition(row, selected.assetId, fxPivotId, snapshotFx);
         if (converted === undefined) totalIncomplete = true;
         else {
           total = addDecimal(total, converted);
           const category = row.asset_category ?? "other";
           categories[category] = addDecimal(categories[category], converted);
+          assets.set(row.asset_id, addDecimal(assets.get(row.asset_id) ?? "0", converted));
         }
       }
       return {
@@ -209,8 +225,61 @@ export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHist
         totalDebt: first.total_debt === null ? "0" : canonicalDecimal(first.total_debt),
         totalIncomplete,
         categories,
+        assets,
       };
     });
+  });
+
+const toHistoryPoint = (valuation: SnapshotValuation): PortfolioHistoryPoint => ({
+  snapshotId: valuation.snapshotId,
+  capturedAt: valuation.capturedAt,
+  total: valuation.total,
+  totalDebt: valuation.totalDebt,
+  totalIncomplete: valuation.totalIncomplete,
+  categories: valuation.categories,
+});
+
+const holdingsFrom = (
+  positive: ReadonlyArray<
+    readonly [
+      string,
+      {
+        readonly name: string;
+        readonly symbol: string | null;
+        readonly assetCategory: AssetCategory;
+        readonly value: string;
+      },
+    ]
+  >,
+  valuations: ReadonlyArray<SnapshotValuation>,
+): ReadonlyArray<DashboardHolding> =>
+  positive
+    .map(([assetId, asset]) => ({
+      assetId,
+      name: asset.name,
+      symbol: asset.symbol,
+      assetCategory: asset.assetCategory,
+      value: asset.value,
+      history: valuations.flatMap((snapshot) => {
+        const value = snapshot.assets.get(assetId);
+        if (value === undefined || compareDecimal(value, "0") <= 0) return [];
+        return [
+          {
+            snapshotId: snapshot.snapshotId,
+            capturedAt: snapshot.capturedAt,
+            value,
+          },
+        ];
+      }),
+    }))
+    .sort(
+      (left, right) =>
+        compareDecimal(right.value, left.value) || left.name.localeCompare(right.name),
+    );
+
+export const getPortfolioHistory = (): FinanceEffect<ReadonlyArray<PortfolioHistoryPoint>> =>
+  Effect.gen(function* () {
+    return (yield* loadSnapshotValuations()).map(toHistoryPoint);
   });
 
 const allocationCells = (
@@ -317,7 +386,8 @@ export const listAccountGroups = (): FinanceEffect<ReadonlyArray<DashboardCustod
 export const getDashboard = (): FinanceEffect<Dashboard> =>
   Effect.gen(function* () {
     const selected = yield* reportingCurrency;
-    const history = yield* getPortfolioHistory();
+    const valuations = yield* loadSnapshotValuations();
+    const history = valuations.map(toHistoryPoint);
     const valued = yield* loadValuedAccounts(selected.assetId);
     const byAsset = new Map<
       string,
@@ -456,6 +526,7 @@ export const getDashboard = (): FinanceEffect<Dashboard> =>
       custodianAllocation,
       assetAllocation,
       categoryAllocation,
+      holdings: holdingsFrom(positive, valuations),
       history,
     };
   });
