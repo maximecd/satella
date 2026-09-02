@@ -77,7 +77,7 @@ export const observationsInRange = (
     : downsampled.filter((point) => Date.parse(point.capturedAt) >= start);
 };
 
-export const periodChange = (points: ReadonlyArray<PortfolioHistoryPoint>) => {
+export const periodChange = (points: ReadonlyArray<{ readonly total: string }>) => {
   const first = points[0];
   const last = points[points.length - 1];
   if (first === undefined || last === undefined || points.length < 2) return null;

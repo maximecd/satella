@@ -34,6 +34,12 @@
       "allocationAriaLabel": "Allocation",
       "cellDetail": "{{name}} • {{percent}}",
       "cellLabel": "{{title}}, {{amount}}, {{percent}}"
+    },
+    "holdings": {
+      "title": "Largest holdings",
+      "rank": "#{{rank}}",
+      "rowAriaLabel": "{{name}}, {{amount}}, {{change}}",
+      "sparklineAriaLabel": "{{name}} value history"
     }
   }
 }

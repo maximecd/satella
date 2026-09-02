@@ -401,6 +401,23 @@ export const PortfolioHistoryPoint = Schema.Struct({
 });
 export type PortfolioHistoryPoint = typeof PortfolioHistoryPoint.Type;
 
+export const DashboardHoldingHistoryPoint = Schema.Struct({
+  snapshotId: Schema.String,
+  capturedAt: Schema.String,
+  value: DecimalString,
+});
+export type DashboardHoldingHistoryPoint = typeof DashboardHoldingHistoryPoint.Type;
+
+export const DashboardHolding = Schema.Struct({
+  assetId: Schema.String,
+  name: Schema.String,
+  symbol: Schema.NullOr(Schema.String),
+  assetCategory: AssetCategory,
+  value: DecimalString,
+  history: Schema.Array(DashboardHoldingHistoryPoint),
+});
+export type DashboardHolding = typeof DashboardHolding.Type;
+
 export const ExistingOrNewCustodian = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("existing"),
@@ -534,6 +551,7 @@ export const Dashboard = Schema.Struct({
   custodianAllocation: Schema.Array(AllocationCell),
   assetAllocation: Schema.Array(AllocationCell),
   categoryAllocation: Schema.Array(AllocationCell),
+  holdings: Schema.Array(DashboardHolding),
   history: Schema.Array(PortfolioHistoryPoint),
 });
 export type Dashboard = typeof Dashboard.Type;

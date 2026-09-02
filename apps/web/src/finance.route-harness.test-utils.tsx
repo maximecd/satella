@@ -93,6 +93,7 @@ export const emptyDashboard: Dashboard = {
   custodianAllocation: [],
   assetAllocation: [],
   categoryAllocation: [],
+  holdings: [],
   history: [],
 };
 
@@ -189,6 +190,32 @@ export const populatedDashboardFor = (now = new Date()): Dashboard => {
         assetCategory: "cash",
         value: "200",
         percent: "20",
+      },
+    ],
+    holdings: [
+      {
+        assetId: "apple",
+        name: "Apple",
+        symbol: "AAPL",
+        assetCategory: "stocks_etfs",
+        value: "800",
+        history: [
+          { snapshotId: "s1", capturedAt: utcDay(20), value: "720" },
+          { snapshotId: "s1b", capturedAt: utcDay(20, 18), value: "730" },
+          { snapshotId: "s2", capturedAt: utcDay(5), value: "800" },
+        ],
+      },
+      {
+        assetId: "euro",
+        name: "Euro",
+        symbol: "EUR",
+        assetCategory: "cash",
+        value: "200",
+        history: [
+          { snapshotId: "s1", capturedAt: utcDay(20), value: "200" },
+          { snapshotId: "s1b", capturedAt: utcDay(20, 18), value: "200" },
+          { snapshotId: "s2", capturedAt: utcDay(5), value: "200" },
+        ],
       },
     ],
     history: [

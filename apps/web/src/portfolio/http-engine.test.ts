@@ -18,6 +18,7 @@ const dashboard = {
   custodianAllocation: [],
   assetAllocation: [],
   categoryAllocation: [],
+  holdings: [],
   history: [],
 };
 

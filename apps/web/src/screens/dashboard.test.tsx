@@ -25,6 +25,7 @@ describe("dashboard screen", () => {
     expect(screen.getAllByRole("button", { name: "Add assets" }).length).toBeGreaterThan(0);
     expect(screen.getByText("No assets yet")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Total assets" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Largest holdings" })).not.toBeInTheDocument();
   });
 
   it("shows Total assets, allocation, and 1M history from first to last daily point", async () => {
@@ -121,7 +122,7 @@ describe("dashboard screen", () => {
     expect(await screen.findByText(/\+\$90[.,]00|\+90[.,]00 \$/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "7D" }));
-    expect(screen.getByText("Not enough history")).toBeInTheDocument();
+    expect(screen.getAllByText("Not enough history").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("radio", { name: "3M" }));
     expect(screen.getByText(/\+\$90[.,]00|\+90[.,]00 \$/)).toBeInTheDocument();
@@ -170,5 +171,24 @@ describe("dashboard screen", () => {
     expect(tooltip).toHaveTextContent(/(\$800[.,]25|800[.,]25 \$)/);
     expect(apple).toHaveTextContent(/(\$800|800 \$)/);
     expect(apple).not.toHaveTextContent(/800[.,]\d/);
+  });
+
+  it("lists largest holdings with the selected-period change", async () => {
+    seedPortfolioEngine({ dashboard: populatedDashboardFor(new Date("2026-08-15T12:00:00.000Z")) });
+    renderRoute("/");
+
+    expect(await screen.findByRole("heading", { name: "Largest holdings" })).toBeInTheDocument();
+    const apple = screen.getByRole("listitem", { name: /Apple/ });
+    expect(apple).toHaveTextContent("AAPL");
+    expect(apple).toHaveTextContent(/(\$800[.,]00|800[.,]00 \$)/);
+    expect(apple).toHaveTextContent(/(\+\$70[.,]00|\+70[.,]00 \$) \(\+9[.,]59%\)/);
+    expect(screen.getByRole("img", { name: "Apple value history" })).toBeInTheDocument();
+    const euro = screen.getByRole("listitem", { name: /Euro/ });
+    expect(euro).toHaveTextContent(/(\$200[.,]00|200[.,]00 \$)/);
+    expect(euro).toHaveTextContent(/(\+\$0[.,]00|\+0[.,]00 \$) \(\+0[.,]00%\)/);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("radio", { name: "7D" }));
+    expect(screen.getByRole("listitem", { name: /Apple/ })).toHaveTextContent("Not enough history");
   });
 });
