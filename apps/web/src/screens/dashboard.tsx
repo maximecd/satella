@@ -30,9 +30,9 @@ const changeLabel = (
   return `${absolute} (${sign}${formatDecimal(change.percent, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)`;
 };
 
-const changeColor = (change: ReturnType<typeof periodChange>): string => {
-  if (change === null || compareDecimal(change.absolute, "0") === 0) return "fg.muted";
-  return compareDecimal(change.absolute, "0") > 0 ? "green.fg" : "red.fg";
+const changeTone = (change: ReturnType<typeof periodChange>): "green" | "red" | "muted" => {
+  if (change === null || compareDecimal(change.absolute, "0") === 0) return "muted";
+  return compareDecimal(change.absolute, "0") > 0 ? "green" : "red";
 };
 
 const holdingPointsInRange = (
@@ -64,7 +64,8 @@ function HoldingsSection({
             {holdings.map((holding, index) => {
               const points = holdingPointsInRange(holding, rangeHistory);
               const change = periodChange(points.map((point) => ({ total: point.value })));
-              const color = changeColor(change);
+              const tone = changeTone(change);
+              const color = tone === "muted" ? "fg.muted" : `${tone}.fg`;
               const amount = formatAmount(holding.value, currencyIso);
               const changeText = changeLabel(
                 change,
@@ -113,7 +114,7 @@ function HoldingsSection({
                     {points.length >= 2 ? (
                       <HoldingSparkline
                         points={points}
-                        color={color}
+                        tone={tone}
                         ariaLabel={t("dashboard.holdings.sparklineAriaLabel", {
                           name: holding.name,
                         })}

@@ -16,8 +16,6 @@ import {
   Legend,
   Area,
   AreaChart,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip as ChartTooltip,
   Treemap,
@@ -557,33 +555,38 @@ export function AllocationTreemap({
 
 export function HoldingSparkline({
   points,
-  color,
+  tone,
   ariaLabel,
 }: {
   readonly points: ReadonlyArray<{ readonly value: string }>;
-  readonly color: string;
+  readonly tone: "green" | "red" | "muted";
   readonly ariaLabel: string;
 }) {
-  const [stroke] = useToken("colors", [color]);
+  const [stroke, fill] = useToken(
+    "colors",
+    tone === "muted" ? ["fg.muted", "bg.muted"] : [`${tone}.solid`, `${tone}.subtle`],
+  );
   const data = points.flatMap((point) => {
     const value = Number(canonicalDecimal(point.value));
     return Number.isFinite(value) ? [{ value }] : [];
   });
   if (data.length < 2) return null;
   return (
-    <Box w="24" flexShrink="0">
+    <Box w="24" flexShrink="0" pointerEvents="none">
       <ChartFrame height={40} aria-label={ariaLabel} role="img">
         <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-          <LineChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 4 }}>
-            <Line
+          <AreaChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+            <Area
               type="monotone"
               dataKey="value"
               stroke={stroke ?? "currentColor"}
+              fill={fill ?? "transparent"}
               strokeWidth={1.5}
               dot={false}
+              activeDot={false}
               isAnimationActive={false}
             />
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       </ChartFrame>
     </Box>
