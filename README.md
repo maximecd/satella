@@ -4,7 +4,7 @@ A private, local-first home for your financial life.
 
 Satella combines bank accounts, brokerage accounts, exchanges, and on-chain wallets into one portfolio that runs entirely on your machine. Your data lives in an encrypted Vault on disk. No account, no cloud, no telemetry.
 
-> Status: personal alpha. Released migrations are immutable, so Vault data survives every update.
+> Status: experimental personal project, built to explore local-first architecture and connector design. It is not a supported product. See [Disclaimer](#disclaimer) before using it with real accounts.
 
 ## Features
 
@@ -82,6 +82,15 @@ Release packaging and the nightly pipeline are described in [`docs/releasing.md`
 ## How this project is built
 
 Satella is built with AI coding agents under a written process. [`AGENTS.md`](AGENTS.md) holds the repository rules, `.scratch/` holds the specs and issues each feature started from, `docs/adr/` records decisions, and `docs/research/` keeps the API investigations behind the connectors.
+
+## Disclaimer
+
+Satella is an experiment. It is shared for learning and demonstration only.
+
+- **No financial advice.** Nothing in this project recommends, endorses, or discourages any investment, asset, or financial decision. Figures it shows may be incomplete, delayed, or wrong.
+- **No endorsement or affiliation.** Interactive Brokers, Kraken, OKX, Yahoo Finance, CoinGecko, and every other institution or service named here are used as integration targets only. This project is not affiliated with, sponsored by, or endorsed by any of them, and naming them does not mean I recommend them.
+- **No warranty.** The software is provided as is, under the terms of the [MIT License](LICENSE). It has not been audited. You are responsible for any credentials you enter, any data you store, and any consequence of using it, including with third-party terms of service.
+- **Prefer read-only credentials.** Connectors only read data. If you try them, create API keys with read-only permissions.
 
 ## License
 
