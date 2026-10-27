@@ -11,3 +11,8 @@ release/
 .tmp-release/
 .tmp-stage/
 .tmp-engine.log
+# Local secrets, Vault exports, and OS noise
+.env
+.env.*
+*.satella-vault
+.DS_Store
