@@ -2,6 +2,8 @@
 
 A private, local-first home for your financial life.
 
+![Satella dashboard with sample data: total assets history stacked by category, allocation treemap, and largest holdings](docs/images/dashboard.png)
+
 Satella combines bank accounts, brokerage accounts, exchanges, and on-chain wallets into one portfolio that runs entirely on your machine. Your data lives in an encrypted Vault on disk. No account, no cloud, no telemetry.
 
 > Status: experimental personal project, built to explore local-first architecture and connector design. It is not a supported product. See [Disclaimer](#disclaimer) before using it with real accounts.
