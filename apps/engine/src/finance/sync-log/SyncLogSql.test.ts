@@ -9,28 +9,38 @@ import { listSyncLog, recordSyncLog } from "./SyncLogSql.js";
 describe("Sync log", () => {
   it.effect("lists newest entries with stable cursor pagination", () =>
     Effect.gen(function* () {
-      yield* recordSyncLog({
-        completedAt: new Date("2026-08-20T10:00:00.000Z"),
-        subjectKind: "asset",
-        subjectName: "Older asset",
-        action: "price_check",
-        outcome: "success",
-      });
-      yield* recordSyncLog({
-        completedAt: new Date("2026-08-20T11:00:00.000Z"),
-        subjectKind: "custodian",
-        subjectName: "Bank",
-        action: "refresh",
-        outcome: "failure",
-        failureReason: "The Custodian could not be refreshed.",
-      });
-      yield* recordSyncLog({
-        completedAt: new Date("2026-08-20T12:00:00.000Z"),
-        subjectKind: "asset",
-        subjectName: "Newest asset",
-        action: "price_check",
-        outcome: "success",
-      });
+      const options = { now: () => new Date("2026-08-20T12:00:00.000Z") };
+      yield* recordSyncLog(
+        {
+          completedAt: new Date("2026-08-20T10:00:00.000Z"),
+          subjectKind: "asset",
+          subjectName: "Older asset",
+          action: "price_check",
+          outcome: "success",
+        },
+        options,
+      );
+      yield* recordSyncLog(
+        {
+          completedAt: new Date("2026-08-20T11:00:00.000Z"),
+          subjectKind: "custodian",
+          subjectName: "Bank",
+          action: "refresh",
+          outcome: "failure",
+          failureReason: "The Custodian could not be refreshed.",
+        },
+        options,
+      );
+      yield* recordSyncLog(
+        {
+          completedAt: new Date("2026-08-20T12:00:00.000Z"),
+          subjectKind: "asset",
+          subjectName: "Newest asset",
+          action: "price_check",
+          outcome: "success",
+        },
+        options,
+      );
 
       const first = yield* listSyncLog({ limit: 2 });
       expect(first.entries.map(({ subjectName }) => subjectName)).toEqual(["Newest asset", "Bank"]);

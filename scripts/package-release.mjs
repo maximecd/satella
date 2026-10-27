@@ -51,6 +51,7 @@ export const productionPackage = (version) => ({
   name: "@satella/app",
   version: normalizeReleaseVersion(version),
   description: "A private, local-first home for your financial life.",
+  license: "MIT",
   type: "module",
   bin: { satella: "bin/satella.mjs" },
   files: ["bin", "dist"],
